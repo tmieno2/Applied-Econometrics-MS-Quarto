@@ -9,7 +9,12 @@ format:
     echo: true
     fig-dpi: 400
 webr:
-  packages: ['AER', 'fixest', 'dplyr']
+  packages: ['AER', 'fixest', 'dplyr', 'ggplot2']
+  cell-options:
+    editor-font-scale: 0.8
+    message: false
+    warning: false
+    out-width: 80%
 filters:
   - webr
 ---
@@ -22,14 +27,10 @@ opts_chunk$set(
   echo = F,
   root.dir = here::here()
 )
+```
 
-library(data.table)
-library(fixest)
-library(officer)
-library(flextable)
-library(dplyr)
-library(ggplot2)
-
+```{webr-r}
+#| context: setup
 theme_lecture <-
   theme_bw() +
   theme(
@@ -81,7 +82,9 @@ Estimate the impact of lot size on house price
 
 ### R code to get data
 
-```{r, echo = TRUE}
+```{webr-r}
+#| autorun: true
+ 
 #--- load the AER package  ---#
 library(AER) # load the AER package
 
@@ -94,7 +97,9 @@ head(HousePrices[, 1:10])
 
 ### Data visualization
 
-```{r}
+```{webr-r}
+#| context: output
+#| out-width: 80%
 g_hp <-
   ggplot(data = HousePrices) +
   geom_point(aes(y = price, x = lotsize), size = 0.6) +
@@ -118,35 +123,35 @@ g_hp
 + We want to draw a line like this, the slope of which is an estimate of $\beta_1$
 + A way: Ordinary Least Squares (OLS)
 
-```{r}
+```{webr-r}
+#| context: output
 g_hp + geom_smooth(aes(y = price, x = lotsize), method = "lm", se = F)
 ```
 
-### Two examples
+### Examples
 
-::: {.columns}
+::: {.panel-tabset}
 
-::: {.column width="50%"}
+#### Ex. 1: $\widehat{\beta}_0=20000$, $\widehat{\beta}_1=7$
 
-$\hat{\beta}_0=20000$, $\hat{\beta}_1=7$
 
-```{r out.width="100%"}
+```{webr-r}
+#| context: output
 g_hp +
   geom_abline(intercept = 20000, slope = 7, color = "red")
 ```
-:::
-<!--end of the 1st column-->
-::: {.column width="50%"}
 
-$\hat{\beta}_0=70000$, $\hat{\beta}_1=3.8$
 
-```{r out.width="100%"}
+#### Ex. 2: $\widehat{\beta}_0=70000$, $\widehat{\beta}_1=3.8$
+
+```{webr-r}
+#| context: output
+ 
 g_hp +
   geom_abline(intercept = 70000, slope = 3.8, color = "red")
 ```
 
-:::
-<!--end of the 2nd column-->
+#### So,
 
 :::{.callout-important title="Question"}
 + Among all the possible values of $\beta_0$ and $\beta_1$, which one is the best? 
@@ -154,21 +159,24 @@ g_hp +
 :::
 
 :::
-<!--end of the columns-->
+<!--end of panel-->
 
 ### Residuals
 
-For particular values of $\hat{\beta}_0$ and $\hat{\beta}_1$ you pick, the modeled value of $y$ for individual $i$ is $\hat{\beta}_0 + \hat{\beta}_1 x_i$.
+For particular values of $\widehat{\beta}_0$ and $\widehat{\beta}_1$ you pick, the modeled value of $y$ for individual $i$ is $\widehat{\beta}_0 + \widehat{\beta}_1 x_i$.
 
 Then, the residual for individual $i$ is:
 
-\begin{aligned}
-    \hat{u}_i =  y_i - (\hat{\beta}_0 + \hat{\beta}_1 x_i)
-\end{aligned}
+$$
+\widehat{u}_i =  y_i - (\widehat{\beta}_0 + \widehat{\beta}_1 x_i)
+$$
 
-That is, residual is the observed value of the dependent variable less the value of modeled value. For different values of $\hat{\beta}_0$ and $\hat{\beta}_1$, you have a different value of residual.
+That is, residual is the observed value of the dependent variable less the value of modeled value. For different values of $\widehat{\beta}_0$ and $\widehat{\beta}_1$, you have a different value of residual.
 
-```{r}
+```{webr-r}
+#| context: output
+#| message: false
+#| out-width: 80%
 g_hp + geom_smooth(aes(y = price, x = lotsize), method = "lm", se = F)
 ```
 
@@ -184,11 +192,12 @@ Let's find the value of $\beta_0$ and $\beta_1$ that minimizes the squared resid
 
 Solve the following minimization problem:
 
-$$Min_{\hat{\beta}_0,\hat{\beta}_1} \sum_{i=1}^n \hat{u}_i^2, \mbox{where} \;\; \hat{u}_i=y_i-(\hat{\beta}_0+\hat{\beta}_1 x_i)$$
+$$Min_{\widehat{\beta}_0,\widehat{\beta}_1} \sum_{i=1}^n \widehat{u}_i^2, \mbox{where} \;\; \widehat{u}_i=y_i-(\widehat{\beta}_0+\widehat{\beta}_1 x_i)$$
 
-### OLS Visualization
+### Visualization
 
-```{r ols, out.width="80%"}
+```{webr-r}
+#| context: output
 x <- 200 * runif(20)
 y <- 100 + 0.5 * x + rnorm(20) * 30
 data <- data.table(y = y, x = x)
@@ -222,26 +231,26 @@ ggplot() +
 
 + How about taking the absolute value of residuals, and then sum them up?
 
-### Derive OLS estimates
+### Derivation
 
 **Minimization problem to solve**
 
-$$Min_{\hat{\beta}_0,\hat{\beta}_1} \sum_{i=1}^n [y_i-(\hat{\beta}_0+\hat{\beta}_1 x_i)]^2$$
+$$Min_{\widehat{\beta}_0,\widehat{\beta}_1} \sum_{i=1}^n [y_i-(\widehat{\beta}_0+\widehat{\beta}_1 x_i)]^2$$
 
 **Steps**
 
-+ partial differentiation of the objective function with respect to $\hat{\beta}_0$ and $\hat{\beta}_1$
-+ solve for $\hat{\beta}_0$ and $\hat{\beta}_1$
++ partial differentiation of the objective function with respect to $\widehat{\beta}_0$ and $\widehat{\beta}_1$
++ solve for $\widehat{\beta}_0$ and $\widehat{\beta}_1$
 
-$$Min_{\hat{\beta}_0,\hat{\beta}_1} \sum_{i=1}^n [y_i-(\hat{\beta}_0+\hat{\beta}_1 x_i)]^2$$
+$$Min_{\widehat{\beta}_0,\widehat{\beta}_1} \sum_{i=1}^n [y_i-(\widehat{\beta}_0+\widehat{\beta}_1 x_i)]^2$$
 
 **FOC** 
 
 $$
 \def\sumn{\sum_{i=1}^{n}}
 \begin{align}
-\frac{\partial }{\partial \hat{\beta}_0}=& 2 \sumn [y_i-(\hat{\beta}_0+\hat{\beta}_1 x_i)]=0 \\\\
-\frac{\partial }{\partial \hat{\beta}_1}=& 2 \sumn x_i\cdot [y_i-(\hat{\beta}_0+\hat{\beta}_1 x_i)]= \sumn x_i\cdot \hat{u}_i = 0
+\frac{\partial }{\partial \widehat{\beta}_0}=& 2 \sumn [y_i-(\widehat{\beta}_0+\widehat{\beta}_1 x_i)]=0 \\\\
+\frac{\partial }{\partial \widehat{\beta}_1}=& 2 \sumn x_i\cdot [y_i-(\widehat{\beta}_0+\widehat{\beta}_1 x_i)]= \sumn x_i\cdot \widehat{u}_i = 0
 \end{align}
 $$
 
@@ -250,8 +259,8 @@ $$
 $$
 \def\sumn{\sum_{i=1}^{n}}
 \begin{aligned}
-  \hat{\beta}_1 & = \frac{\sumn (x_i-\bar{x})(y_i-\bar{y})}{\sumn (x_i-\bar{x})^2},\\\\
-  \hat{\beta}_0 & = \bar{y}-\hat{\beta}_1 \bar{x}, \\\\
+  \widehat{\beta}_1 & = \frac{\sumn (x_i-\bar{x})(y_i-\bar{y})}{\sumn (x_i-\bar{x})^2},\\\\
+  \widehat{\beta}_0 & = \bar{y}-\widehat{\beta}_1 \bar{x}, \\\\
   \mbox{where} & \;\; \bar{y} = \sumn y_i/n \;\; \mbox{and} \;\;\bar{x} = \sumn x_i/n
 \end{aligned}
 $$
@@ -285,8 +294,8 @@ Numbers you get once you plug values (your data) into the formula
 $$
 \def\sumn{\sum_{i=1}^{n}}
 \begin{aligned}
-  \hat{\beta}_1 & = \frac{\sumn (x_i-\bar{x})(y_i-\bar{y})}{\sumn (x_i-\bar{x})^2}\\\\
-  \hat{\beta}_0 & = \bar{y}-\hat{\beta}_1 \bar{x}
+  \widehat{\beta}_1 & = \frac{\sumn (x_i-\bar{x})(y_i-\bar{y})}{\sumn (x_i-\bar{x})^2}\\\\
+  \widehat{\beta}_0 & = \bar{y}-\widehat{\beta}_1 \bar{x}
 \end{aligned}
 $$
 
@@ -309,17 +318,6 @@ b1
 
 We can use the `feols()` function from the `fixest` package.
 
-```{r }
-#| include: false
-library(fixest)
-
-#--- run OLS on the above model ---#
-# lm(dep_var ~ indep_var,data=data_name)
-uni_reg <- feols(price ~ lotsize, data = HousePrices)
-
-uni_reg
-```
-
 ```{webr-r}
 #| autorun: true
 library(fixest)
@@ -330,6 +328,19 @@ uni_reg <- feols(price ~ lotsize, data = HousePrices)
 
 uni_reg
 ```
+
+```{r}
+#| include: false
+library(fixest)
+
+#--- run OLS on the above model ---#
+# lm(dep_var ~ indep_var,data=data_name)
+uni_reg <- feols(price ~ lotsize, data = HousePrices)
+
+uni_reg
+```
+
+
 
 ### post-estimation
 
@@ -384,6 +395,8 @@ summary(uni_reg)
 
 ::: {.panel-tabset}
 
+### Estimated model
+
 **Model to be estimated**
 
 $$
@@ -403,21 +416,42 @@ $$
 This is called <span style = "color: blue;"> sample regression function (SRF) </span>, and it is an estimation of $E[price|lotsize]$, the <span style = "color: blue;"> population regression function </span>(PRF). 
 
 
-:::{.callout-important}
-+ OLS regression predicts the <span style = "color: red;"> expected </span> value of the dependent variable conditional on the explanatory variables.
 
-+ $\hat{\beta}_1$ is an estimate of how a change in $x$ affects the <span style = "color: red;"> expected </span> value of $y$.
+:::{.callout-important}
++ OLS regression predicts the <span style = "color: red;"> expected </span> value of the dependent variable <span style = "color: blue;"> conditional on </span>the explanatory variables.
+
++ $\widehat{\beta}_1$ is an estimate of how a change in $x$ affects the <span style = "color: red;"> expected </span> value of $y$.
 :::
 
-### R code: Prediction
+### Predicted values (R)
+
+You can access the predicted values at the observed points by looking at the `fitted.value` element of the regression results. 
 
 ```{webr-r}
-#--- access fitted values for sample points ---#
+#| autorun: true
 uni_reg$fitted.values[1:5]
+```
 
-#--- for values of lotsize that are not in the sample ---#
-newdata <- data.frame(lotsize = c(3000, 12000, 15000))
-predict(uni_reg, newdata = newdata)
+### New predictions (R)
+
+To calculate the predicted value at arbitrary values of $x$,
+
+1. create a new `data.frame` with values of $x$ of your choice.
+
+```{webr-r}
+#| autorun: true
+(
+new_data <- data.frame(lotsize = c(3000, 12000, 15000))
+)
+```
+
+<br>
+
+2. apply `predict()` to the `data.frame` using the regression results.
+
+```{webr-r}
+#| autorun: true
+predict(uni_reg, newdata = new_data)
 ```
 
 ### Exercise: The impact of `lotsize`
@@ -427,6 +461,12 @@ predict(uni_reg, newdata = newdata)
 #### Problem
 
 Your current lot size is 3000. You are thinking of expanding your lot by 1000 (with everything else fixed), which would cost you 5,000 USD. Should you do it? Use R to figure it out.
+
+<br>
+
+```{webr-r}
+
+```
 
 #### Solution
 
@@ -453,36 +493,32 @@ uni_reg$coefficients["lotsize"] * 1000 - 5000
 
 $R^2$ is a measure of how good your model is in predicting the dependent variable (explaining  variations in the dependent variable) <span style = "color: red;"> compared </span> to just using the average of the dependent variable as the predictor.
 
+### Decompose $y$
+
 You can decompose observed value of $y$ into two parts: fitted value and residual
 
 $$
-y_i=\hat{y}_i +\hat{u}_i, \;\;\mbox{where}\;\; \hat{y}_i = \hat{\beta}_0+\hat{\beta}_1 x_i
+y_i=\widehat{y}_i +\widehat{u}_i, \;\;\mbox{where}\;\; \widehat{y}_i = \widehat{\beta}_0+\widehat{\beta}_1 x_i
 $$
 
 now, subtracting $\bar{y}$ (sample average of $y$),
 
 $$
-y_i-\bar{y}=\hat{y}_i-\bar{y}+\hat{u}_i 
+y_i-\bar{y}=\widehat{y}_i-\bar{y}+\widehat{u}_i 
 $$
 
 + $y_i-\bar{y}$: how far away the actual value of $y$ for $i$th observation from the sample average $\bar{y}$ is (actual deviation from the mean)
-+ $\hat{y_i}-\bar{y}$: how far away the predicted value of $y$ for $i$th observation from the sample average $\bar{y}$ is (explained deviation from the mean)
-+ $\hat{u_i}$: the residual for $i$th observation
-:::
-<!--end of panel-->
++ $\widehat{y_i}-\bar{y}$: how far away the predicted value of $y$ for $i$th observation from the sample average $\bar{y}$ is (explained deviation from the mean)
++ $\widehat{u_i}$: the residual for $i$th observation
 
+### Visualization
 
++ $y_i-\bar{y}$: how far away the actual value of $y$ for $i$th observation from the sample average $\bar{y}$ is (actual deviation from the mean)
++ $\widehat{y_i}-\bar{y}$: how far away the predicted value of $y$ for $i$th observation from the sample average $\bar{y}$ is (explained deviation from the mean)
++ $\widehat{u_i}$: the residual for $i$th observation
 
-.left3[
-<br>
-<br>
-+ $y_i-\bar{y}$
-+ $\hat{y_i}-\bar{y}$
-+ $\hat{u_i}$
-]
-
-.right7[
-```{r good, out.width="100%"}
+```{webr-r}
+#| context: output
 g_hp +
   geom_smooth(
     aes(y = price, x = lotsize),
@@ -497,41 +533,56 @@ g_hp +
     size = 2
   )
 ```
-]
 
+### $R^2$ components
 
 **total sum of squares (SST)** 
 
-\begin{align}
-  SST\equiv \sum_{i=1}^{n}(y_i-\bar{y})^2 
-\end{align}
+$$
+SST\equiv \sum_{i=1}^{n}(y_i-\bar{y})^2 
+$$
 
 **explained sum of squares (SSE)**
-\begin{align}
-  SSE\equiv \sum_{i=1}^{n}(\hat{y}_i-\bar{y})^2 
-\end{align}
+$$
+SSE\equiv \sum_{i=1}^{n}(\widehat{y}_i-\bar{y})^2 
+$$
 
 **residual sum of squares (SSR)**
-\begin{align}
-  SSR\equiv \sum_{i=1}^{n}\hat{u}_i^2 
-\end{align}
+$$
+SSR\equiv \sum_{i=1}^{n}\widehat{u}_i^2 
+$$
 
-**" Definition**: $R^2$
+### Definition of $R^2$
+
+:::{.callout-note title="Definition"}
+$R^2 = 1 - SSR/SST$
+:::
+
+<br>
+
+**Where did it come from?**
+
+```{=tex}
 \begin{align}
-    R^2 = SSE/SST=1-SSR/SST 
+& SST = SSE + SSR  \\
+\Rightarrow & SSE = SST - SSR \\
+\Rightarrow & SSE/SST = 1 - SSR/SST = R^2\\
 \end{align}
+```
 
 The value of $R^2$ always lies between $0$ and $1$ as long as an intercept is included in the econometric model.
 
-
+<br>
 
 **What does it measure?**
 
 $R^2$ is a measure of how much improvement <span style = "color: red;"> in predictin the depdent variable </span> you've made by including independent variable(s) $(y=\beta_0+\beta_1 x+u)$ compared to when simply using the mean of dependent variable as the predictor $(y=\beta_0+u)$.
 
+### Caveat
+
 **Important**
 
-+ It tells <span style = "color: red;"> nothing </span> about how well you have estimated the causal ceteris paribus impact of $x$ on $y$ $(\beta_1)$. 
++ $R^2$ tells <span style = "color: red;"> nothing </span> about how well you have estimated the causal ceteris paribus impact of $x$ on $y$ $(\beta_1)$. 
 + As an economist, we typically do not care about how well we can prefict yield, rather we care about how well we have predicted $\beta$.
 
 **Problem**
@@ -540,3 +591,5 @@ $R^2$ is a measure of how much improvement <span style = "color: red;"> in predi
 + So, we get to check how good estimated models are in predicting the dependent variable (which we do not care), but we can <span style = "color: red;"> never </span> test whether they have estimated $\beta_1$ well. 
 + This means that we need to carefully examines whether the <span style = "color: red;"> assumptions </span> necessary for good estimation of $\beta_1$ is satisfied (next topic).
 
+:::
+<!--end of panel-->
