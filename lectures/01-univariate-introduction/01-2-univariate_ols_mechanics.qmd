@@ -1,0 +1,542 @@
+---
+title: "01-2: Univariate Regression: OLS Mechanics and Implementation"
+format: 
+  revealjs: 
+    theme: [default, ../custom.scss]
+    fontsize: 1.4em
+    callout-icon: false
+    scrollable: true
+    echo: true
+    fig-dpi: 400
+webr:
+  packages: ['AER', 'fixest', 'dplyr']
+filters:
+  - webr
+---
+
+```{r knitr-setup, }
+#| include: false
+#| cache: false
+library(knitr)
+opts_chunk$set(
+  echo = F,
+  root.dir = here::here()
+)
+
+library(data.table)
+library(fixest)
+library(officer)
+library(flextable)
+library(dplyr)
+library(ggplot2)
+
+theme_lecture <-
+  theme_bw() +
+  theme(
+    axis.text = element_text(size = 20),
+    axis.title = element_text(size = 20),
+    legend.text = element_text(size = 16),
+    legend.title = element_text(size = 16)
+  )
+```
+
+# Estimation of Parameters via OLS
+
+<html><div style='float:left'></div><hr color='#EB811B' size=1px width=1000px></html>
+
+## The data set and model
+
+```{r}
+data(HousePrices, package = "AER")
+```
+
+```{webr-r}
+#| context: setup
+data(HousePrices, package = "AER")
+```
+
+::: {.panel-tabset}
+
+### Set up
+
+**Data**
+
+Observations of house price and lot size for `r nrow(HousePrices)` houses.
+
+<br>
+
+**Model**
+
+$$price_i = \beta_0 + \beta_1 lotsize_i+u_i$$
+
++ $price_i$: house price (\$) of house $i$
++ $lotsize_i$: lot size of house $i$
++ $u_i$: error term (everything else) of house $i$
+
+<br>
+
+**Objective**
+
+Estimate the impact of lot size on house price
+
+### R code to get data
+
+```{r, echo = TRUE}
+#--- load the AER package  ---#
+library(AER) # load the AER package
+
+#--- load the HousePrices data set ---#
+data(HousePrices) # load
+
+#--- take a look ---#
+head(HousePrices[, 1:10])
+```
+
+### Data visualization
+
+```{r}
+g_hp <-
+  ggplot(data = HousePrices) +
+  geom_point(aes(y = price, x = lotsize), size = 0.6) +
+  ylab("House Price ($)") +
+  xlab("Lot Size") +
+  theme_lecture
+
+g_hp
+```
+
+:::
+<!--end of panel-->
+
+
+## Estimation with OLS
+
+::: {.panel-tabset}
+
+### Rough idea
+
++ We want to draw a line like this, the slope of which is an estimate of $\beta_1$
++ A way: Ordinary Least Squares (OLS)
+
+```{r}
+g_hp + geom_smooth(aes(y = price, x = lotsize), method = "lm", se = F)
+```
+
+### Two examples
+
+::: {.columns}
+
+::: {.column width="50%"}
+
+$\hat{\beta}_0=20000$, $\hat{\beta}_1=7$
+
+```{r out.width="100%"}
+g_hp +
+  geom_abline(intercept = 20000, slope = 7, color = "red")
+```
+:::
+<!--end of the 1st column-->
+::: {.column width="50%"}
+
+$\hat{\beta}_0=70000$, $\hat{\beta}_1=3.8$
+
+```{r out.width="100%"}
+g_hp +
+  geom_abline(intercept = 70000, slope = 3.8, color = "red")
+```
+
+:::
+<!--end of the 2nd column-->
+
+:::{.callout-important title="Question"}
++ Among all the possible values of $\beta_0$ and $\beta_1$, which one is the best? 
++ What criteria do we use (what does the best even mean?)
+:::
+
+:::
+<!--end of the columns-->
+
+### Residuals
+
+For particular values of $\hat{\beta}_0$ and $\hat{\beta}_1$ you pick, the modeled value of $y$ for individual $i$ is $\hat{\beta}_0 + \hat{\beta}_1 x_i$.
+
+Then, the residual for individual $i$ is:
+
+\begin{aligned}
+    \hat{u}_i =  y_i - (\hat{\beta}_0 + \hat{\beta}_1 x_i)
+\end{aligned}
+
+That is, residual is the observed value of the dependent variable less the value of modeled value. For different values of $\hat{\beta}_0$ and $\hat{\beta}_1$, you have a different value of residual.
+
+```{r}
+g_hp + geom_smooth(aes(y = price, x = lotsize), method = "lm", se = F)
+```
+
+### OLS
+
+**Idea of OLS (Ordinary Least Squares)**
+
+Let's find the value of $\beta_0$ and $\beta_1$ that minimizes the squared residuals!
+
+<br>
+
+**Mathematically**
+
+Solve the following minimization problem:
+
+$$Min_{\hat{\beta}_0,\hat{\beta}_1} \sum_{i=1}^n \hat{u}_i^2, \mbox{where} \;\; \hat{u}_i=y_i-(\hat{\beta}_0+\hat{\beta}_1 x_i)$$
+
+### OLS Visualization
+
+```{r ols, out.width="80%"}
+x <- 200 * runif(20)
+y <- 100 + 0.5 * x + rnorm(20) * 30
+data <- data.table(y = y, x = x)
+coefs <- lm(y ~ x, data = data)$coef
+ggplot() +
+  geom_point(data = data, aes(y = y, x = x)) +
+  geom_abline(intercept = coefs[1], slope = coefs[2]) +
+  geom_hline(yintercept = 0) +
+  geom_vline(xintercept = 0) +
+  #* slope
+  geom_curve(
+    aes(
+      x = 120, y = coefs[1] + coefs[2] * 100,
+      xend = 120, yend = coefs[1] + coefs[2] * 120
+    ),
+    color = "red"
+  ) +
+  geom_segment(
+    aes(
+      x = 100, y = coefs[1] + coefs[2] * 100,
+      xend = 130, yend = coefs[1] + coefs[2] * 100
+    ),
+    color = "red"
+  ) +
+  theme_lecture
+```
+
+**Questions**
+
++ Why do we square the residuals, and then sum them up together? What's gonna happen if you just sum up residuals?
+
++ How about taking the absolute value of residuals, and then sum them up?
+
+### Derive OLS estimates
+
+**Minimization problem to solve**
+
+$$Min_{\hat{\beta}_0,\hat{\beta}_1} \sum_{i=1}^n [y_i-(\hat{\beta}_0+\hat{\beta}_1 x_i)]^2$$
+
+**Steps**
+
++ partial differentiation of the objective function with respect to $\hat{\beta}_0$ and $\hat{\beta}_1$
++ solve for $\hat{\beta}_0$ and $\hat{\beta}_1$
+
+$$Min_{\hat{\beta}_0,\hat{\beta}_1} \sum_{i=1}^n [y_i-(\hat{\beta}_0+\hat{\beta}_1 x_i)]^2$$
+
+**FOC** 
+
+$$
+\def\sumn{\sum_{i=1}^{n}}
+\begin{align}
+\frac{\partial }{\partial \hat{\beta}_0}=& 2 \sumn [y_i-(\hat{\beta}_0+\hat{\beta}_1 x_i)]=0 \\\\
+\frac{\partial }{\partial \hat{\beta}_1}=& 2 \sumn x_i\cdot [y_i-(\hat{\beta}_0+\hat{\beta}_1 x_i)]= \sumn x_i\cdot \hat{u}_i = 0
+\end{align}
+$$
+
+**OLS estimators: analytical formula** 
+
+$$
+\def\sumn{\sum_{i=1}^{n}}
+\begin{aligned}
+  \hat{\beta}_1 & = \frac{\sumn (x_i-\bar{x})(y_i-\bar{y})}{\sumn (x_i-\bar{x})^2},\\\\
+  \hat{\beta}_0 & = \bar{y}-\hat{\beta}_1 \bar{x}, \\\\
+  \mbox{where} & \;\; \bar{y} = \sumn y_i/n \;\; \mbox{and} \;\;\bar{x} = \sumn x_i/n
+\end{aligned}
+$$
+
+### Estimators vs Estimates
+
+**Estimators**
+
+Specific <span style = "color: red;"> rules (formula) </span> to use once you get the data
+
+<br>
+
+**Estimates**
+
+Numbers you get once you plug values (your data) into the formula
+:::
+<!--end of panel-->
+
+# OLS demonstration in R
+
+<html><div style='float:left'></div><hr color='#EB811B' size=1px width=1000px></html>
+
+## OLS demonstration in R
+
+::: {.panel-tabset}
+
+### R code: hard way
+
+**OLS Estimator Formula**
+
+$$
+\def\sumn{\sum_{i=1}^{n}}
+\begin{aligned}
+  \hat{\beta}_1 & = \frac{\sumn (x_i-\bar{x})(y_i-\bar{y})}{\sumn (x_i-\bar{x})^2}\\\\
+  \hat{\beta}_0 & = \bar{y}-\hat{\beta}_1 \bar{x}
+\end{aligned}
+$$
+
+**R code**
+
+```{webr-r}
+#| autorun: true
+ 
+y <- HousePrices$price
+x <- HousePrices$lotsize
+
+#--- beta_1 ---#
+b1_num <- sum((x - mean(x)) * (y - mean(y)))
+b1_denom <- sum((x - mean(x))^2)
+b1 <- b1_num / b1_denom
+b1
+```
+
+### R code: a better way
+
+We can use the `feols()` function from the `fixest` package.
+
+```{r }
+#| include: false
+library(fixest)
+
+#--- run OLS on the above model ---#
+# lm(dep_var ~ indep_var,data=data_name)
+uni_reg <- feols(price ~ lotsize, data = HousePrices)
+
+uni_reg
+```
+
+```{webr-r}
+#| autorun: true
+library(fixest)
+
+#--- run OLS on the above model ---#
+# lm(dep_var ~ indep_var,data=data_name)
+uni_reg <- feols(price ~ lotsize, data = HousePrices)
+
+uni_reg
+```
+
+### post-estimation
+
+Lots of information is stored in the regression results (here, `uni_reg`), which is of class `list`.
+
+Apply `ls()` to see its elements:
+
+```{webr-r}
+#--- list the things inside the regression results ---#
+ls(uni_reg)
+```
+
+<br>
+
+Estimated coefficients:
+
+```{webr-r}
+uni_reg$coefficients
+```
+
+<br>
+
+Predicted values at the observation points:
+
+```{webr-r}
+#* fitted values for the first 5 observation points
+uni_reg$fitted.values[1:5]
+```
+
+<br>
+
+Residuals:
+
+```{webr-r}
+#* residuals for the first 5 observation points
+uni_reg$residuals[1:5]
+```
+
+<br>
+
+You can have a nice quick summary of the regression results with `summary()` function:
+
+```{webr-r}
+summary(uni_reg)
+```
+
+:::
+<!--end of panel-->
+
+
+## Once the model is estimated
+
+::: {.panel-tabset}
+
+**Model to be estimated**
+
+$$
+price = \beta_0 + \beta_1 lotsize + u
+$$
+
+<br>
+
+**Estimated Model**
+
+This is the estimated version of the expected value of $y$ conditional on $x$.
+
+$$
+price =  `r round(uni_reg$coefficients[1],0)` + `r round(uni_reg$coefficients[2],3)` \times lotsize
+$$
+
+This is called <span style = "color: blue;"> sample regression function (SRF) </span>, and it is an estimation of $E[price|lotsize]$, the <span style = "color: blue;"> population regression function </span>(PRF). 
+
+
+:::{.callout-important}
++ OLS regression predicts the <span style = "color: red;"> expected </span> value of the dependent variable conditional on the explanatory variables.
+
++ $\hat{\beta}_1$ is an estimate of how a change in $x$ affects the <span style = "color: red;"> expected </span> value of $y$.
+:::
+
+### R code: Prediction
+
+```{webr-r}
+#--- access fitted values for sample points ---#
+uni_reg$fitted.values[1:5]
+
+#--- for values of lotsize that are not in the sample ---#
+newdata <- data.frame(lotsize = c(3000, 12000, 15000))
+predict(uni_reg, newdata = newdata)
+```
+
+### Exercise: The impact of `lotsize`
+
+::: {.panel-tabset}
+
+#### Problem
+
+Your current lot size is 3000. You are thinking of expanding your lot by 1000 (with everything else fixed), which would cost you 5,000 USD. Should you do it? Use R to figure it out.
+
+#### Solution
+
+```{webr-r}
+#--- access the coefficient values  ---#
+uni_reg$coefficients
+# class(uni_reg)
+
+#--- assess the impact ---#
+uni_reg$coefficients["lotsize"] * 1000 - 5000
+```
+
+:::
+<!--end of panel-->
+
+:::
+<!--end of panel-->
+
+## $R^2$: Goodness of fit
+
+::: {.panel-tabset}
+
+### What is it?
+
+$R^2$ is a measure of how good your model is in predicting the dependent variable (explaining  variations in the dependent variable) <span style = "color: red;"> compared </span> to just using the average of the dependent variable as the predictor.
+
+You can decompose observed value of $y$ into two parts: fitted value and residual
+
+$$
+y_i=\hat{y}_i +\hat{u}_i, \;\;\mbox{where}\;\; \hat{y}_i = \hat{\beta}_0+\hat{\beta}_1 x_i
+$$
+
+now, subtracting $\bar{y}$ (sample average of $y$),
+
+$$
+y_i-\bar{y}=\hat{y}_i-\bar{y}+\hat{u}_i 
+$$
+
++ $y_i-\bar{y}$: how far away the actual value of $y$ for $i$th observation from the sample average $\bar{y}$ is (actual deviation from the mean)
++ $\hat{y_i}-\bar{y}$: how far away the predicted value of $y$ for $i$th observation from the sample average $\bar{y}$ is (explained deviation from the mean)
++ $\hat{u_i}$: the residual for $i$th observation
+:::
+<!--end of panel-->
+
+
+
+.left3[
+<br>
+<br>
++ $y_i-\bar{y}$
++ $\hat{y_i}-\bar{y}$
++ $\hat{u_i}$
+]
+
+.right7[
+```{r good, out.width="100%"}
+g_hp +
+  geom_smooth(
+    aes(y = price, x = lotsize),
+    method = "lm", se = F, size = 0.8
+  ) +
+  geom_hline(yintercept = mean(HousePrices$price), color = "red") +
+  annotate(
+    "text",
+    x = 15000, y = 60000,
+    label = "Average Price",
+    color = "red",
+    size = 2
+  )
+```
+]
+
+
+**total sum of squares (SST)** 
+
+\begin{align}
+  SST\equiv \sum_{i=1}^{n}(y_i-\bar{y})^2 
+\end{align}
+
+**explained sum of squares (SSE)**
+\begin{align}
+  SSE\equiv \sum_{i=1}^{n}(\hat{y}_i-\bar{y})^2 
+\end{align}
+
+**residual sum of squares (SSR)**
+\begin{align}
+  SSR\equiv \sum_{i=1}^{n}\hat{u}_i^2 
+\end{align}
+
+**" Definition**: $R^2$
+\begin{align}
+    R^2 = SSE/SST=1-SSR/SST 
+\end{align}
+
+The value of $R^2$ always lies between $0$ and $1$ as long as an intercept is included in the econometric model.
+
+
+
+**What does it measure?**
+
+$R^2$ is a measure of how much improvement <span style = "color: red;"> in predictin the depdent variable </span> you've made by including independent variable(s) $(y=\beta_0+\beta_1 x+u)$ compared to when simply using the mean of dependent variable as the predictor $(y=\beta_0+u)$.
+
+**Important**
+
++ It tells <span style = "color: red;"> nothing </span> about how well you have estimated the causal ceteris paribus impact of $x$ on $y$ $(\beta_1)$. 
++ As an economist, we typically do not care about how well we can prefict yield, rather we care about how well we have predicted $\beta$.
+
+**Problem**
+
++ While we observe the dependent variable (otherwise you cannot run regression), we cannot observe $\beta_1$. 
++ So, we get to check how good estimated models are in predicting the dependent variable (which we do not care), but we can <span style = "color: red;"> never </span> test whether they have estimated $\beta_1$ well. 
++ This means that we need to carefully examines whether the <span style = "color: red;"> assumptions </span> necessary for good estimation of $\beta_1$ is satisfied (next topic).
+

@@ -1,0 +1,653 @@
+---
+title: "01-3: Univariate Regression: OLS Small Sample Property"
+format: 
+  revealjs: 
+    theme: [default, ../custom.scss]
+    fontsize: 1.4em
+    callout-icon: false
+    scrollable: true
+    echo: true
+    fig-dpi: 400
+webr:
+  packages: ['AER', 'fixest', 'dplyr', 'data.table', 'ggplot2']
+filters:
+  - webr
+---
+
+# Small Sample Properties of OLS
+
+```{webr-r}
+#| context: setup
+
+theme_lecture <-
+  theme_bw() +
+  theme(
+    axis.text = element_text(size = 16),
+    axis.title = element_text(size = 16),
+    legend.text = element_text(size = 16),
+    legend.title = element_text(size = 16),
+    strip.text = element_text(size = 16)
+  )
+```
+
+
+<html><div style='float:left'></div><hr color='#EB811B' size=1px width=1000px></html>
+
+## Small sample property of OLS estimators
+
+::: {.panel-tabset}
+
+### Small sample property (in general)
+
+**What is an estimator?** 
+
++ A function of data that produces an estimate (actual number) of a parameter of interest once you plug in actual values of data
+
++ OLS estimators: $\hat{\beta_1}=\frac{\sum_{i=1}^n(x_i-\bar{x})(y_i-\bar{y})}{\sum_{i=1}^n (x_i-\bar{x})^2}$
+
+**What is small sample property?**
+
+Properties that hold whatever the size of observation (small or large) is <span style = "color: red;"> prior to </span> obtaining actual estimates (before getting data)
+
++ Put more simply: what can you expect from the estimators before you actually get data and obtain estimates?
+
++ Difference between small sample property and the algebraic properties we looked at earlier?
+
+### OLS?
+
+OLS is just <span style = "color: red;"> a </span> way of using available information to obtain estimates. Does it have desirable properties? Why are we using it?
+
++ Unbiasedness
++ Efficiency
+
+As it turns out, OLS is a very good way of using available information!!
+
+:::
+<!--end of panel-->
+
+
+
+
+## Unbiasedness of OLS estimator
+
+::: {.panel-tabset}
+
+### Unbiasedness
+
+What does <span style = "color: blue;"> unbiased </span> even mean?
+
+Let's first look at a simple problem of estimating the expected value of a single variable ($x$) as a start.
+
++ A good estimator of an expected value of a random variable is sample mean: $\frac{1}{n}\sum_i^n x_i$
+
+**R code: Sample Mean**
+
+```{webr-r}
+#--- set the number of observations ---#
+n <- 100
+
+#--- generate random values ---#
+x_seq <- rnorm(n) # Normal(mean=0,sd=1)
+
+#--- calcualte the mean ---#
+mean(x_seq)
+```
+
+<br>
+
+:::{.callout-note title="Direction"}
+Try running the codes multiple times and feel the tendency of the estimates.
+:::
+
+### Unbiased v.s. Biased
+
+```{webr-r}
+#| autorun: true
+#| context: output
+#| message: false
+#| warning: false| 
+#| out-width: 70%
+
+#--- set seed ---#
+set.seed(28394)
+
+#--- set the number of observations ---#
+n <- 100
+B <- 1000
+mean_st <- rep(0, B)
+for (i in 1:B) {
+  #--- generate random values ---#
+  x_seq <- rnorm(n) # Normal(mean=0,sd=1)
+
+  #--- calcualte the mean ---#
+  mean_st[i] <- mean(x_seq)
+}
+plot_data_1 <- data.table(x = mean_st, type = "unbiased")
+plot_data_2 <- data.table(x = mean_st + 0.2, type = "biased")
+plot_data <- rbind(plot_data_1, plot_data_2)
+
+g_biased <-
+  ggplot(data = plot_data) +
+  geom_histogram(
+    aes(x = x), 
+    alpha = 0.5,
+    color = "blue"
+  ) +
+  geom_vline(xintercept = 0) +
+  facet_grid(type ~ .) +
+  xlab("Sample Mean") +
+  scale_fill_discrete(name = "") +
+  theme(
+    legend.position = "bottom"
+  ) +
+  theme_lecture
+
+g_biased
+```
+
+### Unbiasedness of OLS estimators
+
+Under <span style = "color: blue;"> certain conditions </span>, OLS estimators are unbiased. That is,
+
+$$
+\def\sumn{\sum_{i=1}^{n}}
+E[\hat{\beta_1}]=E\Big[\frac{\sumn (x_i-\bar{x})(y_i-\bar{y})}{\sumn  (x_i-\bar{x})^2}\Big]=\beta_1
+$$
+
+(We do not talk about unbiasedness of $\hat{\beta}_0$ because we are almost never interested in the intercept. Given the limited time we have, it is not worthwhile talking about it)
+
+### Conditions
+
+::: {.panel-tabset}
+
+#### SLR.1
+
+
+:::{.callout-note title="Linear in Parameters"}
+In the population model, the dependent variable, $y$, is related to the independent variable, $x$, and the error (or disturbance), $u$, as
+
+$$
+y=\beta_0+\beta_1 x+u 
+$$
+:::
+
+**Note**: This definition is from the textbook by Wooldridge
+
+#### SLR.2
+
+:::{.callout-note title="Random sampling"}
+We have a random sample of size $n$, ${(x_i,y_i):i=1,2,\dots,n}$, following the population model.
+:::
+
+**Non-random sampling**
+
++ Example: You observe income-education data only for those who have income higher than $\$25K$
++ Benevolent and malevolent kinds:
+  + <span style = "color: red;"> exogenous </span> sampling
+  + <span style = "color: red;"> endogenous </span> sampling
++ We discuss this in more detial later
+
+#### SLR.3
+
+:::{.callout-note title="Variation in covariates"}
+The sample outcomes on $x$, namely, ${x_i,i=1,\dots,n}$, are not all the same value.
+:::
+
+#### SLR.4
+
+:::{.callout-note title="Zero conditional mean"}
+The error term $u$ has an expected value of zero given any value of the explanatory variable. In other words,
+
+$$
+E[u|x]=0  
+$$
+:::
+
+Along with random sampling condition, this implies that
+
+$$
+E[u_i|x_i]=0 
+$$
+
+:::{.callout-important title="Roughly speaking"}
+The independent variable $x$ is not correlated with $u$.
+:::
+
+:::
+<!--end of panel-->
+
+### (Math)
+
+$$
+\def\sumn{\sum_{i=1}^{n}}
+\begin{aligned}
+\hat{\beta}_1 = & \frac{\sumn (x_i-\bar{x})(y_i-\bar{y})}{\sumn (x_i-\bar{x})^2}  \\\\
+= & \frac{\sumn (x_i-\bar{x})y_i}{\sumn (x_i-\bar{x})^2} \;\; \Big[\mbox{because }\sumn (x_i-\bar{x})\bar{y}=0\Big]\\\\
+= & \frac{\sumn (x_i-\bar{x})y_i}{SST_x} \;\;\Big[\mbox{where,}\;\; SST_x=\sumn (x_i-\bar{x})^2\Big]  \\\\
+= & \frac{\sumn (x_i-\bar{x})(\beta_0+\beta_1 x_i+u_i)}{SST_x} \\\\
+= & \frac{\sumn (x_i-\bar{x})\beta_0 +\sumn \beta_1(x_i-\bar{x})x_i+\sumn(x_i-\bar{x})u_i}{SST_x} 
+\end{aligned}
+$$
+
+
+$$
+\begin{aligned}
+  \hat{\beta}_1 = & \frac{\sumn  (x_i-\bar{x})\beta_0 + \beta_1 \sumn  (x_i-\bar{x})x_i+\sumn (x_i-\bar{x})u_i}{SST_x}
+\end{aligned}
+$$
+
+$$
+\begin{aligned}
+  \mbox{Since } & \sumn  (x_i-\bar{x})=0\;\; \mbox{and}\\
+    & \sumn  (x_i-\bar{x})x_i=\sumn  (x_i-\bar{x})^2=SST_x,
+\end{aligned}
+$$
+
+$$
+\begin{aligned}
+  \hat{\beta}_1 = \frac{\beta_1 SST_x+\sumn (x_i-\bar{x})u_i}{SST_x} 
+  = \beta_1+(1/SST_x)\sumn (x_i-\bar{x})u_i
+\end{aligned}
+$$
+
+$$\hat{\beta}_1 = \beta_1+(1/SST_x)\sumn (x_i-\bar{x})u_i$$
+
+Taking, expectation of $\hat{\beta}_1$ conditional on $\mathbf{x}=\{x_1,\dots,x_n\}$,
+
+$$
+\begin{align}
+\Rightarrow E[\hat{\beta}_1|\mathbf{x}] = & E[\beta_1|\mathbf{x}]+E[(1/SST_x)\sumn (x_i-\bar{x})u_i|\mathbf{x}]  \\\\
+= & \beta_1 + (1/SST_x)\sumn (x_i-\bar{x}) E[u_i|\mathbf{x}] 
+\end{align}
+$$
+
+So, if condition 4 $(E[u_i|\mathbf{x}]=0)$ is satisfied,
+
+$$
+\def\Ex{E_{x}}
+\begin{align}
+E[\hat{\beta}_1|x] = & \beta_1 \\\\
+\Ex[\hat{\beta}_1|x] = & E[\hat{\beta}_1] = \beta_1
+\end{align}
+$$
+
+:::
+<!--end of panel-->
+
+
+## Unbiasedness of OLS in practice
+
+::: {.panel-tabset}
+
+### Good empiricists
+
+Good empiricists
+
++ have ability to judge if the above conditions are satisfied for the particular context you are working on
+
++ have ability to correct (if possible) for the problems associated with the violations of any of the above conditions
+
++ knows the context well so you can make appropriate judgments
+
+### Unbiasedness of OLS estimators
+
+**Reconsider the following example**
+
+$$
+price=\beta_0+\beta_1\times lotsize + u 
+$$
+
++ $price$: house price (USD)
++ $lotsize$: lot size
++ $u$: error term (everything else)
+
+**Questions**
+
++ What's in $u$?
++ Do you think $E[u|x]$ is satisfied? In other words (roughly speaking), is $u$ uncorrelated with $x$? 
+
+### Let me reiterate
+
++ Unbiasedness property of OLS estimators says <span style = "color: blue;"> nothing </span> about the estimate that we obtain for a given sample
+
++ It is always possible that we could obtain an unlucky sample that would give us a point estimate far from $\beta_1$, and we can never know for sure whether this is the case.
+
+:::
+<!--end of panel-->
+
+## Variance of OLS estimator
+
+::: {.panel-tabset}
+
+### Introduction
+
++ OLS estimators are random variables because $y$, $x$, and $u$ are random variables (this just means that you do not know the estimates until you get samples). 
+
++ Variance of OLS estimators is a measure of how much spread in estimates (realized values) you will get.
+
++ We let $Var(\beta_{OLS})$ denote the variance of the OLS estimators of $\beta_0$ and $\beta_1$.
+
+### Variance (example)
+
+Consider two estimators of $E[x]$:
+
+```{=tex}
+\begin{align}
+\theta_{smart} = & \frac{1}{n} \sum x_i  \;\;(n=1000) \\\\
+\theta_{naive} = & \frac{1}{10} \sum x_i 
+\end{align}
+```
+
+**Variance of the estimators**
+
+```{webr-r}
+#| context: output
+#| message: false 
+#| warning: false 
+#| out-width: 60%
+ 
+set.seed(38495)
+
+B <- 1000
+theta_smart <- rep(0, B)
+theta_stupid <- rep(0, B)
+for (i in 1:B) {
+  x <- rnorm(1000)
+  theta_smart[i] <- mean(x)
+  theta_stupid[i] <- mean(x[1:10])
+}
+
+smart_data <- data.table(value = theta_smart, type = "Smart")
+stupid_data <- data.table(value = theta_stupid, type = "Naive")
+plot_data <- rbind(smart_data, stupid_data)
+
+ggplot(data = plot_data) +
+  geom_density(aes(x = value, fill = type), alpha = 0.5, size = 0.5) +
+  scale_fill_discrete(name = "Estimator") +
+  xlab("Sample Mean") +
+  theme_lecture +
+  theme(
+    legend.position = "bottom"
+  )
+```
+
+### Variance of OLS estimator
+
+**(True) Variance of the OLS Estimator**
+
+If $Var(u|x)=\sigma^2$ and the four conditions (we used to prove unbiasedness of the OLS estimator) are satisfied,
+
+$$
+\begin{align}
+  Var(\hat{\beta}_1) = \frac{\sigma^2}{\sumn (x_i-\bar{x})^2}=\frac{\sigma^2}{SST_x} 
+\end{align}
+$$
+
+<br>
+
+**(TRUE) Standard Error of the OLS Estimator**
+
+The standard error of the the OLS estimator is just a square root of the variance of the OLS estimator. We use $se(\hat{\beta}_1)$ to denote it.
+
+$$
+\begin{aligned}
+  se(\hat{\beta}_1) = \sqrt{Var(\hat{\beta}_1)} = \frac{\sigma}{\sqrt{SST_x}} 
+\end{aligned}
+$$
+
+### What affects $Var(\beta_{OLS})$?
+
+**Variance of the OLS estimators** 
+
+$$Var(\hat{\beta}_1|x) = \sigma^2/SST_x$$
+
+<br>
+
+**What can you learn from this equation?**
+
++ the variance of OLS estimators is smaller (larger) if the variance of error term is smaller (larger)
+
++ the greater (smaller) the variation in the covariate $x$, the smaller (larger) the variance of OLS estimators
+
+    - if you are running experiments, spread the value of $x$ as much as possible
+    - you will rarely have this luxury
+
+:::
+<!--end of panel-->
+
+## Efficiency of OLS Estimators
+
+::: {.panel-tabset}
+
+### Nature of error term
+
+**Homoskedasticity**
+
+The error $u$ has the same variance give any value of the covariate $x$ $(Var(u|x)=\sigma^2)$
+
+<br>
+
+**Heterokedasticity**
+
+The variance of the error $u$ differs depending on the value of $x$ $(Var(u|x)=f(x))$
+
+### Visualization
+
+```{webr-r}
+#| context: output
+#| out-width: 80%
+ 
+x_levels <- seq(40, 200, by = 10)
+x <- rep(x_levels, each = 200)
+
+u_homoske <- rnorm(200 * length(x_levels)) * 20
+y_homoske <- 100 + 0.5 * x + u_homoske
+
+u_hetero <- lapply(x_levels, function(x) rnorm(200, sd = x / 50) * 20) %>% unlist()
+y_hetero <- 100 + 0.5 * x + u_hetero
+
+plot_data_homo <-
+  data.table(
+    x = x,
+    y = y_homoske
+  ) %>%
+  .[, type := "Homoskedastic"]
+
+plot_data_hetero <-
+  data.table(
+    x = x,
+    y = y_hetero
+  ) %>%
+  .[, type := "Heteroskedastic"]
+
+plot_data <- rbind(plot_data_homo, plot_data_hetero)
+
+g_error_nature <- 
+  ggplot(data = plot_data) +
+  geom_point(aes(y = y, x = x), size = 0.3) +
+  geom_abline(intercept = 100, slope = 0.5) +
+  geom_hline(yintercept = 0) +
+  geom_vline(xintercept = 0) +
+  facet_grid(type ~ .) +
+  theme_lecture
+
+g_error_nature
+```
+
+### House Price Example
+
+```{webr-r}
+#| context: output
+#| warning: false
+#| message: false
+#| out-width: 80%
+ 
+data(HousePrices, package = "AER")
+
+g_hp <-
+  ggplot(data = HousePrices) +
+  geom_point(aes(y = price, x = lotsize), size = 0.6) +
+  ylab("House Price ($)") +
+  xlab("Lot Size") +
+  theme_lecture
+
+g_hp + 
+  grom_smooth(aes(y = price, x = lotsize), method = "lm", se = F)
+```
+
+### Gauss-Markov Theorem
+
+:::{.callout-note title="Gauss-Markov Theorem"}
+Under conditions $SLR.1$ through $SLR.4$ and the <span style = "color: blue;"> homoskedasticity </span> assumption ($SLR.5$), OLS estimators are the best linear unbiased estimators (BLUEs)
+:::
+
+<br>
+
+**In other words,**
+
+No other <span style = "color: blue;"> unbiased linear </span> estimators have smaller variance than the OLS estimators (desirable efficiency property of OLS)
+
+### Notes
+
++ We do <span style = "color: red;"> NOT </span> need the homoskedasticity condition to prove that OLS estimators are unbiased
+
++ In most applications, homoskedasticity condition is not satisfied, which has important implications on:
+    - estimation of variance (standard error) of OLS estimators
+    - significance test
+
+(<span style = "color: red;"> A lot more on this issue later </span>)
+
+:::
+<!--end of panel-->
+
+
+## Estimating the variance of error 
+
+::: {.panel-tabset}
+
+### Why?
+
+Once you estimate $Var(\widehat{\beta}_1|x)$, you can test the statistical significance of $\widehat{\beta}_1$ (More on this later)
+
+### Problem
+
+::: {.columns}
+
+::: {.column width="70%"}
++ We know that $Var(\widehat{\beta}_1|x) = \sigma^2/SST_x$.
+
++ You can calculate $SST_x$ because $x$ is observable. So, as long as we know $\sigma^2$, which is $Var(u)$ (the variance of the error term), then we know $Var(\widehat{\beta}_1|x)$. 
+
++ Since $Var(u_i)=\sigma^2=E[u_i^2] \;\; \Big( Var(u_i)\equiv E[u_i^2]-E[u_i]^2 \Big)$, $\frac{1}{n}\sum_{i=1}^n u_i^2$ is an unbiased estimator of $Var(u_i)$
+
++ Unfortunately, we don't observe $u_i$ (error)
+
+::: {.fragment}
+:::{.callout-note title="But,"}
+We observe $\widehat{u_i}$ (residuals)!! Can we use residuals instead?
+:::
+:::
+<!--end of the fragment-->
+:::
+<!--end of the 1st column-->
+::: {.column width="30%"}
+
+:::
+<!--end of the 2nd column-->
+:::
+<!--end of the columns-->
+
+### Proposal
+
+We know $E[\widehat{u}_i-u_i]=0$ (see a mathematical proof [here]{#sec-math-proof-residual}), so, why don't we use $\widehat{u}_i$ (observable) in place of $u_i$ (unobservable)?
+
+<br>
+
+::: {.fragment}
+:::{.callout-note title="Proposed Estimator of $\sigma^2$"}
+$\frac{1}{n}\sum_{i=1}^n \hat{u}_i^2$
+:::
+
+:::
+<!--end of the fragment-->
+
+<br>
+
+::: {.fragment}
+Unfortunately, $\frac{1}{n}\sum_{i=1}^n \hat{u}_i^2$ is a biased estimator of $\sigma^2$
+:::
+<!--end of the fragment-->
+
+### Algebraic property of OLS
+
+**FOCs of the minimization problem OLS solves**
+
+```{=tex}
+\begin{align}
+    \sum_{i=1}^n \widehat{u}_i=0\;\; \mbox{and}\;\; \sum_{i=1}^n x_i\widehat{u}_i=0\notag
+\end{align}
+```
+
++ this means that once you know the value of $n-2$ residuals, you can find the value of the other two by solving the above equations
++ so, it's almost as if you have $n-2$ value of residuals instead of $n$
+
+### Unbiased estimator 
+
+:::{.callout-note title="Unbiased estimator of $\sigma^2$"}
+$\widehat{\sigma}^2=\frac{1}{n-2}\sum_{i=1}^n \widehat{u}_i^2$ $\;\;\;\;\;\;$($E[\frac{1}{n-2}\sum_{i=1}^n \widehat{u}_i^2]=\sigma^2$)
+:::
+
+<br>
+
+Hereafter we use $\widehat{Var(\widehat{\beta}_1)}$ to denote the variance of the OLS estimator $\widehat{\beta}_j$, and it is defined as
+
+$$
+\widehat{Var(\widehat{\beta}_1)} = \widehat{\sigma}^2/SST_x
+$$
+
+<br>
+
+Since $se(\widehat{\beta}_1)=\sigma/\sqrt{SST_x}$, the natural estimator of $se(\widehat{\beta_1})$ (<span style = "color: red;"> standard error of $\widehat{\beta}_1$ </span>) is
+
+$$
+\widehat{se(\widehat{\beta}_1)} =\sqrt{\widehat{\sigma}^2}/\sqrt{SST_x},
+$$
+
+:::{.callout-note}
+Later, we use $\widehat{se(\hat{\beta_1})}$ for testing.
+:::
+
+### R code
+
+```{webr-r}
+#--- run OLS on the above model ---#
+# lm(dep_var ~ indep_var,data=data_name)
+uni_reg <- fixest::feols(price ~ lotsize, data = HousePrices)
+
+summary(uni_reg)
+```
+
+### (Math) {#sec-math-proof-residual}
+
+**Error and Residual** 
+
+```{=tex}
+\begin{align}
+    y_i = \beta_0+\beta_1 x_i + u_i \\
+    y_i = \hat{\beta}_0+\hat{\beta}_1 x_i + \hat{u}_i 
+\end{align}
+```
+
+**Residuals as unbiased estimators of error**
+
+```{=tex}
+\begin{align}
+  \hat{u}_i & = y_i -\hat{\beta}_0-\hat{\beta}_1 x_i \\
+  \hat{u}_i & = \beta_0+\beta_1 x_i + u_i -\hat{\beta}_0-\hat{\beta}_1 x_i \\
+  \Rightarrow \hat{u}_i -u_i & = (\beta_0-\hat{\beta}_0)+(\beta_1-\hat{\beta}_1) x_i \\
+  \Rightarrow E[\hat{u}_i -u_i] & = E[(\beta_0-\hat{\beta}_0)+(\beta_1-\hat{\beta}_1) x_i]=0
+\end{align}
+```
+:::
+<!--end of panel-->
+

@@ -1,0 +1,52 @@
+---
+format: 
+  html:
+    fig-width: 7
+    fig-dpi: 300
+---
+
+```{r}
+#| fig-height: 8
+library(lubridate)
+library(dplyr)
+library(data.table)
+
+dates_data <- 
+  data.table(
+    date = seq( as.Date("2024-01-01"), as.Date("2024-12-31"), by="+1 day")
+  ) %>%
+  .[, day := weekdays(date)]
+
+w_month_data <- dates_data[month(date) == 8,]
+
+imp_dates <- 
+  rep(NA, nrow(w_month_data))
+
+lecture_ind <- 
+  w_month_data[, day %in% c("Monday", "Wednesday") & day(date) >= 19]
+
+lab_ind <- 
+  w_month_data[, day %in% c("Friday") & day(date) >= 19 ]
+
+# Add the events to the desired days
+imp_dates[lecture_ind] <- "Lecture"
+imp_dates[lab_ind] <- "Lab"
+
+# Create a calendar with a legend
+
+temp <- 
+  calendR::calendR(
+    year = 2024, 
+    month = 8, 
+    special.days = imp_dates,
+    special.col = c(
+      "lightcyan2", "tan"),
+    weeknames = c(
+      "Mon", "Tue", "Wed", "Thu",
+      "Fri", "Sat", "Sun"
+    ),
+    mbg.col = "15",
+    months.col = "blue",
+    legend.pos = "bottom"
+  )
+```
