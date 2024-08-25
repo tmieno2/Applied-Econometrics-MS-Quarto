@@ -1,0 +1,464 @@
+---
+title: "02-Multivariate Regression"
+format: 
+  revealjs: 
+    theme: [default, ../custom.scss]
+    fontsize: 1.4em
+    callout-icon: false
+    scrollable: true
+    echo: true
+    fig-dpi: 400
+webr:
+  packages: ['fixest', 'dplyr', 'data.table', 'ggplot2', 'modelsummary']
+  cell-options:
+    editor-font-scale: 0.8
+filters:
+  - webr
+---
+
+
+# Multivariate Regression: Introduction
+
+```{webr-r}
+#| context: setup
+
+theme_lecture <-
+  theme_bw() +
+  theme(
+    axis.text = element_text(size = 16),
+    axis.title = element_text(size = 16),
+    legend.text = element_text(size = 16),
+    legend.title = element_text(size = 16),
+    strip.text = element_text(size = 16)
+  )
+```
+
+<html><div style='float:left'></div><hr color='#EB811B' size=1px width=1000px></html>
+
+## Univariate vs Multivariate Regression Models
+
+::: {.panel-tabset}
+
+
+### Bi-variate vs. Uni-variate
+
+**Univariate**
+
+The most important assumption $E[u|x] = 0$ (zero conditional mean) is almost always violated (unless you data comes from randomized experiments) because all the other variables are sitting in the error term, which can be correlated with $x$.
+
+<br>
+
+**Multivariate**
+
+More independent variables mean less factors left in the error term, which makes the endogeneity problem <span style = "color: blue;"> less </span>severe
+
+### Example
+
+```{=tex}
+\begin{align}
+  \mbox{Bi-variate}\;\; wage = & \beta_0 + \beta_1 educ + \beta_2 exper + u_2 \\
+  \mbox{Uni-variate}\;\; wage = & \beta_0 + \beta_1 educ + u_1 (=u_2+\beta_2 exper)
+\end{align}
+``` 
+
+**What's different?**
+
++ **bi-variate**: able to measure the effect of education on wage, <span style = "color: blue;"> holding experience fixed </span> because experience is modeled explicitly (<span style = "color: red;"> We say $exper$ is controlled for. </span>)
+
++ **uni-variate**: $\widehat{\beta_1}$ is biased unless experience is uncorrelated with education because experience was in error term
+
+### Example
+
+The impact of per student spending (`expend`) on standardized test score (`avgscore`) at the high school level
+
+```{=tex}
+\begin{align}
+avgscore= & \beta_0+\beta_1 expend + u_1 (=u_2+\beta_2 avginc) \notag \\
+avgscore= & \beta_0+\beta_1 expend +\beta_2 avginc + u_2 \notag
+\end{align}
+```
+
+### Model (general)
+
+More generally,
+
+```{=tex}
+\begin{align}
+  y=\beta_0+\beta_1 x_1 + \beta_2 x_2 + u
+\end{align}
+```
+
++ $\beta_0$: intercept
++ $\beta_1$: measure the change in $y$ with respect to $x_1$, holding other factors fixed
++ $\beta_2$: measure the change in $y$ with respect to $x_1$, holding other factors fixed
+
+:::
+<!--end of panel-->
+
+## The Crucial Condition (Assumption) for Unbiasedness of the OLS Estimator
+
+::: {.panel-tabset}
+
+### Uni-variate v.s. Bi-variate
+
+**Uni-variate**
+
+For $y = \beta_0 + \beta_1x + u$, 
+
+$E[u|x]=0$
+
+<br>
+
+**Bi-variate**
+
+For $y = \beta_0 + \beta_1 x_1 + \beta_2 x_2 + u$, 
+
++ Mathematically: $E[u|x_1,x_2]=0$
++ Verbally: for any values of $x_1$ and $x_2$, the expected value of the unobservables is zero
+
+### Mean independence condition: example 
+
+In the following wage model,
+
+```{=tex}
+\begin{align*}
+wage = & \beta_0 + \beta_1 educ + \beta_2 exper + u
+\end{align*}
+```
+
+Mean independence condition is
+
+```{=tex}
+\begin{align}
+  E[u|educ,exper]=0
+\end{align}
+```
+
+**Verbally**:
+
+This condition would be satisfied if innate ability of students is on average unrelated to education level and experience. 
+
+:::
+<!--end of panel-->
+
+## The model with $k$ independent variables
+
+::: {.panel-tabset}
+
+### 
+
+**Model**
+
+```{=tex}
+\begin{align}
+  y=\beta_0 + \beta_1 x_1 + \beta_2 x_2 + \dots + \beta_k x_k + u
+\end{align}
+```
+
+**Mean independence assumption?**  
+
+$\beta_{OLS}$ (OLS estimators of $\beta$s) is unbiased if,
+
+```{=tex}
+\begin{align}
+    E[u|x_1,x_2,\dots,x_k]=0
+\end{align}
+```
+
+**Verbally**: this condition would be satisfied if the error term is uncorrelated wtih any of the independent variables, $x_1,x_2,\dots,x_k$. 
+
+### Implementation (R)
+
+```{webr-r}
+#| autorun: true
+ 
+#--- load the fixest package ---#
+library(fixest)
+
+#--- generate data ---#
+N <- 100 # sample size
+x1 <- rnorm(N) # independent variable
+x2 <- rnorm(N) # independent variable
+u <- rnorm(N) # error
+y <- 1 + x1 + x2 + u # dependent variable
+data <- data.frame(y = y, x1 = x1, x2 = x2)
+
+#--- OLS ---#
+reg <- feols(y ~ x1 + x2, data = data)
+
+#* print the results
+reg
+```
+
+### Present results
+
+When you are asked to present regression results in assignments or your final paper, use the `msummary()` function from the `modelsummary` package.
+
+```{webr-r}
+#| autorun: true
+ 
+library(modelsummary)
+
+#* run regression
+reg_results <- feols(speed ~ dist, data = cars)
+
+#* report regression table
+msummary(
+  reg_results,
+  # keep these options as they are
+  stars = TRUE,
+  gof_omit = "IC|Log|Adj|F|Pseudo|Within"
+)
+```
+
+
+### (Math)
+
+**OLS**
+
+Find the combination of $\beta$s that minimizes the sum of squared residuals
+
+**So,**
+
+Denoting the collection of $\widehat{\beta}$s as $\widehat{\theta} (=\{\widehat{\beta_0},\widehat{\beta_1},\dots,\widehat{\beta_k}\})$,
+
+```{=tex}
+\begin{align}
+    Min_{\theta} \sum_{i=1}^n \Big[ y_i-(\widehat{\beta_0}+\widehat{\beta_1} x_{1,i} + \widehat{\beta_2} x_{2,i} + \dots + \widehat{\beta_k} x_{k,i}) \Big]^2
+\end{align}
+```
+
+Find the FOCs by partially differentiating the objective function (sum of squared residuals) wrt each of $\widehat{\theta} (=\{\widehat{\beta_0},\widehat{\beta_1},\dots,\widehat{\beta_k}\})$,
+
+```{=tex}
+\begin{align}
+  \sum_{i=1}^n(y_i-(\widehat{\beta_0}+\widehat{\beta_1} x_{1,i} + \widehat{\beta_2} x_{2,i} + \dots + \beta_k x_{k,i}) = & 0 \;\; (\widehat{\beta}_0) \\
+  \sum_{i=1}^n x_{i,1}\Big[ y_i-(\widehat{\beta_0}+\widehat{\beta_1} x_{1,i} + \widehat{\beta_2} x_{2,i} + \dots + \beta_k x_{k,i}) \Big]= & 0  \;\; (\widehat{\beta}_1) \\
+  \sum_{i=1}^n x_{i,2}\Big[ y_i-(\widehat{\beta_0}+\widehat{\beta_1} x_{1,i} + \widehat{\beta_2} x_{2,i} + \dots + \beta_k x_{k,i}) \Big]= & 0  \;\; (\widehat{\beta}_2) \\
+  \vdots \\
+  \sum_{i=1}^n x_{i,k}\Big[ y_i-(\widehat{\beta_0}+\widehat{\beta_1} x_{1,i} + \widehat{\beta_2} x_{2,i} + \dots + \beta_k x_{k,i}) \Big]= & 0  \;\; (\widehat{\beta}_k) \\
+\end{align}
+```
+
+Or more succinctly,
+
+```{=tex}
+\begin{align}
+  \sum_{i=1}^n \widehat{u}_i = & 0 \;\; (\widehat{\beta}_0) \\
+  \sum_{i=1}^n x_{i,1}\widehat{u}_i = & 0  \;\; (\widehat{\beta}_1) \\
+  \sum_{i=1}^n x_{i,2}\widehat{u}_i = & 0  \;\; (\widehat{\beta}_2) \\
+  \vdots \\
+  \sum_{i=1}^n x_{i,k}\widehat{u}_i = & 0  \;\; (\widehat{\beta}_k) \\
+\end{align}
+```
+
+:::
+<!--end of panel-->
+
+# Small Sample Properties
+
+<html><div style='float:left'></div><hr color='#EB811B' size=1px width=1000px></html>
+
+## Unbiasedness of OLS Estimators
+
+::: {.panel-tabset}
+
+### Conditions (four)
+
+OLS estimators of multivariate models are unbiased under <span style = "color: blue;"> certain </span> conditions
+
+**Condition 1**
+
+Your model is correct (Assumption $MLR.1$)
+
+<br>
+
+**Condition 2**
+
+Random sampling (Assumption $MLR.2$)
+
+<br>
+
+**Conditions 3**
+
+No perfect collinearity (Assumption $MLR.3$)
+
+<br>
+
+**Conditions 4**
+
+Zero Conditional Mean (Assumption $MLR.4$)
+
+```{=tex}
+\begin{align}
+  E[u|x_1,x_2,\dots,x_k]=0 \;\;\mbox{(Assumption MLR.4)}
+\end{align}
+```
+
+If all the conditions $MLR.1\sim MLR.4$ are satisfied, OLS estimators are unbiased.
+
+$$
+\def\ehb{E[\ha
+```{=tex}t{\beta}_j]}
+\begin{align}
+  \ehb=\beta_j \;\; ^\forall j=0,1,\dots,k
+\end{align}
+```
+$$
+
+### Perfect Collinearity
+
+**No Perfect Collinearity ($MLR.3$)**
+
+Any variable cannot be a linear function of the other variables
+
+**Example (silly)**
+
+```{=tex}
+\begin{align}
+  wage = \beta_0 + \beta_1 educ + \beta_2 (3\times educ) + u
+\end{align}
+```
+
+(<span style = "color: blue;"> More on this later when we talk about dummy variables</span>)
+
+### Endogeneity (Definition)
+
+$$E[u|x_1,x_2,\dots,x_k] = f(x_1,x_2,\dots,x_k) \ne 0$$
+
+**What could cause endogeneity problem?**
++ functional form misspecification
+```{=tex}
+\begin{align}
+  wage = & \beta_0 + \beta_1 log(x_1) + \beta_2 x_2 + u_1 \;\;\mbox{(true)}\\
+  wage = & \beta_0 + \beta_1 x_1 + \beta_2 x_2 + u_2 (=log(x_1)-x_1) \;\; \mbox{(yours)}
+\end{align}
+```
++ omission of variables that are correlated with any of $x_1,x_2,\dots,x_k$ (<span style = "color: blue;"> more on this soon </span>)
++ <span style = "color: blue;"> other sources of enfogeneity later </span>
+
+:::
+<!--end of panel-->
+
+## Variance of OLS estimators
+
+::: {.panel-tabset}
+
+### Homoskedasticity
+
+**Condition 5** 
+
+Error term is homoeskedastic (Assumption $MLR.5$)
+
+```{=tex}
+\begin{align}
+Var(u|x_1,\dots,x_k)=\sigma^2
+\end{align}
+```
+
+### Variance
+
+Under conditions $MLR.1$ through $MLR.5$, conditional on the sample values of the independent variables,
+
+```{=tex}
+\begin{align}
+    Var(\widehat{\beta}_j)= \frac{\sigma^2}{SST_j(1-R^2_j)},
+\end{align}
+```
+
+where $SST_j= \sum_{i=1}^n (x_{ji}-\bar{x_j})^2$ and $R_j^2$ is the R-squared from regressing $x_j$ on all other independent variables including an intercept. (<span style = "color: blue;"> We will revisit this equation</span>)
+
+### Estimating $\sigma^2$
+
+Just like uni-variate regression, you need to estimate $\sigma^2$ if you want to estimate the variance (and standard deviation) of the OLS estimators.
+
+**uni-variate regression**
+
+```{=tex}
+\begin{align}
+  \widehat{\sigma}^2=\sum_{i=1}^N \frac{\widehat{u}_i^2}{n-2}
+\end{align}
+```
+
+**multi-variate regression**
+
+A model with $k$ independent variables with intercept.
+
+```{=tex}
+\begin{align}
+  \widehat{\sigma}^2=\sum_{i=1}^N \frac{\widehat{u}_i^2}{n-(k+1)}
+\end{align}
+```
+
+You solved $k+1$ simultaneous equations to get $\widehat{\beta}_j$ $(j=0,\dots,k)$. So, once you know the value of $n-k-1$ of the residuals, you know the rest.
+
+The <span style = "color: red;"> estimator </span> of the variance of the OLS estimator is therefore
+
+```{=tex}
+\begin{align}
+\widehat{Var{\widehat{\beta}_j}} = \frac{\widehat{\sigma}^2}{SST_j(1-R^2_j)}
+\end{align}
+```
+
+:::
+<!--end of panel-->
+
+# Frisch–Waugh–Lovell Theorem (Optional)
+
+<html><div style='float:left'></div><hr color='#EB811B' size=1px width=1000px></html>
+
+## Frisch–Waugh–Lovell Theorem 
+
+Consider the following simple model,
+
+```{=tex}
+\begin{align}
+  y_i = \beta_0 + \beta_1 x_{1,i} + \beta_2 x_{2,i} + \beta_3 x_{3,i} + u_i
+\end{align}
+```
+
+Suppose you are interested in estimating only $\beta_1$.
+
+Let's consider the following two methods,
+
+**Method 1: Regular OLS**
+
+Regress $y$ on $x_1$, $x_2$, and $x_3$ with an intercept to estimate $\beta_0$, $\beta_1$, $\beta_2$, $\beta_3$ at the same time (just like you normally do)
+
+**Method 2: 3-step**
+
++ regress $y$ on $x_2$ and $x_3$ with an intercept and get residuals, which we call $\widehat{u}_y$
++ regress $x_1$ on $x_2$ and $x_3$ with an intercept and get residuals, which we call $\widehat{u}_{x_1}$
++ regress $\widehat{u}_y$ on $\widehat{u}_{x_1}$ $(\widehat{u}_y=\alpha_1 \widehat{u}_{x_1}+v_3)$
+
+**Frisch-Waugh–Lovell theorem**
+
+Methods 1 and 2 produces the same coefficient estimate on $x_1$
+
+$$\widehat{\beta_1} = \widehat{\alpha_1}$$
+
+## Partialing out Interpretation from Method 2
+
+**Step 1**
+
+Regress $y$ on $x_2$ and $x_3$ with an intercept and get residuals, which we call $\widehat{u}_y$
+
++ $\widehat{u}_y$ is void of the impact of $x_2$ and $x_3$ on $y$
+
+**Step 2**
+
+Regress $x_1$ on $x_2$ and $x_3$ with an intercept and get residuals, which we call $\widehat{u}_{x_1}$
+
++ $\widehat{u}_{x_1}$ is void of the impact of $x_2$ and $x_3$ on $x_1$
+
+**Step 3**
+
+Regress $\widehat{u}_y$ on $\widehat{u}_{x_1}$, which produces an estimte of $\beta_1$ that is identical to that you can get from regressin $y$ on $x_1$, $x_2$, and $x_3$
+
+## Interpretation
+
++ Regressing $y$ on all explanatory variables $(x_1$, $x_2$, and $x_3)$ in a multivariate regression is as if you are looking at the impact of a single explanatory variable with the effects of all the other effects partiled out
+
++ In other words, including variables beyond your variable of interest lets you <span style = "color: red;"> control for (remove the effect of) </span> other variables, avoiding confusing the impact of the variable of interest with the impact of other variables. 
+
+
