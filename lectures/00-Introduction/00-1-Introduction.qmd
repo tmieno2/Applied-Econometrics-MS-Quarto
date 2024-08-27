@@ -1,0 +1,460 @@
+---
+title: "00: Introduction to Econometrics"
+format: 
+  revealjs: 
+    theme: [default, ../custom.scss]
+    fontsize: 1.4em
+    callout-icon: false
+    scrollable: true
+    fig-dpi: 400
+execute:
+  echo: false
+---
+
+```{r}
+library(data.table)
+library(here)
+library(knitr)
+library(dplyr)
+library(flextable)
+```
+
+# What is econometrics about?
+
+<html><div style='float:left'></div><hr color='#EB811B' size=1px width=1000px></html>
+
+## What econometrics is about
+
+::: {.panel-tabset}
+
+### What?
+
+**What are we doing?**
+
+Estimate quantitative relationships between variables.
+
+<br>
+
+**Examples**
+
++ the impact of fertilizer on crop yield
++ the impact of political campaign expenditure on voting outcomes
++ the impact of education on wage
+
+### Steps in Econometric Analysis
+
+1. formulation of the question of interest (what are you trying to find out?)
+2. develop an economic model of the phenomenon you are interested in understanding (identify variables that matter)
+3. turn the economic model into an econometric model
+4. collect data
+5. <span style = "color: blue;"> estimate the model using econometrics </span>
+6. <span style = "color: blue;"> test hypotheses </span>
+
+:::
+<!--end of panel-->
+
+
+## Go through the steps
+
+::: {.panel-tabset}
+### Step 2: Economic Model
+
+**Example: Job training and worker productivity**
+
+$$wage = f(educ,exper,training)$$
+
++ $wage$: hourly wage
++ $educ$: years of formal education
++ $exper$: years of workforce experience
++ $training$: weeks spent in job training
+
+**Note**
+
+Depending on questions you would like to answer, the economic model can (and should) be much more involved
+
+### Step 3: Econometric model
+
+We have built a conceptual model:
+
+$$wage = f(educ,exper,training)$$
+
+Now, the form of the function $f(\cdot)$ must be specified (almost always) before we can undertake an econometric analysis
+
+$$
+wage = \beta_0 + \beta_1 educ + \beta_2 exper + \beta_3 training + u
+$$
+
+**$\beta_0,\beta_1,\beta_2,\beta_3$**
+
++ are the <span style = "color: red;"> parameters </span> of the econometric model.
++ describe the directions and strengths of the relationship between $wage$ and the factors used to determine $wage$ in the model
+
+**$u$**
+
++ is called error term
++ includes <span style = "color: red;"> ALL </span> the other factors that can affect wage other than the included variables (like innate ability)
+
+### Step 4: Collect data
+
+We can collect data using various ways. Some of them include survey, websites, experiments. Let's look at different data types:
+
+::: {.panel-tabset}
+#### Cross-sectional Data
+
++ Sample of individuals, households, firms, cities, states, countries, or a variety of other units, taken at a given point in time
++ The data on all units do not correspond to precisely the same time period
+  - some families surveyed during different weeks within a year
+
+**What a cross-sectional data looks like on R**
+
+```{r }
+#| echo: false
+data(wage1, package = "wooldridge") 
+
+data.table(wage1) %>%
+  .[, .(wage, educ, exper, female, married)]
+```
+
+#### Time-series Data
+
+Observations on a variable or several variables over time
+  + corn price
+  + oil price
+
+<br>
+
+**Note**
+
++ The econometric frameworks necessary to analyze time series data are quite different from those for cross-sectional data
++ We do <span style = "color: red;"> NOT </span> learn time-series econometric methods
+
+#### Panel (Longitudinal) Data
+
+Time series data for each cross-sectional member in the data set (<span style = "color: red;"> same </span> cross-sectional units are tracked over a given period of time)
+
+**Example**
+
++ wage data for individuals collected every five years over the past 30 years
++ yearly GDP data for 60 countries over the past 10 years
+
+**What a panel data looks like on R**
+
+```{r }
+#| echo: false
+data(crime4, package = "wooldridge") 
+data.table(crime4)[, .(county, year, crmrte, prbarr, prbpris)]
+```
+
+
+:::
+<!--end of panel-->
+
+### Steps 5 and 6
+
+This is what you learn for the next few months!!
+
+  + estimate the model using econometrics
+  + test hypothesis
+
+:::
+<!--end of panel-->
+
+# Causality and Association
+
+<html><div style='float:left'></div><hr color='#EB811B' size=1px width=1200px></html>
+
+## Causality and Association
+
+::: {.panel-tabset}
+
+### Distinction between causality and association
+
+**Association**
+
+An association of two variables arise because <span style = "color: red;"> either of or both </span> variables affect the other variable
+
+```{=tex}
+\begin{align}
+  A \longleftrightarrow B \\
+  A \longrightarrow B \\
+  A \longleftarrow B 
+\end{align}
+```
+
+Association does <span style = "color: red;"> NOT </span> concern which affects which. Under all the three cases above, A and B are <span style = "color: blue;"> associated</span>. Or, we say there is an association between A and B. This is what <span style = "color: blue;"> correlation coefficient </span> measures.
+
+<br> 
+
+**Causality**
+
+When A has a causal impact on B,
+
+$$
+A \longrightarrow B 
+$$
+
+Here, changes in $A$ cause changes in $B$, not the other way around
+
+### Glasses?
+::: {.panel-tabset}
+
+
+
+#### Video
+
+Let's watch this [interesting CM](https://www.youtube.com/watch?v=KSHMgoUWBmY).
+
+#### Claims
+
+People who wear glasses are
+
++ much smarter than those who don't
++ more likely to pursue higher education
++ 200% more likely to graduate college
+
+For you to be convinced to buy glasses, these claims needs to be causal, not association:
+
++ Does wearing glasses make you much smarter?
++ Does wearing glasses make it more likely for you to pursue higher education?
++ Does wearing glasses make it 200% more likely for you to graduate college?
+
+#### But,
+
+However, this seems to be a more likely explanation of the association:
+
++ One spends more time studying academic subjects
+  - smarter (or knowledgeable) $\Rightarrow$ pursue higher education and graduate college 
+  - worsened eyesight $\Rightarrow$ wear glasses
+
+:::{.callout-important}
++ We care about isolating causal effects, but not association
++ Identifying association is super easy
++ Identifying causal effects is extremely hard (this is what we tackle) 
+:::
+
+:::
+<!--end of panel-->
+
+:::
+<!--end of panel-->
+
+
+# Endogeneity: Your Nemesis
+
+<html><div style='float:left'></div><hr color='#EB811B' size=1px width=1200px></html>
+
+## Endogeneity: Your Nemesis
+
+::: {.panel-tabset}
+### Endogeneity
+
+It is super easy to find an association of multiple variables, but it is incredibly hard to find a causal effect (at least in Economics)!!
+
+That is due to the problem called <span style = "color: blue;"> endogeneity </span>, which is going to be defined formally later.
+
+### Example
+
+You are interested in the causal impact of fire fighters on the number of death tolls in fire events
+
+```{r echo = F}
+data.table(
+  `fire event` = 1:5,
+  `death toll` = c(10, 0, 5, 3, 50),
+  `# of firefighters deployed` = c(20, 3, 10, 5, 50)
+) %>%
+  flextable() %>%
+  autofit() %>%
+  width(2.2, j = 3) %>%
+  flextable::align(j = 1:3, align = "center")
+```
+
+**Questions**
+
++ How are they <span style = "color: blue;"> associated </span>?
++ Can you say anything about the causal effect of fire fighters deployment on the number of death tolls?
+
+### What happened?
+
+You ignored an important variable!!
+
+```{r}
+data.table(
+  `fire event` = 1:5,
+  `death toll` = c(10, 0, 5, 3, 50),
+  `# of firefighters deployed` = c(20, 3, 10, 5, 50),
+  `scale of fire` = c(20, 5, 20, 10, 100)
+) %>%
+  flextable() %>%
+  autofit() %>%
+  width(2.2, j = 3) %>%
+  flextable::align(j = 1:4, align = "center")
+```
+
+### Endogeneity
+
+:::{.callout-important title="Definition"}
+Variables of interest are correlated with some <span style = "color: blue;"> unobservables </span> (variables that cannot be observed or are missing) that have non-zero impacts on the variable that you want to explain
+:::
+
+<br>
+
+The unobserved variables are also called <span style = "color: blue;"> confounder/confounding factor </span>.
+
+# The example
+
+In the the firefighter example,
+
++ <span style = "color: red;"> variable of interest </span>: the number of firefighters
++ <span style = "color: red;"> unobservables/confounder </span>: the scale of fire events (and other factors)
++ <span style = "color: red;"> variable to explain </span>: death toll
+
+**The model**
+
+```{=tex}
+\begin{align}
+  \mbox{death toll} & = \alpha + \beta\; \mbox{# of fire fighters} + \mu\\
+  ,\mbox{where } \mu & = (\gamma\; \mbox{scale} + v) \mbox{ is the error term (collection of unobservables)}
+\end{align}
+```
+
+**Endogeneity Problem**
+
+\# of fire fighters is correlated with scale, which we ignored
+
+### Another example
+
+$$wage = \beta_0 + \beta_1 educ + \beta_2 exper + \beta_3 training + u$$
+    
+What are unobservables in $u$ that are likely to be correlated with $educ$?
+
+**An important unobservable**
+
++ innate ability $\Rightarrow$ wage
++ innate ability $\Rightarrow$ education
+
+
+:::
+<!--end of panel-->
+
+
+## How to deal with endogeneity
+
+::: {.panel-tabset}
+
+### The question
+
+**Problem**
+
+Most of the time, you will be faced with endogeneity problems caused by at least one of the followings,
+
++ omitted variables (the scale of fire events, innate ability)
++ self-selection
++ simultaneity
++ measurement error
+
+**Central Question**
+
+How can we avoid or solve endogeneity problems?
+
+### How to deal with endogeneity?
+
++ You have two opportunities to deal with endogeneity problems
+  - at the design (design to collect data) stage
+  - at the regression stage (what you will learn in this course)
++ Econometrics has evolved mostly to address endogeneity problems at the <span style = "color: blue;"> regression stage </span> because randomized experiments are infeasible most of the time
++ How about econometrics and other fields of statistics: Statistics, Psychometrics, and Biometrics?
+
+```{r echo = FALSE, out.width="100%"}
+data.table(
+  Field = c("Econometrics", "Many other fields"),
+  Design = c("not feasible (often)", "feasible"),
+  `Estimation Method` = c("intricate", "relatively simple")
+) %>%
+  flextable() %>%
+  autofit()
+```
+
+:::
+<!--end of panel-->
+
+## Randomized-experiments
+
+In randomized experiments,
+
++ you have a liberty to determine the level of the variable of interest
++ by randomizing the value of the variable of interest, you can effectively break the link (association) with whatever is included in the error term
+
+::: {.panel-tabset}
+
+### Example (Non-Randomized)
+
+::: {.panel-tabset}
+
+#### Data
+
+Yield and nitrogen rate data obtained from a field that is managed by a farmer
+
+```{r  echo = F, out.width = "70%"}
+include_graphics("non_randomized.png")
+```
+
+#### Farmer's decision
+
+**Farmer**
+
++ decide nitrogen rate based on soil/field characteristics (some of them we researchers do not get to observe)
+
+**Researcher**
+
++ soil characteristics is not observable, so it is in the error term
+
+$$yield = \beta_0 + \beta_1 N + (\gamma SC + \mu)$$
+
++ N (nitrogen rate) and SC (soil characteristics) are correlated
+
+#### Bias
+
+Suppose the farmer applied more nitrogen to the area where its soil characteristics lead to higher corn yield
+
+**Question**
+If the researcher estimate the model (which ignores soil characteristics), do you over- or under-estimate the impact of nitrogen rate on corn yield?
+:::
+<!--end of panel-->
+
+### Randomized
+
+```{r  echo = F, out.width = "70%"}
+magick::image_read_pdf("field_map_N_IL.pdf",
+  pages = 1
+)
+```
+
+:::{.callout-important}
+Soil quality (in error term) is no longer correlated with N!!
+:::
+
+### Randomized Experiments on Education?
+
+**Randomized Experiment?**
+
+Researchers determine randomly how much education subjects (people) can get?
+
+**Endogeneity Problem in Economics**
+
++ Economics is about understanding human behavior
+
++ Almost always, you need to deal with endogeneity problem because people are `smart`: we make decisions based on available information (not just randomly) so that our decisions lead to good outcomes (<span style = "color: blue;">whether our decisions turn out to be good or not is irrelevant</span>)
+  - how much education one get is determined based on their judgment of their own ability (not by rolling a dice)
+  - how many fire fighters to be deployed was determined based on the scale of fire (not by rolling a dice)
+  - how much nitrogen to apply based on soil characteristics (not by rolling a dice)
+
++ If people are not smart and just roll a dice for their decision making, we would have much easier time identifying causal effects
+
+:::
+<!--end of panel-->
+
+
+
+
+
+
