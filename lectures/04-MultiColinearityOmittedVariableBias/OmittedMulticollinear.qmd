@@ -1,0 +1,1892 @@
+---
+title: "04-1: Omitted Variable Bias and Multicollinearity"
+format: 
+  revealjs: 
+    theme: [default, ../custom.scss]
+    fontsize: 1.4em
+    callout-icon: false
+    scrollable: true
+    echo: true
+    fig-dpi: 400
+execute:
+  echo: true
+  out-width: 80%
+webr:
+  packages: ['fixest', 'dplyr', 'data.table', 'ggplot2']
+  cell-options:
+    editor-font-scale: 0.8
+filters:
+  - webr
+---
+
+
+```{r include = F}
+library(fixest)
+library(data.table)
+library(ggplot2)
+```
+
+## What variables to include or not
+
+You often
+
++ face the decision of whether you should be including a particular variable or not: <span style="color:red"> how do you make a right decision? </span>
+
++ miss a variable that you know is important because it is not simply available: <span style="color:red"> what are the consequences? </span>
+
+Two important concepts you need to be aware of:
+
++ Multicollinearity
++ Omitted Variable Bias
+
+## Multicollinearity and Omitted Variable Bias
+
+::: {.panel-tabset}
+
+### Definition
+
+:::{.callout-note title="Definition: Multicollinearity"}
+A phenomenon where two or more variables are highly correlated (negatively or positively) with each other (<span style="color:blue"> consequences? </span>)
+:::
+
+<br>
+
+:::{.callout-note title="Definition: Omitted Variable Bias"}
+Bias caused by not including (omitting) <span style="color:blue"> important </span> variables in the model
+:::
+
+### Objective
+
+Consider the following model,
+
+$$
+y_i = \beta_0 + \beta_1 x_{1,i} + \beta_2 x_{2,i} + u_i
+$$
+
+Your interest is in estimating the impact of $x_1$ on $y$.
+
+:::{.callout-note title="Objective"}
+Using this simple model, we investigate what happens to the coefficient estimate on $x_1$ if you include/omit $x_2$.
+:::
+
+### Cases we look at
+
+The model: $$y_i = \beta_0 + \beta_1 x_{1,i} + \beta_2 x_{2,i} + u_i$$
+
+**Case 1**:
+
+What happens if $\beta_2=0$, but <span style="color:blue">include</span> $x_2$ that is <span style="color:blue">not</span> correlated with $x_1$?
+
+**Case 2**:
+
+What happens if $\beta_2=0$, but <span style="color:blue">include</span> $x_2$ that is <span style="color:blue">highly</span> correlated with $x_1$?
+
+**Case 3**:
+
+What happens if $\beta_2\ne 0$, but <span style="color:blue">omit</span> $x_2$ that is <span style="color:blue">not</span> correlated with $x_1$?
+
+**Case 4**:
+
+What happens if $\beta_2\ne 0$, but <span style="color:blue">omit</span> $x_2$ that is <span style="color:blue">highly</span> correlated with $x_1$?
+
+### Key consequences of interest 
+
++ Is $\widehat{\beta}_1$ unbiased, that is $E[\widehat{\beta}_1]=\beta_1$?
+
++ $Var(\widehat{\beta}_1)$? (how accurate the estimation of $\widehat{\beta}_1$ is)
+
+:::
+<!--end of panel-->
+
+## Case 1 
+
+::: {.panel-tabset}
+
+### Setup
+
+**True Model**
+
+$y_i=\beta_0 + \beta_1 x_{1,i} + \beta_2 x_{2,i} + u_i$
+
++ $cor(x_1,x_2) = 0$
++ $\beta_2=0$
++ $E[u_i|x_{1,i},x_{2,i}]=0$
+
+:::{.callout-note title="Example"}
+$\mbox{corn yield} = \beta_0 + \beta_1 \times N + \beta_2 \mbox{farmers' height} + u$
+:::
+
+### Question
+
+We will estimate the following models:
+
+<br>
+
+$EE_1$: $y_i=\beta_0 + \beta_1 x_{1,i} + v_i \mbox{ , where } (v_i = \beta_2 x_{2,i} + u_i)$
+
+$EE_2$: $y_i=\beta_0 + \beta_1 x_{1,i} + \beta_2 x_{2,i} + u_i$
+
+(Only $x_1$ is included in $EE_1$, while $x_1$ and $x_2$ are included in $EE_2$.)
+
+<br>
+
+:::{.callout-note title="Question"}
+What do you think is gonna happen? Any guess?
+
++ $E[\widehat{\beta}_1]=\beta_1$ in $EE_1$? (bias?)
++ $E[\widehat{\beta}_1]=\beta_1$ in $EE_2$? (bias?)
++ $Var(\widehat{\beta}_1)$ in $EE_2$ $\gtreqqless$ $Var(\widehat{\beta}_1)$ in $EE_2$?
+:::
+
+### MC Simulation
+
+::: {.columns}
+
+::: {.column width="90%"}
+
+Set up simulations:
+
+```{webr-r}
+#--------------------------
+# Monte Carlo Simulation
+#--------------------------
+set.seed(37834)
+
+N <- 100 # sample size
+B <- 1000 # the number of iterations
+estiamtes_strage <- matrix(0, B, 2)
+```
+
+<br>
+
+Run MC simulations:
+
+```{webr-r}
+for (i in 1:B) { # iterate the same process B times
+
+  #--- data generation ---#
+  x1 <- rnorm(N) # independent variable
+  x2 <- rnorm(N) # independent variable
+  u <- rnorm(N) # error
+  y <- 1 + x1 + 0 * x2 + u # dependent variable
+  data <- data.frame(y = y, x1 = x1, x2 = x2)
+
+  #--- OLS ---#
+  beta_ee1 <- feols(y ~ x1, data = data)$coefficient["x1"] # OLS with EE1
+  beta_ee2 <- feols(y ~ x1 + x2, data = data)$coefficient["x1"] # OLS with EE2
+
+  #--- store estimates ---#
+  estiamtes_strage[i, 1] <- beta_ee1
+  estiamtes_strage[i, 2] <- beta_ee2
+}
+```
+
+<br>
+
+Visualize the results:
+
+```{webr-r}
+b_ee1 <- data.table(
+  bhat = estiamtes_strage[, 1],
+  type = "EE 1"
+)
+
+b_ee2 <- data.table(
+  bhat = estiamtes_strage[, 2],
+  type = "EE 2"
+)
+
+plot_data <- rbind(b_ee1, b_ee2)
+
+g_case_1 <- ggplot(data = plot_data) +
+  geom_density(aes(x = bhat, fill = type), alpha = 0.5) +
+  scale_fill_discrete(name = "Estimating Equation") +
+  theme(legend.position = "bottom")
+```
+:::
+<!--end of the 2nd column-->
+::: {.column width="10%"}
+
+:::
+<!--end of the 1st column-->
+:::
+<!--end of the columns-->
+
+
+### MC Results
+
+```{webr-r}
+g_case_1
+```
+
+### Insights: Bias
+
+::: {.panel-tabset}
+
+#### $EE_1$
+
+::: {.columns}
+
+::: {.column width="50%"}
+**True model**
+
+$y_i=\beta_0 + \beta_1 x_{1,i} + \beta_2 x_{2,i} + u_i$
+
++ $cor(x_1,x_2) = 0$
++ $\beta_2=0$
++ $E[u_i|x_{1,i},x_{2,i}]=0$
+:::
+<!--end of the 1st column-->
+::: {.column width="50%"}
+**Estimated model**
+
+$EE_1$: $y_i = \beta_0 + \beta_1 x_{1,i} + v_{i} \;\; (v_i = \beta_2 x_{2,i} + u_{i})$
+:::
+<!--end of the 2nd column-->
+:::
+<!--end of the columns-->
+
+<br>
+
+::: {.panel-tabset}
+##### Question
+
+$E[v_i|x_{1,i}]=0?$
+
+
+<br>
+<details>
+  <summary>Answer</summary>
+Yes, because $x_1$ is not correlated with either of $x_2$ and $u$. So, **no** bias.
+</details>
+
+
+:::
+<!--end of panel-->
+
+#### $EE_2$
+
+::: {.columns}
+
+::: {.column width="50%"}
+**True model**
+
+$y_i=\beta_0 + \beta_1 x_{1,i} + \beta_2 x_{2,i} + u_i$
+
++ $cor(x_1,x_2) = 0$
++ $\beta_2=0$
++ $E[u_i|x_{1,i},x_{2,i}]=0$
+:::
+<!--end of the 1st column-->
+::: {.column width="50%"}
+**Estimated model**
+
+$EE_2$: $y_i = \beta_0 + \beta_1 x_{1,i} + \beta_2 x_{2,i} + u_{i}$
+:::
+<!--end of the 2nd column-->
+:::
+<!--end of the columns-->
+
+<br>
+
+::: {.panel-tabset}
+##### Question
+
+$E[u_i|x_{1,i},x_{2,i}]=0$?
+
+<br>
+<details>
+  <summary>Answer</summary>
+Yes, because $x_1$ and $x_2$ are not correlated with $u$ (by assumption). So, **no** bias.
+</details>
+
+:::
+<!--end of panel-->
+
+:::
+<!--end of panel-->
+
+### Insights: Variance
+
+::: {.panel-tabset}
+
+#### $EE_1$
+
+::: {.columns}
+
+::: {.column width="30%"}
+**True model**
+
+$y_i=\beta_0 + \beta_1 x_{1,i} + \beta_2 x_{2,i} + u_i$
+
++ $cor(x_1,x_2) = 0$
++ $\beta_2=0$
++ $E[u_i|x_{1,i},x_{2,i}]=0$
+:::
+<!--end of the 1st column-->
+::: {.column width="30%"}
+**Variance**
+
+$Var(\widehat{\beta}_j)= \frac{\sigma_v^2}{SST_j(1-R^2_j)}$
+
+where $R^2_j$ is the $R^2$ when you regress $x_j$ on all the other covariates.
+:::
+<!--end of the 2nd column-->
+
+::: {.column width="40%"}
+**The estimated model** 
+
+$EE_1$: $y_i = \beta_0 + \beta_1 x_{1,i} + v_{i} \;\; (\beta_2 x_{2,i} + u_{i})$
+:::
+<!--end of the 3rd column-->
+:::
+<!--end of the columns-->
+
+<br>
+
+::: {.panel-tabset}
+
+##### Question ($R_j^2$)
+
+$R_j^2$?
+
+<br>
+<details>
+  <summary>Answer</summary>
+0 because there are no other variables included in the model.
+</details>
+
+##### Question (variance of the error term)
+
+$Var(v_i) = Var(\beta_2 x_i + u_i)$?
+
+<br>
+<details>
+  <summary>Answer</summary>
+$$
+Var(u_i) = Var(\beta_2 x_i + u_i) = \sigma_u^2
+$$
+because $\beta_2 = 0$.
+
+</details>
+
+:::
+<!--end of panel-->
+
+#### $EE_2$
+
+::: {.columns}
+
+::: {.column width="30%"}
+**True model**
+
+$y_i=\beta_0 + \beta_1 x_{1,i} + \beta_2 x_{2,i} + u_i$
+
++ $cor(x_1,x_2) = 0$
++ $\beta_2=0$
++ $E[u_i|x_{1,i},x_{2,i}]=0$
+:::
+<!--end of the 1st column-->
+::: {.column width="30%"}
+**Variance**
+
+$Var(\widehat{\beta}_j)= \frac{\sigma_u^2}{SST_j(1-R^2_j)}$
+
+where $R^2_j$ is the $R^2$ when you regress $x_j$ on all the other covariates.
+:::
+<!--end of the 2nd column-->
+
+::: {.column width="40%"}
+**The estimated model** 
+
+$EE2$: $y_i = \beta_0 + \beta_1 x_{1,i} + \beta_2 x_{2,i} + u_{i}$
+:::
+<!--end of the 3rd column-->
+:::
+<!--end of the columns-->
+
+<br>
+
+::: {.panel-tabset}
+
+##### Question ($R_j^2$)
+
+$R_j^2$?
+
+<br>
+<details>
+  <summary>Answer</summary>
+0 on average because $cor(x_1, x_2)=0$
+</details>
+
+##### Question (variance of the error term)
+
+$Var(u_i)$?
+
+<br>
+<details>
+  <summary>Answer</summary>
+$$
+Var(u_i) = \sigma_u^2
+$$
+</details>
+
+
+:::
+<!--end of panel-->
+
+#### $EE_1$ v.s. $EE_2$
+
+:::{.callout-note title="Question"}
+$Var(\widehat{\beta}_1)$ in $EE_1$ $\gtreqqless$ $Var(\widehat{\beta}_1)$ in $EE_2$?
+:::
+
+<br>
+
+::: {.columns}
+
+::: {.column width="33%"}
+**$EE_1$**
+
++ $R_j^2 = 0$
++ $Var(error) = Var(v_i) = \sigma_u^2$
+:::
+<!--end of the 1st column-->
+::: {.column width="33%"}
+**$EE_2$**
+
++ $R_j^2 = 0$
++ $Var(error) = Var(u_i) = \sigma_u^2$
+
+:::
+<!--end of the 2nd column-->
+
+::: {.column width="33%"}
+**Variance formula**
+
+$Var(\widehat{\beta}_j)= \frac{Var(error)}{SST_j(1-R^2_j)}$
+:::
+:::
+<!--end of the columns-->
+
+<br>
+<br>
+<details>
+  <summary>Answer</summary>
+They are the same because all the components are the same.
+</details>
+
+:::
+<!--end of panel-->
+
+### Summary 
+
++ If you include an irrelevant variable that has no explanatory power beyond $x_1$ and is not correlated with $x_1$ ($EE_2$), then the variance of the OLS estimator on $x_1$ will be the same as when you do not include $x_2$ as a covariate ($EE_1$)
+
++ If you omit an irrelevant variable that has no explanatory power beyond $x_1$ ($EE_1$) and is not correlated with $x_1$, then the the OLS estimator on $x_1$ is still unbiased
+
+:::
+<!--end of panel-->
+
+## Case 2
+
+::: {.panel-tabset}
+
+### Setup
+
+**True Model**
+
+$y_i=\beta_0 + \beta_1 x_{1,i} + \beta_2 x_{2,i} + u_i$
+
++ $cor(x_1,x_2) \ne 0$
++ $\beta_2=0$
++ $E[u_i|x_{1,i},x_{2,i}]=0$
+
+:::{.callout-note title="Example"}
+$\mbox{corn yield} = \beta_0 + \beta_1 \times N + \beta_2 \mbox{farmers' height} + u$
+:::
+
+### Question
+
+We will estimate the following models:
+
+<br>
+
+$EE_1$: $y_i=\beta_0 + \beta_1 x_{1,i} + v_i \mbox{ , where } (v_i = \beta_2 x_{2,i} + u_i)$
+
+$EE_2$: $y_i=\beta_0 + \beta_1 x_{1,i} + \beta_2 x_{2,i} + u_i$
+
+(Only $x_1$ is included in $EE_1$, while $x_1$ and $x_2$ are included in $EE_2$)
+
+<br>
+
+:::{.callout-note title="Question"}
+What do you think is gonna happen? Any guess?
+
++ $E[\widehat{\beta}_1]=\beta_1$ in $EE_1$? (bias?)
++ $E[\widehat{\beta}_1]=\beta_1$ in $EE_2$? (bias?)
++ $Var(\widehat{\beta}_1)$ in $EE_2$ $\gtreqqless$ $Var(\widehat{\beta}_1)$ in $EE_2$?
+:::
+
+### MC Simulation
+
+::: {.columns}
+
+::: {.column width="90%"}
+
+Set up simulations:
+
+```{webr-r}
+#| autorun: true
+N <- 100 # sample size
+B <- 1000 # the number of iterations
+estiamtes_strage <- matrix(0, B, 2)
+```
+
+<br>
+
+Run MC simulations:
+
+```{webr-r}
+set.seed(37834)
+
+for (i in 1:B) { # iterate the same process B times
+
+  #--- data generation ---#
+  mu <- rnorm(N) # common term shared by x1 and x2
+  x1 <- 0.1 * rnorm(N) + 0.9 * mu # independent variable
+  x2 <- 0.1 * rnorm(N) + 0.9 * mu # independent variable
+  u <- rnorm(N) # error
+  y <- 1 + x1 + 0 * x2 + u # dependent variable
+  data <- data.frame(y = y, x1 = x1, x2 = x2)
+
+  #--- OLS ---#
+  beta_ee1 <- feols(y ~ x1, data = data)$coefficient["x1"] # OLS with EE1
+  beta_ee2 <- feols(y ~ x1 + x2, data = data)$coefficient["x1"] # OLS with EE2
+
+  #--- store estimates ---#
+  estiamtes_strage[i, 1] <- beta_ee1
+  estiamtes_strage[i, 2] <- beta_ee2
+}
+```
+
+<br>
+
+Visualize the results:
+
+```{webr-r}
+b_ee1 <- data.table(
+  bhat = estiamtes_strage[, 1],
+  type = "EE 1"
+)
+
+b_ee2 <- data.table(
+  bhat = estiamtes_strage[, 2],
+  type = "EE 2"
+)
+
+plot_data <- rbind(b_ee1, b_ee2)
+
+g_case_2 <- 
+  ggplot(data = plot_data) +
+  geom_density(aes(x = bhat, fill = type), alpha = 0.5) +
+  scale_fill_discrete(name = "Estimating Equation") +
+  theme(legend.position = "bottom")
+```
+:::
+<!--end of the 1st column-->
+::: {.column width="10%"}
+
+:::
+<!--end of the 2nd column-->
+:::
+<!--end of the columns-->
+
+### MC Results
+
+```{webr-r}
+g_case_2
+```
+
+### Insights: Bias
+
+::: {.panel-tabset}
+
+#### $EE_1$
+
+::: {.columns}
+
+::: {.column width="50%"}
+**True model**
+
+$y_i=\beta_0 + \beta_1 x_{1,i} + \beta_2 x_{2,i} + u_i$
+
++ $cor(x_1,x_2) = 0$
++ $\beta_2=0$
++ $E[u_i|x_{1,i},x_{2,i}]=0$
+:::
+<!--end of the 1st column-->
+::: {.column width="50%"}
+**Estimated model**
+
+$EE_1$: $y_i = \beta_0 + \beta_1 x_{1,i} + v_{i} \;\; (v_i = \beta_2 x_{2,i} + u_{i})$
+:::
+<!--end of the 2nd column-->
+:::
+<!--end of the columns-->
+
+<br>
+
+::: {.panel-tabset}
+##### Question
+
+$E[v_i|x_{1,i}]=0?$
+
+<br>
+<details>
+  <summary>Answer</summary>
+Yes, because 
+
++ $x_1$ is correlated with $x_2$, but $\beta_2 = 0$.
++ $x_1$ is not correlated with $u$
+
+So, **no** bias.
+</details>
+
+:::
+<!--end of panel-->
+
+#### $EE_2$
+
+::: {.columns}
+
+::: {.column width="50%"}
+**True model**
+
+$y_i=\beta_0 + \beta_1 x_{1,i} + \beta_2 x_{2,i} + u_i$
+
++ $cor(x_1,x_2) = 0$
++ $\beta_2=0$
++ $E[u_i|x_{1,i},x_{2,i}]=0$
+:::
+<!--end of the 1st column-->
+::: {.column width="50%"}
+**Estimated model**
+
+$EE_2$: $y_i = \beta_0 + \beta_1 x_{1,i} + \beta_2 x_{2,i} + u_{i}$
+:::
+<!--end of the 2nd column-->
+:::
+<!--end of the columns-->
+
+<br>
+
+::: {.panel-tabset}
+##### Question
+
+$E[u_i|x_{1,i},x_{2,i}]=0$?
+
+<br>
+<details>
+  <summary>Answer</summary>
+Yes, because $x_1$ and $x_2$ are not correlated with $u$ (by assumption). So, **no** bias.
+</details> 
+
+:::
+<!--end of panel-->
+
+:::
+<!--end of panel-->
+
+### Insights: Variance
+
+::: {.panel-tabset}
+
+#### $EE_1$
+
+::: {.columns}
+
+::: {.column width="30%"}
+**True model**
+
+$y_i=\beta_0 + \beta_1 x_{1,i} + \beta_2 x_{2,i} + u_i$
+
++ $cor(x_1,x_2) = 0$
++ $\beta_2=0$
++ $E[u_i|x_{1,i},x_{2,i}]=0$
+:::
+<!--end of the 1st column-->
+::: {.column width="30%"}
+**Variance**
+
+$Var(\widehat{\beta}_j)= \frac{\sigma_v^2}{SST_j(1-R^2_j)}$
+
+where $R^2_j$ is the $R^2$ when you regress $x_j$ on all the other covariates.
+:::
+<!--end of the 2nd column-->
+
+::: {.column width="40%"}
+**The estimated model** 
+
+$EE_1$: $y_i = \beta_0 + \beta_1 x_{1,i} + v_{i} \;\; (\beta_2 x_{2,i} + u_{i})$
+:::
+<!--end of the 3rd column-->
+:::
+<!--end of the columns-->
+
+<br>
+
+::: {.panel-tabset}
+
+##### Question ($R_j^2$)
+
+$R_j^2$?
+
+<br>
+<details>
+  <summary>Answer</summary>
+0 because there are no other variables included in the model.
+</details>
+
+##### Question (variance of the error term)
+
+$Var(v_i) = Var(\beta_2 x_i + u_i)$?
+
+<br>
+<details>
+  <summary>Answer</summary>
+$$
+Var(u_i) = Var(\beta_2 x_i + u_i) = \sigma_u^2
+$$
+because $\beta_2 = 0$.
+
+</details>
+
+:::
+<!--end of panel-->
+
+#### $EE_2$
+
+::: {.columns}
+
+::: {.column width="30%"}
+**True model**
+
+$y_i=\beta_0 + \beta_1 x_{1,i} + \beta_2 x_{2,i} + u_i$
+
++ $cor(x_1,x_2) = 0$
++ $\beta_2=0$
++ $E[u_i|x_{1,i},x_{2,i}]=0$
+:::
+<!--end of the 1st column-->
+::: {.column width="30%"}
+**Variance**
+
+$Var(\widehat{\beta}_j)= \frac{\sigma_u^2}{SST_j(1-R^2_j)}$
+
+where $R^2_j$ is the $R^2$ when you regress $x_j$ on all the other covariates.
+:::
+<!--end of the 2nd column-->
+
+::: {.column width="40%"}
+**The estimated model** 
+
+$EE_2$: $y_i = \beta_0 + \beta_1 x_{1,i} + \beta_2 x_{2,i} + u_{i}$
+:::
+<!--end of the 3rd column-->
+:::
+<!--end of the columns-->
+
+<br>
+
+::: {.panel-tabset}
+
+##### Question ($R_j^2$)
+
+$R_j^2$?
+
+<br>
+<details>
+  <summary>Answer</summary>
+$R_j^2$ is non-zero because $x_1$ and $x_2$ are correlated. If you regress $x_1$ on $x_2$, then its $R^2$ is non-zero.
+
+```{webr-r}
+x1 <- 0.1 * rnorm(N) + 0.9 * mu # independent variable
+x2 <- 0.1 * rnorm(N) + 0.9 * mu # independent variable
+(
+ols_res <- feols(x1 ~ x2, data = data.frame(x1 = x1, x2 = x2))
+)
+```
+</details>
+
+##### Question (variance of the error term)
+
+$Var(u_i)$?
+
+<br>
+<details>
+  <summary>Answer</summary>
+$$
+Var(u_i) = \sigma_u^2
+$$
+</details>
+
+
+:::
+<!--end of panel-->
+
+#### $EE_1$ v.s. $EE_2$
+
+:::{.callout-note title="Question"}
+$Var(\widehat{\beta}_1)$ in $EE_1$ $\gtreqqless$ $Var(\widehat{\beta}_1)$ in $EE_2$?
+:::
+
+<br>
+
+::: {.columns}
+
+::: {.column width="33%"}
+**$EE_1$**
+
++ $R_j^2 = 0$
++ $Var(error) = Var(v_i) = \sigma_u^2$
+:::
+<!--end of the 1st column-->
+::: {.column width="33%"}
+**$EE_2$**
+
++ $R_j^2 > 0$
++ $Var(error) = Var(u_i) = \sigma_u^2$
+
+:::
+<!--end of the 2nd column-->
+
+::: {.column width="33%"}
+**Variance formula**
+
+$Var(\widehat{\beta}_j)= \frac{Var(error)}{SST_j(1-R^2_j)}$
+:::
+:::
+<!--end of the columns-->
+
+<br>
+<br>
+<details>
+  <summary>Answer</summary>
+So, $Var(\widehat{\beta}_1)$ in $EE_1$ $<$ $Var(\widehat{\beta}_1)$ in $EE_2$ 
+</details>
+
+:::
+<!--end of panel-->
+
+### Summary 
+
++ If you include an irrelevant variable that has no explanatory power beyond $x_1$, but is highly correlated with $x_1$ ($EE_2$), then the variance of the OLS estimator on $x_1$ is larger compared to when you do not include $x_2$ ($EE_1$)
+
++ If you omit an irrelevant variable that has no explanatory power beyond $x_1$ ($EE_1$), but is highly correlated with $x_1$, then the the OLS estimator on $x_1$ is still unbiased
+
+:::
+<!--end of panel-->
+
+## Case 3
+
+::: {.panel-tabset}
+
+### Setup
+
+**True Model**
+
+$y_i=\beta_0 + \beta_1 x_{1,i} + \beta_2 x_{2,i} + u_i$
+
++ $cor(x_1,x_2) = 0$
++ $\beta_2 \ne 0$
++ $E[u_i|x_{1,i},x_{2,i}]=0$
+
+:::{.callout-note title="Example"}
+$\mbox{corn yield} = \beta_0 + \beta_1 \times N + \beta_2 \mbox{farmers' height} + u$
+:::
+
+### Question
+
+We will estimate the following models:
+
+<br>
+
+$EE_1$: $y_i=\beta_0 + \beta_1 x_{1,i} + v_i \mbox{ , where } (v_i = \beta_2 x_{2,i} + u_i)$
+
+$EE_2$: $y_i=\beta_0 + \beta_1 x_{1,i} + \beta_2 x_{2,i} + u_i$
+
+(Only $x_1$ is included in $EE_1$, while $x_1$ and $x_2$ are included in $EE_2$)
+
+<br>
+
+:::{.callout-note title="Question"}
+What do you think is gonna happen? Any guess?
+
++ $E[\widehat{\beta}_1]=\beta_1$ in $EE_1$? (bias?)
++ $E[\widehat{\beta}_1]=\beta_1$ in $EE_2$? (bias?)
++ $Var(\widehat{\beta}_1)$ in $EE_2$ $\gtreqqless$ $Var(\widehat{\beta}_1)$ in $EE_2$?
+:::
+
+### MC Simulation
+
+::: {.columns}
+
+::: {.column width="90%"}
+
+Set up simulations:
+
+```{webr-r}
+#| autorun: true
+N <- 100 # sample size
+B <- 1000 # the number of iterations
+estiamtes_strage <- matrix(0, B, 2)
+```
+
+<br>
+
+Run MC simulations:
+
+```{webr-r}
+set.seed(37834)
+
+for (i in 1:B) { # iterate the same process B times
+
+  #--- data generation ---#
+  x1 <- rnorm(N) # independent variable
+  x2 <- rnorm(N) # independent variable
+  u <- rnorm(N) # error
+  y <- 1 + x1 + x2 + u # dependent variable
+  data <- data.frame(y = y, x1 = x1, x2 = x2)
+
+  #--- OLS ---#
+  beta_ee1 <- feols(y ~ x1, data = data)$coefficient["x1"] # OLS with EE1
+  beta_ee2 <- feols(y ~ x1 + x2, data = data)$coefficient["x1"] # OLS with EE2
+
+  #--- store estimates ---#
+  estiamtes_strage[i, 1] <- beta_ee1
+  estiamtes_strage[i, 2] <- beta_ee2
+}
+```
+
+<br>
+
+Visualize the results:
+
+```{webr-r}
+b_ee1 <- data.table(
+  bhat = estiamtes_strage[, 1],
+  type = "EE 1"
+)
+
+b_ee2 <- data.table(
+  bhat = estiamtes_strage[, 2],
+  type = "EE 2"
+)
+
+plot_data <- rbind(b_ee1, b_ee2)
+
+g_case_3 <- 
+  ggplot(data = plot_data) +
+  geom_density(aes(x = bhat, fill = type), alpha = 0.5) +
+  scale_fill_discrete(name = "Estimating Equation") +
+  theme(legend.position = "bottom")
+```
+:::
+<!--end of the 1st column-->
+::: {.column width="10%"}
+
+:::
+<!--end of the 2nd column-->
+:::
+<!--end of the columns-->
+
+### MC Results
+
+```{webr-r}
+g_case_3
+```
+
+### Insights: Bias
+
+::: {.panel-tabset}
+
+#### $EE_1$
+
+::: {.columns}
+
+::: {.column width="50%"}
+**True model**
+
+$y_i=\beta_0 + \beta_1 x_{1,i} + \beta_2 x_{2,i} + u_i$
+
++ $cor(x_1,x_2) = 0$
++ $\beta_2=0$
++ $E[u_i|x_{1,i},x_{2,i}]=0$
+:::
+<!--end of the 1st column-->
+::: {.column width="50%"}
+**Estimated model**
+
+$EE_1$: $y_i = \beta_0 + \beta_1 x_{1,i} + v_{i} \;\; (v_i = \beta_2 x_{2,i} + u_{i})$
+:::
+<!--end of the 2nd column-->
+:::
+<!--end of the columns-->
+
+<br>
+
+::: {.panel-tabset}
+##### Question
+
+$E[v_i|x_{1,i}]=0?$
+
+<br>
+<details>
+  <summary>Answer</summary>
+Yes, because $x_1$ is not correlated with either $x_2$ or $u$.
+
+So, **no** bias.
+</details>
+
+:::
+<!--end of panel-->
+
+#### $EE_2$
+
+::: {.columns}
+
+::: {.column width="50%"}
+**True model**
+
+$y_i=\beta_0 + \beta_1 x_{1,i} + \beta_2 x_{2,i} + u_i$
+
++ $cor(x_1,x_2) = 0$
++ $\beta_2=0$
++ $E[u_i|x_{1,i},x_{2,i}]=0$
+:::
+<!--end of the 1st column-->
+::: {.column width="50%"}
+**Estimated model**
+
+$EE_2$: $y_i = \beta_0 + \beta_1 x_{1,i} + \beta_2 x_{2,i} + u_{i}$
+:::
+<!--end of the 2nd column-->
+:::
+<!--end of the columns-->
+
+<br>
+
+::: {.panel-tabset}
+##### Question
+
+$E[u_i|x_{1,i},x_{2,i}]=0$?
+
+<br>
+<details>
+  <summary>Answer</summary>
+Yes, because $x_1$ and $x_2$ are not correlated with $u$ (by assumption). So, **no** bias.
+</details> 
+
+:::
+<!--end of panel-->
+
+:::
+<!--end of panel-->
+
+### Insights: Variance
+
+::: {.panel-tabset}
+
+#### $EE_1$
+
+::: {.columns}
+
+::: {.column width="30%"}
+**True model**
+
+$y_i=\beta_0 + \beta_1 x_{1,i} + \beta_2 x_{2,i} + u_i$
+
++ $cor(x_1,x_2) = 0$
++ $\beta_2=0$
++ $E[u_i|x_{1,i},x_{2,i}]=0$
+:::
+<!--end of the 1st column-->
+::: {.column width="30%"}
+**Variance**
+
+$Var(\widehat{\beta}_j)= \frac{\sigma_v^2}{SST_j(1-R^2_j)}$
+
+where $R^2_j$ is the $R^2$ when you regress $x_j$ on all the other covariates.
+:::
+<!--end of the 2nd column-->
+
+::: {.column width="40%"}
+**The estimated model** 
+
+$EE_1$: $y_i = \beta_0 + \beta_1 x_{1,i} + v_{i} \;\; (\beta_2 x_{2,i} + u_{i})$
+:::
+<!--end of the 3rd column-->
+:::
+<!--end of the columns-->
+
+<br>
+
+::: {.panel-tabset}
+
+##### Question ($R_j^2$)
+
+$R_j^2$?
+
+<br>
+<details>
+  <summary>Answer</summary>
+0 because there are no other variables included in the model.
+</details>
+
+##### Question (variance of the error term)
+
+$Var(v_i) = Var(\beta_2 x_i + u_i)$?
+
+<br>
+<details>
+  <summary>Answer</summary>
+
+```{=tex}
+\begin{align}
+Var(error) & = Var(v_i) \\
+  & = Var(\beta_2 x_i + u_i) \\
+  & = \beta_2^2\cdot Var(x_i) + \sigma_u^2
+\end{align}
+```
+
+</details>
+
+:::
+<!--end of panel-->
+
+#### $EE_2$
+
+::: {.columns}
+
+::: {.column width="30%"}
+**True model**
+
+$y_i=\beta_0 + \beta_1 x_{1,i} + \beta_2 x_{2,i} + u_i$
+
++ $cor(x_1,x_2) = 0$
++ $\beta_2=0$
++ $E[u_i|x_{1,i},x_{2,i}]=0$
+:::
+<!--end of the 1st column-->
+::: {.column width="30%"}
+**Variance**
+
+$Var(\widehat{\beta}_j)= \frac{\sigma_u^2}{SST_j(1-R^2_j)}$
+
+where $R^2_j$ is the $R^2$ when you regress $x_j$ on all the other covariates.
+:::
+<!--end of the 2nd column-->
+
+::: {.column width="40%"}
+**The estimated model** 
+
+$EE_2$: $y_i = \beta_0 + \beta_1 x_{1,i} + \beta_2 x_{2,i} + u_{i}$
+:::
+<!--end of the 3rd column-->
+:::
+<!--end of the columns-->
+
+<br>
+
+::: {.panel-tabset}
+
+##### Question ($R_j^2$)
+
+$R_j^2$?
+
+<br>
+<details>
+  <summary>Answer</summary>
+$R_j^2$ is (on average) zero because $x_1$ and $x_2$ are not correlated. If you regress $x_1$ on $x_2$, then its $R^2$ is zero (on average).
+
+```{webr-r}
+x1 <- rnorm(N) # independent variable
+x2 <- rnorm(N) # independent variable
+(
+ols_res <- feols(x1 ~ x2, data = data.frame(x1 = x1, x2 = x2))
+)
+```
+</details>
+
+##### Question (variance of the error term)
+
+$Var(u_i)$?
+
+<br>
+<details>
+  <summary>Answer</summary>
+$$
+Var(error) = Var(u_i) = \sigma_u^2
+$$
+</details>
+
+
+:::
+<!--end of panel-->
+
+#### $EE_1$ v.s. $EE_2$
+
+:::{.callout-note title="Question"}
+$Var(\widehat{\beta}_1)$ in $EE_1$ $\gtreqqless$ $Var(\widehat{\beta}_1)$ in $EE_2$?
+:::
+
+<br>
+
+::: {.columns}
+
+::: {.column width="40%"}
+**$EE_1$**
+
++ $R_j^2 = 0$
++ $Var(error) = Var(v_i) = \beta_2^2\cdot Var(x_i) + \sigma_u^2$
+:::
+<!--end of the 1st column-->
+::: {.column width="33%"}
+**$EE_2$**
+
++ $R_j^2 = 0$
++ $Var(error) = Var(u_i) = \sigma_u^2$
+
+:::
+<!--end of the 2nd column-->
+
+::: {.column width="27%"}
+**Variance formula**
+
+$Var(\widehat{\beta}_j)= \frac{Var(error)}{SST_j(1-R^2_j)}$
+:::
+:::
+<!--end of the columns-->
+
+<br>
+<br>
+<details>
+  <summary>Answer</summary>
+So, $Var(\widehat{\beta}_1)$ in $EE_1$ $>$ $Var(\widehat{\beta}_1)$ in $EE_2$ 
+</details>
+
+:::
+<!--end of panel-->
+
+### Summary 
+
++ If you include a variable that has some explanatory power beyond $x_1$, but is not correlated with $x_1$ ($EE_2$), then the variance of the OLS estimator on $x_1$ is smaller compared to when you do not include $x_2$ ($EE_1$)
+
++ If you omit an variable that has some explanatory power beyond $x_1$ ($EE_1$), but is not correlated with $x_1$, then the the OLS estimator on $x_1$ is still unbiased
+:::
+<!--end of panel-->
+
+## Case 4
+
+::: {.panel-tabset}
+
+### Setup
+
+**True Model**
+
+$y_i=\beta_0 + \beta_1 x_{1,i} + \beta_2 x_{2,i} + u_i$
+
++ $cor(x_1,x_2) \ne 0$
++ $\beta_2 \ne 0$
++ $E[u_i|x_{1,i},x_{2,i}]=0$
+
+:::{.callout-note title="Example"}
+$\mbox{corn yield} = \beta_0 + \beta_1 \times N + \beta_2 \mbox{farmers' height} + u$
+:::
+
+### Question
+
+We will estimate the following models:
+
+<br>
+
+$EE_1$: $y_i=\beta_0 + \beta_1 x_{1,i} + v_i \mbox{ , where } (v_i = \beta_2 x_{2,i} + u_i)$
+
+$EE_2$: $y_i=\beta_0 + \beta_1 x_{1,i} + \beta_2 x_{2,i} + u_i$
+
+(Only $x_1$ is included in $EE_1$, while $x_1$ and $x_2$ are included in $EE_2$)
+
+<br>
+
+:::{.callout-note title="Question"}
+What do you think is gonna happen? Any guess?
+
++ $E[\widehat{\beta}_1]=\beta_1$ in $EE_1$? (bias?)
++ $E[\widehat{\beta}_1]=\beta_1$ in $EE_2$? (bias?)
++ $Var(\widehat{\beta}_1)$ in $EE_2$ $\gtreqqless$ $Var(\widehat{\beta}_1)$ in $EE_2$?
+:::
+
+### MC Simulation
+
+::: {.columns}
+
+::: {.column width="90%"}
+
+Set up simulations:
+
+```{webr-r}
+#| autorun: true
+N <- 100 # sample size
+B <- 1000 # the number of iterations
+estiamtes_strage <- matrix(0, B, 2)
+```
+
+<br>
+
+Run MC simulations:
+
+```{webr-r}
+set.seed(37834)
+
+for (i in 1:B) { # iterate the same process B times
+
+  #--- data generation ---#
+  mu <- rnorm(N) # common term shared by x1 and x2
+  x1 <- 0.1 * rnorm(N) + 0.9 * mu # independent variable
+  x2 <- 0.1 * rnorm(N) + 0.9 * mu # independent variable
+  u <- rnorm(N) # error
+  y <- 1 + x1 + 1 * x2 + u
+  data <- data.frame(y = y, x1 = x1, x2 = x2)
+
+  #--- OLS ---#
+  beta_ee1 <- feols(y ~ x1, data = data)$coefficient["x1"] # OLS with EE1
+  beta_ee2 <- feols(y ~ x1 + x2, data = data)$coefficient["x1"] # OLS with EE2
+
+  #--- store estimates ---#
+  estiamtes_strage[i, 1] <- beta_ee1
+  estiamtes_strage[i, 2] <- beta_ee2
+}
+```
+
+<br>
+
+Visualize the results:
+
+```{webr-r}
+b_ee1 <- data.table(
+  bhat = estiamtes_strage[, 1],
+  type = "EE 1"
+)
+
+b_ee2 <- data.table(
+  bhat = estiamtes_strage[, 2],
+  type = "EE 2"
+)
+
+plot_data <- rbind(b_ee1, b_ee2)
+
+g_case_4 <- 
+  ggplot(data = plot_data) +
+  geom_density(aes(x = bhat, fill = type), alpha = 0.5) +
+  scale_fill_discrete(name = "Estimating Equation") +
+  theme(legend.position = "bottom")
+```
+:::
+<!--end of the 1st column-->
+::: {.column width="10%"}
+
+:::
+<!--end of the 2nd column-->
+:::
+<!--end of the columns-->
+
+### MC Results
+
+```{webr-r}
+g_case_4
+```
+
+### Insights: Bias
+
+::: {.panel-tabset}
+
+#### $EE_1$
+
+::: {.columns}
+
+::: {.column width="50%"}
+**True model**
+
+$y_i=\beta_0 + \beta_1 x_{1,i} + \beta_2 x_{2,i} + u_i$
+
++ $cor(x_1,x_2) = 0$
++ $\beta_2=0$
++ $E[u_i|x_{1,i},x_{2,i}]=0$
+:::
+<!--end of the 1st column-->
+::: {.column width="50%"}
+**Estimated model**
+
+$EE_1$: $y_i = \beta_0 + \beta_1 x_{1,i} + v_{i} \;\; (v_i = \beta_2 x_{2,i} + u_{i})$
+:::
+<!--end of the 2nd column-->
+:::
+<!--end of the columns-->
+
+<br>
+
+::: {.panel-tabset}
+##### Question
+
+$E[v_i|x_{1,i}]=0?$
+
+<br>
+<details>
+  <summary>Answer</summary>
+No, because $x_1$ is correlated with $x_2$ and $\beta_2 \ne 0$.
+
+So, there will be bias.
+</details>
+
+:::
+<!--end of panel-->
+
+#### $EE_2$
+
+::: {.columns}
+
+::: {.column width="50%"}
+**True model**
+
+$y_i=\beta_0 + \beta_1 x_{1,i} + \beta_2 x_{2,i} + u_i$
+
++ $cor(x_1,x_2) = 0$
++ $\beta_2=0$
++ $E[u_i|x_{1,i},x_{2,i}]=0$
+:::
+<!--end of the 1st column-->
+::: {.column width="50%"}
+**Estimated model**
+
+$EE_2$: $y_i = \beta_0 + \beta_1 x_{1,i} + \beta_2 x_{2,i} + u_{i}$
+:::
+<!--end of the 2nd column-->
+:::
+<!--end of the columns-->
+
+<br>
+
+::: {.panel-tabset}
+##### Question
+
+$E[u_i|x_{1,i},x_{2,i}]=0$?
+
+<br>
+<details>
+  <summary>Answer</summary>
+Yes, because $x_1$ and $x_2$ are not correlated with $u$ (by assumption). So, **no** bias.
+</details> 
+
+:::
+<!--end of panel-->
+
+:::
+<!--end of panel-->
+
+### Insights: Variance
+
+::: {.panel-tabset}
+
+#### $EE_1$
+
+::: {.columns}
+
+::: {.column width="30%"}
+**True model**
+
+$y_i=\beta_0 + \beta_1 x_{1,i} + \beta_2 x_{2,i} + u_i$
+
++ $cor(x_1,x_2) = 0$
++ $\beta_2=0$
++ $E[u_i|x_{1,i},x_{2,i}]=0$
+:::
+<!--end of the 1st column-->
+::: {.column width="30%"}
+**Variance**
+
+$Var(\widehat{\beta}_j)= \frac{\sigma_v^2}{SST_j(1-R^2_j)}$
+
+where $R^2_j$ is the $R^2$ when you regress $x_j$ on all the other covariates.
+:::
+<!--end of the 2nd column-->
+
+::: {.column width="40%"}
+**The estimated model** 
+
+$EE_1$: $y_i = \beta_0 + \beta_1 x_{1,i} + v_{i} \;\; (\beta_2 x_{2,i} + u_{i})$
+:::
+<!--end of the 3rd column-->
+:::
+<!--end of the columns-->
+
+<br>
+
+::: {.panel-tabset}
+
+##### Question ($R_j^2$)
+
+$R_j^2$?
+
+<br>
+<details>
+  <summary>Answer</summary>
+0 because there are no other variables included in the model.
+</details>
+
+##### Question (variance of the error term)
+
+$Var(v_i) = Var(\beta_2 x_i + u_i)$?
+
+<br>
+<details>
+  <summary>Answer</summary>
+
+```{=tex}
+\begin{align}
+Var(error) & = Var(v_i) \\
+  & = Var(\beta_2 x_i + u_i) \\
+  & = \beta_2^2\cdot Var(x_i) + \sigma_u^2
+\end{align}
+```
+
+</details>
+
+:::
+<!--end of panel-->
+
+#### $EE_2$
+
+::: {.columns}
+
+::: {.column width="30%"}
+**True model**
+
+$y_i=\beta_0 + \beta_1 x_{1,i} + \beta_2 x_{2,i} + u_i$
+
++ $cor(x_1,x_2) = 0$
++ $\beta_2=0$
++ $E[u_i|x_{1,i},x_{2,i}]=0$
+:::
+<!--end of the 1st column-->
+::: {.column width="30%"}
+**Variance**
+
+$Var(\widehat{\beta}_j)= \frac{\sigma_u^2}{SST_j(1-R^2_j)}$
+
+where $R^2_j$ is the $R^2$ when you regress $x_j$ on all the other covariates.
+:::
+<!--end of the 2nd column-->
+
+::: {.column width="40%"}
+**The estimated model** 
+
+$EE_2$: $y_i = \beta_0 + \beta_1 x_{1,i} + \beta_2 x_{2,i} + u_{i}$
+:::
+<!--end of the 3rd column-->
+:::
+<!--end of the columns-->
+
+<br>
+
+::: {.panel-tabset}
+
+##### Question ($R_j^2$)
+
+$R_j^2$?
+
+<br>
+<details>
+  <summary>Answer</summary>
+$R_j^2$ is non-zero because $x_1$ and $x_2$ are correlated. If you regress $x_1$ on $x_2$, then its $R^2$ is non-zero.
+
+```{webr-r}
+x1 <- 0.1 * rnorm(N) + 0.9 * mu # independent variable
+x2 <- 0.1 * rnorm(N) + 0.9 * mu # independent variable
+(
+ols_res <- feols(x1 ~ x2, data = data.frame(x1 = x1, x2 = x2))
+)
+```
+</details>
+
+##### Question (variance of the error term)
+
+$Var(u_i)$?
+
+<br>
+<details>
+  <summary>Answer</summary>
+$$
+Var(error) = Var(u_i) = \sigma_u^2
+$$
+</details>
+
+
+:::
+<!--end of panel-->
+
+#### $EE_1$ v.s. $EE_2$
+
+:::{.callout-note title="Question"}
+$Var(\widehat{\beta}_1)$ in $EE_1$ $\gtreqqless$ $Var(\widehat{\beta}_1)$ in $EE_2$?
+:::
+
+<br>
+
+::: {.columns}
+
+::: {.column width="40%"}
+**$EE_1$**
+
++ $R_j^2 = 0$
++ $Var(error) = Var(v_i) = \beta_2^2\cdot Var(x_i) + \sigma_u^2$
+:::
+<!--end of the 1st column-->
+::: {.column width="33%"}
+**$EE_2$**
+
++ $R_j^2 \ne 0$
++ $Var(error) = Var(u_i) = \sigma_u^2$
+
+:::
+<!--end of the 2nd column-->
+
+::: {.column width="27%"}
+**Variance formula**
+
+$Var(\widehat{\beta}_j) = \frac{Var(error)}{SST_j(1-R^2_j)}$
+:::
+:::
+<!--end of the columns-->
+
+<br>
+<br>
+<details>
+  <summary>Answer</summary>
+It depends.
+</details>
+
+#### $Var(\widehat{\beta}_1)$ in $EE_1$ $<$ $Var(\widehat{\beta}_1)$ in $EE_2$
+
+In the MC simulations we saw, 
+
+
++ $x_1$ and $x_2$ are highly correlated, so $R_j^2$ is very high for $EE_2$
+
+```{r}
+#| eval: false
+x1 <- 0.1 * rnorm(N) + 0.9 * mu # independent variable
+x2 <- 0.1 * rnorm(N) + 0.9 * mu # independent variable
+```
+
+<br>
+
++ The impact of $x_2$ ($\beta_2 = 1$) and the variance of $x_2$ is small (approximately 1). 
+
+```{r}
+#| eval: false
+y <- 1 + x1 + 1 * x2 + u
+```
+
+<br>
+
+These conditions led to lower $Var(\widehat{\beta}_1)$ in $EE_1$ compared to $Var(\widehat{\beta}_1)$ in $EE_2$.
+
+#### $Var(\widehat{\beta}_1)$ in $EE_1$ $>$ $Var(\widehat{\beta}_1)$ in $EE_2$
+
+Now, let's reverse the current conditions. We now have:
+
+
++ $x_1$ and $x_2$ are **NOT** highly correlated, so $R_j^2$ is small for $EE_2$
++ The impact of $x_2$ ($\beta_2 = 5$) and the variance of $x_2$ is large (approximately 5). 
+
+```{r}
+#| eval: false
+x1 <- 0.9 * rnorm(N) + 0.1 * mu # independent variable
+x2 <- 2.23 * rnorm(N) + 0.1 * mu # independent variable
+cor(x1, x2)
+```
+
+<br>
+
+```{r}
+#| eval: false
+y <- 1 + x1 + 5 * x2 + u
+```
+
+<br>
+
+Let's rerun MC simulations with this updated data generating process.
+
+:::
+<!--end of panel-->
+
+### Summary 
+
++ There exists bias-variance trade-off when independent variables are both important (their coefficients are non-zero) and they are correlated
+
++ Economists tend to opt for unbiasedness
+:::
+
+<!--end of panel-->
+
+## Omitted Variable Bias (Theory)
+
+::: {.panel-tabset}
+
+### Setup
+
+**True model**
+
+$y_i=\beta_0 + \beta_1 x_{1,i} + \beta_2 x_{2,i} + u_i$
+
+<br>
+
+**$EE_1$**
+
+$y_i = \beta_0 + \beta_1 x_{1,i} + v_{i} \;\; (\beta_2 x_{2,i} + u_{i})$
+
+Let $\tilde{\beta_1}$ denote the estimator of $\beta_1$ from this model
+
+<br>
+
+**$EE_2$**
+$y_i = \beta_0 + \beta_1 x_{1,i} + \beta_2 x_{2,i} + u_{i}$
+
+Let $\widehat{\beta}_1$ and $\widehat{\beta}_2$ denote the estimator of $\beta_1$ and $\beta_2$
+
+<br>
+
+**Relationship between $x_1$ and $x_2$**
+
+$x_{1,i} = \sigma_0 + \sigma_1 x_{2,i} + \mu_{i}$
+
+<br>
+
+:::{.callout-important}
+Then, $E[\tilde{\beta_1}] = \beta_1 + \beta_2 \cdot \sigma_1$, where $\beta_2 \cdot \sigma_1$ is the bias.
+:::
+
+That is, if you omit $x_2$ and regress $y$ only on $x_1$, then the bias is going to be the multiple of the impact of $x_2$ on $y$ ($\beta_2$) and the impact of $x_2$ on $x_1$ ($\sigma_1$).
+
+### Magnitude and direction of bias
+
+**Direction of bias**
+
++ $Cor(x_1, x_2) > 0$ and $\beta_2 >0$, then $bias > 0$
++ $Cor(x_1, x_2) > 0$ and $\beta_2 <0$, then $bias < 0$
++ $Cor(x_1, x_2) < 0$ and $\beta_2 >0$, then $bias < 0$
++ $Cor(x_1, x_2) < 0$ and $\beta_2 <0$, then $bias > 0$
+
+<br>
+
+**Magnitude of bias**
+
++ The greater the correlation between $x_1$ and $x_2$, the greater the bias 
+
++ The greater $\beta_1$ is, the greater the bias 
+
+
+### Examples
+
+::: {.panel-tabset}
+
+#### Example 1
+
+$$
+\begin{aligned}
+\mbox{corn yield} = \alpha + \beta \cdot N + (\gamma \cdot \mbox{soil erodability}  + \mu)
+\end{aligned}
+$$
+
++ Famers tend to apply more nitrogen to the field that is more erodible to compensate for loss of nutrient due to erosion
++ Soil erodability affects corn yield negatively $(\gamma < 0)$
+
+What is the direction of bias on $\hat{\beta}$?
+
+#### Example 2
+
+$$
+\begin{aligned}
+\mbox{house price} = \alpha + \beta \cdot \mbox{dist to incinerators} + (\gamma \cdot \mbox{dist to city center}  + \mu)
+\end{aligned}
+$$
+
++ The city planner placed incinerators in the outskirt of a city to avoid their potentially negative health effects
++ Distance to city center has a negative impact on house price $(\gamma < 0)$
+
+What is the direction of bias on $\hat{\beta}$?
+
+#### Example 3
+
+$$
+\begin{aligned}
+\mbox{groundwater use} = \alpha + \beta \cdot \mbox{precipitation} + (\gamma \cdot \mbox{center pivot}  + \mu)
+\end{aligned}
+$$
+
+$\mbox{groundwater use}$: groundwater use by a farmer for irrigated production
+
+$\mbox{center pivot}$: 1 if center pivot is used, 0 if flood irrigation (less effective) is used
+
++ Farmers who have relatively low precipitation during the growing season tend to adopt center pivot more
++ center pivot applied water more efficiently than flood irrigation $(\gamma < 0)$
+
+What is the direction of bias on $\hat{\beta}$?
+:::
+<!--end of panel-->
+
+### How does this help?
+
+When the direction of the bias is the <span style = "color: red;"> opposite </span> of the expected coefficient on the variable of interest, you can claim that <span style = "color: blue;"> even after </span> suffering from the bias, you are still seeing the impact of the variable interest. So, it is a strong evidence that you would have had an even stronger estimated impact. 
+
+::: {.panel-tabset}
+
+#### Example 1
+
+$$
+\begin{aligned}
+\mbox{groundwater use} = \alpha + \beta \cdot \mbox{precipitation} + (\gamma \cdot \mbox{center pivot}  + \mu)
+\end{aligned}
+$$
+
++ The true $\beta$ is $-10$ (<span style = "color: red;"> you do not observe this </span>)
++ The bias on $\widehat{\beta}$ is $5$ (<span style = "color: red;"> you do not observe this </span>) 
++ $\widehat{\beta}$ is $-5$ (<span style = "color: red;"> you only observe this </span>) 
+
+You believe the direction of bias is positive (you need provide reasoning behind your belief), and yet, the estimated coefficient is still negative. So, you can be quite confident that the sign of the impact of precipitation is negative. You can say your estimate is a conservative estimate of the impact of precipitation on groundwater use.
+
+#### Example 2
+
+$$
+\begin{aligned}
+\mbox{house price} = \alpha + \beta \cdot \mbox{dist to incinerators} + (\gamma \cdot \mbox{dist to city center}  + \mu)
+\end{aligned}
+$$
+
++ The true $\beta$ is $-10$ (<span style = "color: red;"> you do not observe this </span>)
++ The bias on $\widehat{\beta}$ is $-5$ (<span style = "color: red;"> you do not observe this </span>) 
++ $\widehat{\beta}$ is $-15$ (<span style = "color: red;"> you only observe this </span>) 
+
+You believe the direction of bias is negative, and the estimated coefficient is negative. So, unlike the case above, you cannot be confident that $\widehat{\beta}$ would have been negative if it were not for the bias (by observing dist to city center and include it as a covariate). It is very much possible that the degree of bias is so large that the estimated coefficient turns negative even though the true sign of $\beta$ is positive. In this case, there is nothing you can do.
+
+:::
+<!--end of panel-->
+
+:::
+<!--end of panel-->
+
+
+
+
+

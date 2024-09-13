@@ -1,5 +1,5 @@
 ---
-title: "02-Multivariate Regression"
+title: "02-1: Multivariate Regression"
 format: 
   revealjs: 
     theme: [default, ../custom.scss]
@@ -9,7 +9,7 @@ format:
     echo: true
     fig-dpi: 400
 webr:
-  packages: ['fixest', 'dplyr', 'data.table', 'ggplot2', 'modelsummary']
+  packages: ['fixest', 'dplyr', 'data.table', 'ggplot2', 'modelsummary', 'gt']
   cell-options:
     editor-font-scale: 0.8
 filters:
@@ -18,6 +18,12 @@ filters:
 
 
 # Multivariate Regression: Introduction
+
+```{r}
+#| include: false
+library(fixest)
+library(modelsummary)
+```
 
 ```{webr-r}
 #| context: setup
@@ -54,18 +60,23 @@ More independent variables mean less factors left in the error term, which makes
 
 ### Example
 
+**Uni-variate vs. bi-variate**
+
 ```{=tex}
 \begin{align}
-  \mbox{Bi-variate}\;\; wage = & \beta_0 + \beta_1 educ + \beta_2 exper + u_2 \\
-  \mbox{Uni-variate}\;\; wage = & \beta_0 + \beta_1 educ + u_1 (=u_2+\beta_2 exper)
+  \mbox{Uni-variate}\;\; wage = & \beta_0 + \beta_1 educ + u_1 (=u_2+\beta_2 exper)\\
+  \mbox{Bi-variate}\;\; wage = & \beta_0 + \beta_1 educ + \beta_2 exper + u_2
 \end{align}
-``` 
+```
+
+<br>
 
 **What's different?**
 
++ **uni-variate**: $\widehat{\beta_1}$ is biased unless experience is uncorrelated with education because experience was in error term
+
 + **bi-variate**: able to measure the effect of education on wage, <span style = "color: blue;"> holding experience fixed </span> because experience is modeled explicitly (<span style = "color: red;"> We say $exper$ is controlled for. </span>)
 
-+ **uni-variate**: $\widehat{\beta_1}$ is biased unless experience is uncorrelated with education because experience was in error term
 
 ### Example
 
@@ -145,7 +156,7 @@ This condition would be satisfied if innate ability of students is on average un
 
 ::: {.panel-tabset}
 
-### 
+### General model
 
 **Model**
 
@@ -194,9 +205,14 @@ reg
 
 When you are asked to present regression results in assignments or your final paper, use the `msummary()` function from the `modelsummary` package.
 
-```{webr-r}
-#| autorun: true
- 
+::: {.columns}
+
+::: {.column width="50%"}
+
+<br>
+
+```{r}
+#| eval: false
 library(modelsummary)
 
 #* run regression
@@ -210,13 +226,37 @@ msummary(
   gof_omit = "IC|Log|Adj|F|Pseudo|Within"
 )
 ```
+:::
+<!--end of the 1st column-->
+::: {.column width="50%"}
+```{r}
+#| echo: false
+library(modelsummary)
+
+#* run regression
+reg_results <- feols(speed ~ dist, data = cars)
+
+#* report regression table
+msummary(
+  reg_results,
+  # keep these options as they are
+  stars = TRUE,
+  gof_omit = "IC|Log|Adj|F|Pseudo|Within"
+)
+```
+:::
+<!--end of the 2nd column-->
+:::
+<!--end of the columns-->
 
 
-### (Math)
+### (Math: derive OLS estimator)
 
 **OLS**
 
 Find the combination of $\beta$s that minimizes the sum of squared residuals
+
+<br>
 
 **So,**
 
@@ -265,7 +305,11 @@ Or more succinctly,
 
 ### Conditions (four)
 
-OLS estimators of multivariate models are unbiased under <span style = "color: blue;"> certain </span> conditions
+:::{.callout-important}
+OLS estimators of multivariate models if the following conditions are satisfied.
+:::
+
+<br>
 
 **Condition 1**
 
@@ -297,20 +341,13 @@ Zero Conditional Mean (Assumption $MLR.4$)
 
 If all the conditions $MLR.1\sim MLR.4$ are satisfied, OLS estimators are unbiased.
 
-$$
-\def\ehb{E[\ha
-```{=tex}t{\beta}_j]}
-\begin{align}
-  \ehb=\beta_j \;\; ^\forall j=0,1,\dots,k
-\end{align}
-```
-$$
-
 ### Perfect Collinearity
 
 **No Perfect Collinearity ($MLR.3$)**
 
 Any variable cannot be a linear function of the other variables
+
+<br>
 
 **Example (silly)**
 
@@ -324,9 +361,16 @@ Any variable cannot be a linear function of the other variables
 
 ### Endogeneity (Definition)
 
-$$E[u|x_1,x_2,\dots,x_k] = f(x_1,x_2,\dots,x_k) \ne 0$$
+:::{.callout-important title="Endogeneity: Definition"}
+$$
+E[u|x_1,x_2,\dots,x_k] = f(x_1,x_2,\dots,x_k) \ne 0
+$$
+:::
+
+<br>
 
 **What could cause endogeneity problem?**
+
 + functional form misspecification
 ```{=tex}
 \begin{align}
@@ -344,7 +388,7 @@ $$E[u|x_1,x_2,\dots,x_k] = f(x_1,x_2,\dots,x_k) \ne 0$$
 
 ::: {.panel-tabset}
 
-### Homoskedasticity
+### Homoskedasticity and Variance of $\widehat{\beta}_{OLS}$
 
 **Condition 5** 
 
@@ -356,17 +400,22 @@ Var(u|x_1,\dots,x_k)=\sigma^2
 \end{align}
 ```
 
-### Variance
+<br>
 
 Under conditions $MLR.1$ through $MLR.5$, conditional on the sample values of the independent variables,
 
+:::{.callout-important title="Variance of $\widehat{\beta}_{OLS}$"}
 ```{=tex}
 \begin{align}
     Var(\widehat{\beta}_j)= \frac{\sigma^2}{SST_j(1-R^2_j)},
 \end{align}
 ```
+:::
 
-where $SST_j= \sum_{i=1}^n (x_{ji}-\bar{x_j})^2$ and $R_j^2$ is the R-squared from regressing $x_j$ on all other independent variables including an intercept. (<span style = "color: blue;"> We will revisit this equation</span>)
+where 
+
++ $SST_j= \sum_{i=1}^n (x_{ji}-\bar{x_j})^2$ 
++ $R_j^2$ is the R-squared from regressing $x_j$ on all other independent variables including an intercept. (<span style = "color: blue;"> We will revisit this equation</span>)
 
 ### Estimating $\sigma^2$
 
@@ -392,13 +441,17 @@ A model with $k$ independent variables with intercept.
 
 You solved $k+1$ simultaneous equations to get $\widehat{\beta}_j$ $(j=0,\dots,k)$. So, once you know the value of $n-k-1$ of the residuals, you know the rest.
 
-The <span style = "color: red;"> estimator </span> of the variance of the OLS estimator is therefore
+### Estimator of $Var{\widehat{\beta}_j}$
 
+Using the estimator of $\sigma^2$ in place of $\sigma^2$, we have the <span style = "color: red;"> estimator </span> of the variance of the OLS estimator.
+
+:::{.callout-important title="Estimator of the variance of the OLS estimator"}
 ```{=tex}
 \begin{align}
-\widehat{Var{\widehat{\beta}_j}} = \frac{\widehat{\sigma}^2}{SST_j(1-R^2_j)}
+\widehat{Var{\widehat{\beta}_j}} = \frac{\widehat{\sigma}^2}{SST_j(1-R^2_j)} = \left(\sum_{i=1}^N \frac{\widehat{u}_i^2}{n-k}\right) \cdot \frac{1}{SST_j(1-R^2_j)}
 \end{align}
 ```
+:::
 
 :::
 <!--end of panel-->
@@ -421,9 +474,13 @@ Suppose you are interested in estimating only $\beta_1$.
 
 Let's consider the following two methods,
 
+<br>
+
 **Method 1: Regular OLS**
 
 Regress $y$ on $x_1$, $x_2$, and $x_3$ with an intercept to estimate $\beta_0$, $\beta_1$, $\beta_2$, $\beta_3$ at the same time (just like you normally do)
+
+<br>
 
 **Method 2: 3-step**
 
