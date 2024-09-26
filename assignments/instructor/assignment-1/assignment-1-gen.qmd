@@ -1,0 +1,472 @@
+---
+title: "Assignment 1 (<span style='color:blue'>Score: /10 </span>)"
+author: "Your Name Here"
+format:
+  html:
+    number-sections: true
+    number-depth: 1
+    theme: flatly
+    toc: true
+execute:
+  echo: true
+  message: false
+  warning: false
+---
+
+```{r setup_not_remove, echo=FALSE, include = F}
+library(knitr)
+
+# setwd(here("AssignmentsInstructor/Assignment_1"))
+opts_chunk$set(
+  echo = TRUE,
+  comment = NA,
+  message = FALSE,
+  warning = FALSE,
+  tidy = FALSE,
+  #--- figure related ---#
+  fig.align = "center",
+  fig.width = 5,
+  fig.height = 4
+  # dev='pdf'
+)
+```
+
+# Instruction
+
+Due date is <span style='color:blue'>October, 11th </span> <span style='color:red'>before</span> the lab session on that day, in which this assignment is reviewed by the TA. Submission after the deadline would result in a heavy discount on the score. 
+
+Please submit your assignment (both the qmd and the resulting html files) using the following [Dropbox submission request link](https://www.dropbox.com/request/QoEGkBxBSn1xvmYhJbe1). Name your qmd file using the following convention: `lastname_assignment_1.qmd`. For example, it would be `Mieno_assignment_1.qmd` for me. 
+
+I do not accept any hand-written answers (you will get score of zero for that problem). Leave all the R codes and results in your answer (where appropriate) for the computer exercises. If your R codes are not provided, you will get score of 0 for that question.
+
+You are encouraged to discuss the problems with your classmates. However, I would recommend that you do so after you try all the problems yourself. You would be simply doing disservice to yourself if you resort to your friends' help immediately, depriving you of important opportunities to think carefully about what we have learned and understand them through solving the problems. 
+
+<!-- <span style="background:yellow">(you may remove this part when you submit your work)</span>  -->
+<!-- Instruciton ends here -->
+
+------
+
+<!-- Non-computer Exercises --> 
+# Non-computer Exercises
+
+## Problem 1 
+
+Let `kids` denote the number of children ever born to a woman, and let `educ` denote years of education for the woman. A simple model relating fertility to years of education is
+$$
+kids=\beta_0+\beta_1 educ+u
+$$
+where $u$ is the unobserved error.
+
+------
+
+(i) What kinds of factors are contained in $u$? Are these likely to be correlated with level of education?
+
+<span style='color:blue'>
+The error term $u$ may contain income, age, and family background (and many others).
+</span>
+
+------
+
+(ii) Will a simple regression analysis uncover the ceteris paribus effect of education on fertility? Explain.
+
+<span style='color:blue'>
+Not if the factors we listed in part (i) are correlated with $educ$. If $u$ is correlated with educ, then $E(u|educ)\ne 0$ (violation of the mean independence condition, $SLR.4$).
+</span>
+
+
+## Problem 6
+
+Using data from 1988 for houses sold in Andover, Massachusetts, from Kiel and McClain (1995), the following equation relates housing price (`price`) to the distance from a recently built garbage incinerator (`dist`):
+$$
+\begin{aligned}
+\widehat{log(price)} = 9.40 + 0.312\times log(dist)\\
+n=135,\;\; R^2 = 0.162
+\end{aligned}
+$$
+
+------
+
+(i) Interpret the coefficient on $log(dist)$. Is the sign of this estimate what you expect it to be?
+
+<span style='color:blue'>
+If the distance to the recently built garbage incinerator by 1%, then the house price goes up by 0.3%. Yes, this is the expected sign because the further your house is from the garbage incinerator, the greater the price of your house is expected to be, **ceteris paribus**.
+</span>
+
+------
+
+(ii) Do you think simple regression provides an unbiased estimator of the ceteris paribus elasticity of price with respect to dist? (Think about the city's decision on where to put the incinerator.)
+
+<span style='color:blue'>
+No, because the error term seems to include some unobservables that are correlated with the distance to the incinerator. For example, distance to the downtown should affect the housing price. At the same time, the city planners are likely to have placed the garbage incinerator at the outskirt of the city. Therefore, it is likely that the distance to the garbage incinerator is negatively correlated with the distance to the downtown. Therefore, it is likely that $E[u|x]\ne 0$, which would cause bias.
+</span>
+
+------
+
+(iii) What other factors about a house affect its price? Might these be correlated with distance from the incinerator?
+
+<span style='color:blue'>
+Examples: distance to urban parks, crime rate
+</span>
+
+<span style='color:blue'>
+Yes, they are likely to be correlated with the distance to the new incinerator.
+</span>
+
+<!-- Computer Exercises --> 
+
+# Computer Exercises
+<span style='color:blue'>
+I first load necessary packages here,
+</span>
+
+```{r library, message=FALSE}
+library(tidyverse)
+library(fixest)
+library(modelsummary)
+library(ggplot2)
+```
+
+<span style='color:blue'>
+You do not need the `ggplot2` package, which is only for me to create some figures in this answer key.
+</span>
+
+## Problem C1
+
+The data in __401K.csv__ are a subset of data analyzed by Papke (1995) to study the relationship between participation in a 401(k) pension plan and the generosity of the plan. The variable `prate` is the percentage of eligible workers with an active account; this is the variable we would like to explain. The measure of generosity is the plan match rate, `mrate`. This variable gives the average amount the firm contributes to each worker's plan for each $1 contribution by the worker. For example, if $mrate= 0.50$, then a $1 contribution by the worker is matched by a $50$ cents contribution by the firm.
+
+<span style='color:blue'>
+First, I import the data.
+
+```{r import_data_c1}
+data <- read_csv("401K.csv")
+```
+</span>
+
+------
+
+(i) Find the average participation rate and the average match rate in the sample of 
+plans.
+
+<span style='color:blue'>
+Here are the average of precipitation rate and match rate.
+</span>
+
+```{r c1_1}
+dplyr::summarize(data, mean(prate), mean(mrate))
+```
+
+------
+
+(ii) Now, estimate the simple regression equation
+$$
+\hat{prate}=\hat{\beta}_0+\hat{\beta}_1\cdot mrate
+$$
+and present the results using the `msummary()` function from the `modelsummary` package.
+
+<span style='color:blue'>
+Here are the R codes to run the regression and its results
+</span>
+
+```{r c1_2}
+reg <- feols(prate ~ mrate, data = data)
+msummary(
+  reg,
+  # keep these options as they are
+  stars = TRUE,
+  gof_omit = "IC|Log|Adj|F|Pseudo|Within"
+)
+```
+
+<br>
+
+------
+
+(iii) Interpret the intercept in your equation. Interpret the coefficient on mrate.
+
+<span style='color:blue'>
+When $mrate=0$, `prate` is `r round(reg$coefficient[1],digits=3)`. That is, even if $mrate=0$, the predicted participation rate is $83.05\%$. The coefficient estimate on `mrate` is `r round(reg$coefficient[2],digits=3)`. This means that, if `mrate` is increased by $\$1$, `prate` is expected to increase by `r round(reg$coefficient[2],digits=3)` on average, **cetris paribus**.
+</span>
+
+------
+
+(iv) Find the predicted prate when $mrate=3.5$. Is this a reasonable prediction? 
+Explain what is happening here.
+
+<span style='color:blue'>
+When `mrate`$=3.5$, the predicted `prate` is calculated as follows:
+</span>
+
+```{r c1_3}
+reg$coefficient[1] + reg$coefficient[2] * 3.5
+```
+
+<span style='color:blue'>
+This makes no sense because the participation rate cannot go over 100%. As you can see in the figure below that plots sample data points and the estimated linear regression line, the linear model we estimated place no bound on the predicted `prate`. We will learn regression methods that are more appropriate for this type of data.
+</span>
+
+```{r c1_4_fig, results='asis'}
+ggplot(data = data) +
+  geom_point(aes(y = prate, x = mrate), size = 0.7) +
+  geom_smooth(aes(y = prate, x = mrate), method = "lm", se = FALSE)
+```
+
+------
+
+(v) How much of the variation in prate is explained by `mrate`? Is this a lot in your opinion?
+
+<span style='color:blue'>
+</span>
+
+```{r c1_5}
+msummary(
+  reg,
+  # keep these options as they are
+  stars = TRUE,
+  gof_omit = "IC|Log|Adj|F|Pseudo|Within"
+)
+```
+
+<span style='color:blue'>
+According to the $R^2$, only $7.5\%$ of total variation is explained by `mrate`. So, there are more factors that explain lots of variation in `prate`.
+</span>
+
+## Problem C2
+
+The data set in __CEOSAL2.dta__ contains information on chief executive officers for U.S. corporations. The variable `salary` is annual compensation, in thousands of dollars, and `ceoten` is prior number of years as company CEO.
+
+<span style='color:blue'>
+The **CEOSAL2** data comes in the **dta** (Stata) format. In order to import a **dta** file, I first load the `haven` package, use the `haven::read_dta()` function to read the data.
+</span>
+
+```{r import_data_c2}
+library(haven)
+data <- haven::read_dta("CEOSAL2.dta")
+```
+------
+
+(i) Find the average salary and the average tenure in the sample. 
+
+<span style='color:blue'>
+Here are the average salary and tenure.
+</span>
+
+```{r c2_1}
+dplyr::summarize(data, mean(salary), mean(ceoten))
+```
+
+------
+
+(ii) How many CEOs are in their first year as CEO (that is, ceoten 5 0)? What is the longest tenure as a CEO? [Hint: use the `filter()` and `nrow()` functions]
+
+<span style='color:blue'>
+Here is the number of CEOs in their first year:
+</span>
+
+```{r c2_2_num}
+filter(data, ceoten == 0) %>%
+  nrow()
+```
+
+<span style='color:blue'>
+Here is the longest tenure as a CEO:
+</span>
+
+```{r c2_2_max}
+data$ceoten %>% max()
+```
+
+------
+
+(iii) Estimate the simple regression model
+$$
+log(salary)=\beta_0+\beta_1\cdot ceoten +u
+$$
+and report your results in the usual form using the `msummary()` function. What is the (approximate) predicted percentage increase in salary given one more year as a CEO?
+
+<span style='color:blue'>
+Here is the code for regression and the results:
+</span>
+
+```{r c2_3, results='asis'}
+#--- regression ---#
+reg_c2 <- feols(log(salary) ~ ceoten, data = data)
+
+#--- present the regression results ---#
+msummary(
+  reg_c2,
+  # keep these options as they are
+  stars = TRUE,
+  gof_omit = "IC|Log|Adj|F|Pseudo|Within"
+)
+```
+
+<br>
+
+<span style='color:blue'>
+According to the regression results above, one more year of tenure as a CEO would increase salary by $1\%$. 
+</span>
+
+------
+
+## Problem C8
+To complete this exercise you need a software package that allows you to generate data from the uniform and normal distributions.
+
+<span style='color:blue'>
+For the reproducibility of the answers, I will first set the seed (as long as you are doing the right thing, you get full points even if the numbers you got are different from mine. Indeed they should be different unless you somehow predicted the exact seed number I picked).
+</span>
+
+```{r c8_set_seed}
+set.seed(57349) # set the seed
+```
+
+(i) Start by generating $500$ observations $x_i$ – the explanatory variable – from the uniform distribution with range $[0,10]$. (Most statistical packages have a command for the Uniform[0,1] distribution; just multiply those observations by 10.) What are the sample mean and sample standard deviation of the $x_i$?
+
+```{r c8_1}
+N <- 500 # the number of observations
+
+#--- draws from U[0,10] ---#
+x <- runif(N) * 10
+
+#--- sample mean ---#
+mean(x)
+
+#--- standard dev ---#
+sd(x)
+```
+
+------
+
+(ii) Randomly generate $500$ errors, $u_i$, from the Normal[0,36] distribution. (If you generate a Normal[0,1], as is commonly available, simply multiply the outcomes by six.) Is the sample average of the $u_i$ exactly zero? Why or why not? What is the sample standard deviation of the $u_i$?
+
+```{r c8_2}
+#--- draws from N[0,36] ---#
+u <- rnorm(N, sd = 6) # or u <- rnorm(N)*6
+
+#--- sample mean ---#
+mean(u)
+
+#--- standard dev ---#
+sd(u)
+```
+
+<span style='color:blue'>
+The sample average of the $u$ is not exactly zero. $E[u_i]=0$ does not guarantee $\sum_{i=1}^{n}u_i=0$ for a particular sample. 
+</span>
+
+------
+
+(iii) Now generate the $y_i$ as
+$$
+y_i=1+2x_i+u_i 
+$$
+that is, the population intercept is one and the population slope is two. Use the data to run the regression of $y_i$ on $x_i$. What are your estimates of the intercept and slope? Are they equal to the population values in the above equation? Explain.
+
+```{r c8_3}
+#--- generate y ---#
+y <- 1 + 2 * x + u
+
+#--- create a data set ---#
+data <- data.frame(y = y, x = x)
+
+#--- run regression ---#
+reg_c8 <- feols(y ~ x, data = data)
+
+#--- present the regression results ---#
+msummary(
+  reg_c8,
+  # keep these options as they are
+  stars = TRUE,
+  gof_omit = "IC|Log|Adj|F|Pseudo|Within"
+)
+```
+
+<br>
+
+<span style='color:blue'>
+The estimates differ from the population parameters. We will never be able to recover the true parameters. OLS estimators are unbiased in this example because all the **SLR** conditions are satisfied (including $E[u|x]=0$). However, unbiasedness does not mean that your estimates for a particular sample is always the true parameters. Indeed, estimates would be different sample by sample.
+</span>
+
+------
+
+(iv) Obtain the OLS residuals, $\hat{u}_i$, and verify that the following equations hold (subject to rounding error).
+
+```{=tex}
+\begin{align}
+\sum_{i=1}^n \widehat{u}_i = 0 \\
+\sum_{i=1}^n \widehat{u}_i \cdot x_i = 0 
+\end{align}
+```
+
+
+<span style='color:blue'>
+Confirmation of $\sum_{i=1}^n \hat{u}_i=0$:
+</span>
+
+```{r c8_4_1}
+sum(reg_c8$residuals)
+```
+
+<span style='color:blue'>
+Confirmation of $\sum_{i=1}^n x_i\hat{u}_i=0$:
+</span>
+
+```{r c8_4_2}
+sum(reg_c8$residuals * x)
+```
+
+<span style='color:blue'>
+Remember that these are true for **any** sample because OLS uses the above conditions to find estimates.
+</span>
+
+------
+
+(v) Compute the same quantities of the equations in the question above, but use the errors $u_i$ in place of the residuals. Now what do you conclude? $\sum_{i=1}^n u_i=0$?
+
+```{r c8_5_1}
+sum(u)
+```
+
+<span style='color:blue'>
+Equation (2.60) holds only for residuals, not for errors.
+</span>
+
+<span style='color:blue'>
+$\sum_{i=1}^n u_i/n=0$ is an unbiased estimator of $E[u] (=0)$. But, again, unbiased does not mean that you will get $E[u]$ all the time. 
+</span>
+
+```{r c8_5_2}
+sum(u * x)
+```
+
+<span style='color:blue'>
+Equation (2.60) holds only for residuals, not for errors.
+
+$\sum_{i=1}^n x_i u_i/n=0$ is an unbiased estimator of $E[ux] (=E[E[u|x]]=0)$. But, again, unbiased does not mean that you will get $E[ux]=0$ all the time.
+</span>
+
+------
+
+(vi) Repeat parts (i), (ii), and (iii) with a new sample of data, starting with generating the $x_i$. Now what do you obtain for $\hat{\beta}_0$ and $\hat{\beta}_1$? Why are these different from what you obtained in part (iii)?
+
+```{r c8_6}
+x <- runif(N) * 10
+u <- rnorm(N, sd = 6)
+y <- 1 + 2 * x + u
+
+#--- create a data set ---#
+data <- data.frame(y = y, x = x)
+
+#--- run regression ---#
+reg_c8 <- feols(y ~ x, data = data)
+
+#--- present the regression results ---#
+msummary(
+  reg_c8,
+  # keep these options as they are
+  stars = TRUE,
+  gof_omit = "IC|Log|Adj|F|Pseudo|Within"
+)
+```
+
+<span style = "color: blue;"> This is because the generated samples are different. The data generating process is random and running the same process generate different data. </span>
+

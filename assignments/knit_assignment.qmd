@@ -1,0 +1,120 @@
+# Define functions
+
+```{r}
+library(rmarkdown)
+library(here)
+library(stringr)
+
+gen_student_version <- function(qmd_instructor, qmd_student_path) {
+  student_qmd <- strip_answers(qmd_instructor)
+  writeLines(
+    student_qmd,
+    qmd_student_path
+  )
+}
+
+strip_answers <- function(file) {
+  qmd <- readLines(file)
+
+  #* detect where the instruction ends
+  begin_line <- which(str_detect(qmd, "Instruciton ends here"))
+
+  if (length(begin_line) != 0) {
+    qmd_instruction <- qmd[1:begin_line]
+    qmd_body <- qmd[-(1:begin_line)]
+  } else {
+    qmd_instruction <- NULL
+    qmd_body <- qmd
+  }
+
+  #++++++++++++++++++++++++++++++++++++
+  #+ line numbers where (any kind of) code chunks start and end
+  #++++++++++++++++++++++++++++++++++++
+  start_cc_lines_all <- which(str_detect(qmd_body, "```\\{"))
+  end_cc_all_lines <-
+    which(str_detect(qmd_body, "```")) %>%
+    .[!(. %in% start_cc_lines_all)]
+  
+  #++++++++++++++++++++++++++++++++++++
+  #+ line numbers where R code chunks start
+  #++++++++++++++++++++++++++++++++++++
+  start_rc_lines_all <- which(str_detect(qmd_body, "```\\{r"))
+  start_rc_lines_index <- start_cc_lines_all %in% start_rc_lines_all
+
+  #--- remove non-R code chunks (e.g., =tex) from the list of lines to remove ---#
+  start_cc_lines_all <- start_cc_lines_all[start_rc_lines_index]
+  end_cc_all_lines <- end_cc_all_lines[start_rc_lines_index]
+
+  #* line numbers where code chunks that you should NOT remove start and end
+  not_remove_lines <- which(str_detect(qmd_body, "not_remove"))
+  keep_indices <- !(start_cc_lines_all %in% not_remove_lines)
+
+  start_cc_lines_all <- start_cc_lines_all[keep_indices]
+  end_cc_all_lines <- end_cc_all_lines[keep_indices]
+
+  num_lines <- length(start_cc_lines_all)
+
+  remove_lines <-
+    lapply(
+      1:num_lines,
+      function(x) start_cc_lines_all[x]:end_cc_all_lines[x]
+    ) %>%
+    unlist()
+
+  qmd_no_rchunks <- qmd_body[-remove_lines]
+
+  start_cc_lines_all <- which(str_detect(qmd_no_rchunks, "<span"))
+  end_cc_all_lines <- which(str_detect(qmd_no_rchunks, "</span"))
+
+  num_pairs <- length(start_cc_lines_all)
+
+  remove_lines <-
+    lapply(
+      1:num_pairs,
+      function(x) start_cc_lines_all[x]:end_cc_all_lines[x]
+    ) %>%
+    unlist()
+
+  if (!is.null(qmd_instruction)) {
+    qmd_out <- c(qmd_instruction, qmd_no_rchunks[-remove_lines])
+  } else {
+    qmd_out <- qmd_no_rchunks
+  }
+
+  return(qmd_out)
+}
+
+strip_span <- function(file) {
+  qmd <- readLines(file)
+
+  start_cc_lines_all <- which(str_detect(qmd, "<span"))
+  end_cc_all_lines <- which(str_detect(qmd, "</span"))
+
+  num_pairs <- length(start_cc_lines_all)
+
+  remove_lines <-
+    lapply(
+      1:num_pairs,
+      function(x) start_cc_lines_all[x]:end_cc_all_lines[x]
+    ) %>%
+    unlist()
+
+  qmd_out <- qmd[-remove_lines]
+}
+```
+
+# Create assignments for students
+
+## Assignment 1
+
+```{r}
+#* knit the solution
+rmarkdown::render(here::here("assignments/instructor/assignment-1/assignment-1-gen.qmd"))
+
+#* create the student version
+writeLines(
+  strip_answers(file = here::here("assignments/instructor/assignment-1/assignment-1-gen.qmd")),
+  here::here("assignments/students/assignment-1/assignment-1-student.qmd")
+)
+```
+
