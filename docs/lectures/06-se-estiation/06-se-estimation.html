@@ -10,7 +10,7 @@
 <link href="../../site_libs/quarto-html/quarto-syntax-highlighting.css" rel="stylesheet" id="quarto-text-highlighting-styles"><meta charset="utf-8">
   <meta name="generator" content="quarto-1.5.57">
 
-  <title>Applied Econometrics (AECN 896-004) – 01-2: Univariate Regression: OLS Mechanics and Implementation</title>
+  <title>Applied Econometrics (AECN 896-004) – 06: Standard Error Estimation</title>
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, minimal-ui">
@@ -28,6 +28,71 @@
       margin: 0 0.8em 0.2em -1em; /* quarto-specific, see https://github.com/quarto-dev/quarto-cli/issues/4556 */ 
       vertical-align: middle;
     }
+    /* CSS for syntax highlighting */
+    pre > code.sourceCode { white-space: pre; position: relative; }
+    pre > code.sourceCode > span { line-height: 1.25; }
+    pre > code.sourceCode > span:empty { height: 1.2em; }
+    .sourceCode { overflow: visible; }
+    code.sourceCode > span { color: inherit; text-decoration: inherit; }
+    div.sourceCode { margin: 1em 0; }
+    pre.sourceCode { margin: 0; }
+    @media screen {
+    div.sourceCode { overflow: auto; }
+    }
+    @media print {
+    pre > code.sourceCode { white-space: pre-wrap; }
+    pre > code.sourceCode > span { display: inline-block; text-indent: -5em; padding-left: 5em; }
+    }
+    pre.numberSource code
+      { counter-reset: source-line 0; }
+    pre.numberSource code > span
+      { position: relative; left: -4em; counter-increment: source-line; }
+    pre.numberSource code > span > a:first-child::before
+      { content: counter(source-line);
+        position: relative; left: -1em; text-align: right; vertical-align: baseline;
+        border: none; display: inline-block;
+        -webkit-touch-callout: none; -webkit-user-select: none;
+        -khtml-user-select: none; -moz-user-select: none;
+        -ms-user-select: none; user-select: none;
+        padding: 0 4px; width: 4em;
+        color: #aaaaaa;
+      }
+    pre.numberSource { margin-left: 3em; border-left: 1px solid #aaaaaa;  padding-left: 4px; }
+    div.sourceCode
+      { color: #003b4f; background-color: #f1f3f5; }
+    @media screen {
+    pre > code.sourceCode > span > a:first-child::before { text-decoration: underline; }
+    }
+    code span { color: #003b4f; } /* Normal */
+    code span.al { color: #ad0000; } /* Alert */
+    code span.an { color: #5e5e5e; } /* Annotation */
+    code span.at { color: #657422; } /* Attribute */
+    code span.bn { color: #ad0000; } /* BaseN */
+    code span.bu { } /* BuiltIn */
+    code span.cf { color: #003b4f; font-weight: bold; } /* ControlFlow */
+    code span.ch { color: #20794d; } /* Char */
+    code span.cn { color: #8f5902; } /* Constant */
+    code span.co { color: #5e5e5e; } /* Comment */
+    code span.cv { color: #5e5e5e; font-style: italic; } /* CommentVar */
+    code span.do { color: #5e5e5e; font-style: italic; } /* Documentation */
+    code span.dt { color: #ad0000; } /* DataType */
+    code span.dv { color: #ad0000; } /* DecVal */
+    code span.er { color: #ad0000; } /* Error */
+    code span.ex { } /* Extension */
+    code span.fl { color: #ad0000; } /* Float */
+    code span.fu { color: #4758ab; } /* Function */
+    code span.im { color: #00769e; } /* Import */
+    code span.in { color: #5e5e5e; } /* Information */
+    code span.kw { color: #003b4f; font-weight: bold; } /* Keyword */
+    code span.op { color: #5e5e5e; } /* Operator */
+    code span.ot { color: #003b4f; } /* Other */
+    code span.pp { color: #ad0000; } /* Preprocessor */
+    code span.sc { color: #5e5e5e; } /* SpecialChar */
+    code span.ss { color: #20794d; } /* SpecialString */
+    code span.st { color: #20794d; } /* String */
+    code span.va { color: #111111; } /* Variable */
+    code span.vs { color: #20794d; } /* VerbatimString */
+    code span.wa { color: #5e5e5e; font-style: italic; } /* Warning */
   </style>
   <link rel="stylesheet" href="../../site_libs/revealjs/dist/theme/quarto.css">
   <link href="../../site_libs/revealjs/plugin/quarto-line-highlight/line-highlight.css" rel="stylesheet">
@@ -588,7 +653,7 @@
   // Document level settings ----
 
   // Determine if we need to install R packages
-  globalThis.qwebrInstallRPackagesList = ['AER', 'fixest', 'dplyr', 'ggplot2'];
+  globalThis.qwebrInstallRPackagesList = ['fixest', 'dplyr', 'data.table', 'ggplot2', 'wooldridge', 'broom', 'lmtest'];
 
   // Specify possible locations to search for the repository
   globalThis.qwebrPackageRepoURLS = ['https://repo.r-wasm.org/'];
@@ -610,7 +675,7 @@
   };
 
   // Store cell data
-  globalThis.qwebrCellDetails = [{"options":{"results":"markup","output":"true","dpi":72,"editor-font-scale":"0.8","fig-height":5,"label":"unnamed-chunk-1","editor-max-height":"","warning":"false","fig-width":7,"fig-cap":"","read-only":"false","editor-quick-suggestions":"false","editor-word-wrap":"true","autorun":"true","message":"false","context":"setup","out-height":"","out-width":"80%","comment":"","classes":""},"id":1,"code":"theme_lecture <-\n  theme_bw() +\n  theme(\n    axis.text = element_text(size = 20),\n    axis.title = element_text(size = 20),\n    legend.text = element_text(size = 16),\n    legend.title = element_text(size = 16)\n  )"},{"options":{"results":"markup","output":"true","dpi":72,"editor-font-scale":"0.8","fig-height":5,"label":"unnamed-chunk-2","editor-max-height":"","warning":"false","fig-width":7,"fig-cap":"","read-only":"false","editor-quick-suggestions":"false","editor-word-wrap":"true","autorun":"true","message":"false","context":"setup","out-height":"","out-width":"80%","comment":"","classes":""},"id":2,"code":"data(HousePrices, package = \"AER\")"},{"options":{"results":"markup","output":"true","dpi":72,"editor-font-scale":"0.8","fig-height":5,"label":"unnamed-chunk-3","editor-max-height":"","warning":"false","fig-width":7,"fig-cap":"","read-only":"false","editor-quick-suggestions":"false","editor-word-wrap":"true","autorun":"true","message":"false","context":"interactive","out-height":"","out-width":"80%","comment":"","classes":""},"id":3,"code":"#--- load the AER package  ---#\nlibrary(AER) # load the AER package\n\n#--- load the HousePrices data set ---#\ndata(HousePrices) # load\n\n#--- take a look ---#\nhead(HousePrices[, 1:10])"},{"options":{"results":"markup","output":"true","dpi":72,"editor-font-scale":"0.8","fig-height":5,"label":"unnamed-chunk-4","editor-max-height":"","warning":"false","fig-width":7,"fig-cap":"","read-only":"false","editor-quick-suggestions":"false","editor-word-wrap":"true","autorun":"true","message":"false","context":"output","out-height":"","out-width":"80%","comment":"","classes":""},"id":4,"code":"g_hp <-\n  ggplot(data = HousePrices) +\n  geom_point(aes(y = price, x = lotsize), size = 0.6) +\n  ylab(\"House Price ($)\") +\n  xlab(\"Lot Size\") +\n  theme_lecture\n\ng_hp"},{"options":{"results":"markup","output":"true","dpi":72,"editor-font-scale":"0.8","fig-height":5,"label":"unnamed-chunk-5","editor-max-height":"","warning":"false","fig-width":7,"fig-cap":"","read-only":"false","editor-quick-suggestions":"false","editor-word-wrap":"true","autorun":"true","message":"false","context":"output","out-height":"","out-width":"80%","comment":"","classes":""},"id":5,"code":"g_hp + geom_smooth(aes(y = price, x = lotsize), method = \"lm\", se = F)"},{"options":{"results":"markup","output":"true","dpi":72,"editor-font-scale":"0.8","fig-height":5,"label":"unnamed-chunk-6","editor-max-height":"","warning":"false","fig-width":7,"fig-cap":"","read-only":"false","editor-quick-suggestions":"false","editor-word-wrap":"true","autorun":"true","message":"false","context":"output","out-height":"","out-width":"80%","comment":"","classes":""},"id":6,"code":"g_hp +\n  geom_abline(intercept = 20000, slope = 7, color = \"red\")"},{"options":{"results":"markup","output":"true","dpi":72,"editor-font-scale":"0.8","fig-height":5,"label":"unnamed-chunk-7","editor-max-height":"","warning":"false","fig-width":7,"fig-cap":"","read-only":"false","editor-quick-suggestions":"false","editor-word-wrap":"true","autorun":"true","message":"false","context":"output","out-height":"","out-width":"80%","comment":"","classes":""},"id":7,"code":"g_hp +\n  geom_abline(intercept = 70000, slope = 3.8, color = \"red\")"},{"options":{"results":"markup","output":"true","dpi":72,"editor-font-scale":"0.8","fig-height":5,"label":"unnamed-chunk-8","editor-max-height":"","warning":"false","fig-width":7,"fig-cap":"","read-only":"false","editor-quick-suggestions":"false","editor-word-wrap":"true","autorun":"true","message":"false","context":"output","out-height":"","out-width":"80%","comment":"","classes":""},"id":8,"code":"g_hp + geom_smooth(aes(y = price, x = lotsize), method = \"lm\", se = F)"},{"options":{"results":"markup","output":"true","dpi":72,"editor-font-scale":"0.8","fig-height":5,"label":"unnamed-chunk-9","editor-max-height":"","warning":"false","fig-width":7,"fig-cap":"","read-only":"false","editor-quick-suggestions":"false","editor-word-wrap":"true","autorun":"true","message":"false","context":"output","out-height":"","out-width":"80%","comment":"","classes":""},"id":9,"code":"x <- 200 * runif(20)\ny <- 100 + 0.5 * x + rnorm(20) * 30\ndata <- data.table(y = y, x = x)\ncoefs <- lm(y ~ x, data = data)$coef\nggplot() +\n  geom_point(data = data, aes(y = y, x = x)) +\n  geom_abline(intercept = coefs[1], slope = coefs[2]) +\n  geom_hline(yintercept = 0) +\n  geom_vline(xintercept = 0) +\n  #* slope\n  geom_curve(\n    aes(\n      x = 120, y = coefs[1] + coefs[2] * 100,\n      xend = 120, yend = coefs[1] + coefs[2] * 120\n    ),\n    color = \"red\"\n  ) +\n  geom_segment(\n    aes(\n      x = 100, y = coefs[1] + coefs[2] * 100,\n      xend = 130, yend = coefs[1] + coefs[2] * 100\n    ),\n    color = \"red\"\n  ) +\n  theme_lecture"},{"options":{"results":"markup","output":"true","dpi":72,"editor-font-scale":"0.8","fig-height":5,"label":"unnamed-chunk-10","editor-max-height":"","warning":"false","fig-width":7,"fig-cap":"","read-only":"false","editor-quick-suggestions":"false","editor-word-wrap":"true","autorun":"true","message":"false","context":"interactive","out-height":"","out-width":"80%","comment":"","classes":""},"id":10,"code":"y <- HousePrices$price\nx <- HousePrices$lotsize\n\n#--- beta_1 ---#\nb1_num <- sum((x - mean(x)) * (y - mean(y)))\nb1_denom <- sum((x - mean(x))^2)\nb1 <- b1_num / b1_denom\nb1"},{"options":{"results":"markup","output":"true","dpi":72,"editor-font-scale":"0.8","fig-height":5,"label":"unnamed-chunk-11","editor-max-height":"","warning":"false","fig-width":7,"fig-cap":"","read-only":"false","editor-quick-suggestions":"false","editor-word-wrap":"true","autorun":"true","message":"false","context":"interactive","out-height":"","out-width":"80%","comment":"","classes":""},"id":11,"code":"library(fixest)\n\n#--- run OLS on the above model ---#\n# lm(dep_var ~ indep_var,data=data_name)\nuni_reg <- feols(price ~ lotsize, data = HousePrices)\n\nuni_reg"},{"options":{"results":"markup","output":"true","dpi":72,"editor-font-scale":"0.8","fig-height":5,"label":"unnamed-chunk-12","editor-max-height":"","warning":"false","fig-width":7,"fig-cap":"","read-only":"false","editor-quick-suggestions":"false","editor-word-wrap":"true","autorun":"false","message":"false","context":"interactive","out-height":"","out-width":"80%","comment":"","classes":""},"id":12,"code":"#--- list the things inside the regression results ---#\nls(uni_reg)"},{"options":{"results":"markup","output":"true","dpi":72,"editor-font-scale":"0.8","fig-height":5,"label":"unnamed-chunk-13","editor-max-height":"","warning":"false","fig-width":7,"fig-cap":"","read-only":"false","editor-quick-suggestions":"false","editor-word-wrap":"true","autorun":"false","message":"false","context":"interactive","out-height":"","out-width":"80%","comment":"","classes":""},"id":13,"code":"uni_reg$coefficients"},{"options":{"results":"markup","output":"true","dpi":72,"editor-font-scale":"0.8","fig-height":5,"label":"unnamed-chunk-14","editor-max-height":"","warning":"false","fig-width":7,"fig-cap":"","read-only":"false","editor-quick-suggestions":"false","editor-word-wrap":"true","autorun":"false","message":"false","context":"interactive","out-height":"","out-width":"80%","comment":"","classes":""},"id":14,"code":"#* fitted values for the first 5 observation points\nuni_reg$fitted.values[1:5]"},{"options":{"results":"markup","output":"true","dpi":72,"editor-font-scale":"0.8","fig-height":5,"label":"unnamed-chunk-15","editor-max-height":"","warning":"false","fig-width":7,"fig-cap":"","read-only":"false","editor-quick-suggestions":"false","editor-word-wrap":"true","autorun":"false","message":"false","context":"interactive","out-height":"","out-width":"80%","comment":"","classes":""},"id":15,"code":"#* residuals for the first 5 observation points\nuni_reg$residuals[1:5]"},{"options":{"results":"markup","output":"true","dpi":72,"editor-font-scale":"0.8","fig-height":5,"label":"unnamed-chunk-16","editor-max-height":"","warning":"false","fig-width":7,"fig-cap":"","read-only":"false","editor-quick-suggestions":"false","editor-word-wrap":"true","autorun":"false","message":"false","context":"interactive","out-height":"","out-width":"80%","comment":"","classes":""},"id":16,"code":"summary(uni_reg)"},{"options":{"results":"markup","output":"true","dpi":72,"editor-font-scale":"0.8","fig-height":5,"label":"unnamed-chunk-17","editor-max-height":"","warning":"false","fig-width":7,"fig-cap":"","read-only":"false","editor-quick-suggestions":"false","editor-word-wrap":"true","autorun":"true","message":"false","context":"interactive","out-height":"","out-width":"80%","comment":"","classes":""},"id":17,"code":"uni_reg$fitted.values[1:5]"},{"options":{"results":"markup","output":"true","dpi":72,"editor-font-scale":"0.8","fig-height":5,"label":"unnamed-chunk-18","editor-max-height":"","warning":"false","fig-width":7,"fig-cap":"","read-only":"false","editor-quick-suggestions":"false","editor-word-wrap":"true","autorun":"true","message":"false","context":"interactive","out-height":"","out-width":"80%","comment":"","classes":""},"id":18,"code":"(\nnew_data <- data.frame(lotsize = c(3000, 12000, 15000))\n)"},{"options":{"results":"markup","output":"true","dpi":72,"editor-font-scale":"0.8","fig-height":5,"label":"unnamed-chunk-19","editor-max-height":"","warning":"false","fig-width":7,"fig-cap":"","read-only":"false","editor-quick-suggestions":"false","editor-word-wrap":"true","autorun":"true","message":"false","context":"interactive","out-height":"","out-width":"80%","comment":"","classes":""},"id":19,"code":"predict(uni_reg, newdata = new_data)"},{"options":{"results":"markup","output":"true","dpi":72,"editor-font-scale":"0.8","fig-height":5,"label":"unnamed-chunk-20","editor-max-height":"","warning":"false","fig-width":7,"fig-cap":"","read-only":"false","editor-quick-suggestions":"false","editor-word-wrap":"true","autorun":"false","message":"false","context":"interactive","out-height":"","out-width":"80%","comment":"","classes":""},"id":20,"code":""},{"options":{"results":"markup","output":"true","dpi":72,"editor-font-scale":"0.8","fig-height":5,"label":"unnamed-chunk-21","editor-max-height":"","warning":"false","fig-width":7,"fig-cap":"","read-only":"false","editor-quick-suggestions":"false","editor-word-wrap":"true","autorun":"false","message":"false","context":"interactive","out-height":"","out-width":"80%","comment":"","classes":""},"id":21,"code":"#--- access the coefficient values  ---#\nuni_reg$coefficients\n# class(uni_reg)\n\n#--- assess the impact ---#\nuni_reg$coefficients[\"lotsize\"] * 1000 - 5000"},{"options":{"results":"markup","output":"true","dpi":72,"editor-font-scale":"0.8","fig-height":5,"label":"unnamed-chunk-22","editor-max-height":"","warning":"false","fig-width":7,"fig-cap":"","read-only":"false","editor-quick-suggestions":"false","editor-word-wrap":"true","autorun":"true","message":"false","context":"output","out-height":"","out-width":"80%","comment":"","classes":""},"id":22,"code":"g_hp +\n  geom_smooth(\n    aes(y = price, x = lotsize),\n    method = \"lm\", se = F, size = 0.8\n  ) +\n  geom_hline(yintercept = mean(HousePrices$price), color = \"red\") +\n  annotate(\n    \"text\",\n    x = 15000, y = 60000,\n    label = \"Average Price\",\n    color = \"red\",\n    size = 2\n  )"}];
+  globalThis.qwebrCellDetails = [{"id":1,"options":{"fig-cap":"","classes":"","editor-font-scale":"0.8","message":"true","editor-word-wrap":"true","autorun":"false","comment":"","out-height":"","warning":"true","context":"interactive","label":"unnamed-chunk-1","out-width":"700px","editor-quick-suggestions":"false","dpi":72,"editor-max-height":"","output":"true","results":"markup","read-only":"false","fig-height":5,"fig-width":7},"code":"set.seed(927834)\n\nN <- 1000 # number of observations\nB <- 1000 # number of simulations\n\nb_hat_store <- rep(0, B) # beta hat storage\nt_stat_store <- rep(0, B) # t-stat storage\nc_value <- qt(0.975, N - 2) # critical value\n\nx <- runif(N, 0, 1) # x (fixed across iterations)\n\nfor (i in 1:B){\n  #--- generate data ---#\n  het_u <- 3 * rnorm(N, mean = 0, sd = 2 * x) # heteroskedastic error\n  y <- 1 + het_u # y\n  data_temp <- data.frame(y = y, x = x)\n\n  #--- regression ---#\n  ols_res <- lm(y ~ x, data = data_temp)  \n\n  b_hat <- ols_res$coef['x'] # coef estimate on x\n  b_hat_store[i] <- b_hat # save the coef estimate\n  vcov_ols <- vcov(ols_res) # get variance covariance matrix\n  t_stat_store[i] <- b_hat / sqrt(vcov_ols['x', 'x']) # calculate t-stat\n} "},{"id":2,"options":{"fig-cap":"","classes":"","editor-font-scale":"0.8","message":"true","editor-word-wrap":"true","autorun":"false","comment":"","out-height":"","warning":"true","context":"interactive","label":"unnamed-chunk-2","out-width":"700px","editor-quick-suggestions":"false","dpi":72,"editor-max-height":"","output":"true","results":"markup","read-only":"false","fig-height":5,"fig-width":7},"code":"#--- how many times do you reject? ---#\nreject_or_not <- \n  abs(t_stat_store) > c_value\n\nmean(reject_or_not) "},{"id":3,"options":{"fig-cap":"","classes":"","editor-font-scale":"0.8","message":"true","editor-word-wrap":"true","autorun":"true","comment":"","out-height":"","warning":"true","context":"interactive","label":"unnamed-chunk-3","out-width":"700px","editor-quick-suggestions":"false","dpi":72,"editor-max-height":"","output":"true","results":"markup","read-only":"false","fig-height":5,"fig-width":7},"code":"#--- import the data ---#\ndata(\"mlb1\", package = \"wooldridge\")\n\n#--- regression ---#\nreg_mlb <- fixest::feols(log(salary) ~ years + bavg, data = mlb1) "},{"id":4,"options":{"fig-cap":"","classes":"","editor-font-scale":"0.8","message":"true","editor-word-wrap":"true","autorun":"false","comment":"","out-height":"","warning":"true","context":"interactive","label":"unnamed-chunk-4","out-width":"700px","editor-quick-suggestions":"false","dpi":72,"editor-max-height":"","output":"true","results":"markup","read-only":"false","fig-height":5,"fig-width":7},"code":"#* vcov\nvcov(reg_mlb, vcov = \"hetero\")\n\n#* only the standard errors\nfixest::se(reg_mlb, vcov = \"hetero\")"},{"id":5,"options":{"fig-cap":"","classes":"","editor-font-scale":"0.8","message":"true","editor-word-wrap":"true","autorun":"false","comment":"","out-height":"","warning":"true","context":"interactive","label":"unnamed-chunk-5","out-width":"700px","editor-quick-suggestions":"false","dpi":72,"editor-max-height":"","output":"true","results":"markup","read-only":"false","fig-height":5,"fig-width":7},"code":"(\n  se_hom <- se(reg_mlb)\n)"},{"id":6,"options":{"fig-cap":"","classes":"","editor-font-scale":"0.8","message":"true","editor-word-wrap":"true","autorun":"false","comment":"","out-height":"","warning":"true","context":"interactive","label":"unnamed-chunk-6","out-width":"700px","editor-quick-suggestions":"false","dpi":72,"editor-max-height":"","output":"true","results":"markup","read-only":"false","fig-height":5,"fig-width":7},"code":"(\n  se_het <- se(reg_mlb, vcov = \"hetero\")\n)"},{"id":7,"options":{"fig-cap":"","classes":"","editor-font-scale":"0.8","message":"true","editor-word-wrap":"true","cache":"true","autorun":"false","comment":"","out-height":"","warning":"true","context":"interactive","label":"unnamed-chunk-7","out-width":"700px","editor-quick-suggestions":"false","dpi":72,"editor-max-height":"","output":"true","results":"markup","read-only":"false","fig-height":5,"fig-width":7},"code":"set.seed(478954)\n\n#--- x fixed across iterations ---#\nx <- runif(N,0,1) # x\n\nfor (i in 1:B){\n  #--- generate data ---#\n  het_u <- 3 * rnorm(N, mean = 0, sd = 2 * x) # heteroskedastic error\n  y <- 1 + het_u # y\n  data_temp <- data.frame(y = y, x = x)\n\n  #--- regression ---#\n  ols_res <- feols(y ~ x,data = data_temp)\n  b_hat <- ols_res$coefficient['x'] # coef estimate on x\n  b_hat_store[i] <- b_hat # save the coef estimate\n  se_het <- se(ols_res, vcov = \"hetero\")[\"x\"] # get variance covariance matrix #<<\n  t_stat_store[i] <- b_hat/se_het # calculate t-stat\n}"},{"id":8,"options":{"fig-cap":"","classes":"","editor-font-scale":"0.8","message":"true","editor-word-wrap":"true","cache":"true","autorun":"false","comment":"","out-height":"","warning":"true","context":"interactive","label":"unnamed-chunk-8","out-width":"700px","editor-quick-suggestions":"false","dpi":72,"editor-max-height":"","output":"true","results":"markup","read-only":"false","fig-height":5,"fig-width":7},"code":"reject_or_not <- \n  abs(t_stat_store) > c_value\n\nmean(reject_or_not)"},{"id":9,"options":{"fig-cap":"","classes":"","editor-font-scale":"0.8","message":"true","editor-word-wrap":"true","autorun":"false","comment":"","out-height":"","warning":"true","context":"interactive","label":"unnamed-chunk-9","out-width":"700px","editor-quick-suggestions":"false","dpi":72,"editor-max-height":"","output":"true","results":"markup","read-only":"false","fig-height":5,"fig-width":7},"code":"#--- setup ---#\nN <- 2000 # total number of observations\nG <- 50 # number of groups\nNg <- N/G # number of observations per group\n\n#--- error correlated within group ---#\nu <- \n  MASS::mvrnorm(\n    G, mu = rep(0, Ng), \n    Sigma = matrix(10, nrow = Ng, ncol = Ng) + diag(Ng)\n  ) %>% t() %>% c()\n\n#--- x correlated within group ---#\nx <- \n  MASS::mvrnorm(\n    G, mu = rep(0, Ng), \n    Sigma = matrix(1, nrow = Ng, ncol = Ng) + diag(Ng) * .2\n  ) %>% t() %>% c()\n\n#--- other variables ---#\ny <- 1 + 0 * x + u\n\n#--- data.frame ---#\ndata <- data.frame(y = y, x = x, group = rep(1:G, each = Ng))"},{"id":10,"options":{"fig-cap":"","classes":"","editor-font-scale":"0.8","message":"true","editor-word-wrap":"true","autorun":"false","comment":"","out-height":"","warning":"true","context":"interactive","label":"unnamed-chunk-10","out-width":"700px","editor-quick-suggestions":"false","dpi":72,"editor-max-height":"","output":"true","results":"markup","read-only":"false","fig-height":5,"fig-width":7},"code":"ggplot(data) +\n  geom_point(aes(y = y, x = factor(group)), size = 0.2) +\n  xlab(\"group\") +\n  theme(\n    axis.text.x = element_text(size = 6, angle = 90)\n  )"},{"id":11,"options":{"fig-cap":"","classes":"","editor-font-scale":"0.8","message":"true","editor-word-wrap":"true","autorun":"false","comment":"","out-height":"","warning":"true","context":"interactive","label":"unnamed-chunk-11","out-width":"700px","editor-quick-suggestions":"false","dpi":72,"editor-max-height":"","output":"true","results":"markup","read-only":"false","fig-height":5,"fig-width":7},"code":"c_value <- qt(0.975, N - 2)\n\n#--- how often do you reject the null ---#\nmean(abs(t_stat_store) > c_value) "},{"id":12,"options":{"fig-cap":"","classes":"","editor-font-scale":"0.8","message":"true","editor-word-wrap":"true","autorun":"false","comment":"","out-height":"","warning":"true","context":"interactive","label":"unnamed-chunk-12","out-width":"700px","editor-quick-suggestions":"false","dpi":72,"editor-max-height":"","output":"true","results":"markup","read-only":"false","fig-height":5,"fig-width":7},"code":"dplyr::select(mlb1, salary, years, bavg, nl) %>% head()"},{"id":13,"options":{"fig-cap":"","classes":"","editor-font-scale":"0.8","message":"true","editor-word-wrap":"true","autorun":"false","comment":"","out-height":"","warning":"true","context":"interactive","label":"unnamed-chunk-13","out-width":"700px","editor-quick-suggestions":"false","dpi":72,"editor-max-height":"","output":"true","results":"markup","read-only":"false","fig-height":5,"fig-width":7},"code":"reg_mlb <- feols(log(salary) ~ years + bavg, data = mlb1) "},{"id":14,"options":{"fig-cap":"","classes":"","editor-font-scale":"0.8","message":"true","editor-word-wrap":"true","autorun":"false","comment":"","out-height":"","warning":"true","context":"interactive","label":"unnamed-chunk-14","out-width":"700px","editor-quick-suggestions":"false","dpi":72,"editor-max-height":"","output":"true","results":"markup","read-only":"false","fig-height":5,"fig-width":7},"code":"#* vcov clustered by nl\nvcov(reg_mlb, cluster = ~ nl)\n\n#* se clustered by nl\nse(reg_mlb, cluster = ~ nl)"},{"id":15,"options":{"fig-cap":"","classes":"","editor-font-scale":"0.8","message":"true","editor-word-wrap":"true","autorun":"false","comment":"","out-height":"","warning":"true","context":"interactive","label":"unnamed-chunk-15","out-width":"700px","editor-quick-suggestions":"false","dpi":72,"editor-max-height":"","output":"true","results":"markup","read-only":"false","fig-height":5,"fig-width":7},"code":"se(reg_mlb) "},{"id":16,"options":{"fig-cap":"","classes":"","editor-font-scale":"0.8","message":"true","editor-word-wrap":"true","autorun":"false","comment":"","out-height":"","warning":"true","context":"interactive","label":"unnamed-chunk-16","out-width":"700px","editor-quick-suggestions":"false","dpi":72,"editor-max-height":"","output":"true","results":"markup","read-only":"false","fig-height":5,"fig-width":7},"code":"se(reg_mlb, cluster = ~ nl) "},{"id":17,"options":{"fig-cap":"","classes":"","editor-font-scale":"0.8","message":"true","editor-word-wrap":"true","autorun":"false","comment":"","out-height":"","warning":"true","context":"interactive","label":"unnamed-chunk-17","out-width":"700px","editor-quick-suggestions":"false","dpi":72,"editor-max-height":"","output":"true","results":"markup","read-only":"false","fig-height":5,"fig-width":7},"code":"reg_mlb <- feols(log(salary) ~ years + bavg, cluster = ~ nl, data = mlb1) \n\ntidy(reg_mlb)"},{"id":18,"options":{"fig-cap":"","classes":"","editor-font-scale":"0.8","message":"true","editor-word-wrap":"true","autorun":"false","comment":"","out-height":"","warning":"true","context":"interactive","label":"cl-MC-robust","out-width":"700px","editor-quick-suggestions":"false","dpi":72,"editor-max-height":"","output":"true","results":"markup","read-only":"false","fig-height":5,"fig-width":7},"code":"set.seed(58934)\nB <- 1000\nt_stat_store <- rep(0,B)\nN <- 2000 # number of observations per cluster\nG <- 50 # number of groups\nNg <- N/G # number of observations per group\n\nfor (i in 1:B){\n  #--- error correlated within group ---#\n  u <- \n  mvrnorm(\n    G, mu = rep(0, Ng), \n    Sigma = matrix(10, nrow = Ng, ncol = Ng) + diag(Ng)\n  ) %>% t() %>% c()\n\n  #--- x correlated within group ---#\n  x <- \n    mvrnorm(\n      G, mu = rep(0, Ng), \n      Sigma = matrix(1, nrow = Ng, ncol = Ng) + diag(Ng) * .2\n    ) %>% t() %>% c()\n\n  #--- other variables ---#\n  y <- 1 + 0 * x + u\n\n  #--- data.frame ---#\n  data <- data.frame(y = y, x = x, group = rep(1:G, each = Ng))\n\n  #--- OLS with cluster-robust se---#\n  reg <- feols(y ~ x, data = data, cluster = ~ group) #<<\n\n  #--- get vcov ---#\n  se_cl <- se(reg)[\"x\"]\n\n  #--- calculate t-stat ---#\n  t_stat <- reg$coefficient['x']/se_cl\n  t_stat_store[i] <- t_stat\n}"},{"id":19,"options":{"fig-cap":"","classes":"","editor-font-scale":"0.8","message":"true","editor-word-wrap":"true","autorun":"false","comment":"","out-height":"","warning":"true","context":"interactive","label":"unnamed-chunk-19","out-width":"700px","editor-quick-suggestions":"false","dpi":72,"editor-max-height":"","output":"true","results":"markup","read-only":"false","fig-height":5,"fig-width":7},"code":"#--- critical value ---#\nc_value <- qt(0.95, N-2)\n\n#--- how often do you reject the null ---#\nmean(abs(t_stat_store) > c_value)"},{"id":20,"options":{"fig-cap":"","classes":"","editor-font-scale":"0.8","message":"true","editor-word-wrap":"true","autorun":"false","comment":"","out-height":"","warning":"true","context":"interactive","label":"cl-MC-robust-more-groups","out-width":"700px","editor-quick-suggestions":"false","dpi":72,"editor-max-height":"","output":"true","results":"markup","read-only":"false","fig-height":5,"fig-width":7},"code":"set.seed(58934)\nB <- 1000\nt_stat_store <- rep(0,B)\nN <- 20000 # total number of observations\nG <- 1000 # number of groups #<<\nNg <- N/G # number of observations per group\n\nfor (i in 1:B){\n  #--- error correlated within group ---#\n  u <- \n  mvrnorm(\n    G, mu = rep(0, Ng), \n    Sigma = matrix(10, nrow = Ng, ncol = Ng) + diag(Ng)\n  ) %>% t() %>% c()\n\n  #--- x correlated within group ---#\n  x <- \n    mvrnorm(\n      G, mu = rep(0, Ng), \n      Sigma = matrix(1, nrow = Ng, ncol = Ng) + diag(Ng) * .2\n    ) %>% t() %>% c()\n\n  #--- other variables ---#\n  y <- 1 + 0 * x + u\n\n  #--- data.frame ---#\n  data <- data.frame(y = y, x = x, group = rep(1:G, each = Ng))\n\n  #--- OLS with cluster-robust se---#\n  reg <- feols(y ~ x, data = data, cluster = ~ group)\n\n  #--- get vcov ---#\n  se_cl <- se(reg)[\"x\"]\n\n  #--- calculate t-stat ---#\n  t_stat <- reg$coefficient['x']/se_cl\n  t_stat_store[i] <- t_stat\n}"},{"id":21,"options":{"fig-cap":"","classes":"","editor-font-scale":"0.8","message":"true","editor-word-wrap":"true","autorun":"false","comment":"","out-height":"","warning":"true","context":"interactive","label":"unnamed-chunk-21","out-width":"700px","editor-quick-suggestions":"false","dpi":72,"editor-max-height":"","output":"true","results":"markup","read-only":"false","fig-height":5,"fig-width":7},"code":"#--- critical value ---#\nc_value <- qt(0.95, N-2)\n\n#--- how often do you reject the null ---#\nmean(abs(t_stat_store) > c_value)"}];
 
   </script>
   <script type="module">
@@ -1807,7 +1872,7 @@
   }
 
   </script>
-<meta property="og:title" content="01-2: Univariate Regression: OLS Mechanics and Implementation – Applied Econometrics (AECN 896-004)">
+<meta property="og:title" content="06: Standard Error Estimation – Applied Econometrics (AECN 896-004)">
 <meta property="og:site_name" content="Applied Econometrics (AECN 896-004)">
 </head>
 <body class="quarto-light">
@@ -2099,20 +2164,15 @@ globalThis.qwebrCreateMonacoEditorInstance = function (cellData) {
     <div class="slides">
 
 <section id="title-slide" class="quarto-title-block center">
-  <h1 class="title">01-2: Univariate Regression: OLS Mechanics and Implementation</h1>
+  <h1 class="title">06: Standard Error Estimation</h1>
 
 <div class="quarto-title-authors">
 </div>
 
 </section>
-<section class="slide level2">
-
-<div id="qwebr-insertion-location-1"></div>
-<noscript>Please enable JavaScript to experience the dynamic code cell content on this page.</noscript>
-</section>
 <section>
-<section id="estimation-of-parameters-via-ols" class="title-slide slide level1 center">
-<h1>Estimation of Parameters via OLS</h1>
+<section id="heteroskedasticity" class="title-slide slide level1 center">
+<h1>Heteroskedasticity</h1>
 
 <div style="float:left">
 
@@ -2120,76 +2180,201 @@ globalThis.qwebrCreateMonacoEditorInstance = function (cellData) {
 <hr color="#EB811B" size="1px" width="1000px">
 
 </section>
-<section id="the-data-set-and-model" class="slide level2">
-<h2>The data set and model</h2>
-<div id="qwebr-insertion-location-2"></div>
-<noscript>Please enable JavaScript to experience the dynamic code cell content on this page.</noscript>
+<section id="homoskedasticity-and-heteroskedasticity" class="slide level2">
+<h2>Homoskedasticity and Heteroskedasticity</h2>
 <div class="panel-tabset">
-<ul id="tabset-1" class="panel-tabset-tabby"><li><a data-tabby-default="" href="#tabset-1-1">Set up</a></li><li><a href="#tabset-1-2">R code to get data</a></li><li><a href="#tabset-1-3">Data visualization</a></li></ul>
+<ul id="tabset-5" class="panel-tabset-tabby"><li><a data-tabby-default="" href="#tabset-5-1">Review</a></li><li><a href="#tabset-5-2">Visualization</a></li><li><a href="#tabset-5-3">Central Questions</a></li><li><a href="#tabset-5-4">Coefficient estimators</a></li><li><a href="#tabset-5-5">Variance of the coefficient estimators</a></li></ul>
+<div class="tab-content">
+<div id="tabset-5-1">
+<div title="Homoskedasticity">
+<div class="callout callout-note no-icon callout-titled callout-style-default">
+<div class="callout-body">
+<div class="callout-title">
+<p><strong>Homoskedasticity</strong></p>
+</div>
+<div class="callout-content">
+<p><span class="math inline">\(Var(u|x) = \sigma^2\)</span></p>
+</div>
+</div>
+</div>
+</div>
+<p><br></p>
+<div title="Heteroskedasticity">
+<div class="callout callout-note no-icon callout-titled callout-style-default">
+<div class="callout-body">
+<div class="callout-title">
+<p><strong>Heteroskedasticity</strong></p>
+</div>
+<div class="callout-content">
+<p><span class="math inline">\(Var(u|x) = f(x)\)</span></p>
+</div>
+</div>
+</div>
+</div>
+</div>
+<div id="tabset-5-2">
+<div class="cell">
+<div class="cell-output-display">
+<div>
+<figure>
+<p><img data-src="06-se-estimation_files/figure-revealjs/unnamed-chunk-2-1.png" width="4000"></p>
+</figure>
+</div>
+</div>
+</div>
+</div>
+<div id="tabset-5-3">
+<p>What are the consequences of assuming the error is homoskedastic when it is heteroskedastic in reality?</p>
+<ul>
+<li>Estimation of coefficients <span class="math inline">\((\widehat{\beta}_j)\)</span>?</li>
+<li>Estimation of the variance of <span class="math inline">\(\widehat{\beta}_j\)</span>?</li>
+</ul>
+</div>
+<div id="tabset-5-4">
+<div class="panel-tabset">
+<ul id="tabset-1" class="panel-tabset-tabby"><li><a data-tabby-default="" href="#tabset-1-1">Question</a></li><li><a href="#tabset-1-2">Answer</a></li></ul>
 <div class="tab-content">
 <div id="tabset-1-1">
-<p><strong>Data</strong></p>
-<p>Observations of house price and lot size for 546 houses.</p>
-<p><br></p>
-<p><strong>Model</strong></p>
-<p><span class="math display">\[price_i = \beta_0 + \beta_1 lotsize_i+u_i\]</span></p>
-<ul>
-<li><span class="math inline">\(price_i\)</span>: house price ($) of house <span class="math inline">\(i\)</span></li>
-<li><span class="math inline">\(lotsize_i\)</span>: lot size of house <span class="math inline">\(i\)</span></li>
-<li><span class="math inline">\(u_i\)</span>: error term (everything else) of house <span class="math inline">\(i\)</span></li>
-</ul>
-<p><br></p>
-<p><strong>Objective</strong></p>
-<p>Estimate the impact of lot size on house price</p>
+<p>Are OLS estimators unbiased when error is heteroskedastic?</p>
 </div>
 <div id="tabset-1-2">
-<div id="qwebr-insertion-location-3"></div>
-<noscript>Please enable JavaScript to experience the dynamic code cell content on this page.</noscript>
+<p>Yes. We do not need to use the homoskedasticity assumption to prove that the OLS estimator is unbiased.</p>
 </div>
-<div id="tabset-1-3">
-<div id="qwebr-insertion-location-4"></div>
-<noscript>Please enable JavaScript to experience the dynamic code cell content on this page.</noscript>
+</div>
+</div>
+<!--end of panel-->
+</div>
+<div id="tabset-5-5">
+<div class="panel-tabset">
+<ul id="tabset-4" class="panel-tabset-tabby"><li><a data-tabby-default="" href="#tabset-4-1">homeskedastic error</a></li><li><a href="#tabset-4-2">heteroskedastic error</a></li><li><a href="#tabset-4-3">Consequences</a></li></ul>
+<div class="tab-content">
+<div id="tabset-4-1">
+<p>We learned that when the homoskedasticity assumption holds, then,</p>
+<p><span class="math inline">\(Var(\widehat{\beta}_j) = \frac{\sigma^2}{SST_x(1-R^2_j)}\)</span></p>
+<p>We used the following as the estimator of <span class="math inline">\(Var(\widehat{\beta}_j)\)</span></p>
+<p><span class="math inline">\(\frac{\widehat{\sigma}^2}{SST_x(1-R^2_j)}\)</span> where <span class="math inline">\(\widehat{\sigma}^2 = \frac{\sum_{i=1}^{N} \widehat{u}_i^2}{N-k-1}\)</span></p>
+<p><br></p>
+<div class="callout callout-important no-icon callout-titled callout-style-default">
+<div class="callout-body">
+<div class="callout-title">
+<p><strong>Important</strong></p>
+</div>
+<div class="callout-content">
+<p><span style="color: blue;"> By default </span>, R and other statistical software uses this formula to get estimates of the variance of <span class="math inline">\(\widehat{\beta}_j\)</span>.</p>
+</div>
+</div>
+</div>
+</div>
+<div id="tabset-4-2">
+<p>But, under heteroskedasticity,</p>
+<p><span class="math inline">\(Var(\widehat{\beta}_j) \ne \frac{\sigma^2}{SST_x(1-R^2_j)}\)</span></p>
+<p><br></p>
+<div class="panel-tabset">
+<ul id="tabset-2" class="panel-tabset-tabby"><li><a data-tabby-default="" href="#tabset-2-1">Question</a></li><li><a href="#tabset-2-2">Answer</a></li></ul>
+<div class="tab-content">
+<div id="tabset-2-1">
+<p>Is <span class="math inline">\(E[\widehat{Var(\widehat{\beta}_j)}_{default}] \equiv E\Big[\frac{\widehat{\sigma}^2}{SST_x(1-R^2_j)}\Big]=Var(\widehat{\beta}_j)\)</span> under heteroskedasticity?</p>
+</div>
+<div id="tabset-2-2">
+<p>No.</p>
+</div>
+</div>
+</div>
+<!--end of panel-->
+</div>
+<div id="tabset-4-3">
+<p>So, what are the consequences of using <span class="math inline">\(\widehat{Var(\widehat{\beta}_j)}=\frac{\widehat{\sigma}^2}{SST_x(1-R^2_j)}\)</span> under heteroskedasticity?</p>
+<p><span class="math inline">\(\;\;\;\;\downarrow\)</span></p>
+<p><span style="color: blue;"> Your hypothesis testing is going to be biased!! </span></p>
+<p><br></p>
+<div class="panel-tabset">
+<ul id="tabset-3" class="panel-tabset-tabby"><li><a data-tabby-default="" href="#tabset-3-1">Question</a></li><li><a href="#tabset-3-2">Answer</a></li></ul>
+<div class="tab-content">
+<div id="tabset-3-1">
+<p>What does it mean to have hypothesis testing biased?</p>
+</div>
+<div id="tabset-3-2">
+<p>Roughly speaking, it means that you over-reject/under-reject the hypothesis than you intend to.</p>
+</div>
+</div>
+</div>
+<!--end of panel-->
+</div>
+</div>
+</div>
+<!--end of panel-->
 </div>
 </div>
 </div>
 <!--end of panel-->
 </section>
-<section id="estimation-with-ols" class="slide level2">
-<h2>Estimation with OLS</h2>
+<section id="consequence-of-heteroskedasticity-on-testing" class="slide level2">
+<h2>Consequence of heteroskedasticity on testing</h2>
 <div class="panel-tabset">
-<ul id="tabset-3" class="panel-tabset-tabby"><li><a data-tabby-default="" href="#tabset-3-1">Rough idea</a></li><li><a href="#tabset-3-2">Examples</a></li><li><a href="#tabset-3-3">Residuals</a></li><li><a href="#tabset-3-4">OLS</a></li><li><a href="#tabset-3-5">Visualization</a></li><li><a href="#tabset-3-6">Derivation</a></li><li><a href="#tabset-3-7">Estimators vs Estimates</a></li></ul>
+<ul id="tabset-8" class="panel-tabset-tabby"><li><a data-tabby-default="" href="#tabset-8-1">Motivation and setup</a></li><li><a href="#tabset-8-2">MC simulation</a></li></ul>
 <div class="tab-content">
-<div id="tabset-3-1">
+<div id="tabset-8-1">
+<p>Let’s run MC simulations to see the consequence of ignoring heteroskedasticity.</p>
+<p><br></p>
+<p><strong>Model</strong></p>
+<p><span class="math inline">\(y = 1 + \beta x + u\)</span>, where <span class="math inline">\(\beta = 0\)</span></p>
+<p><br></p>
+<p><strong>Test of interest</strong></p>
 <ul>
-<li>We want to draw a line like this, the slope of which is an estimate of <span class="math inline">\(\beta_1\)</span></li>
-<li>A way: Ordinary Least Squares (OLS)</li>
+<li><span class="math inline">\(H_0:\)</span> <span class="math inline">\(\beta=0\)</span></li>
+<li><span class="math inline">\(H_1:\)</span> <span class="math inline">\(\beta \ne 0\)</span></li>
 </ul>
-<div id="qwebr-insertion-location-5"></div>
-<noscript>Please enable JavaScript to experience the dynamic code cell content on this page.</noscript>
-</div>
-<div id="tabset-3-2">
+<p><br></p>
 <div class="panel-tabset">
-<ul id="tabset-2" class="panel-tabset-tabby"><li><a data-tabby-default="" href="#tabset-2-1">Ex. 1: <span class="math inline">\(\widehat{\beta}_0=20000\)</span>, <span class="math inline">\(\widehat{\beta}_1=7\)</span></a></li><li><a href="#tabset-2-2">Ex. 2: <span class="math inline">\(\widehat{\beta}_0=70000\)</span>, <span class="math inline">\(\widehat{\beta}_1=3.8\)</span></a></li><li><a href="#tabset-2-3">So,</a></li></ul>
+<ul id="tabset-6" class="panel-tabset-tabby"><li><a data-tabby-default="" href="#tabset-6-1">Question</a></li><li><a href="#tabset-6-2">Answer</a></li></ul>
 <div class="tab-content">
-<div id="tabset-2-1">
-<div id="qwebr-insertion-location-6"></div>
+<div id="tabset-6-1">
+<p>If you test the null hypothesis at the <span class="math inline">\(5\%\)</span> significance level, what should be the probability that you reject the null hypothesis when it is actually true?</p>
+<p><span class="math inline">\(Pr(\mbox{reject} \;\; H_0|H_0 \;\; \mbox{is true})=?\)</span></p>
+</div>
+<div id="tabset-6-2">
+<p><span class="math inline">\(5\%\)</span></p>
+</div>
+</div>
+</div>
+<!--end of panel-->
+</div>
+<div id="tabset-8-2">
+<div class="panel-tabset">
+<ul id="tabset-7" class="panel-tabset-tabby"><li><a data-tabby-default="" href="#tabset-7-1">conceptual steps</a></li><li><a href="#tabset-7-2">R implementation</a></li><li><a href="#tabset-7-3">Results</a></li></ul>
+<div class="tab-content">
+<div id="tabset-7-1">
+<ul>
+<li>generate a dataset so that <span class="math inline">\(\beta_1\)</span> (the coefficient on <span class="math inline">\(x\)</span>) is zero</li>
+</ul>
+<p><span class="math display">\[y=\beta_0+\beta_1 x + v\]</span></p>
+<ul>
+<li>estimate the model and find <span class="math inline">\(\widehat{\beta}_1\)</span> and <span class="math inline">\(\widehat{se(\widehat{\beta}_1)}\)</span></li>
+<li>calculate <span class="math inline">\(t\)</span>-statistic <span class="math inline">\((\widehat{\beta}_x-0)/\widehat{se(\widehat{\beta}_x)}\)</span> and decide whether you reject the null or not</li>
+<li>repeat the above 1000 times</li>
+<li>check how often you reject the null (should be close to 50 times)</li>
+</ul>
+</div>
+<div id="tabset-7-2">
+<div id="qwebr-insertion-location-1"></div>
 <noscript>Please enable JavaScript to experience the dynamic code cell content on this page.</noscript>
 </div>
-<div id="tabset-2-2">
-<div id="qwebr-insertion-location-7"></div>
+<div id="tabset-7-3">
+<div id="qwebr-insertion-location-2"></div>
 <noscript>Please enable JavaScript to experience the dynamic code cell content on this page.</noscript>
-</div>
-<div id="tabset-2-3">
-<div title="Question">
-<div class="callout callout-important no-icon callout-titled callout-style-default">
+<p><br></p>
+<div title="Consequence of ignoring heteroskedasticity">
+<div class="callout callout-note no-icon callout-titled callout-style-default">
 <div class="callout-body">
 <div class="callout-title">
-<p><strong>Question</strong></p>
+<p><strong>Consequence of ignoring heteroskedasticity</strong></p>
 </div>
 <div class="callout-content">
+<p>We rejected the null hypothesis 10.8% of the time, instead of <span class="math inline">\(5\%\)</span>.</p>
 <ul>
-<li>Among all the possible values of <span class="math inline">\(\beta_0\)</span> and <span class="math inline">\(\beta_1\)</span>, which one is the best?</li>
-<li>What criteria do we use (what does the best even mean?)</li>
+<li><p>So, in this case, you are more likely to claim that <span class="math inline">\(x\)</span> has a statistically significant impact than you are supposed to.</p></li>
+<li><p>The use of the formula <span class="math inline">\(\frac{\widehat{\sigma}^2}{SST_x(1-R^2_j)}\)</span> seemed to (over/under)-estimate the true variance of the OLS estimators?</p></li>
+<li><p>In general, the direction of bias is ambiguous.</p></li>
 </ul>
 </div>
 </div>
@@ -2200,74 +2385,544 @@ globalThis.qwebrCreateMonacoEditorInstance = function (cellData) {
 </div>
 <!--end of panel-->
 </div>
-<div id="tabset-3-3">
-<p>For particular values of <span class="math inline">\(\widehat{\beta}_0\)</span> and <span class="math inline">\(\widehat{\beta}_1\)</span> you pick, the modeled value of <span class="math inline">\(y\)</span> for individual <span class="math inline">\(i\)</span> is <span class="math inline">\(\widehat{\beta}_0 + \widehat{\beta}_1 x_i\)</span>.</p>
-<p>Then, the residual for individual <span class="math inline">\(i\)</span> is:</p>
-<p><span class="math display">\[
-\widehat{u}_i =  y_i - (\widehat{\beta}_0 + \widehat{\beta}_1 x_i)
-\]</span></p>
-<p>That is, residual is the observed value of the dependent variable less the value of modeled value. For different values of <span class="math inline">\(\widehat{\beta}_0\)</span> and <span class="math inline">\(\widehat{\beta}_1\)</span>, you have a different value of residual.</p>
+</div>
+</div>
+<!--end of panel-->
+</section>
+<section id="how-should-we-address-this-problem" class="slide level2">
+<h2>How should we address this problem?</h2>
+<div class="panel-tabset">
+<ul id="tabset-9" class="panel-tabset-tabby"><li><a data-tabby-default="" href="#tabset-9-1">What to do?</a></li><li><a href="#tabset-9-2">Robust estimator of se</a></li><li><a href="#tabset-9-3">In practice</a></li></ul>
+<div class="tab-content">
+<div id="tabset-9-1">
+<p>Now, we understand the consequence of heteroskedasticity:</p>
+<p><span class="math inline">\(\frac{\widehat{\sigma}^2}{SST_x(1-R^2_j)}\)</span> is a biased estimator of <span class="math inline">\(Var(\widehat{\beta})\)</span>, which makes any kind of testings based on it invalid.</p>
+<p>Can we credibly estimate the variance of the OLS estimators?</p>
+<p><br></p>
+<div title="White-Huber-Eicker heteroskedasticity-robust standard error estimator">
+<div class="callout callout-important no-icon callout-titled callout-style-default">
+<div class="callout-body">
+<div class="callout-title">
+<p><strong>White-Huber-Eicker heteroskedasticity-robust standard error estimator</strong></p>
+</div>
+<div class="callout-content">
+<ul>
+<li>valid in the presence of heteroskedasticity of .red[unknown form]</li>
+<li>heteroskedasticity-robust standard error estimator in short</li>
+</ul>
+</div>
+</div>
+</div>
+</div>
+</div>
+<div id="tabset-9-2">
+<p><strong>Heteroskedasticity-robust standard error estimator</strong></p>
+<p><span class="math inline">\(\widehat{Var(\widehat{\beta}_j)} = \frac{\sum_{i=1}^n \widehat{r}^2_{i,j} \widehat{u}^2_i}{SSR^2_j}\)</span></p>
+<ul>
+<li><span class="math inline">\(\widehat{u}_i\)</span>: residual from regressing <span class="math inline">\(y\)</span> on all the independent variables</li>
+<li><span class="math inline">\(\widehat{r}_{i,j}\)</span>: residual from regressing <span class="math inline">\(x_j\)</span> on all other independent variables for <span class="math inline">\(i\)</span>th observation</li>
+<li><span class="math inline">\(SSR^2_j\)</span>: the sum of squared residuals from regressing <span class="math inline">\(x_j\)</span> on all other independent variables</li>
+</ul>
+<div class="callout callout-note no-icon callout-titled callout-style-default">
+<div class="callout-body">
+<div class="callout-title">
+<p><strong>Note</strong></p>
+</div>
+<div class="callout-content">
+<p>We spend <span style="color: red;"> NO </span> time to try to understand what’s going on with the estimator.</p>
+</div>
+</div>
+</div>
+<p>What you need is</p>
+<ul>
+<li>understand the consequence of heteroskedasticity</li>
+<li>know there is an estimator that is appropriate under heteroskedasticity, meaning that it will give you the correct estimate of the variance of the OLS estimator</li>
+<li>know how to use the heteroskedasticity-robust standard error estimator in practice using <span class="math inline">\(R\)</span> (or some other software)</li>
+</ul>
+</div>
+<div id="tabset-9-3">
+<p>Here is the well-accepted procedure in econometric analysis:</p>
+<ul>
+<li><p>Estimate the model using OLS (you do nothing special here)</p></li>
+<li><p>Assume the error term is heteroskedastic and estimate the variance of the OLS estimators</p>
+<ul>
+<li>There are tests to whether error is heteroskedastic or not: .red[Breusch-Pagan] test and .red[White] test</li>
+<li>In practice, almost nobody bothers to conduct these tests</li>
+<li>We do not learn how to run these tests</li>
+</ul></li>
+<li><p>Replace the estimates from <span class="math inline">\(\widehat{Var(\widehat{\beta})}_{default}\)</span> with those from <span class="math inline">\(\widehat{Var(\widehat{\beta})}_{robust}\)</span> for testing</p></li>
+<li><p>But, we do not replace coefficient estimates (remember, coefficient estimation is still unbiased under heteroskedasticity)</p></li>
+</ul>
+</div>
+</div>
+</div>
+<!--end of panel-->
+</section>
+<section id="robust-standard-error-estimation-in-r" class="slide level2">
+<h2>Robust standard error estimation in R</h2>
+<div class="panel-tabset">
+<ul id="tabset-12" class="panel-tabset-tabby"><li><a data-tabby-default="" href="#tabset-12-1">Implementation in R</a></li><li><a href="#tabset-12-2">Reporting the regression results</a></li><li><a href="#tabset-12-3">Alternatively (Recommended)</a></li><li><a href="#tabset-12-4">Validation</a></li></ul>
+<div class="tab-content">
+<div id="tabset-12-1">
+<div class="panel-tabset">
+<ul id="tabset-10" class="panel-tabset-tabby"><li><a data-tabby-default="" href="#tabset-10-1">Preparation</a></li><li><a href="#tabset-10-2">Obtaining Heteroskedasticity-robust SE estimates</a></li><li><a href="#tabset-10-3">Compare with the Default</a></li></ul>
+<div class="tab-content">
+<div id="tabset-10-1">
+<p>Let’s run a regression using <code>MLB1.dta</code>.</p>
+<div id="qwebr-insertion-location-3"></div>
+<noscript>Please enable JavaScript to experience the dynamic code cell content on this page.</noscript>
+</div>
+<div id="tabset-10-2">
+<p>We use</p>
+<ul>
+<li><p>the <code>stats::vcov()</code> function to estimate heteroskedasticity-robust standard errors</p></li>
+<li><p>the <code>fixest::se()</code> function from the <code>fixest</code> package to estimate heteroskedasticity-robust standard errors (you can always get SE from VCOV)</p></li>
+<li><p>the <code>summary()</code> function to do tests of <span class="math inline">\(\beta_j = 0\)</span></p></li>
+</ul>
+<p><strong>General Syntax</strong></p>
+<p>Here is the general syntax to obtain various types of VCOV (and se) esimaties:</p>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb1"><pre class="sourceCode numberSource r number-lines code-with-copy"><code class="sourceCode r"><span id="cb1-1"><a></a><span class="co">#* vcov</span></span>
+<span id="cb1-2"><a></a><span class="fu">vcov</span>(regression result, <span class="at">vcov =</span> <span class="st">"type of vcov"</span>)</span>
+<span id="cb1-3"><a></a></span>
+<span id="cb1-4"><a></a><span class="co">#* only the standard errors</span></span>
+<span id="cb1-5"><a></a>fixest<span class="sc">::</span><span class="fu">se</span>(regression result, <span class="at">vcov =</span> <span class="st">"type of vcov"</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</div>
+<p><br></p>
+<p><strong>heteroskedasticity-robust standard error estimation</strong></p>
+<p>Specifically for White-Huber heteroskedasticity-robust VCOV and se estimates,</p>
+<div id="qwebr-insertion-location-4"></div>
+<noscript>Please enable JavaScript to experience the dynamic code cell content on this page.</noscript>
+</div>
+<div id="tabset-10-3">
+<p><strong>Default</strong></p>
+<div id="qwebr-insertion-location-5"></div>
+<noscript>Please enable JavaScript to experience the dynamic code cell content on this page.</noscript>
+<p><br></p>
+<p><strong>Heteroskedasticity-robust</strong></p>
+<div id="qwebr-insertion-location-6"></div>
+<noscript>Please enable JavaScript to experience the dynamic code cell content on this page.</noscript>
+</div>
+</div>
+</div>
+<!--end of panel-->
+</div>
+<div id="tabset-12-2">
+<p>In presenting the regression results in a nicely formatted table, we used <code>modelsummary::msummary()</code>.</p>
+<p>We can easily swap the defulat se with the heteroskedasticity-robust se using the <code>statistic_override</code> option in <code>msummary()</code>.</p>
+<p><br></p>
+<div class="columns">
+<div class="column" style="width:50%;">
+<div class="cell">
+<div class="sourceCode cell-code" id="cb2"><pre class="sourceCode numberSource r number-lines code-with-copy"><code class="sourceCode r"><span id="cb2-1"><a></a>vcov_het <span class="ot">&lt;-</span> <span class="fu">vcov</span>(reg_mlb, <span class="at">vcov =</span> <span class="st">"hetero"</span>)</span>
+<span id="cb2-2"><a></a>vcov_homo <span class="ot">&lt;-</span> <span class="fu">vcov</span>(reg_mlb)</span>
+<span id="cb2-3"><a></a></span>
+<span id="cb2-4"><a></a>modelsummary<span class="sc">::</span><span class="fu">msummary</span>(</span>
+<span id="cb2-5"><a></a>  <span class="fu">list</span>(reg_mlb, reg_mlb),</span>
+<span id="cb2-6"><a></a>  <span class="at">statistic_override =</span> <span class="fu">list</span>(vcov_het, vcov_homo),</span>
+<span id="cb2-7"><a></a>  <span class="co"># keep these options as they are</span></span>
+<span id="cb2-8"><a></a>  <span class="at">stars =</span> <span class="cn">TRUE</span>,</span>
+<span id="cb2-9"><a></a>  <span class="at">gof_omit =</span> <span class="st">"IC|Log|Adj|F|Pseudo|Within"</span></span>
+<span id="cb2-10"><a></a>) </span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</div>
+</div><!--end of the 1st column--><div class="column" style="width:50%;">
+<div class="cell">
+<div class="cell-output-display">
+ 
+
+  
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>tinytable_n6pj76sr9t3q3voh6uyv</title>
+    <style>
+.table td.tinytable_css_vgu89hebaako0ur5pypo, .table th.tinytable_css_vgu89hebaako0ur5pypo {    border-bottom: solid 0.1em #d3d8dc; }
+.table td.tinytable_css_l8341qy88rfssz9vwnll, .table th.tinytable_css_l8341qy88rfssz9vwnll {    text-align: left; }
+.table td.tinytable_css_j6nt0yqjn0w9sc9m3ac0, .table th.tinytable_css_j6nt0yqjn0w9sc9m3ac0 {    text-align: center; }
+.table td.tinytable_css_23jdn9ygbbsshjny5xpk, .table th.tinytable_css_23jdn9ygbbsshjny5xpk {    text-align: center; }
+.table td.tinytable_css_sc71eke5qx9qeqn31tfj, .table th.tinytable_css_sc71eke5qx9qeqn31tfj {    border-bottom: solid 0.05em black; }
+    </style>
+    <script src="https://polyfill.io/v3/polyfill.min.js?features=es6"></script>
+    <script id="MathJax-script" async="" src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+    <script>
+    MathJax = {
+      tex: {
+        inlineMath: [['$', '$'], ['\\(', '\\)']]
+      },
+      svg: {
+        fontCache: 'global'
+      }
+    };
+    </script>
+  
+
+  
+    <div class="container">
+      <table class="table table-borderless" id="tinytable_n6pj76sr9t3q3voh6uyv" style="width: auto; margin-left: auto; margin-right: auto;" data-quarto-disable-processing="true">
+        <thead>
+        
+              <tr>
+                <th scope="col"> </th>
+                <th scope="col">(1)</th>
+                <th scope="col">(2)</th>
+              </tr>
+        </thead>
+        <tfoot><tr><td colspan="3">+ p &lt; 0.1, * p &lt; 0.05, ** p &lt; 0.01, *** p &lt; 0.001</td></tr></tfoot>
+        <tbody>
+                <tr>
+                  <td>(Intercept)</td>
+                  <td>11.042***</td>
+                  <td>11.042***</td>
+                </tr>
+                <tr>
+                  <td>           </td>
+                  <td>(0.343)  </td>
+                  <td>(0.343)  </td>
+                </tr>
+                <tr>
+                  <td>years      </td>
+                  <td>0.166*** </td>
+                  <td>0.166*** </td>
+                </tr>
+                <tr>
+                  <td>           </td>
+                  <td>(0.013)  </td>
+                  <td>(0.013)  </td>
+                </tr>
+                <tr>
+                  <td>bavg       </td>
+                  <td>0.005*** </td>
+                  <td>0.005*** </td>
+                </tr>
+                <tr>
+                  <td>           </td>
+                  <td>(0.001)  </td>
+                  <td>(0.001)  </td>
+                </tr>
+                <tr>
+                  <td>Num.Obs.   </td>
+                  <td>353      </td>
+                  <td>353      </td>
+                </tr>
+                <tr>
+                  <td>R2         </td>
+                  <td>0.367    </td>
+                  <td>0.367    </td>
+                </tr>
+                <tr>
+                  <td>RMSE       </td>
+                  <td>0.94     </td>
+                  <td>0.94     </td>
+                </tr>
+                <tr>
+                  <td>Std.Errors </td>
+                  <td>IID      </td>
+                  <td>IID      </td>
+                </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <script>
+      function styleCell_tinytable_dgy7e18o5o9jd87u76bm(i, j, css_id) {
+        var table = document.getElementById("tinytable_n6pj76sr9t3q3voh6uyv");
+        table.rows[i].cells[j].classList.add(css_id);
+      }
+      function insertSpanRow(i, colspan, content) {
+        var table = document.getElementById('tinytable_n6pj76sr9t3q3voh6uyv');
+        var newRow = table.insertRow(i);
+        var newCell = newRow.insertCell(0);
+        newCell.setAttribute("colspan", colspan);
+        // newCell.innerText = content;
+        // this may be unsafe, but innerText does not interpret <br>
+        newCell.innerHTML = content;
+      }
+      function spanCell_tinytable_dgy7e18o5o9jd87u76bm(i, j, rowspan, colspan) {
+        var table = document.getElementById("tinytable_n6pj76sr9t3q3voh6uyv");
+        const targetRow = table.rows[i];
+        const targetCell = targetRow.cells[j];
+        for (let r = 0; r < rowspan; r++) {
+          // Only start deleting cells to the right for the first row (r == 0)
+          if (r === 0) {
+            // Delete cells to the right of the target cell in the first row
+            for (let c = colspan - 1; c > 0; c--) {
+              if (table.rows[i + r].cells[j + c]) {
+                table.rows[i + r].deleteCell(j + c);
+              }
+            }
+          }
+          // For rows below the first, delete starting from the target column
+          if (r > 0) {
+            for (let c = colspan - 1; c >= 0; c--) {
+              if (table.rows[i + r] && table.rows[i + r].cells[j]) {
+                table.rows[i + r].deleteCell(j);
+              }
+            }
+          }
+        }
+        // Set rowspan and colspan of the target cell
+        targetCell.rowSpan = rowspan;
+        targetCell.colSpan = colspan;
+      }
+
+window.addEventListener('load', function () { styleCell_tinytable_dgy7e18o5o9jd87u76bm(0, 0, 'tinytable_css_vgu89hebaako0ur5pypo') })
+window.addEventListener('load', function () { styleCell_tinytable_dgy7e18o5o9jd87u76bm(0, 1, 'tinytable_css_vgu89hebaako0ur5pypo') })
+window.addEventListener('load', function () { styleCell_tinytable_dgy7e18o5o9jd87u76bm(0, 2, 'tinytable_css_vgu89hebaako0ur5pypo') })
+window.addEventListener('load', function () { styleCell_tinytable_dgy7e18o5o9jd87u76bm(0, 0, 'tinytable_css_l8341qy88rfssz9vwnll') })
+window.addEventListener('load', function () { styleCell_tinytable_dgy7e18o5o9jd87u76bm(1, 0, 'tinytable_css_l8341qy88rfssz9vwnll') })
+window.addEventListener('load', function () { styleCell_tinytable_dgy7e18o5o9jd87u76bm(2, 0, 'tinytable_css_l8341qy88rfssz9vwnll') })
+window.addEventListener('load', function () { styleCell_tinytable_dgy7e18o5o9jd87u76bm(3, 0, 'tinytable_css_l8341qy88rfssz9vwnll') })
+window.addEventListener('load', function () { styleCell_tinytable_dgy7e18o5o9jd87u76bm(4, 0, 'tinytable_css_l8341qy88rfssz9vwnll') })
+window.addEventListener('load', function () { styleCell_tinytable_dgy7e18o5o9jd87u76bm(5, 0, 'tinytable_css_l8341qy88rfssz9vwnll') })
+window.addEventListener('load', function () { styleCell_tinytable_dgy7e18o5o9jd87u76bm(6, 0, 'tinytable_css_l8341qy88rfssz9vwnll') })
+window.addEventListener('load', function () { styleCell_tinytable_dgy7e18o5o9jd87u76bm(7, 0, 'tinytable_css_l8341qy88rfssz9vwnll') })
+window.addEventListener('load', function () { styleCell_tinytable_dgy7e18o5o9jd87u76bm(8, 0, 'tinytable_css_l8341qy88rfssz9vwnll') })
+window.addEventListener('load', function () { styleCell_tinytable_dgy7e18o5o9jd87u76bm(9, 0, 'tinytable_css_l8341qy88rfssz9vwnll') })
+window.addEventListener('load', function () { styleCell_tinytable_dgy7e18o5o9jd87u76bm(10, 0, 'tinytable_css_l8341qy88rfssz9vwnll') })
+window.addEventListener('load', function () { styleCell_tinytable_dgy7e18o5o9jd87u76bm(0, 1, 'tinytable_css_j6nt0yqjn0w9sc9m3ac0') })
+window.addEventListener('load', function () { styleCell_tinytable_dgy7e18o5o9jd87u76bm(1, 1, 'tinytable_css_j6nt0yqjn0w9sc9m3ac0') })
+window.addEventListener('load', function () { styleCell_tinytable_dgy7e18o5o9jd87u76bm(2, 1, 'tinytable_css_j6nt0yqjn0w9sc9m3ac0') })
+window.addEventListener('load', function () { styleCell_tinytable_dgy7e18o5o9jd87u76bm(3, 1, 'tinytable_css_j6nt0yqjn0w9sc9m3ac0') })
+window.addEventListener('load', function () { styleCell_tinytable_dgy7e18o5o9jd87u76bm(4, 1, 'tinytable_css_j6nt0yqjn0w9sc9m3ac0') })
+window.addEventListener('load', function () { styleCell_tinytable_dgy7e18o5o9jd87u76bm(5, 1, 'tinytable_css_j6nt0yqjn0w9sc9m3ac0') })
+window.addEventListener('load', function () { styleCell_tinytable_dgy7e18o5o9jd87u76bm(6, 1, 'tinytable_css_j6nt0yqjn0w9sc9m3ac0') })
+window.addEventListener('load', function () { styleCell_tinytable_dgy7e18o5o9jd87u76bm(7, 1, 'tinytable_css_j6nt0yqjn0w9sc9m3ac0') })
+window.addEventListener('load', function () { styleCell_tinytable_dgy7e18o5o9jd87u76bm(8, 1, 'tinytable_css_j6nt0yqjn0w9sc9m3ac0') })
+window.addEventListener('load', function () { styleCell_tinytable_dgy7e18o5o9jd87u76bm(9, 1, 'tinytable_css_j6nt0yqjn0w9sc9m3ac0') })
+window.addEventListener('load', function () { styleCell_tinytable_dgy7e18o5o9jd87u76bm(10, 1, 'tinytable_css_j6nt0yqjn0w9sc9m3ac0') })
+window.addEventListener('load', function () { styleCell_tinytable_dgy7e18o5o9jd87u76bm(0, 2, 'tinytable_css_23jdn9ygbbsshjny5xpk') })
+window.addEventListener('load', function () { styleCell_tinytable_dgy7e18o5o9jd87u76bm(1, 2, 'tinytable_css_23jdn9ygbbsshjny5xpk') })
+window.addEventListener('load', function () { styleCell_tinytable_dgy7e18o5o9jd87u76bm(2, 2, 'tinytable_css_23jdn9ygbbsshjny5xpk') })
+window.addEventListener('load', function () { styleCell_tinytable_dgy7e18o5o9jd87u76bm(3, 2, 'tinytable_css_23jdn9ygbbsshjny5xpk') })
+window.addEventListener('load', function () { styleCell_tinytable_dgy7e18o5o9jd87u76bm(4, 2, 'tinytable_css_23jdn9ygbbsshjny5xpk') })
+window.addEventListener('load', function () { styleCell_tinytable_dgy7e18o5o9jd87u76bm(5, 2, 'tinytable_css_23jdn9ygbbsshjny5xpk') })
+window.addEventListener('load', function () { styleCell_tinytable_dgy7e18o5o9jd87u76bm(6, 2, 'tinytable_css_23jdn9ygbbsshjny5xpk') })
+window.addEventListener('load', function () { styleCell_tinytable_dgy7e18o5o9jd87u76bm(7, 2, 'tinytable_css_23jdn9ygbbsshjny5xpk') })
+window.addEventListener('load', function () { styleCell_tinytable_dgy7e18o5o9jd87u76bm(8, 2, 'tinytable_css_23jdn9ygbbsshjny5xpk') })
+window.addEventListener('load', function () { styleCell_tinytable_dgy7e18o5o9jd87u76bm(9, 2, 'tinytable_css_23jdn9ygbbsshjny5xpk') })
+window.addEventListener('load', function () { styleCell_tinytable_dgy7e18o5o9jd87u76bm(10, 2, 'tinytable_css_23jdn9ygbbsshjny5xpk') })
+window.addEventListener('load', function () { styleCell_tinytable_dgy7e18o5o9jd87u76bm(6, 0, 'tinytable_css_sc71eke5qx9qeqn31tfj') })
+window.addEventListener('load', function () { styleCell_tinytable_dgy7e18o5o9jd87u76bm(6, 1, 'tinytable_css_sc71eke5qx9qeqn31tfj') })
+window.addEventListener('load', function () { styleCell_tinytable_dgy7e18o5o9jd87u76bm(6, 2, 'tinytable_css_sc71eke5qx9qeqn31tfj') })
+    </script>
+
+  
+
+
+</div>
+</div>
+</div><!--end of the 2nd column-->
+</div>
+<!--end of the columns-->
+</div>
+<div id="tabset-12-3">
+<p>Alternatively, you could add the <code>vcov</code> option like below inside <code>fixest::feols()</code>. Then, you do not need <code>statistic_override</code> option to override the default VCOV estimates.</p>
+<p><br></p>
+<div class="columns">
+<div class="column" style="width:50%;">
+<div class="cell">
+<div class="sourceCode cell-code" id="cb3"><pre class="sourceCode numberSource r number-lines code-with-copy"><code class="sourceCode r"><span id="cb3-1"><a></a>reg_mlb_with_rvcov <span class="ot">&lt;-</span> </span>
+<span id="cb3-2"><a></a>  fixest<span class="sc">::</span><span class="fu">feols</span>(</span>
+<span id="cb3-3"><a></a>    <span class="fu">log</span>(salary) <span class="sc">~</span> years <span class="sc">+</span> bavg,</span>
+<span id="cb3-4"><a></a>    <span class="at">vcov =</span> <span class="st">"hetero"</span>, </span>
+<span id="cb3-5"><a></a>    <span class="at">data =</span> mlb1</span>
+<span id="cb3-6"><a></a>  ) </span>
+<span id="cb3-7"><a></a></span>
+<span id="cb3-8"><a></a>modelsummary<span class="sc">::</span><span class="fu">msummary</span>(</span>
+<span id="cb3-9"><a></a>  <span class="fu">list</span>(reg_mlb_with_rvcov),</span>
+<span id="cb3-10"><a></a>  <span class="co"># keep these options as they are</span></span>
+<span id="cb3-11"><a></a>  <span class="at">stars =</span> <span class="cn">TRUE</span>,</span>
+<span id="cb3-12"><a></a>  <span class="at">gof_omit =</span> <span class="st">"IC|Log|Adj|F|Pseudo|Within"</span></span>
+<span id="cb3-13"><a></a>) </span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</div>
+</div><!--end of the 1st column--><div class="column" style="width:50%;">
+<div class="cell">
+<div class="cell-output-display">
+ 
+
+  
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>tinytable_pz3jc4vn9is36vy1k18e</title>
+    <style>
+.table td.tinytable_css_kh5ymxawci9d4cr00xj7, .table th.tinytable_css_kh5ymxawci9d4cr00xj7 {    border-bottom: solid 0.1em #d3d8dc; }
+.table td.tinytable_css_0uzajy5yfn4i3hkppvdw, .table th.tinytable_css_0uzajy5yfn4i3hkppvdw {    text-align: left; }
+.table td.tinytable_css_10xzyoamv8dv18foep1t, .table th.tinytable_css_10xzyoamv8dv18foep1t {    text-align: center; }
+.table td.tinytable_css_wq39gi8vt6tqcg2u9kal, .table th.tinytable_css_wq39gi8vt6tqcg2u9kal {    border-bottom: solid 0.05em black; }
+    </style>
+    <script src="https://polyfill.io/v3/polyfill.min.js?features=es6"></script>
+    <script id="MathJax-script" async="" src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+    <script>
+    MathJax = {
+      tex: {
+        inlineMath: [['$', '$'], ['\\(', '\\)']]
+      },
+      svg: {
+        fontCache: 'global'
+      }
+    };
+    </script>
+  
+
+  
+    <div class="container">
+      <table class="table table-borderless" id="tinytable_pz3jc4vn9is36vy1k18e" style="width: auto; margin-left: auto; margin-right: auto;" data-quarto-disable-processing="true">
+        <thead>
+        
+              <tr>
+                <th scope="col"> </th>
+                <th scope="col">(1)</th>
+              </tr>
+        </thead>
+        <tfoot><tr><td colspan="2">+ p &lt; 0.1, * p &lt; 0.05, ** p &lt; 0.01, *** p &lt; 0.001</td></tr></tfoot>
+        <tbody>
+                <tr>
+                  <td>(Intercept)</td>
+                  <td>11.042***                </td>
+                </tr>
+                <tr>
+                  <td>           </td>
+                  <td>(0.704)                  </td>
+                </tr>
+                <tr>
+                  <td>years      </td>
+                  <td>0.166***                 </td>
+                </tr>
+                <tr>
+                  <td>           </td>
+                  <td>(0.018)                  </td>
+                </tr>
+                <tr>
+                  <td>bavg       </td>
+                  <td>0.005+                   </td>
+                </tr>
+                <tr>
+                  <td>           </td>
+                  <td>(0.003)                  </td>
+                </tr>
+                <tr>
+                  <td>Num.Obs.   </td>
+                  <td>353                      </td>
+                </tr>
+                <tr>
+                  <td>R2         </td>
+                  <td>0.367                    </td>
+                </tr>
+                <tr>
+                  <td>RMSE       </td>
+                  <td>0.94                     </td>
+                </tr>
+                <tr>
+                  <td>Std.Errors </td>
+                  <td>Heteroskedasticity-robust</td>
+                </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <script>
+      function styleCell_tinytable_uff5oi6wvcbg1spvm1wr(i, j, css_id) {
+        var table = document.getElementById("tinytable_pz3jc4vn9is36vy1k18e");
+        table.rows[i].cells[j].classList.add(css_id);
+      }
+      function insertSpanRow(i, colspan, content) {
+        var table = document.getElementById('tinytable_pz3jc4vn9is36vy1k18e');
+        var newRow = table.insertRow(i);
+        var newCell = newRow.insertCell(0);
+        newCell.setAttribute("colspan", colspan);
+        // newCell.innerText = content;
+        // this may be unsafe, but innerText does not interpret <br>
+        newCell.innerHTML = content;
+      }
+      function spanCell_tinytable_uff5oi6wvcbg1spvm1wr(i, j, rowspan, colspan) {
+        var table = document.getElementById("tinytable_pz3jc4vn9is36vy1k18e");
+        const targetRow = table.rows[i];
+        const targetCell = targetRow.cells[j];
+        for (let r = 0; r < rowspan; r++) {
+          // Only start deleting cells to the right for the first row (r == 0)
+          if (r === 0) {
+            // Delete cells to the right of the target cell in the first row
+            for (let c = colspan - 1; c > 0; c--) {
+              if (table.rows[i + r].cells[j + c]) {
+                table.rows[i + r].deleteCell(j + c);
+              }
+            }
+          }
+          // For rows below the first, delete starting from the target column
+          if (r > 0) {
+            for (let c = colspan - 1; c >= 0; c--) {
+              if (table.rows[i + r] && table.rows[i + r].cells[j]) {
+                table.rows[i + r].deleteCell(j);
+              }
+            }
+          }
+        }
+        // Set rowspan and colspan of the target cell
+        targetCell.rowSpan = rowspan;
+        targetCell.colSpan = colspan;
+      }
+
+window.addEventListener('load', function () { styleCell_tinytable_uff5oi6wvcbg1spvm1wr(0, 0, 'tinytable_css_kh5ymxawci9d4cr00xj7') })
+window.addEventListener('load', function () { styleCell_tinytable_uff5oi6wvcbg1spvm1wr(0, 1, 'tinytable_css_kh5ymxawci9d4cr00xj7') })
+window.addEventListener('load', function () { styleCell_tinytable_uff5oi6wvcbg1spvm1wr(0, 0, 'tinytable_css_0uzajy5yfn4i3hkppvdw') })
+window.addEventListener('load', function () { styleCell_tinytable_uff5oi6wvcbg1spvm1wr(1, 0, 'tinytable_css_0uzajy5yfn4i3hkppvdw') })
+window.addEventListener('load', function () { styleCell_tinytable_uff5oi6wvcbg1spvm1wr(2, 0, 'tinytable_css_0uzajy5yfn4i3hkppvdw') })
+window.addEventListener('load', function () { styleCell_tinytable_uff5oi6wvcbg1spvm1wr(3, 0, 'tinytable_css_0uzajy5yfn4i3hkppvdw') })
+window.addEventListener('load', function () { styleCell_tinytable_uff5oi6wvcbg1spvm1wr(4, 0, 'tinytable_css_0uzajy5yfn4i3hkppvdw') })
+window.addEventListener('load', function () { styleCell_tinytable_uff5oi6wvcbg1spvm1wr(5, 0, 'tinytable_css_0uzajy5yfn4i3hkppvdw') })
+window.addEventListener('load', function () { styleCell_tinytable_uff5oi6wvcbg1spvm1wr(6, 0, 'tinytable_css_0uzajy5yfn4i3hkppvdw') })
+window.addEventListener('load', function () { styleCell_tinytable_uff5oi6wvcbg1spvm1wr(7, 0, 'tinytable_css_0uzajy5yfn4i3hkppvdw') })
+window.addEventListener('load', function () { styleCell_tinytable_uff5oi6wvcbg1spvm1wr(8, 0, 'tinytable_css_0uzajy5yfn4i3hkppvdw') })
+window.addEventListener('load', function () { styleCell_tinytable_uff5oi6wvcbg1spvm1wr(9, 0, 'tinytable_css_0uzajy5yfn4i3hkppvdw') })
+window.addEventListener('load', function () { styleCell_tinytable_uff5oi6wvcbg1spvm1wr(10, 0, 'tinytable_css_0uzajy5yfn4i3hkppvdw') })
+window.addEventListener('load', function () { styleCell_tinytable_uff5oi6wvcbg1spvm1wr(0, 1, 'tinytable_css_10xzyoamv8dv18foep1t') })
+window.addEventListener('load', function () { styleCell_tinytable_uff5oi6wvcbg1spvm1wr(1, 1, 'tinytable_css_10xzyoamv8dv18foep1t') })
+window.addEventListener('load', function () { styleCell_tinytable_uff5oi6wvcbg1spvm1wr(2, 1, 'tinytable_css_10xzyoamv8dv18foep1t') })
+window.addEventListener('load', function () { styleCell_tinytable_uff5oi6wvcbg1spvm1wr(3, 1, 'tinytable_css_10xzyoamv8dv18foep1t') })
+window.addEventListener('load', function () { styleCell_tinytable_uff5oi6wvcbg1spvm1wr(4, 1, 'tinytable_css_10xzyoamv8dv18foep1t') })
+window.addEventListener('load', function () { styleCell_tinytable_uff5oi6wvcbg1spvm1wr(5, 1, 'tinytable_css_10xzyoamv8dv18foep1t') })
+window.addEventListener('load', function () { styleCell_tinytable_uff5oi6wvcbg1spvm1wr(6, 1, 'tinytable_css_10xzyoamv8dv18foep1t') })
+window.addEventListener('load', function () { styleCell_tinytable_uff5oi6wvcbg1spvm1wr(7, 1, 'tinytable_css_10xzyoamv8dv18foep1t') })
+window.addEventListener('load', function () { styleCell_tinytable_uff5oi6wvcbg1spvm1wr(8, 1, 'tinytable_css_10xzyoamv8dv18foep1t') })
+window.addEventListener('load', function () { styleCell_tinytable_uff5oi6wvcbg1spvm1wr(9, 1, 'tinytable_css_10xzyoamv8dv18foep1t') })
+window.addEventListener('load', function () { styleCell_tinytable_uff5oi6wvcbg1spvm1wr(10, 1, 'tinytable_css_10xzyoamv8dv18foep1t') })
+window.addEventListener('load', function () { styleCell_tinytable_uff5oi6wvcbg1spvm1wr(6, 0, 'tinytable_css_wq39gi8vt6tqcg2u9kal') })
+window.addEventListener('load', function () { styleCell_tinytable_uff5oi6wvcbg1spvm1wr(6, 1, 'tinytable_css_wq39gi8vt6tqcg2u9kal') })
+    </script>
+
+  
+
+
+</div>
+</div>
+</div><!--end of the 2nd column-->
+</div>
+<!--end of the columns-->
+</div>
+<div id="tabset-12-4">
+<div class="panel-tabset">
+<ul id="tabset-11" class="panel-tabset-tabby"><li><a data-tabby-default="" href="#tabset-11-1">MC simulation</a></li><li><a href="#tabset-11-2">MC simulation results</a></li></ul>
+<div class="tab-content">
+<div id="tabset-11-1">
+<p>Does the heteroskedasticity-robust se estimator really work? Let’s see using MC simulations:</p>
+<div id="qwebr-insertion-location-7"></div>
+<noscript>Please enable JavaScript to experience the dynamic code cell content on this page.</noscript>
+</div>
+<div id="tabset-11-2">
 <div id="qwebr-insertion-location-8"></div>
 <noscript>Please enable JavaScript to experience the dynamic code cell content on this page.</noscript>
+<p>Okay, not perfect. But, certainly better.</p>
 </div>
-<div id="tabset-3-4">
-<p><strong>Idea of OLS (Ordinary Least Squares)</strong></p>
-<p>Let’s find the value of <span class="math inline">\(\beta_0\)</span> and <span class="math inline">\(\beta_1\)</span> that minimizes the sum of the squared residuals!</p>
-<p><br></p>
-<p><strong>Mathematically</strong></p>
-<p>Solve the following minimization problem:</p>
-<p><span class="math display">\[Min_{\widehat{\beta}_0,\widehat{\beta}_1} \sum_{i=1}^n \widehat{u}_i^2, \mbox{where} \;\; \widehat{u}_i=y_i-(\widehat{\beta}_0+\widehat{\beta}_1 x_i)\]</span></p>
 </div>
-<div id="tabset-3-5">
-<div id="qwebr-insertion-location-9"></div>
-<noscript>Please enable JavaScript to experience the dynamic code cell content on this page.</noscript>
-<p><strong>Questions</strong></p>
-<ul>
-<li><p>Why do we square the residuals, and then sum them up together? What’s gonna happen if you just sum up residuals?</p></li>
-<li><p>How about taking the absolute value of residuals, and then sum them up?</p></li>
-</ul>
 </div>
-<div id="tabset-3-6">
-<p><strong>Minimization problem to solve</strong></p>
-<p><span class="math display">\[Min_{\widehat{\beta}_0,\widehat{\beta}_1} \sum_{i=1}^n [y_i-(\widehat{\beta}_0+\widehat{\beta}_1 x_i)]^2\]</span></p>
-<p><strong>Steps</strong></p>
-<ul>
-<li>partial differentiation of the objective function with respect to <span class="math inline">\(\widehat{\beta}_0\)</span> and <span class="math inline">\(\widehat{\beta}_1\)</span></li>
-<li>solve for <span class="math inline">\(\widehat{\beta}_0\)</span> and <span class="math inline">\(\widehat{\beta}_1\)</span></li>
-</ul>
-<p><span class="math display">\[Min_{\widehat{\beta}_0,\widehat{\beta}_1} \sum_{i=1}^n [y_i-(\widehat{\beta}_0+\widehat{\beta}_1 x_i)]^2\]</span></p>
-<p><strong>FOC</strong></p>
-<p><span class="math display">\[
-\def\sumn{\sum_{i=1}^{n}}
-\begin{align}
-\frac{\partial }{\partial \widehat{\beta}_0}=&amp; 2 \sumn [y_i-(\widehat{\beta}_0+\widehat{\beta}_1 x_i)]=0 \\\\
-\frac{\partial }{\partial \widehat{\beta}_1}=&amp; 2 \sumn x_i\cdot [y_i-(\widehat{\beta}_0+\widehat{\beta}_1 x_i)]= \sumn x_i\cdot \widehat{u}_i = 0
-\end{align}
-\]</span></p>
-<p><strong>OLS estimators: analytical formula</strong></p>
-<p><span class="math display">\[
-\def\sumn{\sum_{i=1}^{n}}
-\begin{aligned}
-  \widehat{\beta}_1 &amp; = \frac{\sumn (x_i-\bar{x})(y_i-\bar{y})}{\sumn (x_i-\bar{x})^2},\\\\
-  \widehat{\beta}_0 &amp; = \bar{y}-\widehat{\beta}_1 \bar{x}, \\\\
-  \mbox{where} &amp; \;\; \bar{y} = \sumn y_i/n \;\; \mbox{and} \;\;\bar{x} = \sumn x_i/n
-\end{aligned}
-\]</span></p>
-</div>
-<div id="tabset-3-7">
-<p><strong>Estimators</strong></p>
-<p>Specific <span style="color: red;"> rules (formula) </span> to use once you get the data</p>
-<p><br></p>
-<p><strong>Estimates</strong></p>
-<p>Numbers you get once you plug values (your data) into the formula</p>
+<!--end of panel-->
 </div>
 </div>
 </div>
 <!--end of panel-->
 </section></section>
 <section>
-<section id="ols-demonstration-in-r" class="title-slide slide level1 center">
-<h1>OLS demonstration in R</h1>
+<section id="clustered-error" class="title-slide slide level1 center">
+<h1>Clustered Error</h1>
 
 <div style="float:left">
 
@@ -2275,72 +2930,158 @@ globalThis.qwebrCreateMonacoEditorInstance = function (cellData) {
 <hr color="#EB811B" size="1px" width="1000px">
 
 </section>
-<section id="ols-demonstration-in-r-1" class="slide level2">
-<h2>OLS demonstration in R</h2>
+<section id="clustered-error-1" class="slide level2">
+<h2>Clustered Error</h2>
 <div class="panel-tabset">
-<ul id="tabset-4" class="panel-tabset-tabby"><li><a data-tabby-default="" href="#tabset-4-1">R code: hard way</a></li><li><a href="#tabset-4-2">R code: a better way</a></li><li><a href="#tabset-4-3">post-estimation</a></li></ul>
+<ul id="tabset-17" class="panel-tabset-tabby"><li><a data-tabby-default="" href="#tabset-17-1">What is it?</a></li><li><a href="#tabset-17-2">Consequences of clustered error</a></li><li><a href="#tabset-17-3">MC simulations</a></li><li><a href="#tabset-17-4">What to do?</a></li><li><a href="#tabset-17-5">In practice</a></li></ul>
 <div class="tab-content">
-<div id="tabset-4-1">
-<p><strong>OLS Estimator Formula</strong></p>
-<p><span class="math display">\[
-\def\sumn{\sum_{i=1}^{n}}
-\begin{aligned}
-  \widehat{\beta}_1 &amp; = \frac{\sumn (x_i-\bar{x})(y_i-\bar{y})}{\sumn (x_i-\bar{x})^2}\\\\
-  \widehat{\beta}_0 &amp; = \bar{y}-\widehat{\beta}_1 \bar{x}
-\end{aligned}
-\]</span></p>
-<p><strong>R code</strong></p>
-<div id="qwebr-insertion-location-10"></div>
-<noscript>Please enable JavaScript to experience the dynamic code cell content on this page.</noscript>
+<div id="tabset-17-1">
+<ul>
+<li>Often times, observations can be grouped into clusters</li>
+<li>Errors within the cluster can be correlated</li>
+</ul>
+<div class="panel-tabset">
+<ul id="tabset-13" class="panel-tabset-tabby"><li><a data-tabby-default="" href="#tabset-13-1">Example 1</a></li><li><a href="#tabset-13-2">Example 2</a></li></ul>
+<div class="tab-content">
+<div id="tabset-13-1">
+<p>College GPA: cluster by college</p>
+<p><span class="math inline">\(GPA_{col} = \beta_0 + \beta_1 income + \beta_2 GPA_{hs} + u\)</span></p>
+<ul>
+<li>Your observations consist of students’ GPA scores across many colleges</li>
+<li>Because of some unobserved (omitted) school characteristics, error terms for the individuals in the same college might be correlated.
+<ul>
+<li>grading policy</li>
+</ul></li>
+</ul>
 </div>
-<div id="tabset-4-2">
-<p>We can use the <code>feols()</code> function from the <code>fixest</code> package.</p>
-<div id="qwebr-insertion-location-11"></div>
-<noscript>Please enable JavaScript to experience the dynamic code cell content on this page.</noscript>
-</div>
-<div id="tabset-4-3">
-<p>Lots of information is stored in the regression results (here, <code>uni_reg</code>), which is of class <code>list</code>.</p>
-<p>Apply <code>ls()</code> to see its elements:</p>
-<div id="qwebr-insertion-location-12"></div>
-<noscript>Please enable JavaScript to experience the dynamic code cell content on this page.</noscript>
-<p><br></p>
-<p>Estimated coefficients:</p>
-<div id="qwebr-insertion-location-13"></div>
-<noscript>Please enable JavaScript to experience the dynamic code cell content on this page.</noscript>
-<p><br></p>
-<p>Predicted values at the observation points:</p>
-<div id="qwebr-insertion-location-14"></div>
-<noscript>Please enable JavaScript to experience the dynamic code cell content on this page.</noscript>
-<p><br></p>
-<p>Residuals:</p>
-<div id="qwebr-insertion-location-15"></div>
-<noscript>Please enable JavaScript to experience the dynamic code cell content on this page.</noscript>
-<p><br></p>
-<p>You can have a nice quick summary of the regression results with <code>summary()</code> function:</p>
-<div id="qwebr-insertion-location-16"></div>
-<noscript>Please enable JavaScript to experience the dynamic code cell content on this page.</noscript>
+<div id="tabset-13-2">
+<p>Eduction Impacts on Income: cluster by individual</p>
+<ul>
+<li><p>Your observations consist of 500 individuals with each individual tracked over 10 years</p></li>
+<li><p>Because of some unobserved (omitted) individual characteristics, error terms for time-series observations within an individual might be correlated.</p>
+<ul>
+<li>innate ability</li>
+</ul></li>
+</ul>
 </div>
 </div>
 </div>
 <!--end of panel-->
-</section>
-<section id="once-the-model-is-estimated" class="slide level2 scrollable">
-<h2>Once the model is estimated</h2>
+</div>
+<div id="tabset-17-2">
 <div class="panel-tabset">
-<ul id="tabset-6" class="panel-tabset-tabby"><li><a data-tabby-default="" href="#tabset-6-1">Estimated model</a></li><li><a href="#tabset-6-2">Predicted values (R)</a></li><li><a href="#tabset-6-3">New predictions (R)</a></li><li><a href="#tabset-6-4">Exercise: The impact of <code>lotsize</code></a></li></ul>
+<ul id="tabset-14" class="panel-tabset-tabby"><li><a data-tabby-default="" href="#tabset-14-1">Question 1</a></li><li><a href="#tabset-14-2">Question 2</a></li><li><a href="#tabset-14-3">Question 3</a></li></ul>
 <div class="tab-content">
-<div id="tabset-6-1">
-<p><strong>Model to be estimated</strong></p>
-<p><span class="math display">\[
-price = \beta_0 + \beta_1 lotsize + u
-\]</span></p>
+<div id="tabset-14-1">
+<p>Are the OLS estimators of the coefficients biased in the presence of clustered error?</p>
+<br>
+<details>
+<summary>
+Answer
+</summary>
+No, the correlation between <span class="math inline">\(x\)</span> and <span class="math inline">\(u\)</span> would hurt you, but not correlation among <span class="math inline">\(u\)</span>.
+</details>
 <p><br></p>
-<p><strong>Estimated Model</strong></p>
-<p>This is the estimated version of the expected value of <span class="math inline">\(y\)</span> conditional on <span class="math inline">\(x\)</span>.</p>
+</div>
+<div id="tabset-14-2">
+<p>Are <span class="math inline">\(\widehat{Var(\widehat{\beta})}_{default}\)</span> unbiased estimators of <span class="math inline">\(Var(\widehat{\beta})\)</span>?</p>
+<br>
+<details>
+<summary>
+Answer
+</summary>
+No, <span class="math inline">\(\widehat{Var(\widehat{\beta})}_{default}\)</span> is unbiased only under homoskedasticity assumption, which assumes no correlation between errors.
+</details>
+</div>
+<div id="tabset-14-3">
+<p>Which has more information?</p>
+<ul>
+<li>two errors that are independent</li>
+<li>two errors that are correlated</li>
+</ul>
+<p><strong>Consequences</strong></p>
+<ul>
+<li><p>If you were to use <span class="math inline">\(\widehat{Var(\widehat{\beta})}_{default}\)</span> to estimate <span class="math inline">\(Var(\widehat{\beta})\)</span> in the presence of clustered error, you would (under/over)-estimate the true <span class="math inline">\(Var(\widehat{\beta})\)</span>.</p></li>
+<li><p>This would lead to rejecting null hypothesis (more/less) often than you are supposed to.</p></li>
+</ul>
+</div>
+</div>
+</div>
+<!--end of panel-->
+</div>
+<div id="tabset-17-3">
+<div class="panel-tabset">
+<ul id="tabset-15" class="panel-tabset-tabby"><li><a data-tabby-default="" href="#tabset-15-1">Conceptual steps</a></li><li><a href="#tabset-15-2">Data Genrating Process (R)</a></li><li><a href="#tabset-15-3">Visualization of clustered error</a></li><li><a href="#tabset-15-4">MC simualtion (R)</a></li><li><a href="#tabset-15-5">Results</a></li></ul>
+<div class="tab-content">
+<div id="tabset-15-1">
+<p>Here are the conceptual steps of the MC simulations to see the consequence of clustered error.</p>
+<ul>
+<li>generate data according to the generating process in which the error terms <span class="math inline">\((u)\)</span> within the cluster (two clusters in this example) is correlated and <span class="math inline">\(\beta_1\)</span> is set to 0 in the model below:</li>
+</ul>
 <p><span class="math display">\[
-price =  3.4136\times 10^{4} + 6.599 \times lotsize
+\begin{aligned}
+y = \beta_0 + \beta_1 x + u
+\end{aligned}
 \]</span></p>
-<p>This is called <span style="color: blue;"> sample regression function (SRF) </span>, and it is an estimation of <span class="math inline">\(E[price|lotsize]\)</span>, the <span style="color: blue;"> population regression function </span>(PRF).</p>
+<ul>
+<li>estimate the model and find <span class="math inline">\(\widehat{\beta}_x\)</span> and <span class="math inline">\(\widehat{se(\widehat{\beta}_x)}\)</span></li>
+<li>calculate <span class="math inline">\(t\)</span>-statistic <span class="math inline">\((\widehat{\beta}_x/\widehat{se(\widehat{\beta}_x)})\)</span> for the (correct) null hypothesis of <span class="math inline">\(\beta_1 = 0\)</span></li>
+<li>repeat steps 1-3 for 1000 times</li>
+<li>see how many times out of 1000 times you reject the null hypothesis: <span class="math inline">\(H_0:\)</span> <span class="math inline">\(\beta_x=0\)</span></li>
+</ul>
+</div>
+<div id="tabset-15-2">
+<div id="qwebr-insertion-location-9"></div>
+<noscript>Please enable JavaScript to experience the dynamic code cell content on this page.</noscript>
+</div>
+<div id="tabset-15-3">
+<div id="qwebr-insertion-location-10"></div>
+<noscript>Please enable JavaScript to experience the dynamic code cell content on this page.</noscript>
+</div>
+<div id="tabset-15-4">
+<div class="sourceCode" id="cb4"><pre class="sourceCode numberSource {webr-r cluster-MC} number-lines code-with-copy"><code class="sourceCode"><span id="cb4-1"><a></a>set.seed(58934)</span>
+<span id="cb4-2"><a></a>B &lt;- 1000</span>
+<span id="cb4-3"><a></a>t_stat_store &lt;- rep(0,B)</span>
+<span id="cb4-4"><a></a>N &lt;- 2000 # total number of observations</span>
+<span id="cb4-5"><a></a>G &lt;- 50 # number of groups</span>
+<span id="cb4-6"><a></a>Ng &lt;- N/G # number of observations per group</span>
+<span id="cb4-7"><a></a></span>
+<span id="cb4-8"><a></a>for (i in 1:B){</span>
+<span id="cb4-9"><a></a>  #--- error correlated within group ---#</span>
+<span id="cb4-10"><a></a>  u &lt;- </span>
+<span id="cb4-11"><a></a>  mvrnorm(</span>
+<span id="cb4-12"><a></a>    G, mu = rep(0, Ng), </span>
+<span id="cb4-13"><a></a>    Sigma = matrix(10, nrow = Ng, ncol = Ng) + diag(Ng)</span>
+<span id="cb4-14"><a></a>  ) %&gt;% t() %&gt;% c()</span>
+<span id="cb4-15"><a></a></span>
+<span id="cb4-16"><a></a>  #--- x correlated within group ---#</span>
+<span id="cb4-17"><a></a>  x &lt;- </span>
+<span id="cb4-18"><a></a>    mvrnorm(</span>
+<span id="cb4-19"><a></a>      G, mu = rep(0, Ng), </span>
+<span id="cb4-20"><a></a>      Sigma = matrix(1, nrow = Ng, ncol = Ng) + diag(Ng) * .2</span>
+<span id="cb4-21"><a></a>    ) %&gt;% t() %&gt;% c()</span>
+<span id="cb4-22"><a></a></span>
+<span id="cb4-23"><a></a>  #--- other variables ---#</span>
+<span id="cb4-24"><a></a>  y &lt;- 1 + 0 * x + u</span>
+<span id="cb4-25"><a></a></span>
+<span id="cb4-26"><a></a>  #--- data.frame ---#</span>
+<span id="cb4-27"><a></a>  data &lt;- data.frame(y = y, x = x, group = rep(1:G, each = Ng))</span>
+<span id="cb4-28"><a></a></span>
+<span id="cb4-29"><a></a>  #--- OLS ---#</span>
+<span id="cb4-30"><a></a>  reg &lt;- feols(y ~ x, data = data)</span>
+<span id="cb4-31"><a></a></span>
+<span id="cb4-32"><a></a>  #--- get vcov ---#</span>
+<span id="cb4-33"><a></a>  se_default &lt;- se(reg)["x"]</span>
+<span id="cb4-34"><a></a></span>
+<span id="cb4-35"><a></a>  #--- calculate t-stat ---#</span>
+<span id="cb4-36"><a></a>  t_stat &lt;- reg$coefficient['x']/se_default</span>
+<span id="cb4-37"><a></a>  t_stat_store[i] &lt;- t_stat</span>
+<span id="cb4-38"><a></a>} </span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</div>
+<div id="tabset-15-5">
+<div id="qwebr-insertion-location-11"></div>
+<noscript>Please enable JavaScript to experience the dynamic code cell content on this page.</noscript>
+<p><br></p>
 <div class="callout callout-important no-icon callout-titled callout-style-default">
 <div class="callout-body">
 <div class="callout-title">
@@ -2348,135 +3089,149 @@ price =  3.4136\times 10^{4} + 6.599 \times lotsize
 </div>
 <div class="callout-content">
 <ul>
-<li><p>OLS regression predicts the <span style="color: red;"> expected </span> value of the dependent variable <span style="color: blue;"> conditional on </span>the explanatory variables.</p></li>
-<li><p><span class="math inline">\(\widehat{\beta}_1\)</span> is an estimate of how a change in <span class="math inline">\(x\)</span> affects the <span style="color: red;"> expected </span> value of <span class="math inline">\(y\)</span>.</p></li>
+<li>clustered error can severely bias your test results</li>
+<li>it tends to make the impact of explanatory variables more significant than they truly are because the default estimator of the variance of the OLS estimator tends to greatly <span style="color: red;"> under</span>-estimate the true variance of the OLS estimator.</li>
 </ul>
 </div>
 </div>
 </div>
 </div>
-<div id="tabset-6-2">
-<p>You can access the predicted values at the observed points by looking at the <code>fitted.value</code> element of the regression results.</p>
-<div id="qwebr-insertion-location-17"></div>
-<noscript>Please enable JavaScript to experience the dynamic code cell content on this page.</noscript>
 </div>
-<div id="tabset-6-3">
-<p>To calculate the predicted value at arbitrary values of <span class="math inline">\(x\)</span>,</p>
-<ol type="1">
-<li>create a new <code>data.frame</code> with values of <span class="math inline">\(x\)</span> of your choice.</li>
-</ol>
-<div id="qwebr-insertion-location-18"></div>
-<noscript>Please enable JavaScript to experience the dynamic code cell content on this page.</noscript>
-<p><br></p>
-<ol start="2" type="1">
-<li>apply <code>predict()</code> to the <code>data.frame</code> using the regression results.</li>
-</ol>
-<div id="qwebr-insertion-location-19"></div>
-<noscript>Please enable JavaScript to experience the dynamic code cell content on this page.</noscript>
 </div>
-<div id="tabset-6-4">
+<!--end of panel-->
+</div>
+<div id="tabset-17-4">
 <div class="panel-tabset">
-<ul id="tabset-5" class="panel-tabset-tabby"><li><a data-tabby-default="" href="#tabset-5-1">Problem</a></li><li><a href="#tabset-5-2">Solution</a></li></ul>
+<ul id="tabset-16" class="panel-tabset-tabby"><li><a data-tabby-default="" href="#tabset-16-1">Cluster-robust SE estimation</a></li><li><a href="#tabset-16-2">R implementation</a></li><li><a href="#tabset-16-3">R Demonstration</a></li><li><a href="#tabset-16-4">Compare</a></li><li><a href="#tabset-16-5">Alternativelya (Recommended)</a></li></ul>
 <div class="tab-content">
-<div id="tabset-5-1">
-<p>Your current lot size is 3000. You are thinking of expanding your lot by 1000 (with everything else fixed), which would cost you 5,000 USD. Should you do it? Use R to figure it out.</p>
+<div id="tabset-16-1">
+<p>There exist estimators of <span class="math inline">\(Var(\widehat{\beta})\)</span> that take into account the possibility that errors are clustered.</p>
+<ul>
+<li><p>We call such estimators <span style="color: blue;"> cluster-robust variance covariance estimator </span> denoted as <span class="math inline">\((\widehat{Var(\widehat{\beta})}_{cl})\)</span></p></li>
+<li><p>We call standart error estimates from such estimators cluster-robust standard error estimates</p></li>
+</ul>
+<p><span style="color: blue;"> I neither derive nor show the mathematical expressions of these estimators. </span></p>
 <p><br></p>
-<div id="qwebr-insertion-location-20"></div>
+<div title="This is what you need to do">
+<div class="callout callout-note no-icon callout-titled callout-style-default">
+<div class="callout-body">
+<div class="callout-title">
+<p><strong>This is what you need to do</strong></p>
+</div>
+<div class="callout-content">
+<ul>
+<li><p>understand the consequence of clustered errors</p></li>
+<li><p>know there are estimators that are appropriate under clustered error</p></li>
+<li><p>know that the estimators we will learn take care of heteroskedasticity at the same time (so, they really are cluster- and heteroskedasticity-robust standard error estimators)</p></li>
+<li><p>know how to use the estimators in <span class="math inline">\(R\)</span> (or some other software)</p></li>
+</ul>
+</div>
+</div>
+</div>
+</div>
+</div>
+<div id="tabset-16-2">
+<p><strong>Cluster-robust standard error</strong></p>
+<p>Similar with the <code>vcov</code> option for White-Huber heteroskedasticity-robust se, we can use the <code>cluster</code> option to get clsuter-robust se.</p>
+<p><br></p>
+<p><strong>Before an R demonstration</strong></p>
+<p>Let’s take a look at the MLB data again.</p>
+<div id="qwebr-insertion-location-12"></div>
+<noscript>Please enable JavaScript to experience the dynamic code cell content on this page.</noscript>
+<ul>
+<li><code>nl</code>: the group variable we cluster around (1 if in the National league, 0 if in the American league).</li>
+</ul>
+</div>
+<div id="tabset-16-3">
+<p><strong>Step 1</strong></p>
+<p>Run a regression</p>
+<div id="qwebr-insertion-location-13"></div>
+<noscript>Please enable JavaScript to experience the dynamic code cell content on this page.</noscript>
+<p><br></p>
+<p><strong>Step 2</strong></p>
+<p>Apply <code>vcov()</code> or <code>se()</code> with the <code>cluster =</code> option.</p>
+<div id="qwebr-insertion-location-14"></div>
 <noscript>Please enable JavaScript to experience the dynamic code cell content on this page.</noscript>
 </div>
-<div id="tabset-5-2">
-<div id="qwebr-insertion-location-21"></div>
+<div id="tabset-16-4">
+<p><strong>Default</strong></p>
+<div id="qwebr-insertion-location-15"></div>
+<noscript>Please enable JavaScript to experience the dynamic code cell content on this page.</noscript>
+<p><br></p>
+<p><strong>Cluster-robust standard error</strong></p>
+<div id="qwebr-insertion-location-16"></div>
+<noscript>Please enable JavaScript to experience the dynamic code cell content on this page.</noscript>
+</div>
+<div id="tabset-16-5">
+<p>Or, you could add the <code>cluster</code> option inside <code>fixest::feols()</code>.</p>
+<p><br></p>
+<p><strong>Syntax</strong></p>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb5"><pre class="sourceCode numberSource r number-lines code-with-copy"><code class="sourceCode r"><span id="cb5-1"><a></a>fixes<span class="sc">::</span><span class="fu">feols</span>(y <span class="sc">~</span> x, <span class="at">cluster =</span> <span class="sc">~</span> variable to cluster by, <span class="at">data =</span> data)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</div>
+<p><br></p>
+<p><strong>Example</strong></p>
+<p>This code cluster by <code>nl</code>.</p>
+<div id="qwebr-insertion-location-17"></div>
 <noscript>Please enable JavaScript to experience the dynamic code cell content on this page.</noscript>
 </div>
 </div>
 </div>
 <!--end of panel-->
+</div>
+<div id="tabset-17-5">
+<p>Just like the heteroskedasticity-present case before,</p>
+<ul>
+<li><p>Estimate the model using OLS (you do nothing special here)</p></li>
+<li><p>Assume the error term is clustered and/or heteroskedastic, and estimate the variance of the OLS estimators <span class="math inline">\((Var(\widehat{\beta}))\)</span> using cluster-robust standard error estimators</p></li>
+<li><p>Replace the estimates from <span class="math inline">\(\widehat{Var(\widehat{\beta})}_{default}\)</span> with those from <span class="math inline">\(\widehat{Var(\widehat{\beta})}_{cl}\)</span> for testing</p></li>
+<li><p>But, we do not replace coefficient estimates.</p></li>
+</ul>
 </div>
 </div>
 </div>
 <!--end of panel-->
 </section>
-<section id="r2-goodness-of-fit" class="slide level2">
-<h2><span class="math inline">\(R^2\)</span>: Goodness of fit</h2>
+<section id="but-does-it-really-work" class="slide level2">
+<h2>But does it really work?</h2>
+<p>Let’s run MC simulations to see if the use of the cluster-robust standard error estimation method works</p>
 <div class="panel-tabset">
-<ul id="tabset-7" class="panel-tabset-tabby"><li><a data-tabby-default="" href="#tabset-7-1">What is it?</a></li><li><a href="#tabset-7-2">Decompose <span class="math inline">\(y\)</span></a></li><li><a href="#tabset-7-3">Visualization</a></li><li><a href="#tabset-7-4"><span class="math inline">\(R^2\)</span> components</a></li><li><a href="#tabset-7-5">Definition of <span class="math inline">\(R^2\)</span></a></li><li><a href="#tabset-7-6">Caveat</a></li></ul>
+<ul id="tabset-18" class="panel-tabset-tabby"><li><a data-tabby-default="" href="#tabset-18-1">MC simulation (R)</a></li><li><a href="#tabset-18-2">MC simulation results</a></li><li><a href="#tabset-18-3">More groups</a></li><li><a href="#tabset-18-4">MC simulation results</a></li></ul>
 <div class="tab-content">
-<div id="tabset-7-1">
-<p><span class="math inline">\(R^2\)</span> is a measure of how good your model is in predicting the dependent variable (explaining variations in the dependent variable) <span style="color: red;"> compared </span> to just using the average of the dependent variable as the predictor.</p>
-</div>
-<div id="tabset-7-2">
-<p>You can decompose observed value of <span class="math inline">\(y\)</span> into two parts: fitted value and residual</p>
-<p><span class="math display">\[
-y_i=\widehat{y}_i +\widehat{u}_i, \;\;\mbox{where}\;\; \widehat{y}_i = \widehat{\beta}_0+\widehat{\beta}_1 x_i
-\]</span></p>
-<p>now, subtracting <span class="math inline">\(\bar{y}\)</span> (sample average of <span class="math inline">\(y\)</span>),</p>
-<p><span class="math display">\[
-y_i-\bar{y}=\widehat{y}_i-\bar{y}+\widehat{u}_i
-\]</span></p>
-<ul>
-<li><span class="math inline">\(y_i-\bar{y}\)</span>: how far away the actual value of <span class="math inline">\(y\)</span> for <span class="math inline">\(i\)</span>th observation from the sample average <span class="math inline">\(\bar{y}\)</span> is (actual deviation from the mean)</li>
-<li><span class="math inline">\(\widehat{y_i}-\bar{y}\)</span>: how far away the predicted value of <span class="math inline">\(y\)</span> for <span class="math inline">\(i\)</span>th observation from the sample average <span class="math inline">\(\bar{y}\)</span> is (explained deviation from the mean)</li>
-<li><span class="math inline">\(\widehat{u_i}\)</span>: the residual for <span class="math inline">\(i\)</span>th observation</li>
-</ul>
-</div>
-<div id="tabset-7-3">
-<ul>
-<li><span class="math inline">\(y_i-\bar{y}\)</span>: how far away the actual value of <span class="math inline">\(y\)</span> for <span class="math inline">\(i\)</span>th observation from the sample average <span class="math inline">\(\bar{y}\)</span> is (actual deviation from the mean)</li>
-<li><span class="math inline">\(\widehat{y_i}-\bar{y}\)</span>: how far away the predicted value of <span class="math inline">\(y\)</span> for <span class="math inline">\(i\)</span>th observation from the sample average <span class="math inline">\(\bar{y}\)</span> is (explained deviation from the mean)</li>
-<li><span class="math inline">\(\widehat{u_i}\)</span>: the residual for <span class="math inline">\(i\)</span>th observation</li>
-</ul>
-<div id="qwebr-insertion-location-22"></div>
+<div id="tabset-18-1">
+<div id="qwebr-insertion-location-18"></div>
 <noscript>Please enable JavaScript to experience the dynamic code cell content on this page.</noscript>
 </div>
-<div id="tabset-7-4">
-<p><strong>total sum of squares (SST)</strong></p>
-<p><span class="math display">\[
-SST\equiv \sum_{i=1}^{n}(y_i-\bar{y})^2
-\]</span></p>
-<p><strong>explained sum of squares (SSE)</strong> <span class="math display">\[
-SSE\equiv \sum_{i=1}^{n}(\widehat{y}_i-\bar{y})^2
-\]</span></p>
-<p><strong>residual sum of squares (SSR)</strong> <span class="math display">\[
-SSR\equiv \sum_{i=1}^{n}\widehat{u}_i^2
-\]</span></p>
-</div>
-<div id="tabset-7-5">
-<div title="Definition">
-<div class="callout callout-note no-icon callout-titled callout-style-default">
+<div id="tabset-18-2">
+<div id="qwebr-insertion-location-19"></div>
+<noscript>Please enable JavaScript to experience the dynamic code cell content on this page.</noscript>
+<p><br></p>
+<p>Well, we are still rejecting too often than we should, but it is much better than the default VCOV estimator that rejected 74% of the time.</p>
+<p><br></p>
+<div class="callout callout-important no-icon callout-titled callout-style-default">
 <div class="callout-body">
 <div class="callout-title">
-<p><strong>Definition</strong></p>
+<p><strong>Important</strong></p>
 </div>
 <div class="callout-content">
-<p><span class="math inline">\(R^2 = 1 - SSR/SST\)</span></p>
-</div>
-</div>
-</div>
-</div>
-<p><br></p>
-<p><strong>Where did it come from?</strong></p>
-<span class="math display">\[\begin{align}
-&amp; SST = SSE + SSR  \\
-\Rightarrow &amp; SSE = SST - SSR \\
-\Rightarrow &amp; SSE/SST = 1 - SSR/SST = R^2\\
-\end{align}\]</span>
-<p>The value of <span class="math inline">\(R^2\)</span> always lies between <span class="math inline">\(0\)</span> and <span class="math inline">\(1\)</span> as long as an intercept is included in the econometric model.</p>
-<p><br></p>
-<p><strong>What does it measure?</strong></p>
-<p><span class="math inline">\(R^2\)</span> is a measure of how much improvement <span style="color: red;"> in predictin the depdent variable </span> you’ve made by including independent variable(s) <span class="math inline">\((y=\beta_0+\beta_1 x+u)\)</span> compared to when simply using the mean of dependent variable as the predictor <span class="math inline">\((y=\beta_0+u)\)</span>.</p>
-</div>
-<div id="tabset-7-6">
-<p><strong>Important</strong></p>
 <ul>
-<li><span class="math inline">\(R^2\)</span> tells <span style="color: red;"> nothing </span> about how well you have estimated the causal ceteris paribus impact of <span class="math inline">\(x\)</span> on <span class="math inline">\(y\)</span> <span class="math inline">\((\beta_1)\)</span>.</li>
-<li>As an economist, we typically do not care about how well we can prefict yield, rather we care about how well we have predicted <span class="math inline">\(\beta\)</span>.</li>
+<li>Cluster-robust standard error estimation gets better as the number of groups gets larger</li>
+<li>The number of groups of 2 is too small (the MLB case)</li>
+<li>As a rule of thumb, # of groups larger than 50 is sufficiently large, but we just saw we still over-rejected the null of <span class="math inline">\(\beta = 0\)</span> three times more than we should.</li>
 </ul>
-<p><strong>Problem</strong></p>
-<ul>
-<li>While we observe the dependent variable (otherwise you cannot run regression), we cannot observe <span class="math inline">\(\beta_1\)</span>.</li>
-<li>So, we get to check how good estimated models are in predicting the dependent variable (which we do not care), but we can <span style="color: red;"> never </span> test whether they have estimated <span class="math inline">\(\beta_1\)</span> well.</li>
-<li>This means that we need to carefully examines whether the <span style="color: red;"> assumptions </span> necessary for good estimation of <span class="math inline">\(\beta_1\)</span> is satisfied (next topic).</li>
-</ul>
+</div>
+</div>
+</div>
+</div>
+<div id="tabset-18-3">
+<div id="qwebr-insertion-location-20"></div>
+<noscript>Please enable JavaScript to experience the dynamic code cell content on this page.</noscript>
+</div>
+<div id="tabset-18-4">
+<div id="qwebr-insertion-location-21"></div>
+<noscript>Please enable JavaScript to experience the dynamic code cell content on this page.</noscript>
+<p><br></p>
+<p>Better. But, we are still over-rejecting. Don’t forget it is certianly better than using the default!</p>
 </div>
 </div>
 </div>
@@ -2484,7 +3239,7 @@ SSR\equiv \sum_{i=1}^{n}\widehat{u}_i^2
 
 <div class="quarto-auto-generated-content">
 <div class="footer footer-default">
-
+<p><a href="https://tmieno2.github.io/Applied-Econometrics-MS-Quarto/lectures/">back to course website with lecture slides</a></p>
 </div>
 </div>
 </section></section>
