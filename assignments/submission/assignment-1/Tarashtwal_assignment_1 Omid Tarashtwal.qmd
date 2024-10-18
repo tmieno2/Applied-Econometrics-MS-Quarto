@@ -1,0 +1,251 @@
+---
+title: "Assignment 1"
+author: "Omid Tarashtwal"
+format: html
+editor: visual
+---
+
+# 1 Non-computer Exercises
+
+## Problem 1
+
+### Answer:
+
+i.  The u, error term, includes unobserved factors that might affect "kids" (here the dependent variable) but these factors are not included in this model and as explained in the lecture we can not see the u. In this model for u, there are many factors which affects the number of children a woman might have such as income level, social norms, living location such as rural or urban, and marital status.
+
+    Regarding the income level, it is intuitively correlated with the level of education. Mostly people with higher levels of education has higher income rates. Also, social norms might be correlated with the education because in some societies women are encouraged to value higher level of education and in some communities education might get discouraged for women like in rural and deprived areas. Marital Status is also likely to be correlated with education. Women with higher education levels may marry later because if she gets married earlier, then family responsibilities might affect pursuing her academic goals. living location has also correlation with education levels. In rural areas access to educational services is limited and in urban areas women have more opportunities for educating themselves.
+
+ii. The short answer is no.
+
+    Because in this simple regression we only put the independent variable of education levels to explain the fertility of a woman. The unobserved factors in the error term like income level, social norms, living location and marital status are correlated with the education levels, and can affect both education and fertility. Since they are not in the mode, the 𝛽1 will be biased due to these omitted factors. For example, income is correlated with the education but it is not included in the model. So, the 𝛽1 can not show the true effect of education on fertility because it also carries the effect of income on fertility since income and education are correlated. To solve this, we may use multiple regression where we can include variables of income, marital status and living location, then isolate the effect of education on fertility, holding other factors constant.
+
+## Problem 6
+
+### Answer:
+
+i.  The coefficient is 0.312 which has the positive sign, meaning that when distance from incinerator goes up by 1 percent, the price of houses increases by 0.312. Personally, I was intuitively thinking of a negative relationship between incinerator and houses. But after thinking, it is clear that we are checking the relationship between distance from incinerator and house prices. So it does make sense that the house prices increases when houses are farther away from a incinerator.
+ii. Simple regression can not provide an unbiased estimation of the ceteris paribus elasticity of price with respect to distance. Because variables that influence housing prices such as neighborhood socio-economic status, house characteristics (new or old), and neighborhood amenities are not included in the model and all can be correlated with the distance from the incinerator (dist). The assumption of ceteris paribus requires all other relevant factors (like neighborhood amenities) to remain constant while analyzing the effect of dist on price. Without controlling for these variables, the regression cannot accurately isolate the true impact of distance. By the city's decision, incinerators might be placed in lower-income areas, which could already have lower housing prices. These factors are not accounted for in this simple regression model.
+iii. House characteristics(new, old, area), crime rates, neighborhood socio-economic status and amenities can affect the price of a house. Some can be correlated with the dist. for example, houses closer to the incinerator may lack desirable amenities like parks, schools, or shops,leading to lower prices.
+
+# 2 Computer Exercises
+
+## Problem C1
+
+### Answer:
+
+i.  lets first load the data to the R.
+
+```{r}
+data <- read.csv("401K.csv")
+```
+
+Calculating the average participation rate (prate)
+
+```{r}
+Average_prate <- mean(data$prate, na.rm = TRUE)
+```
+
+Showing the average participation rate
+
+```{r}
+Average_prate
+```
+
+Calculating the average match rate (mrate)
+
+```{r}
+Average_mrate <- mean(data$mrate, na.rm = TRUE)
+```
+
+Showing the average match rate
+
+```{r}
+Average_mrate
+```
+
+ii. Let's estimate the simple regression equation
+
+```{r}
+Regressed_model <-  lm(prate~mrate, data = data)
+```
+
+To utilize the particular summary format, we should first library it in R.
+
+```{r}
+#| echo : false
+library(modelsummary)
+msummary(Regressed_model)
+```
+
+iii. The intercept (83.075) represents the predicted participation rate (prate) when the match rate (mrate) is zero. In other words, if the firm does not contribute anything to the 401(k) plan (i.e., mrate = 0), the model predicts that 83.075% of eligible workers will still participate in the plan.The coefficient on mrate is 5.861. The coefficient on mrate indicates that for every 1 percentage point increase in the firm's match rate (the average amount the firm contributes for each dollar contributed by a worker), the participation rate (prate) increases by 5.861 percentage points. This suggests that increasing the generosity of the plan by raising the match rate leads to higher participation rates among eligible workers.
+
+iv. Lets plug the value of $\hat{prate}$ to the regression equation: $$\hat{prate} = \hat{\beta_0} + \hat{\beta_1} \cdot mrate$$
+
+```{r}
+predicted_prate <- 83.075 + (5.861 * 3.5)
+predicted_prate
+```
+
+The participation rate (prate) represents the percentage of eligible workers with an active account in the 401(k) plan. Therefore, it must fall within the range of 0% to 100%. A predicted value of 103.5885 suggests that if the match rate (mrate) is 3.5, the participation rate exceeds 100% which is not possible.
+
+v.  we have to look at $R^2$. An $R^2$ of 0.075 indicates that only 7.5% of the variation in the participation rate is explained by the match rate which is not very significant. This means that a large portion (92.5%) of the variation is explained by other factors not included in your model.
+
+## Problem C2
+
+### Answer:
+
+i.  First lets install and library "haven" package to read data files like .dta format in R.
+
+```{r}
+#| message: false
+#| warning: false
+options(repos = c(CRAN = "https://cloud.r-project.org/"))
+install.packages("haven")
+library(haven)
+```
+
+Now we can load our data file to R.
+
+```{r}
+data_ceo <- read_dta("/Users/otarashtwal2@unl.edu/Desktop/UNL first semester/econometrics class/assignment/Omid_assignment/CEOSAL2.dta")
+```
+
+we can calculate the average salary
+
+```{r}
+average_salary <- mean(data_ceo$salary, na.rm = TRUE)
+average_salary
+```
+
+the average tenure is:
+
+```{r}
+average_tenure <- mean(data_ceo$ceoten, na.rm = TRUE)
+average_tenure
+```
+
+ii. Lets find the number of CEO who are in their first year.
+
+```{r}
+first_year_ceo <- filter(data_ceo, data_ceo$ceoten == 0)
+number_first_year_ceo <- nrow(first_year_ceo)
+number_first_year_ceo
+```
+
+lets find those CEOs whose tenure is 37 years.
+
+```{r}
+longest_tenure <- max(data_ceo$ceoten, na.rm = TRUE)
+longest_tenure
+```
+
+iii. Now we can estimate the regression model by using the following code:
+
+```{r}
+model <- lm(log(salary) ~ ceoten, data = data_ceo)
+msummary(model)
+```
+
+The coefficient for ceoten is 0.010, indicating that for each additional year as CEO, the log of salary increases by 0.010. This small increase in the logarithmic scale roughly translates to a 1% increase in actual salary. Thus, we can conclude that the salary is expected to increase by approximately 1% for every additional year of tenure as a CEO.
+
+## Problem C8
+
+### Answer:
+
+i.  To ensures we get the same random numbers each time running the code.
+
+```{r}
+set.seed(500)
+```
+
+now to generate 500 observations between 0 and 10:
+
+```{r}
+xi <- runif(500, min = 0, max = 10)
+```
+
+To calculate the sample mean and standard deviation of xi:
+
+```{r}
+mean_xi <- mean(xi)
+mean_xi
+sd_xi <- sd(xi)
+sd_xi
+```
+
+ii. First, lets generate 500 errors from Normal(0, 36). The standard deviation is $\sqrt{36}$ which is 6.
+
+```{r}
+set.seed(500)
+u_i <- rnorm(500, mean = 0, sd = 6)
+```
+
+now we can calculate the mean:
+
+```{r}
+sample_mean <- mean(u_i)
+sample_mean
+sample_sd <- sd(u_i)
+sample_sd
+```
+
+The sample average of the errors is not exactly zero, and it is -0.2733688. Not zero because it is a random sample, and random variation leads to slight deviations from the theoretical mean of zero. The larger the sample size, the closer the sample average will be to theoretical value. Standard deviation is very close to the given value of 6, which suggests that the sample reasonably represents the normal distribution with standard deviation 6.
+
+iii. 
+
+```{r}
+yi <- 1 + 2 * xi + u_i
+```
+
+```{r}
+the_model <- lm(yi ~ xi)
+msummary(the_model)
+```
+
+The estimate for the intercept is 0.697 and for the slope is 2.006, which both are not equal with the population's intercept and slope. Because the estimated values are derived from a sample of data rather than the entire population. The estimates can vary due to sampling variability and also presence of random errors.
+
+iv. 
+
+```{r}
+Model_residuals <- residuals(the_model)
+```
+
+```{r}
+sum_of_residuals <- sum(Model_residuals)
+sum_of_residuals
+```
+
+This number is very small, effectively showing a value very close to zero, indicating that the first equation holds true.
+```{r}
+sum_product_residuals_xi <- sum(Model_residuals*xi)
+sum_product_residuals_xi
+```
+The above sum of the product of the residuals and xi indicates a very small number, which is very close to zero. 
+Both results being close to zero suggests that the OLS regression model is performing well. First equation result means that the model's predictions are unbiased on average. Second equation result means that there is no correlation between the residuals and the independent variable.  
+v. 
+```{r}
+sum_of_errors <- sum(u_i)
+sum_of_errors
+sum_product_errors_xi <- sum(u_i*xi)
+sum_product_errors_xi
+```
+
+A significant non-zero sum of errors indicates that the model is consistently overestimating or underestimating the dependent variable. The sum of products of the errors and the independent variable would violate the assumption that the errors are uncorrelated with the independent variables.  
+vi. 
+```{r}
+xi_new <- runif(500, min = 0, max = 10)
+mean_xi_new <- mean(xi_new)
+mean_xi_new
+sd_xi_new <- sd(xi_new)
+sd_xi_new
+u_i_new <- rnorm(500, mean = 0, sd = 6)
+sample_mean_new <- mean(u_i_new)
+sample_mean_new
+sample_sd_new <- sd(u_i_new)
+sample_sd_new
+newyi = 1 + 2 * xi_new + u_i_new
+new_model = lm(newyi ~ xi_new)
+msummary(new_model)
+```
+The new Estimated $\hat{\beta_0}$ and $\hat{\beta_1}$ are 0.561 and 1.980 respectively. Each regression is based on a different random sample, which leads to variability in parameter estimates. Although both models use the same sample size (500), the randomness of individual observations can still lead to differing results in the estimates.  
+
