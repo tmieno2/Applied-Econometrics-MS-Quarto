@@ -1,5 +1,5 @@
 ---
-title: "11: Panel Data Methods"
+title: "10: Panel Data Methods"
 format: 
   revealjs: 
     theme: [default, ../custom.scss]
@@ -31,6 +31,7 @@ library(broom)
 library(tidyverse)
 library(fixest)
 library(lmtest)
+library(ggpubr)
 library(gt)
 library(modelsummary)
 ```
@@ -62,9 +63,11 @@ Data follow the <span style = "color: blue;"> same </span> individuals, families
 #| autorun: true
 data(jtrain, package = "wooldridge")
 
-dplyr::select(data_tr, year, fcode, employ, sales) %>%
+dplyr::select(jtrain, year, fcode, employ, sales) %>%
   head(9)
 ```
+
+<br>
 
 + `year`: year
 + `fcode`: factory id
@@ -115,7 +118,9 @@ massage_data %>% gt()
 + `P`: the price of one massage
 + `Q`: the number of massages received per capita
 
-**Question**
+::: {.panel-tabset}
+
+#### Question 1
 
 Across the four cities, how are price and quantity are associated? Positive or negative? 
 
@@ -125,20 +130,8 @@ Across the four cities, how are price and quantity are associated? Positive or n
 They are positively correlated. So, does that mean people want more massages as their price increases? Probably not.
 </details>
 
+#### Question 2
 
-### 
-
-**Demand for massage (cross-sectional)**
-
-```{r}
-#| echo: false
-massage_data %>% gt()
-```
-
-<br>
-
-**Question**
-  
 What could be causing the positive correlation?
 
 <br>
@@ -149,12 +142,24 @@ What could be causing the positive correlation?
 + How physically taxing jobs are (?)
 </details>
 
+:::
+<!--end of panel-->
+
 ### What's hidden?
 
 **Demand for massage (cross-sectional)**
 
 ```{webr-r}
-#| context: output
+#| context: setup
+massage_data <- 
+  massage_data %>%
+  mutate(Ql = c(10, 5, 7, 6))
+
+gt(massage_data)
+```
+
+```{r}
+#| echo: false
 massage_data <- 
   massage_data %>%
   mutate(Ql = c(10, 5, 7, 6))
@@ -669,63 +674,10 @@ By including individual dummies (individual fixed effects), you are effectively 
 More generally, including dummy variables of a categorical variable (like city in the example above), eliminates the variations <span style = "color: red;"> between </span> the elements of the category (e.g., different cities), and use only the variations <span style = "color: blue;"> within </span> each of the element of the category.
 :::
 
-
-
 :::
 <!--end of panel-->
 
-## Let's go back to the avocado example
 
-This was how the avocado makert worked:
-
-:::{.callout-note}
-<span style = "color: blue;"> At the beginning of each month, avocado suppliers make a plan for what avocado prices will be each week in that month, and never change their plans until the next month. </span>
-:::
-
-We agreed that we should use only the within-month varaitions instead of between-month variations. 
-
-<br>
-
-::: {.panel-tabset}
-
-### Case 1
-
-We have three months of avocado purchase and price observed weekly.
-
-<br>
-
-**Question**
-
-What should we do?
-
-<br>
-<details>
-  <summary>Answer</summary>
-Include month dummy variables.
-</details>
-
-
-### Case 2
-
-We have two years of avocado purchase and price observed weekly.
-
-<br>
-
-**Question**
-
-What should we do?
-
-<br>
-<details>
-  <summary>Answer</summary>
-+ Include <span style = "color: blue;"> month-year </span> dummy variables. 
-
-+ Including <span style = "color: blue;"> month </span> dummy variables will not do it. Because the observations in the same month in two different years are considered to belong to the same group. That is, variations between two different years of the same month will be used for estimation. (e.g., January in 2014 and January in 2015)
-</details>
-
-
-:::
-<!--end of panel-->
 
 ## Fixed Effects Estimation in Practice Using R
 
@@ -791,6 +743,193 @@ fixest::feols(Q ~ P | Location, data = massage_data_2p)
 **Note**
 
 We do not cover this estimation method as you almost certainly would not use this estimation method.
+
+:::
+<!--end of panel-->
+
+## Fixed effects (dummy variables) to harness clean variations
+
+::: {.panel-tabset}
+
+### Avocado data
+
+```{r echo = F, fig.cap = "Weekly Sales of Avocados in California, Jan 2015 - Match 2018"}
+
+dfavo <-
+  data.table::fread("avocado.csv") %>%
+  .[region == "California" & type == "conventional", ] %>%
+  .[, `Total Volume (Millions)` := `Total Volume` / 1000000] %>%
+  .[order(Date), ]
+
+g_avocado <-
+  ggplot(dfavo) +
+  geom_point(
+    aes(y = `Total Volume (Millions)`, x = AveragePrice),
+    size = 0.8
+  ) +
+  theme_pubr() +
+  labs(
+    y = "Total Avocados Sold (Millions)",
+    x = "Average Avocado Price",
+    title = "",
+    caption = "Data from Hass Avocado Board\nc/o https://www.kaggle.com/neuromusic/avocado-prices/"
+  )
+
+g_avocado
+```
+
+<br>
+
+**Objective**
+
+You are interested in understanding the impact of avocado price on its consumption.
+
+### Observations
+
+::: {.columns}
+
+::: {.column width="30%"}
+
+**Observations**
+
++ They are negatively associated with each other
+  - Avocado sales tend to be lower in weeks where the price of avocados is high. 
+  - Prices tend to be higher in weeks where fewer avocados are sold
+
+<br>
+
+**Question**
+
+If you just regress avocado sales on its price, is the estimation of the coefficient on the pirce unbiased?
+
+<br>
+<details>
+  <summary>Answer</summary>
+
+No.
+
++ Reverse causality
+  - price affects demand
+  - demand affects price
+</details>
+:::
+<!--end of the 1st column-->
+::: {.column width="70%"}
+
+```{r echo = F}
+#| fig.width: 7
+#| fig.height: 6
+#| out.width: 7in
+#| out.height: 6in
+g_avocado
+```
+
+:::
+<!--end of the 2nd column-->
+:::
+<!--end of the columns-->
+
+
+### Endogeneity problem
+
+**Problem**
+
+Reverse Causality: Price affects demand and demand affects price.
+
+<br>
+
+**contextual knowledge**
+
+Now, suppose you learned the following fact after studying the supply and purchasing mechanism on the avocado market:
+
+<span style = "color: blue;"> At the beginning of each month, avocado suppliers make a plan for what avocado prices will be each week in that month, and never change their plans until the next month. </span>
+
+This means that within the same month changes in avocado price every week is not a function of how much avocado has been bought in the previous weeks, effectively breaking the causal effect of demand on price. 
+
+So, our estimation strategy would be to just look at the variations in demand and price <span style = "color: blue;"> within </span> individual months, but ignore variations in price <span style = "color: blue;"> between</span> months.
+
+### Clean variations
+
+The figure below presents avocado sales and price of avocado in March, 2015. This is an example of clean variations in price (intra-month observations). 
+
+```{r echo = F, cache = F}
+
+dfavo %>%
+  .[, date := lubridate::as_date(Date)] %>%
+  .[year(date) == 2015 & month(date) == 3, ] %>%
+  ggplot(
+    data = .,
+    aes(y = `Total Volume (Millions)`, x = AveragePrice)
+  ) +
+  geom_point(size = 2) +
+  geom_line() +
+  theme_pubr() +
+  theme(
+    text = element_text(size = 9),
+    axis.title.x = element_text(size = 9),
+    axis.title.y = element_text(size = 9)
+  ) +
+  labs(
+    y = "Total Avocados Sold (Millions)",
+    x = "Average Avocado Price",
+    
+    caption = "Data from Hass Avocado Board\nc/o https://www.kaggle.com/neuromusic/avocado-prices/"
+  )
+```
+
+### What FE to include
+
+::: {.panel-tabset}
+
+#### Case 1
+
+We have three months of avocado purchase and price observed weekly.
+
+<br>
+
+**Question**
+
+What should we do?
+
+<br>
+<details>
+  <summary>Answer</summary>
+Include month dummy variables.
+</details>
+
+
+#### Case 2
+
+We have two years of avocado purchase and price observed weekly.
+
+<br>
+
+**Question**
+
+What should we do?
+
+<br>
+<details>
+  <summary>Answer</summary>
++ Include <span style = "color: blue;"> month-year </span> dummy variables. 
+
++ Including <span style = "color: blue;"> month </span> dummy variables will not do it. Because the observations in the same month in two different years are considered to belong to the same group. That is, variations between two different years of the same month will be used for estimation. (e.g., January in 2014 and January in 2015)
+</details>
+
+:::
+<!--end of panel-->
+
+### Key message
+
+**Message 1**
+
+By understanding the data generating process (knowing how any economic market works), we recognize the problem of simply looking at the relationship between the avocado price and demand to conclude the causal impact of price on demand (reverse causality).
+
+<br>
+
+**Message 2**
+
+We study the context very well and how the avocado market works in California (of course it is not really how CA avocado market works in reality) and make use of the information to identify the "clean" variations in avocado price to identify its impact on demand.
 
 :::
 <!--end of panel-->

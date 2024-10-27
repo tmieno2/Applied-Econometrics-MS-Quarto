@@ -1,0 +1,1056 @@
+---
+title: "11: Dealing with Endogeneity: Instrumental Variable"
+format: 
+  revealjs: 
+    theme: [default, ../custom.scss]
+    fontsize: 1.2em
+    callout-icon: false
+    scrollable: true
+    echo: true
+    fig-dpi: 400
+    footer: "[back to course website with lecture slides](https://tmieno2.github.io/Applied-Econometrics-MS-Quarto/lectures/)"
+execute:
+  echo: true
+  out-width: 80%
+webr:
+  packages: ['fixest', 'dplyr', 'data.table', 'ggplot2', 'wooldridge', 'gt', 'broom', 'DiagrammeR']
+  cell-options:
+    editor-font-scale: 0.8
+filters:
+  - webr
+---
+
+```{r}
+#| label: additional-libraries
+#| include: false
+#| cache: false
+
+#--- load packages ---#
+library(broom)
+library(fixest)
+library(stargazer)
+library(ggdag)
+library(lmtest)
+library(DiagrammeR)
+library(dplyr)
+library(data.table)
+library(ggplot2)
+```
+
+
+# Instrumental Variable (IV) Approach
+
+<html><div style='float:left'></div><hr color='#EB811B' size=1px width=1000px></html>
+
+## Instrumental Variable (IV) Approach
+
+::: {.panel-tabset}
+
+### Review of Endogeneity
+
+**Endogeneity**
+  
+$E[u|x_k] \ne 0$ (the error term is not correlated with any of the independent variables)
+
+<br>
+
+**Endogenous independent variable**
+
+If the error term is, .red[for whatever reason], correlated with the independent variable $x_k$, then we say that $x_k$ is an endogenous independent variable.
+
++ Omitted variable 
++ Selection 
++ Reverse causality 
++ Measurement error
+
+### Causal Diagram
+
+::: {.panel-tabset}
+
+#### Causal diagram of the model
+
+You want to estimate the causal impact of education on income.
+
++ Variable of interest: Education
++ Dependent variable: Income
+
+```{r}
+#| label: causal-diagramme-endogeneity
+#| eval: false
+#| echo: false
+library(DiagrammeRsvg)
+library(magrittr)
+library(rsvg)
+
+DiagrammeR::grViz("
+digraph {
+  graph [ranksep = 0.2]
+  node [shape = plaintext]
+    A [label = 'Education']
+    Y [label = 'Income']
+    C [label = 'Error (Ability + others)']
+    E [label = 'Experience']
+  edge [minlen = 2]
+    A->Y
+    E->Y
+    C->A
+    C->Y
+  { rank = same; A; Y }
+}
+") %>%
+  export_svg() %>%
+  charToRaw() %>%
+  rsvg_svg("lectures/11-instrumental-variable/causal_graph.svg")
+```
+
+**Causal diagram**
+
+![](causal_graph.svg)
+
+```{r echo = FALSE, include = F}
+tidy_ggdag <- dagify(
+  Income ~ Ability + Education + Experience,
+  Education ~ Ability,
+  exposure = "Education",
+  outcome = "Income"
+) %>%
+  tidy_dagitty()
+
+ggdag(tidy_ggdag) +
+  theme_dag()
+```
+
+#### Causal diagram with an instrument
+
+We want to find a variable like $Z$ in the diagram below:
+
+```{r echo = F}
+#| eval: false
+#| echo: false
+DiagrammeR::grViz("
+digraph {
+  graph [ranksep = 0.2]
+  node [shape = plaintext]
+    Z [label = 'Z']
+    A [label = 'Education']
+    Y [label = 'Income']
+    C [label = 'Error (Ability + others)']
+    E [label = 'Experience']
+  edge [minlen = 2]
+    A->Y
+    E->Y
+    C->A
+    C->Y
+    Z->A
+  { rank = same; Z; A; Y}
+}
+") %>%
+  export_svg() %>%
+  charToRaw() %>%
+  rsvg_svg("lectures/11-instrumental-variable/causal_graph_z.svg")
+```
+
+<br>
+
+::: {.columns}
+::: {.column width="50%"}
+
+![](causal_graph_z.svg)
+
+:::
+<!--end of the 1st column-->
+::: {.column width="50%"}
++ $Z$ does <span style = "color: blue;">  NOT </span> affect income <span style = "color: blue;">  directly </span>
++ $Z$ is correlated with the variable of interest (education)
+  - does not matter which causes which (associattion is enough)
++ $Z$ is <span style = "color: blue;"> NOT </span> correlated with <span style = "color: red;"> any </span> of the unobservable variables in the error term (including ability) that is making the vairable of interest (education) endogeneous.
+  - $Z$ does not affect ability
+  - abiliyt does not affect $Z$
+:::
+<!--end of the 2nd column-->
+:::
+<!--end of the columns-->
+:::
+<!--end of panel-->
+
+### Rough idea
+
+**The Model**
+
+$y=\beta_0 + \beta_1 x_1 + \beta_2 x_2 + u$
+
++ $x_1$ is endogenous: $E[u|x_1] \ne 0$ (or $Cov(u,x_1)\ne 0$)
++ $x_2$ is exogenous: $E[u|x_1] = 0$ (or $Cov(u,x_1) = 0$)
+
+<br>
+
+**Idea (very loosely put)**
+
+Bring in variable(s) (<span style = "color: blue;"> Instrumental variable(s) </span>) that does <span style = "color: red;"> NOT </span> belong to the model, but <span style = "color: red;"> IS </span> related with the endogenous variable,
+
++ Using the instrumental variable(s) (which we denote by $Z$), make the endogenous variable exogenous, which we call .blue[instrumented] variable(s)
+
++ Use the variation in the instrumented variable instead of the original endogenous variable to estimate the impact of the original variable
+
+### Estimation procedure
+
+::: {.panel-tabset}
+
+#### Step 1
+
+**Idea**  
+
+Using the instrumental variables, make the endogenous variable exogenous, which we call <span style = "color: blue;"> instrumented </span> variable.
+
+<br>
+
+**Step 1: mathematically**
+
+
++ Regress the endogenous variable $(x_1)$ on the instrumental variable(s) $(Z=\{z_1,z_2\}$, two instruments here) and all the other exogenous variables $(x_2$ here)
+
+$x_1 = \alpha_0 + \sigma_2 x_2 + \alpha_1 z_1 +\alpha_2 z_2 + v$
+
++ obtain the predicted value of $x$ from the regression
+
+$\widehat{x}_1 = \widehat{\alpha}_0 + \widehat{\sigma}_2 x_2 + \widehat{\alpha}_1 z_1 + \widehat{\alpha}_2 z_2$
+
+#### Step 2
+
+**Idea**
+
+Use the variation in the instrumented variable instead of the original endogenous variable to estimate the impact of the original variable
+
+<br>
+
+**Step 2: Mathematically**
+
+Regress the dependent variable $(y)$ on the instrumented variable $(\widehat{x}_1)$,
+
+$y= \beta_0 + \beta_1 \widehat{x}_1+ \beta_2 x_2 + \varepsilon$
+
+to estimate the coefficient on $x$ in the original model
+
+:::
+<!--end of panel-->
+
+
+### Example 
+
+::: {.panel-tabset}
+
+#### Model of interest
+
+**Model**
+
+$log(wage) = \beta_0 + \beta_1 educ + \beta_2 exper + (\beta_3 ability + v)$ 
+
++ Regress $log(wage)$ on $educ$ and $exper$ $(ability$ not included because you do not observe it)
++ $(\beta_3 ability + v)$ is the error term
++ $educ$ is considered endogenous (correlated with $ability$)
++ $exper$ is considered exogenous (not correlated with $ability$)
+
+<br>
+
+**Instruments (Z)**
+
+Suppose you selected the following variables as instruments:
+
++ IQ test score $(IQ)$
++ number of siblings $(sibs)$
+
+#### Step 1
+
+Regress $educ$ on $exper$, $IQ$, and $sibs$:
+
+```{=tex}
+\begin{align*}
+educ = \alpha_0 + \alpha_1 exper + \alpha_2 IQ + \alpha_3 sibs + u
+\end{align*}
+```
+
+Use the coefficient estimates on $\alpha_0$, $\alpha_1$, $\alpha_2$, and $\alpha_3$ to predict $educ$ as a function of $exper$, $IQ$, and $sibs$.
+
+```{=tex}
+\begin{align*}
+\widehat{educ} = \widehat{\alpha_0} + \widehat{\alpha_1} exper + \widehat{\alpha_2} IQ + \widehat{\alpha_3} sibs
+\end{align*}
+```
+
+<br>
+
+```{webr-r}
+#| autorun: true
+data("wage2", package = "wooldridge")
+
+#* regress educ on exper, IQ, and sibs
+first_reg <- fixest::feols(educ ~ exper + IQ + sibs, data = wage2)
+
+#* predict educ as a function of exper, IQ, and sibs
+wage2 <- dplyr::mutate(wage2, educ_hat = first_reg$fitted.values)
+
+#* seed the predicted values
+wage2 %>%
+  dplyr::relocate(educ_hat) %>%
+  head()
+```
+
+#### Step 2
+
+Use $\widehat{educ}$ in place of $educ$ to estimate the model of interest:
+
+```{=tex}
+\begin{align*}
+log(wage) = \beta_0 + \beta_1 \widehat{educ} + \beta_2 exper + u
+\end{align*}
+```
+
+<br>
+
+```{webr-r}
+#| autorun: true
+ 
+#* regression with educ_hat in place of educ
+second_reg <- fixest::feols(wage ~ educ_hat + exper, data = wage2)
+
+#* see the results
+second_reg
+```
+
+:::
+<!--end of panel-->
+
+:::
+<!--end of panel-->
+
+## When does IV work? 
+
+::: {.panel-tabset}
+
+### Introduction
+
+Just like OLS needs to satisy some conditions for it to consistently estimate the coefficients, IV approach needs to satisy some conditions for it to work.
+
+<br>
+
+**Estimation Procedure**
+
++ Step 1: $\widehat{x}_1 = \widehat{\alpha}_0 +\widehat{\sigma}_2 x_2 + \widehat{\alpha}_1 z_1 + \widehat{\alpha}_2 z_2$  
+
++ Step 2: $y = \beta_0 + \beta_1 \widehat{x}_1+ \beta_2 x_2 + \varepsilon$
+
+<br>
+
+**Important question**
+
+What are the conditions under which IV estimation is consistent?
+
+The instruments $(Z)$ need to satisfy two conditions, which we will discuss.
+
+### Condition 1
+
+**Estimation Procedure**
+
++ Step 1: $\widehat{x}_1 = \widehat{\alpha}_0 +\widehat{\sigma}_2 x_2 + \widehat{\alpha}_1 z_1 + \widehat{\alpha}_2 z_2$  
+
++ Step 2: $y = \beta_0 + \beta_1 \widehat{x}_1+ \beta_2 x_2 + \varepsilon$
+
+<br>
+
+**Question**
+
+What happens if $Z$ have no power to explain $x_1$ $(\alpha_1=0$ and $\alpha_2=0)$?
+
+<br>
+<details>
+  <summary>Answer</summary>
++ $\widehat{x}_1=\widehat{\alpha}_0+\widehat{\sigma}^2 x_2$
++ $\widehat{\beta}_1?$
+
+That is, $\widehat{x}_1$ has no information beyond the information $x_2$ possesses.  
+
+The instrument(s) $Z$ have jointly significant explanatory power on the endogenous variable $x_1$ .red[after] you control for all the other exogenous variables (here $x_2$)
+</details>
+
+### Condition 2
+
+::: {.columns}
+
+::: {.column width="50%"}
+**Model of interest**
+
+$y = \beta_0 + \beta_1 x_1 + \beta_2 x_2 + u$ 
+:::
+<!--end of the 1st column-->
+::: {.column width="50%"}
+**Estimation Procedure**
+
++ Step 1: $\widehat{x}_1 = \widehat{\alpha}_0 +\widehat{\sigma}_2 x_2 + \widehat{\alpha}_1 z_1 + \widehat{\alpha}_2 z_2$  
+
++ Step 2: $y = \beta_0 + \beta_1 \widehat{x}_1+ \beta_2 x_2 + \varepsilon$
+:::
+<!--end of the 2nd column-->
+:::
+<!--end of the columns-->
+
+
+::: {.panel-tabset}
+
+#### Investigation of the model
+
+Remember you can break $x_1$ into the predicted part and the residuals.
+
+```{=tex}
+\begin{align*}
+x_1 = \widehat{x}_1 + \widehat{\varepsilon}
+\end{align*}
+```
+
+where $\widehat{\varepsilon}$ is the residual of the first stage estimation.
+
+Plugging in $x_1 = \widehat{x}_1 + \widehat{\varepsilon}$ into the model of interest,
+
+```{=tex}
+\begin{align*}
+y & =  \beta_0 + \beta_1 (\widehat{x}_1 + \widehat{\varepsilon}) + \beta_2 x_2+ u\\
+
+ & = \beta_0 + \beta_1 \widehat{x}_1 + \beta_2 x_2+ (\beta_1\widehat{\varepsilon} + u)
+\end{align*}
+```
+
+So, if you regress $y$ on $\widehat{x}_1$ and $x_2$, then the error term is $(\beta_1\widehat{\varepsilon} + u)$.
+
+<br>
+
+**Question**
+
+What is the condition under which the OLS estimation of $\beta_1$ in the main model is unbiased?
+
+<br>
+<details>
+  <summary>Answer</summary>
+$\widehat{x}_1$ is not correlated with $(\beta_1\widehat{\varepsilon} + u)$
+</details>
+
+#### When is it unbiased?
+
+We confirmed that we need the following condition to be satisfied:
+
+:::{.callout-note tile="Condition"}
+$\widehat{x}_1$ is not correlated with $(\beta_1\widehat{\varepsilon} + u)$
+:::
+
+
+This in turn means that $x_2$, $z_1$, and $z_2$ are not correlated with $u$ (the error term of the true model.)
+
+$(\widehat{x}_1$ is always not correlated (orthogonal) with $\varepsilon)$
+
+#### So,
+
+:::{.callout-important title="Condition 2"}
++ $z_1$ and $z_2$ do not belong in the main model, meaning they do not have any explanatory power beyond $x_2$ (they should have been included in the model in the first place as independent variables)
+
++ $z_1$ and $z_2$ are not correlated with the error term (there are no unobserved factors in the error term that are correlated with $Z$)
+:::
+
+<br>
+
+**Question**
+
+Do you think we can test condition 2?
+
+<br>
+<details>
+  <summary>Answer</summary>
+No, because we never observe the error term.
+</details>
+
+<br>
+
+
+:::{.callout-important}
++ All we can do is to <span style = "color: red;"> argue </span> that the instruments are not correlated with the error term.
+
++ In journal articles that use IV method, they make careful arguments as to why their choice of instruments are not correlated with the error term.
+:::
+
+:::
+<!--end of panel-->
+
+### Review of the conditions
+
+**Condition 1**
+
++ The instrument(s) $Z$ have jointly significant explanatory power on the endogenous variable $x_1$ <span style = "color: red;"> after </span> you control for all the other exogenous variables (here $x_2$)
+
+
+<br>
+
+**Condition 2**
+
++ $z_1$ and $z_2$ do not belong in the main model, meaning they do not have any explanatory power beyond $x_2$ (they should have been included in the model in the first place as independent variables)
+
++ $z_1$ and $z_2$ are not correlated with the error term (there are no unobserved factors in the error term that are correlated with $Z)$
+
+<br>
+
+:::{.callout-important}
++ Condition 1 is always testable
+
++ Condition 2 is NOT testable (unless you have more instruments than endogenous variables)
+:::
+
+
+### 2SLS
+
+IV estimator is also called two-stage least squares estimator (2SLS) because it involves two stages of OLS.
+
++ Step 1: $\widehat{x}_1 = \widehat{\alpha}_0 +\widehat{\sigma}_2 x_2 + \widehat{\alpha}_1 z_1 + \widehat{\alpha}_2 z_2$  
+
++ Step 2: $y = \beta_0 + \beta_1 \widehat{x}_1+ \beta_2 x_2 + \varepsilon$     
+
+2SLS framework is a good way to understand conceptually why and how instrumental variable estimation works. But, IV estimation is done in one-step
+
+
+:::
+<!--end of panel-->
+
+## Instrumental variable validity
+
+::: {.panel-tabset}
+
+### Setup
+
+**The model**
+
+$log(wage) = \beta_0 + \beta_1 educ + \beta_2 exper + v \;\; ( = \beta_3 ability + u)$
+
+`educ` is endogenous because of its correlation with `ability`.
+
+<br>
+
+**Question**
+
+What conditions would a good instrument $(z)$ satisfy?
+
+<br>
+
+<br>
+<details>
+  <summary>Answer</summary>
++ $z$ has explanatory power on $educ$ .blue[after] you control for the impact of $epxer$ on $educ$
+
++ $z$ is uncorrelated with $v$ ($ability$ and all the other important unobservables)
+</details>
+
+### Instrument example 1
+
+**The model**
+
+$log(wage) = \beta_0 + \beta_1 educ + \beta_2 exper + v \;\; ( = \beta_3 ability + u)$
+
+<br>
+
+**Instrument**
+
+The last digit of an individual's Social Security Number? (this has been actually used in some journal articles)
+
+<br>
+
+**Question**
+
++ Is it uncorrelated with $v$ ($ability$ and all the other important unobservables)?
+
++ does it have explanatory power on $educ$ .blue[after] you control for the impact of $epxer$ on $educ$?
+
+### Instrument example 2
+
+**The model**
+
+$log(wage) = \beta_0 + \beta_1 educ + \beta_2 exper + v \;\; ( = \beta_3 ability + u)$
+
+<br>
+
+**Instrument**
+
+IQ test score
+
+<br>
+
+**Question**
+
++ Is it uncorrelated with $v$ ($ability$ and all the other important unobservables)?
+
++ does it have explanatory power on $educ$ .blue[after] you control for the impact of $epxer$ on $educ$?
+
+### Instrument example 3
+
+**The model**
+
+$log(wage) = \beta_0 + \beta_1 educ + \beta_2 exper + v \;\; ( = \beta_3 ability + u)$
+
+<br>
+
+**Instrument**
+
+Mother's education
+
+<br>
+
+**Question**
+
++ Is it uncorrelated with $v$ ($ability$ and all the other important unobservables)?
+
++ does it have explanatory power on $educ$ .blue[after] you control for the impact of $epxer$ on $educ$?
+
+### Instrument example 4
+
+**The model**
+
+$log(wage) = \beta_0 + \beta_1 educ + \beta_2 exper + v \;\; ( = \beta_3 ability + u)$
+
+<br>
+**Instrument**
+
+Number of siblings
+
+<br>
+
+**Question**
+
++ Is it uncorrelated with $v$ ($ability$ and all the other important unobservables)?
+
++ does it have explanatory power on $educ$ .blue[after] you control for the impact of $epxer$ on $educ$?
+
+:::
+<!--end of panel-->
+
+## Implementation of Instrumental Variable (IV) Estimation in R
+
+::: {.panel-tabset}
+### Introduction
+
+**Model**
+
+$log(wage) = \beta_0 + \beta_1 educ + \beta_2 exper + v \;\; (=\beta_3 ability + u)$
+
+We believe
+
++ $educ$ is endogenous $(x_1)$
+
++ $exper$ is exogenous $(x_2)$
+
++ we use the number of siblings $(sibs)$ and father's education $(feduc)$ as the instruments ($Z$)
+
+<br>
+
+**Terminology**
+
++ exogenous variable included in the model (here, $exper$) is also called .blue[included instruments]
+
++ instruments that do not belong to the main model (here, $sibs$ and $feduc$) are also called .blue[excluded instruments]
+
++ we refer to the collection of included and excluded instruments as .blue[instruments]
+
+### Dataset
+
+```{webr-r}
+#| autorun: true
+#--- take a look at the data ---#
+wage2 %>%
+  select(wage, educ, sibs, feduc) %>%
+  head()
+```
+
+### How
+
+We can continue to use the `fixest` package to run IV estimation method.
+
+**Syntax**
+
+```{r eval = F}
+fixest::feols(dep var ~ included instruments | first stage formula, data = dataset)
+```
+
++ `included instruments`: exogenous included variables (do not include endogenous variables here)
+
+<br>
+
+**first stage formula**
+
+```{r eval = F}
+(endogenous vars ~ excluded instruments)
+```
+
+<br>
+
+**Example**
+
+```{webr-r}
+#| autorun: true
+iv_res <- fixest::feols(log(wage) ~ exper | educ ~ sibs + feduc, data = wage2)
+```
+
++ `included variable`: 
+  * exogenous included variables: `exper`
+  * endogenous included variables: `educ` 
++ `instruments`: 
+  * included instruments: `exper` 
+  * excluded instruments: `sibs` and `feduc`
+
+### Results
+
+**IV regression results**
+
+```{webr-r}
+#| autorun: true
+iv_res
+```
+
+<br>
+
+**Note**
+
++ When variable `x` is the endogenous variable, `fixest` changes the name of `x` to `x(fit)`.
+
++ Here, `educ` has become `educ(fit)`.
+
+### Comparison
+
+::: {.columns}
+
+::: {.column width="60%"}
+**Comparison of OLS and IV Estimation Results**
+
+```{r echo = F}
+data(wage2, package = "wooldridge")
+
+#--- OLS ---#  
+reg_ols <- fixest::feols(log(wage) ~ educ + exper, data = wage2)
+
+#--- iv ---#
+iv_res <- fixest::feols(log(wage) ~ exper | educ ~ sibs + feduc, data = wage2)
+
+#--- Stargaze ---#  
+modelsummary::msummary(
+  list(reg_ols, iv_res),
+  # keep these options as they are
+  stars = TRUE,
+  gof_omit = "IC|Log|Adj|F|Pseudo|Within"
+)
+```
+:::
+<!--end of the 1st column-->
+::: {.column width="40%"}
+**Question**
+
+Do you think $sibs$ and $feduc$ are good instruments?
+
++ Condition 1: weak instruments?
++ Condition 2: uncorrelated with the error term?
+
+:::
+<!--end of the 2nd column-->
+:::
+<!--end of the columns-->
+
+### Fixed effects
+
+You can include fixed effects in your IV estimation.
+
+**Syntax**
+```{r eval = F}
+fixest::feols(dep var ~ included instruments | FE | 1st stage formula, data = dataset)
+```
+
+<br>
+
+**Example**
+
+Include `married` and `south` as fixed effects.
+```{r }
+fixest::feols(log(wage) ~ exper | married + south | educ ~ feduc + sibs, data = wage2)
+```
+
+### Clustered SE
+
+You can just add `cluster = ` option just like we previously did.
+
+```{r }
+fixest::feols(log(wage) ~ exper | married + south | educ ~ feduc + sibs, cluster = ~black, data = wage2)
+```
+
+
+:::
+<!--end of panel-->
+
+## Weak instrument
+
+::: {.panel-tabset}
+
+### What is it?
+
+:::{.callout-note title="Definition: weak instrument"}
+The external instrument(s) does not have **enough** explanatory power on the instrumented (endogenous) variabl beyond the other controls.
+:::
+
+<br>
+
+:::{.callout-important}
+We can always test if the excluded instruments are weak or not!
+:::
+
+<br>
+
+### How?
+
+::: {.panel-tabset}
+
+#### Steps
+
+Run the 1st stage regression
+
+```{=tex}
+\begin{align*}
+educ = \alpha_0 + \alpha_1 exper + \alpha_2 sibs + \alpha_3 feduc + v
+\end{align*}
+```
+
+<br>
+
+Then, test the joint significance of $\alpha_2$ and $\alpha_3$ ($F$-test)
+
+If excluded instruments $(sibs$ and $feduc$, here) are jointly significant, then it would mean that $sibs$ and $feduc$ are not weak instruments, satisfying condition 1.
+
+#### R implementation
+
+::: {.columns}
+
+::: {.column width="60%"}
+When we ran the IV estimation using `fixest::feols()` earlier, it automatically calculated the F-statistic for the weak instrument test.
+
+```{webr-r}
+#| autorun: true
+iv_res
+```
+
+<br>
+
+Here, F-test for the null hypothesis of the excluded instruments (`sibs` and `feduc`) do not have any explanatory power on the endogenous variable (`educ`) beyond the included instrument (`exper`) is rejected. 
+
+<br>
+<details>
+  <summary>Alternatively</summary>
+You can access the `iv_first_stage` component of the 
+regression results.
+
+```{webr-r}
+#| autorun: true
+iv_res$iv_first_stage
+```
+</details>
+:::
+<!--end of the 1st column-->
+::: {.column width="40%"}
+:::{.callout-note}
++ It is generally recommended that you have $F$-stat of over $10$ (this is not a clear-cut criteria that applied to all the empirical cases)
+
++ Even if you reject the null if $F$-stat is small, you may have a problem
+
++ You know nothing about if your excluded instruments satisfy Condition 2. 
+
++ If you cannot reject the null, it is a strong indication that your instruments are weak. Look for other instruments.
+
++ Always, always report this test. There is no reason not to. 
+:::
+
+:::
+<!--end of the 2nd column-->
+:::
+<!--end of the columns-->
+
+
+:::
+<!--end of panel-->
+
+
+### Consequences of weak instruments 
+
+::: {.panel-tabset}
+
+#### Data generating process
+
+**Data generation**
+
+```{webr-r}
+set.seed(73289)
+N <- 500 # number of observations
+
+u_common <- runif(N) # the term shared by the endogenous variable and the error term
+z_common <- runif(N) # the term shared by the endogenous variable and instruments
+x_end <- u_common + z_common + runif(N) # the endogenous variable
+z_strong <- z_common + runif(N) # strong instrument
+z_weak <- 0.01 * z_common + 0.99995 * runif(N) # weak instrument
+u <- u_common + runif(N) # error term
+y <- x_end + u # dependent variable
+
+data <- data.frame(y, x_end, z_strong, z_weak)
+```
+
+<br>
+
+**Correlation**
+
+```{webr-r}
+cor(data)
+```
+
+#### Estimation
+
+**Estimation with the strong instrumental variable**
+
+```{webr-r}
+#--- IV estimation (strong) ---#
+iv_strong <- fixest::feols(y ~ 1 | x_end ~ z_strong, data = data)
+
+#--- coefs (strong) ---#
+tidy(iv_strong)
+```
+
+<br>
+
+**Estimation with the weak instrumental variable**
+
+```{webr-r}
+#--- IV estimation (weak) ---#
+iv_weak <- fixest::feols(y ~ 1 | x_end ~ z_weak, data = data)
+
+#--- coefs (weak) ---#
+tidy(iv_weak)
+```
+
+<br>
+
+**Question**
+
+Any notable differences?
+
+<br>
+<details>
+  <summary>Answer</summary>
+The coefficient estimate on $x\_end$ is far away from the true value in the weak instrument case.
+</details>
+
+#### Comparison of the weak instrument tests
+
+::: {.columns}
+
+::: {.column width="50%"}
+
+**diagnostics (strong instrument)**
+
+```{webr-r}
+iv_strong$iv_first_stage
+```
+
+:::
+<!--end of the 1st column-->
+::: {.column width="50%"}
+
+**diagnostics (weak instrument)**
+
+```{webr-r}
+iv_weak$iv_first_stage
+```
+
+:::
+<!--end of the 2nd column-->
+:::
+<!--end of the columns-->
+<br>
+
+:::{.callout-note}
+You cannot reject the null hypothesis of weak instrument in the weak instrument case.
+:::
+
+
+#### MC simulation
+
+::: {.panel-tabset}
+
+##### Run 
+
+```{r}
+set.seed(238354)
+B <- 1000 # the number of experiments
+N <- 500 # number of observations
+beta_hat_store <- matrix(0, B, 2) # storage of beta hat
+
+for (i in 1:B) {
+
+  #--- data generation ---#
+  u_common <- runif(N)
+  z_common <- runif(N)
+  x_end <- u_common + z_common + runif(N)
+  z_strong <- z_common + runif(N)
+  z_weak <- 0.01 * z_common + 0.99995 * runif(N)
+  u <- u_common + runif(N)
+  y <- x_end + u
+  data <- data.table(y, x_end, z_strong, z_weak)
+
+  #--- IV estimation with a strong instrument ---#
+  iv_strong <- fixest::feols(y ~ 1 | x_end ~ z_strong, data = data)
+  beta_hat_store[i, 1] <- iv_strong$coefficients[2]
+
+  #--- IV estimation with a weak instrument ---#
+  iv_weak <- fixest::feols(y ~ 1 | x_end ~ z_weak, data = data)
+  beta_hat_store[i, 2] <- iv_weak$coefficients[2]
+}
+```
+
+##### Visualization of the results
+
+```{r}
+#| code-fold: true
+
+melted <- melt(data.table(beta_hat_store))
+melted[variable == "V1", variable := "Strong"]
+melted[variable == "V2", variable := "Weak"]
+
+ggplot(data = melted[abs(value) < 5, ]) +
+  geom_density(aes(x = value, fill = variable), alpha = 0.3) +
+  geom_vline(xintercept = 1, color = "red") +
+  scale_fill_discrete(name = "") +
+  theme(
+    legend.position = "bottom"
+  )
+```
+
+:::
+<!--end of panel-->
+
+:::
+<!--end of panel-->
+:::
+<!--end of panel-->
+
+
+## Flow of IV Estimation in Practice
+
+:::{.callout-note title="Flow"}
+1. Identify endogenous variable(s) and included instrument(s) 
+
+2. Identify potential excluded instrument(s) 
+
+3. <span style = "color: blue;"> Argue </span> why the excluded instrument(s) you pick is uncorrelated with the error term (**condition 2**)
+
+4. Once you decide what variable(s) to use as excluded instruments, .red[test] whether the excluded instrument(s) is weak or not (
+**condition 1**)
+
+5. Implement IV estimation and report the results
+
+
+:::
+
+
+
