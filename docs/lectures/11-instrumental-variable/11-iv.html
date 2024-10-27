@@ -10,7 +10,7 @@
 <link href="../../site_libs/quarto-html/quarto-syntax-highlighting.css" rel="stylesheet" id="quarto-text-highlighting-styles"><meta charset="utf-8">
   <meta name="generator" content="quarto-1.5.56">
 
-  <title>Applied Econometrics (AECN 896-004) – 11: Panel Data Methods</title>
+  <title>Applied Econometrics (AECN 896-004) – 11: Dealing with Endogeneity: Instrumental Variable</title>
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, minimal-ui">
@@ -653,7 +653,7 @@
   // Document level settings ----
 
   // Determine if we need to install R packages
-  globalThis.qwebrInstallRPackagesList = ['fixest', 'dplyr', 'data.table', 'ggplot2', 'wooldridge', 'gt', 'broom'];
+  globalThis.qwebrInstallRPackagesList = ['fixest', 'dplyr', 'data.table', 'ggplot2', 'wooldridge', 'gt', 'broom', 'DiagrammeR'];
 
   // Specify possible locations to search for the repository
   globalThis.qwebrPackageRepoURLS = ['https://repo.r-wasm.org/'];
@@ -675,7 +675,7 @@
   };
 
   // Store cell data
-  globalThis.qwebrCellDetails = [{"id":1,"code":"data(jtrain, package = \"wooldridge\")\n\ndplyr::select(data_tr, year, fcode, employ, sales) %>%\n  head(9)","options":{"results":"markup","classes":"","fig-width":7,"autorun":"true","comment":"","editor-max-height":"","out-height":"","label":"unnamed-chunk-1","dpi":72,"editor-font-scale":"0.8","out-width":"700px","fig-height":5,"editor-word-wrap":"true","message":"true","output":"true","fig-cap":"","read-only":"false","warning":"true","editor-quick-suggestions":"false","context":"interactive"}},{"id":2,"code":"massage_data <- data.frame(\n  Location = c(\"Chicago\", \"Peoria\", \"Milwaukee\", \"Madison\"),\n  Year = rep(2003, 4),\n  P = c(75, 50, 60, 55),\n  Q = c(2, 1.0, 1.5, 0.8)\n)","options":{"results":"markup","classes":"","fig-width":7,"autorun":"true","comment":"","editor-max-height":"","out-height":"","label":"unnamed-chunk-2","dpi":72,"editor-font-scale":"0.8","out-width":"700px","fig-height":5,"editor-word-wrap":"true","message":"true","output":"true","fig-cap":"","read-only":"false","warning":"true","editor-quick-suggestions":"false","context":"setup"}},{"id":3,"code":"massage_data <- \n  massage_data %>%\n  mutate(Ql = c(10, 5, 7, 6))\n\ngt(massage_data)","options":{"results":"markup","classes":"","fig-width":7,"autorun":"true","comment":"","editor-max-height":"","out-height":"","label":"unnamed-chunk-3","dpi":72,"editor-font-scale":"0.8","out-width":"700px","fig-height":5,"editor-word-wrap":"true","message":"true","output":"true","fig-cap":"","read-only":"false","warning":"true","editor-quick-suggestions":"false","context":"output"}},{"id":4,"code":"massage_data_2p <- \n  data.frame(\n    Location = rep(c(\"Chicago\", \"Peoria\", \"Milwaukee\", \"Madison\"), each = 2),\n    Year = rep(c(2003, 2004), 4),\n    P = c(75, 85, 50, 48, 60, 65, 55, 60),\n    Q = c(2, 1.8, 1.0, 1.1, 1.5, 1.4, 0.8, 0.7),\n    Ql = rep(c(10, 5, 7, 6), each = 2)\n  )","options":{"results":"markup","classes":"","fig-width":7,"autorun":"true","comment":"","editor-max-height":"","out-height":"","label":"unnamed-chunk-4","dpi":72,"editor-font-scale":"0.8","out-width":"700px","fig-height":5,"editor-word-wrap":"true","message":"true","output":"true","fig-cap":"","read-only":"false","warning":"true","editor-quick-suggestions":"false","context":"setup"}},{"id":5,"code":"massage_data_fd <- \n  massage_data_2p %>%\n  group_by(Location) %>%\n  mutate(\n    P_dif = P - lag(P),\n    Q_dif = Q - lag(Q),\n    Ql_dif = Ql - lag(Ql)\n  ) %>%\n  ungroup()","options":{"results":"markup","classes":"","fig-width":7,"autorun":"true","comment":"","editor-max-height":"","out-height":"","label":"unnamed-chunk-5","dpi":72,"editor-font-scale":"0.8","out-width":"700px","fig-height":5,"editor-word-wrap":"true","message":"true","output":"true","fig-cap":"","read-only":"false","warning":"true","editor-quick-suggestions":"false","context":"setup"}},{"id":6,"code":"massage_data_fd %>% head(5)","options":{"results":"markup","classes":"","fig-width":7,"autorun":"true","comment":"","editor-max-height":"","out-height":"","label":"unnamed-chunk-6","dpi":72,"editor-font-scale":"0.8","out-width":"700px","fig-height":5,"editor-word-wrap":"true","message":"true","output":"true","fig-cap":"","read-only":"false","warning":"true","editor-quick-suggestions":"false","context":"output"}},{"id":7,"code":"fixest::feols(Q ~ P, data = massage_data_fd) %>% \n  broom::tidy()","options":{"results":"markup","classes":"","fig-width":7,"autorun":"true","comment":"","editor-max-height":"","out-height":"","label":"unnamed-chunk-7","dpi":72,"editor-font-scale":"0.8","out-width":"700px","fig-height":5,"editor-word-wrap":"true","message":"true","output":"true","fig-cap":"","read-only":"false","warning":"true","editor-quick-suggestions":"false","context":"interactive"}},{"id":8,"code":"fixest::feols(Q_dif ~ P_dif, data = massage_data_fd) %>% \n  broom::tidy()","options":{"results":"markup","classes":"","fig-width":7,"autorun":"true","comment":"","editor-max-height":"","out-height":"","label":"unnamed-chunk-8","dpi":72,"editor-font-scale":"0.8","out-width":"700px","fig-height":5,"editor-word-wrap":"true","message":"true","output":"true","fig-cap":"","read-only":"false","warning":"true","editor-quick-suggestions":"false","context":"interactive"}},{"id":9,"code":"massage_data_wth <- \n  massage_data_2p %>%\n  dplyr::select(Location, Year, P, Q, Ql) %>%\n  group_by(Location) %>%\n  mutate(\n    P_mean = mean(P),\n    P_dev = P - P_mean,\n    Q_mean = mean(Q),\n    Q_dev = Q - Q_mean,\n    Ql_mean = mean(Ql),\n    Ql_dev = Ql - Ql_mean\n  ) %>%\n  ungroup() %>%\n  dplyr::select(Location, Year, P, P_mean, P_dev, Q, Q_mean, Q_dev, Ql, Ql_mean, Ql_dev)","options":{"results":"markup","classes":"","fig-width":7,"autorun":"true","comment":"","editor-max-height":"","out-height":"","label":"unnamed-chunk-9","dpi":72,"editor-font-scale":"0.8","out-width":"700px","fig-height":5,"editor-word-wrap":"true","message":"true","output":"true","fig-cap":"","read-only":"false","warning":"true","editor-quick-suggestions":"false","context":"setup"}},{"id":10,"code":"fixest::feols(Q_dev ~ P_dev, data = massage_data_wth)","options":{"results":"markup","classes":"","fig-width":7,"autorun":"true","comment":"","editor-max-height":"","out-height":"","label":"unnamed-chunk-10","dpi":72,"editor-font-scale":"0.8","out-width":"700px","fig-height":5,"editor-word-wrap":"true","message":"true","output":"true","fig-cap":"","read-only":"false","warning":"true","editor-quick-suggestions":"false","context":"interactive"}},{"id":11,"code":"(\n  massage_data_d <- massage_data_2p %>%\n    mutate(\n      Peoria_D = ifelse(Location == \"Peoria\", 1, 0),\n      Milwaukee_D = ifelse(Location == \"Milwaukee\", 1, 0),\n      Madison_D = ifelse(Location == \"Madison\", 1, 0)\n    )\n)","options":{"results":"markup","classes":"","fig-width":7,"autorun":"true","comment":"","editor-max-height":"","out-height":"","label":"unnamed-chunk-11","dpi":72,"editor-font-scale":"0.8","out-width":"700px","fig-height":5,"editor-word-wrap":"true","message":"true","output":"true","fig-cap":"","read-only":"false","warning":"true","editor-quick-suggestions":"false","context":"interactive"}},{"id":12,"code":"fixest::feols(Q ~ P + Peoria_D + Milwaukee_D + Madison_D, data = massage_data_d)","options":{"results":"markup","classes":"","fig-width":7,"autorun":"true","comment":"","editor-max-height":"","out-height":"","label":"unnamed-chunk-12","dpi":72,"editor-font-scale":"0.8","out-width":"700px","fig-height":5,"editor-word-wrap":"true","message":"true","output":"true","fig-cap":"","read-only":"false","warning":"true","editor-quick-suggestions":"false","context":"interactive"}},{"id":13,"code":"massage_data_2p","options":{"results":"markup","classes":"","fig-width":7,"autorun":"true","comment":"","editor-max-height":"","out-height":"","label":"unnamed-chunk-13","dpi":72,"editor-font-scale":"0.8","out-width":"700px","fig-height":5,"editor-word-wrap":"true","message":"true","output":"true","fig-cap":"","read-only":"false","warning":"true","editor-quick-suggestions":"false","context":"interactive"}},{"id":14,"code":"fixest::feols(Q ~ P | Location, data = massage_data_2p)","options":{"results":"markup","classes":"","fig-width":7,"autorun":"true","comment":"","editor-max-height":"","out-height":"","label":"unnamed-chunk-14","dpi":72,"editor-font-scale":"0.8","out-width":"700px","fig-height":5,"editor-word-wrap":"true","message":"true","output":"true","fig-cap":"","read-only":"false","warning":"true","editor-quick-suggestions":"false","context":"interactive"}},{"id":15,"code":"year_fe <- data.frame(\n  id = rep(1:3, each = 4),\n  year = rep(2015:2017, 4),\n  income = c(77, 82, 84, 110, 120, 131, 56, 60, 61, 70, 71, 74),\n  educ = c(12:14, 18:20, 10:12, 13:15),\n  FE_2015 = rep(c(1, 0, 0), 4),\n  FE_2016 = rep(c(0, 1, 0), 4),\n  FE_2017 = rep(c(0, 0, 1), 4)\n)\nyear_fe","options":{"results":"markup","classes":"","fig-width":7,"autorun":"true","comment":"","editor-max-height":"","out-height":"","label":"unnamed-chunk-15","dpi":72,"editor-font-scale":"0.8","out-width":"700px","fig-height":5,"editor-word-wrap":"true","message":"true","output":"true","fig-cap":"","read-only":"false","warning":"true","editor-quick-suggestions":"false","context":"output"}},{"id":16,"code":"fixest::feols(I(log(income)) ~ educ | id + year, data = year_fe) %>%\n  tidy()","options":{"results":"markup","classes":"","fig-width":7,"autorun":"true","comment":"","editor-max-height":"","out-height":"","label":"unnamed-chunk-16","dpi":72,"editor-font-scale":"0.8","out-width":"700px","fig-height":5,"editor-word-wrap":"true","message":"true","output":"true","fig-cap":"","read-only":"false","warning":"true","editor-quick-suggestions":"false","context":"interactive"}},{"id":17,"code":"fixest::feols(I(log(income)) ~ educ | id + year, cluster = ~id, data = year_fe) %>% tidy()","options":{"results":"markup","classes":"","fig-width":7,"autorun":"true","comment":"","editor-max-height":"","out-height":"","label":"unnamed-chunk-17","dpi":72,"editor-font-scale":"0.8","out-width":"700px","fig-height":5,"editor-word-wrap":"true","message":"true","output":"true","fig-cap":"","read-only":"false","warning":"true","editor-quick-suggestions":"false","context":"interactive"}}];
+  globalThis.qwebrCellDetails = [{"options":{"comment":"","read-only":"false","output":"true","warning":"true","results":"markup","autorun":"true","fig-width":7,"out-width":"700px","out-height":"","label":"unnamed-chunk-1","editor-max-height":"","classes":"","dpi":72,"fig-cap":"","fig-height":5,"context":"interactive","message":"true","editor-quick-suggestions":"false","editor-word-wrap":"true","editor-font-scale":"0.8"},"id":1,"code":"data(\"wage2\", package = \"wooldridge\")\n\n#* regress educ on exper, IQ, and sibs\nfirst_reg <- fixest::feols(educ ~ exper + IQ + sibs, data = wage2)\n\n#* predict educ as a function of exper, IQ, and sibs\nwage2 <- dplyr::mutate(wage2, educ_hat = first_reg$fitted.values)\n\n#* seed the predicted values\nwage2 %>%\n  dplyr::relocate(educ_hat) %>%\n  head()"},{"options":{"comment":"","read-only":"false","output":"true","warning":"true","results":"markup","autorun":"true","fig-width":7,"out-width":"700px","out-height":"","label":"unnamed-chunk-2","editor-max-height":"","classes":"","dpi":72,"fig-cap":"","fig-height":5,"context":"interactive","message":"true","editor-quick-suggestions":"false","editor-word-wrap":"true","editor-font-scale":"0.8"},"id":2,"code":"#* regression with educ_hat in place of educ\nsecond_reg <- fixest::feols(wage ~ educ_hat + exper, data = wage2)\n\n#* see the results\nsecond_reg"},{"options":{"comment":"","read-only":"false","output":"true","warning":"true","results":"markup","autorun":"true","fig-width":7,"out-width":"700px","out-height":"","label":"unnamed-chunk-3","editor-max-height":"","classes":"","dpi":72,"fig-cap":"","fig-height":5,"context":"interactive","message":"true","editor-quick-suggestions":"false","editor-word-wrap":"true","editor-font-scale":"0.8"},"id":3,"code":"#--- take a look at the data ---#\nwage2 %>%\n  select(wage, educ, sibs, feduc) %>%\n  head()"},{"options":{"comment":"","read-only":"false","output":"true","warning":"true","results":"markup","autorun":"true","fig-width":7,"out-width":"700px","out-height":"","label":"unnamed-chunk-4","editor-max-height":"","classes":"","dpi":72,"fig-cap":"","fig-height":5,"context":"interactive","message":"true","editor-quick-suggestions":"false","editor-word-wrap":"true","editor-font-scale":"0.8"},"id":4,"code":"iv_res <- fixest::feols(log(wage) ~ exper | educ ~ sibs + feduc, data = wage2)"},{"options":{"comment":"","read-only":"false","output":"true","warning":"true","results":"markup","autorun":"true","fig-width":7,"out-width":"700px","out-height":"","label":"unnamed-chunk-5","editor-max-height":"","classes":"","dpi":72,"fig-cap":"","fig-height":5,"context":"interactive","message":"true","editor-quick-suggestions":"false","editor-word-wrap":"true","editor-font-scale":"0.8"},"id":5,"code":"iv_res"},{"options":{"comment":"","read-only":"false","output":"true","warning":"true","results":"markup","autorun":"true","fig-width":7,"out-width":"700px","out-height":"","label":"unnamed-chunk-6","editor-max-height":"","classes":"","dpi":72,"fig-cap":"","fig-height":5,"context":"interactive","message":"true","editor-quick-suggestions":"false","editor-word-wrap":"true","editor-font-scale":"0.8"},"id":6,"code":"iv_res"},{"options":{"comment":"","read-only":"false","output":"true","warning":"true","results":"markup","autorun":"true","fig-width":7,"out-width":"700px","out-height":"","label":"unnamed-chunk-7","editor-max-height":"","classes":"","dpi":72,"fig-cap":"","fig-height":5,"context":"interactive","message":"true","editor-quick-suggestions":"false","editor-word-wrap":"true","editor-font-scale":"0.8"},"id":7,"code":"iv_res$iv_first_stage"},{"options":{"comment":"","read-only":"false","output":"true","warning":"true","results":"markup","autorun":"false","fig-width":7,"out-width":"700px","out-height":"","label":"unnamed-chunk-8","editor-max-height":"","classes":"","dpi":72,"fig-cap":"","fig-height":5,"context":"interactive","message":"true","editor-quick-suggestions":"false","editor-word-wrap":"true","editor-font-scale":"0.8"},"id":8,"code":"set.seed(73289)\nN <- 500 # number of observations\n\nu_common <- runif(N) # the term shared by the endogenous variable and the error term\nz_common <- runif(N) # the term shared by the endogenous variable and instruments\nx_end <- u_common + z_common + runif(N) # the endogenous variable\nz_strong <- z_common + runif(N) # strong instrument\nz_weak <- 0.01 * z_common + 0.99995 * runif(N) # weak instrument\nu <- u_common + runif(N) # error term\ny <- x_end + u # dependent variable\n\ndata <- data.frame(y, x_end, z_strong, z_weak)"},{"options":{"comment":"","read-only":"false","output":"true","warning":"true","results":"markup","autorun":"false","fig-width":7,"out-width":"700px","out-height":"","label":"unnamed-chunk-9","editor-max-height":"","classes":"","dpi":72,"fig-cap":"","fig-height":5,"context":"interactive","message":"true","editor-quick-suggestions":"false","editor-word-wrap":"true","editor-font-scale":"0.8"},"id":9,"code":"cor(data)"},{"options":{"comment":"","read-only":"false","output":"true","warning":"true","results":"markup","autorun":"false","fig-width":7,"out-width":"700px","out-height":"","label":"unnamed-chunk-10","editor-max-height":"","classes":"","dpi":72,"fig-cap":"","fig-height":5,"context":"interactive","message":"true","editor-quick-suggestions":"false","editor-word-wrap":"true","editor-font-scale":"0.8"},"id":10,"code":"#--- IV estimation (strong) ---#\niv_strong <- fixest::feols(y ~ 1 | x_end ~ z_strong, data = data)\n\n#--- coefs (strong) ---#\ntidy(iv_strong)"},{"options":{"comment":"","read-only":"false","output":"true","warning":"true","results":"markup","autorun":"false","fig-width":7,"out-width":"700px","out-height":"","label":"unnamed-chunk-11","editor-max-height":"","classes":"","dpi":72,"fig-cap":"","fig-height":5,"context":"interactive","message":"true","editor-quick-suggestions":"false","editor-word-wrap":"true","editor-font-scale":"0.8"},"id":11,"code":"#--- IV estimation (weak) ---#\niv_weak <- fixest::feols(y ~ 1 | x_end ~ z_weak, data = data)\n\n#--- coefs (weak) ---#\ntidy(iv_weak)"},{"options":{"comment":"","read-only":"false","output":"true","warning":"true","results":"markup","autorun":"false","fig-width":7,"out-width":"700px","out-height":"","label":"unnamed-chunk-12","editor-max-height":"","classes":"","dpi":72,"fig-cap":"","fig-height":5,"context":"interactive","message":"true","editor-quick-suggestions":"false","editor-word-wrap":"true","editor-font-scale":"0.8"},"id":12,"code":"iv_strong$iv_first_stage"},{"options":{"comment":"","read-only":"false","output":"true","warning":"true","results":"markup","autorun":"false","fig-width":7,"out-width":"700px","out-height":"","label":"unnamed-chunk-13","editor-max-height":"","classes":"","dpi":72,"fig-cap":"","fig-height":5,"context":"interactive","message":"true","editor-quick-suggestions":"false","editor-word-wrap":"true","editor-font-scale":"0.8"},"id":13,"code":"iv_weak$iv_first_stage"}];
 
   </script>
   <script type="module">
@@ -1872,7 +1872,7 @@
   }
 
   </script>
-<meta property="og:title" content="11: Panel Data Methods – Applied Econometrics (AECN 896-004)">
+<meta property="og:title" content="11: Dealing with Endogeneity: Instrumental Variable – Applied Econometrics (AECN 896-004)">
 <meta property="og:site_name" content="Applied Econometrics (AECN 896-004)">
 </head>
 <body class="quarto-light">
@@ -2164,3275 +2164,1021 @@ globalThis.qwebrCreateMonacoEditorInstance = function (cellData) {
     <div class="slides">
 
 <section id="title-slide" class="quarto-title-block center">
-  <h1 class="title">11: Panel Data Methods</h1>
+  <h1 class="title">11: Dealing with Endogeneity: Instrumental Variable</h1>
 
 <div class="quarto-title-authors">
 </div>
 
 </section>
-<section id="panel-longitudinal-data-methods" class="slide level2">
-<h2>Panel (longitudinal) Data Methods</h2>
-<div class="panel-tabset">
-<ul id="tabset-1" class="panel-tabset-tabby"><li><a data-tabby-default="" href="#tabset-1-1">Panel data</a></li><li><a href="#tabset-1-2">Example panel data</a></li><li><a href="#tabset-1-3">Central Question</a></li></ul>
-<div class="tab-content">
-<div id="tabset-1-1">
-<p><strong>Definition</strong></p>
-<p>Data follow the <span style="color: blue;"> same </span> individuals, families, firms, cities, states or whatever, across time.</p>
-<p><br></p>
-<p><strong>Example</strong></p>
-<ul>
-<li><p>Randomly select people from a population at a given point in time</p></li>
-<li><p>Then the same people are reinterviewed at several subsequent points in time, which would result in data on wages, hours, education, and so on, for the same group of people in different years.</p></li>
-</ul>
+<section>
+<section id="instrumental-variable-iv-approach" class="title-slide slide level1 center">
+<h1>Instrumental Variable (IV) Approach</h1>
+
+<div style="float:left">
+
 </div>
-<div id="tabset-1-2">
-<p><strong>Panel Data as <code>data.frame</code></strong></p>
-<div id="qwebr-insertion-location-1"></div>
-<noscript>Please enable JavaScript to experience the dynamic code cell content on this page.</noscript>
-<ul>
-<li><code>year</code>: year</li>
-<li><code>fcode</code>: factory id</li>
-<li><code>employ</code>: the number of employees</li>
-<li><code>sales</code>: sales in USD</li>
-</ul>
-</div>
-<div id="tabset-1-3">
-<p>Can we do anything to deal with endogeneity problem taking advantage of the panel data structure?</p>
-</div>
-</div>
-</div>
-<!--end of panel-->
+<hr color="#EB811B" size="1px" width="1000px">
+
 </section>
-<section id="panel-data-estimation-methods" class="slide level2">
-<h2>Panel Data Estimation Methods</h2>
+<section id="instrumental-variable-iv-approach-1" class="slide level2">
+<h2>Instrumental Variable (IV) Approach</h2>
 <div class="panel-tabset">
-<ul id="tabset-3" class="panel-tabset-tabby"><li><a data-tabby-default="" href="#tabset-3-1">Example</a></li><li><a href="#tabset-3-2"></a></li><li><a href="#tabset-3-3">What’s hidden?</a></li><li><a href="#tabset-3-4">Mathenmatically</a></li><li><a href="#tabset-3-5">two-period panel</a></li></ul>
-<div class="tab-content">
-<div id="tabset-3-1">
-<p><strong>Demand for massage (cross-sectional)</strong></p>
-<div id="qwebr-insertion-location-2"></div>
-<noscript>Please enable JavaScript to experience the dynamic code cell content on this page.</noscript>
-<div class="cell">
-<div class="cell-output-display">
-<div id="imythvvxrx" style="padding-left:0px;padding-right:0px;padding-top:10px;padding-bottom:10px;overflow-x:auto;overflow-y:auto;width:auto;height:auto;">
-<style>#imythvvxrx table {
-  font-family: system-ui, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol', 'Noto Color Emoji';
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
-}
-
-#imythvvxrx thead, #imythvvxrx tbody, #imythvvxrx tfoot, #imythvvxrx tr, #imythvvxrx td, #imythvvxrx th {
-  border-style: none;
-}
-
-#imythvvxrx p {
-  margin: 0;
-  padding: 0;
-}
-
-#imythvvxrx .gt_table {
-  display: table;
-  border-collapse: collapse;
-  line-height: normal;
-  margin-left: auto;
-  margin-right: auto;
-  color: #333333;
-  font-size: 16px;
-  font-weight: normal;
-  font-style: normal;
-  background-color: #FFFFFF;
-  width: auto;
-  border-top-style: solid;
-  border-top-width: 2px;
-  border-top-color: #A8A8A8;
-  border-right-style: none;
-  border-right-width: 2px;
-  border-right-color: #D3D3D3;
-  border-bottom-style: solid;
-  border-bottom-width: 2px;
-  border-bottom-color: #A8A8A8;
-  border-left-style: none;
-  border-left-width: 2px;
-  border-left-color: #D3D3D3;
-}
-
-#imythvvxrx .gt_caption {
-  padding-top: 4px;
-  padding-bottom: 4px;
-}
-
-#imythvvxrx .gt_title {
-  color: #333333;
-  font-size: 125%;
-  font-weight: initial;
-  padding-top: 4px;
-  padding-bottom: 4px;
-  padding-left: 5px;
-  padding-right: 5px;
-  border-bottom-color: #FFFFFF;
-  border-bottom-width: 0;
-}
-
-#imythvvxrx .gt_subtitle {
-  color: #333333;
-  font-size: 85%;
-  font-weight: initial;
-  padding-top: 3px;
-  padding-bottom: 5px;
-  padding-left: 5px;
-  padding-right: 5px;
-  border-top-color: #FFFFFF;
-  border-top-width: 0;
-}
-
-#imythvvxrx .gt_heading {
-  background-color: #FFFFFF;
-  text-align: center;
-  border-bottom-color: #FFFFFF;
-  border-left-style: none;
-  border-left-width: 1px;
-  border-left-color: #D3D3D3;
-  border-right-style: none;
-  border-right-width: 1px;
-  border-right-color: #D3D3D3;
-}
-
-#imythvvxrx .gt_bottom_border {
-  border-bottom-style: solid;
-  border-bottom-width: 2px;
-  border-bottom-color: #D3D3D3;
-}
-
-#imythvvxrx .gt_col_headings {
-  border-top-style: solid;
-  border-top-width: 2px;
-  border-top-color: #D3D3D3;
-  border-bottom-style: solid;
-  border-bottom-width: 2px;
-  border-bottom-color: #D3D3D3;
-  border-left-style: none;
-  border-left-width: 1px;
-  border-left-color: #D3D3D3;
-  border-right-style: none;
-  border-right-width: 1px;
-  border-right-color: #D3D3D3;
-}
-
-#imythvvxrx .gt_col_heading {
-  color: #333333;
-  background-color: #FFFFFF;
-  font-size: 100%;
-  font-weight: normal;
-  text-transform: inherit;
-  border-left-style: none;
-  border-left-width: 1px;
-  border-left-color: #D3D3D3;
-  border-right-style: none;
-  border-right-width: 1px;
-  border-right-color: #D3D3D3;
-  vertical-align: bottom;
-  padding-top: 5px;
-  padding-bottom: 6px;
-  padding-left: 5px;
-  padding-right: 5px;
-  overflow-x: hidden;
-}
-
-#imythvvxrx .gt_column_spanner_outer {
-  color: #333333;
-  background-color: #FFFFFF;
-  font-size: 100%;
-  font-weight: normal;
-  text-transform: inherit;
-  padding-top: 0;
-  padding-bottom: 0;
-  padding-left: 4px;
-  padding-right: 4px;
-}
-
-#imythvvxrx .gt_column_spanner_outer:first-child {
-  padding-left: 0;
-}
-
-#imythvvxrx .gt_column_spanner_outer:last-child {
-  padding-right: 0;
-}
-
-#imythvvxrx .gt_column_spanner {
-  border-bottom-style: solid;
-  border-bottom-width: 2px;
-  border-bottom-color: #D3D3D3;
-  vertical-align: bottom;
-  padding-top: 5px;
-  padding-bottom: 5px;
-  overflow-x: hidden;
-  display: inline-block;
-  width: 100%;
-}
-
-#imythvvxrx .gt_spanner_row {
-  border-bottom-style: hidden;
-}
-
-#imythvvxrx .gt_group_heading {
-  padding-top: 8px;
-  padding-bottom: 8px;
-  padding-left: 5px;
-  padding-right: 5px;
-  color: #333333;
-  background-color: #FFFFFF;
-  font-size: 100%;
-  font-weight: initial;
-  text-transform: inherit;
-  border-top-style: solid;
-  border-top-width: 2px;
-  border-top-color: #D3D3D3;
-  border-bottom-style: solid;
-  border-bottom-width: 2px;
-  border-bottom-color: #D3D3D3;
-  border-left-style: none;
-  border-left-width: 1px;
-  border-left-color: #D3D3D3;
-  border-right-style: none;
-  border-right-width: 1px;
-  border-right-color: #D3D3D3;
-  vertical-align: middle;
-  text-align: left;
-}
-
-#imythvvxrx .gt_empty_group_heading {
-  padding: 0.5px;
-  color: #333333;
-  background-color: #FFFFFF;
-  font-size: 100%;
-  font-weight: initial;
-  border-top-style: solid;
-  border-top-width: 2px;
-  border-top-color: #D3D3D3;
-  border-bottom-style: solid;
-  border-bottom-width: 2px;
-  border-bottom-color: #D3D3D3;
-  vertical-align: middle;
-}
-
-#imythvvxrx .gt_from_md > :first-child {
-  margin-top: 0;
-}
-
-#imythvvxrx .gt_from_md > :last-child {
-  margin-bottom: 0;
-}
-
-#imythvvxrx .gt_row {
-  padding-top: 8px;
-  padding-bottom: 8px;
-  padding-left: 5px;
-  padding-right: 5px;
-  margin: 10px;
-  border-top-style: solid;
-  border-top-width: 1px;
-  border-top-color: #D3D3D3;
-  border-left-style: none;
-  border-left-width: 1px;
-  border-left-color: #D3D3D3;
-  border-right-style: none;
-  border-right-width: 1px;
-  border-right-color: #D3D3D3;
-  vertical-align: middle;
-  overflow-x: hidden;
-}
-
-#imythvvxrx .gt_stub {
-  color: #333333;
-  background-color: #FFFFFF;
-  font-size: 100%;
-  font-weight: initial;
-  text-transform: inherit;
-  border-right-style: solid;
-  border-right-width: 2px;
-  border-right-color: #D3D3D3;
-  padding-left: 5px;
-  padding-right: 5px;
-}
-
-#imythvvxrx .gt_stub_row_group {
-  color: #333333;
-  background-color: #FFFFFF;
-  font-size: 100%;
-  font-weight: initial;
-  text-transform: inherit;
-  border-right-style: solid;
-  border-right-width: 2px;
-  border-right-color: #D3D3D3;
-  padding-left: 5px;
-  padding-right: 5px;
-  vertical-align: top;
-}
-
-#imythvvxrx .gt_row_group_first td {
-  border-top-width: 2px;
-}
-
-#imythvvxrx .gt_row_group_first th {
-  border-top-width: 2px;
-}
-
-#imythvvxrx .gt_summary_row {
-  color: #333333;
-  background-color: #FFFFFF;
-  text-transform: inherit;
-  padding-top: 8px;
-  padding-bottom: 8px;
-  padding-left: 5px;
-  padding-right: 5px;
-}
-
-#imythvvxrx .gt_first_summary_row {
-  border-top-style: solid;
-  border-top-color: #D3D3D3;
-}
-
-#imythvvxrx .gt_first_summary_row.thick {
-  border-top-width: 2px;
-}
-
-#imythvvxrx .gt_last_summary_row {
-  padding-top: 8px;
-  padding-bottom: 8px;
-  padding-left: 5px;
-  padding-right: 5px;
-  border-bottom-style: solid;
-  border-bottom-width: 2px;
-  border-bottom-color: #D3D3D3;
-}
-
-#imythvvxrx .gt_grand_summary_row {
-  color: #333333;
-  background-color: #FFFFFF;
-  text-transform: inherit;
-  padding-top: 8px;
-  padding-bottom: 8px;
-  padding-left: 5px;
-  padding-right: 5px;
-}
-
-#imythvvxrx .gt_first_grand_summary_row {
-  padding-top: 8px;
-  padding-bottom: 8px;
-  padding-left: 5px;
-  padding-right: 5px;
-  border-top-style: double;
-  border-top-width: 6px;
-  border-top-color: #D3D3D3;
-}
-
-#imythvvxrx .gt_last_grand_summary_row_top {
-  padding-top: 8px;
-  padding-bottom: 8px;
-  padding-left: 5px;
-  padding-right: 5px;
-  border-bottom-style: double;
-  border-bottom-width: 6px;
-  border-bottom-color: #D3D3D3;
-}
-
-#imythvvxrx .gt_striped {
-  background-color: rgba(128, 128, 128, 0.05);
-}
-
-#imythvvxrx .gt_table_body {
-  border-top-style: solid;
-  border-top-width: 2px;
-  border-top-color: #D3D3D3;
-  border-bottom-style: solid;
-  border-bottom-width: 2px;
-  border-bottom-color: #D3D3D3;
-}
-
-#imythvvxrx .gt_footnotes {
-  color: #333333;
-  background-color: #FFFFFF;
-  border-bottom-style: none;
-  border-bottom-width: 2px;
-  border-bottom-color: #D3D3D3;
-  border-left-style: none;
-  border-left-width: 2px;
-  border-left-color: #D3D3D3;
-  border-right-style: none;
-  border-right-width: 2px;
-  border-right-color: #D3D3D3;
-}
-
-#imythvvxrx .gt_footnote {
-  margin: 0px;
-  font-size: 90%;
-  padding-top: 4px;
-  padding-bottom: 4px;
-  padding-left: 5px;
-  padding-right: 5px;
-}
-
-#imythvvxrx .gt_sourcenotes {
-  color: #333333;
-  background-color: #FFFFFF;
-  border-bottom-style: none;
-  border-bottom-width: 2px;
-  border-bottom-color: #D3D3D3;
-  border-left-style: none;
-  border-left-width: 2px;
-  border-left-color: #D3D3D3;
-  border-right-style: none;
-  border-right-width: 2px;
-  border-right-color: #D3D3D3;
-}
-
-#imythvvxrx .gt_sourcenote {
-  font-size: 90%;
-  padding-top: 4px;
-  padding-bottom: 4px;
-  padding-left: 5px;
-  padding-right: 5px;
-}
-
-#imythvvxrx .gt_left {
-  text-align: left;
-}
-
-#imythvvxrx .gt_center {
-  text-align: center;
-}
-
-#imythvvxrx .gt_right {
-  text-align: right;
-  font-variant-numeric: tabular-nums;
-}
-
-#imythvvxrx .gt_font_normal {
-  font-weight: normal;
-}
-
-#imythvvxrx .gt_font_bold {
-  font-weight: bold;
-}
-
-#imythvvxrx .gt_font_italic {
-  font-style: italic;
-}
-
-#imythvvxrx .gt_super {
-  font-size: 65%;
-}
-
-#imythvvxrx .gt_footnote_marks {
-  font-size: 75%;
-  vertical-align: 0.4em;
-  position: initial;
-}
-
-#imythvvxrx .gt_asterisk {
-  font-size: 100%;
-  vertical-align: 0;
-}
-
-#imythvvxrx .gt_indent_1 {
-  text-indent: 5px;
-}
-
-#imythvvxrx .gt_indent_2 {
-  text-indent: 10px;
-}
-
-#imythvvxrx .gt_indent_3 {
-  text-indent: 15px;
-}
-
-#imythvvxrx .gt_indent_4 {
-  text-indent: 20px;
-}
-
-#imythvvxrx .gt_indent_5 {
-  text-indent: 25px;
-}
-
-#imythvvxrx .katex-display {
-  display: inline-flex !important;
-  margin-bottom: 0.75em !important;
-}
-
-#imythvvxrx div.Reactable > div.rt-table > div.rt-thead > div.rt-tr.rt-tr-group-header > div.rt-th-group:after {
-  height: 0px !important;
-}
-</style>
-
-<table class="gt_table caption-top" data-quarto-postprocess="true" data-quarto-disable-processing="false" data-quarto-bootstrap="false">
-<thead>
-<tr class="header gt_col_headings">
-<th id="Location" class="gt_col_heading gt_columns_bottom_border gt_left" data-quarto-table-cell-role="th" scope="col">Location</th>
-<th id="Year" class="gt_col_heading gt_columns_bottom_border gt_right" data-quarto-table-cell-role="th" scope="col">Year</th>
-<th id="P" class="gt_col_heading gt_columns_bottom_border gt_right" data-quarto-table-cell-role="th" scope="col">P</th>
-<th id="Q" class="gt_col_heading gt_columns_bottom_border gt_right" data-quarto-table-cell-role="th" scope="col">Q</th>
-</tr>
-</thead>
-<tbody class="gt_table_body">
-<tr class="odd">
-<td class="gt_row gt_left" headers="Location">Chicago</td>
-<td class="gt_row gt_right" headers="Year">2003</td>
-<td class="gt_row gt_right" headers="P">75</td>
-<td class="gt_row gt_right" headers="Q">2.0</td>
-</tr>
-<tr class="even">
-<td class="gt_row gt_left" headers="Location">Peoria</td>
-<td class="gt_row gt_right" headers="Year">2003</td>
-<td class="gt_row gt_right" headers="P">50</td>
-<td class="gt_row gt_right" headers="Q">1.0</td>
-</tr>
-<tr class="odd">
-<td class="gt_row gt_left" headers="Location">Milwaukee</td>
-<td class="gt_row gt_right" headers="Year">2003</td>
-<td class="gt_row gt_right" headers="P">60</td>
-<td class="gt_row gt_right" headers="Q">1.5</td>
-</tr>
-<tr class="even">
-<td class="gt_row gt_left" headers="Location">Madison</td>
-<td class="gt_row gt_right" headers="Year">2003</td>
-<td class="gt_row gt_right" headers="P">55</td>
-<td class="gt_row gt_right" headers="Q">0.8</td>
-</tr>
-</tbody>
-</table>
-
-</div>
-</div>
-</div>
-<ul>
-<li><code>P</code>: the price of one massage</li>
-<li><code>Q</code>: the number of massages received per capita</li>
-</ul>
-<p><strong>Question</strong></p>
-<p>Across the four cities, how are price and quantity are associated? Positive or negative?</p>
-<br>
-<details>
-<summary>
-Answer
-</summary>
-They are positively correlated. So, does that mean people want more massages as their price increases? Probably not.
-</details>
-</div>
-<div id="tabset-3-2">
-<p><strong>Demand for massage (cross-sectional)</strong></p>
-<div class="cell">
-<div class="cell-output-display">
-<div id="nuvbdtfrtq" style="padding-left:0px;padding-right:0px;padding-top:10px;padding-bottom:10px;overflow-x:auto;overflow-y:auto;width:auto;height:auto;">
-<style>#nuvbdtfrtq table {
-  font-family: system-ui, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol', 'Noto Color Emoji';
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
-}
-
-#nuvbdtfrtq thead, #nuvbdtfrtq tbody, #nuvbdtfrtq tfoot, #nuvbdtfrtq tr, #nuvbdtfrtq td, #nuvbdtfrtq th {
-  border-style: none;
-}
-
-#nuvbdtfrtq p {
-  margin: 0;
-  padding: 0;
-}
-
-#nuvbdtfrtq .gt_table {
-  display: table;
-  border-collapse: collapse;
-  line-height: normal;
-  margin-left: auto;
-  margin-right: auto;
-  color: #333333;
-  font-size: 16px;
-  font-weight: normal;
-  font-style: normal;
-  background-color: #FFFFFF;
-  width: auto;
-  border-top-style: solid;
-  border-top-width: 2px;
-  border-top-color: #A8A8A8;
-  border-right-style: none;
-  border-right-width: 2px;
-  border-right-color: #D3D3D3;
-  border-bottom-style: solid;
-  border-bottom-width: 2px;
-  border-bottom-color: #A8A8A8;
-  border-left-style: none;
-  border-left-width: 2px;
-  border-left-color: #D3D3D3;
-}
-
-#nuvbdtfrtq .gt_caption {
-  padding-top: 4px;
-  padding-bottom: 4px;
-}
-
-#nuvbdtfrtq .gt_title {
-  color: #333333;
-  font-size: 125%;
-  font-weight: initial;
-  padding-top: 4px;
-  padding-bottom: 4px;
-  padding-left: 5px;
-  padding-right: 5px;
-  border-bottom-color: #FFFFFF;
-  border-bottom-width: 0;
-}
-
-#nuvbdtfrtq .gt_subtitle {
-  color: #333333;
-  font-size: 85%;
-  font-weight: initial;
-  padding-top: 3px;
-  padding-bottom: 5px;
-  padding-left: 5px;
-  padding-right: 5px;
-  border-top-color: #FFFFFF;
-  border-top-width: 0;
-}
-
-#nuvbdtfrtq .gt_heading {
-  background-color: #FFFFFF;
-  text-align: center;
-  border-bottom-color: #FFFFFF;
-  border-left-style: none;
-  border-left-width: 1px;
-  border-left-color: #D3D3D3;
-  border-right-style: none;
-  border-right-width: 1px;
-  border-right-color: #D3D3D3;
-}
-
-#nuvbdtfrtq .gt_bottom_border {
-  border-bottom-style: solid;
-  border-bottom-width: 2px;
-  border-bottom-color: #D3D3D3;
-}
-
-#nuvbdtfrtq .gt_col_headings {
-  border-top-style: solid;
-  border-top-width: 2px;
-  border-top-color: #D3D3D3;
-  border-bottom-style: solid;
-  border-bottom-width: 2px;
-  border-bottom-color: #D3D3D3;
-  border-left-style: none;
-  border-left-width: 1px;
-  border-left-color: #D3D3D3;
-  border-right-style: none;
-  border-right-width: 1px;
-  border-right-color: #D3D3D3;
-}
-
-#nuvbdtfrtq .gt_col_heading {
-  color: #333333;
-  background-color: #FFFFFF;
-  font-size: 100%;
-  font-weight: normal;
-  text-transform: inherit;
-  border-left-style: none;
-  border-left-width: 1px;
-  border-left-color: #D3D3D3;
-  border-right-style: none;
-  border-right-width: 1px;
-  border-right-color: #D3D3D3;
-  vertical-align: bottom;
-  padding-top: 5px;
-  padding-bottom: 6px;
-  padding-left: 5px;
-  padding-right: 5px;
-  overflow-x: hidden;
-}
-
-#nuvbdtfrtq .gt_column_spanner_outer {
-  color: #333333;
-  background-color: #FFFFFF;
-  font-size: 100%;
-  font-weight: normal;
-  text-transform: inherit;
-  padding-top: 0;
-  padding-bottom: 0;
-  padding-left: 4px;
-  padding-right: 4px;
-}
-
-#nuvbdtfrtq .gt_column_spanner_outer:first-child {
-  padding-left: 0;
-}
-
-#nuvbdtfrtq .gt_column_spanner_outer:last-child {
-  padding-right: 0;
-}
-
-#nuvbdtfrtq .gt_column_spanner {
-  border-bottom-style: solid;
-  border-bottom-width: 2px;
-  border-bottom-color: #D3D3D3;
-  vertical-align: bottom;
-  padding-top: 5px;
-  padding-bottom: 5px;
-  overflow-x: hidden;
-  display: inline-block;
-  width: 100%;
-}
-
-#nuvbdtfrtq .gt_spanner_row {
-  border-bottom-style: hidden;
-}
-
-#nuvbdtfrtq .gt_group_heading {
-  padding-top: 8px;
-  padding-bottom: 8px;
-  padding-left: 5px;
-  padding-right: 5px;
-  color: #333333;
-  background-color: #FFFFFF;
-  font-size: 100%;
-  font-weight: initial;
-  text-transform: inherit;
-  border-top-style: solid;
-  border-top-width: 2px;
-  border-top-color: #D3D3D3;
-  border-bottom-style: solid;
-  border-bottom-width: 2px;
-  border-bottom-color: #D3D3D3;
-  border-left-style: none;
-  border-left-width: 1px;
-  border-left-color: #D3D3D3;
-  border-right-style: none;
-  border-right-width: 1px;
-  border-right-color: #D3D3D3;
-  vertical-align: middle;
-  text-align: left;
-}
-
-#nuvbdtfrtq .gt_empty_group_heading {
-  padding: 0.5px;
-  color: #333333;
-  background-color: #FFFFFF;
-  font-size: 100%;
-  font-weight: initial;
-  border-top-style: solid;
-  border-top-width: 2px;
-  border-top-color: #D3D3D3;
-  border-bottom-style: solid;
-  border-bottom-width: 2px;
-  border-bottom-color: #D3D3D3;
-  vertical-align: middle;
-}
-
-#nuvbdtfrtq .gt_from_md > :first-child {
-  margin-top: 0;
-}
-
-#nuvbdtfrtq .gt_from_md > :last-child {
-  margin-bottom: 0;
-}
-
-#nuvbdtfrtq .gt_row {
-  padding-top: 8px;
-  padding-bottom: 8px;
-  padding-left: 5px;
-  padding-right: 5px;
-  margin: 10px;
-  border-top-style: solid;
-  border-top-width: 1px;
-  border-top-color: #D3D3D3;
-  border-left-style: none;
-  border-left-width: 1px;
-  border-left-color: #D3D3D3;
-  border-right-style: none;
-  border-right-width: 1px;
-  border-right-color: #D3D3D3;
-  vertical-align: middle;
-  overflow-x: hidden;
-}
-
-#nuvbdtfrtq .gt_stub {
-  color: #333333;
-  background-color: #FFFFFF;
-  font-size: 100%;
-  font-weight: initial;
-  text-transform: inherit;
-  border-right-style: solid;
-  border-right-width: 2px;
-  border-right-color: #D3D3D3;
-  padding-left: 5px;
-  padding-right: 5px;
-}
-
-#nuvbdtfrtq .gt_stub_row_group {
-  color: #333333;
-  background-color: #FFFFFF;
-  font-size: 100%;
-  font-weight: initial;
-  text-transform: inherit;
-  border-right-style: solid;
-  border-right-width: 2px;
-  border-right-color: #D3D3D3;
-  padding-left: 5px;
-  padding-right: 5px;
-  vertical-align: top;
-}
-
-#nuvbdtfrtq .gt_row_group_first td {
-  border-top-width: 2px;
-}
-
-#nuvbdtfrtq .gt_row_group_first th {
-  border-top-width: 2px;
-}
-
-#nuvbdtfrtq .gt_summary_row {
-  color: #333333;
-  background-color: #FFFFFF;
-  text-transform: inherit;
-  padding-top: 8px;
-  padding-bottom: 8px;
-  padding-left: 5px;
-  padding-right: 5px;
-}
-
-#nuvbdtfrtq .gt_first_summary_row {
-  border-top-style: solid;
-  border-top-color: #D3D3D3;
-}
-
-#nuvbdtfrtq .gt_first_summary_row.thick {
-  border-top-width: 2px;
-}
-
-#nuvbdtfrtq .gt_last_summary_row {
-  padding-top: 8px;
-  padding-bottom: 8px;
-  padding-left: 5px;
-  padding-right: 5px;
-  border-bottom-style: solid;
-  border-bottom-width: 2px;
-  border-bottom-color: #D3D3D3;
-}
-
-#nuvbdtfrtq .gt_grand_summary_row {
-  color: #333333;
-  background-color: #FFFFFF;
-  text-transform: inherit;
-  padding-top: 8px;
-  padding-bottom: 8px;
-  padding-left: 5px;
-  padding-right: 5px;
-}
-
-#nuvbdtfrtq .gt_first_grand_summary_row {
-  padding-top: 8px;
-  padding-bottom: 8px;
-  padding-left: 5px;
-  padding-right: 5px;
-  border-top-style: double;
-  border-top-width: 6px;
-  border-top-color: #D3D3D3;
-}
-
-#nuvbdtfrtq .gt_last_grand_summary_row_top {
-  padding-top: 8px;
-  padding-bottom: 8px;
-  padding-left: 5px;
-  padding-right: 5px;
-  border-bottom-style: double;
-  border-bottom-width: 6px;
-  border-bottom-color: #D3D3D3;
-}
-
-#nuvbdtfrtq .gt_striped {
-  background-color: rgba(128, 128, 128, 0.05);
-}
-
-#nuvbdtfrtq .gt_table_body {
-  border-top-style: solid;
-  border-top-width: 2px;
-  border-top-color: #D3D3D3;
-  border-bottom-style: solid;
-  border-bottom-width: 2px;
-  border-bottom-color: #D3D3D3;
-}
-
-#nuvbdtfrtq .gt_footnotes {
-  color: #333333;
-  background-color: #FFFFFF;
-  border-bottom-style: none;
-  border-bottom-width: 2px;
-  border-bottom-color: #D3D3D3;
-  border-left-style: none;
-  border-left-width: 2px;
-  border-left-color: #D3D3D3;
-  border-right-style: none;
-  border-right-width: 2px;
-  border-right-color: #D3D3D3;
-}
-
-#nuvbdtfrtq .gt_footnote {
-  margin: 0px;
-  font-size: 90%;
-  padding-top: 4px;
-  padding-bottom: 4px;
-  padding-left: 5px;
-  padding-right: 5px;
-}
-
-#nuvbdtfrtq .gt_sourcenotes {
-  color: #333333;
-  background-color: #FFFFFF;
-  border-bottom-style: none;
-  border-bottom-width: 2px;
-  border-bottom-color: #D3D3D3;
-  border-left-style: none;
-  border-left-width: 2px;
-  border-left-color: #D3D3D3;
-  border-right-style: none;
-  border-right-width: 2px;
-  border-right-color: #D3D3D3;
-}
-
-#nuvbdtfrtq .gt_sourcenote {
-  font-size: 90%;
-  padding-top: 4px;
-  padding-bottom: 4px;
-  padding-left: 5px;
-  padding-right: 5px;
-}
-
-#nuvbdtfrtq .gt_left {
-  text-align: left;
-}
-
-#nuvbdtfrtq .gt_center {
-  text-align: center;
-}
-
-#nuvbdtfrtq .gt_right {
-  text-align: right;
-  font-variant-numeric: tabular-nums;
-}
-
-#nuvbdtfrtq .gt_font_normal {
-  font-weight: normal;
-}
-
-#nuvbdtfrtq .gt_font_bold {
-  font-weight: bold;
-}
-
-#nuvbdtfrtq .gt_font_italic {
-  font-style: italic;
-}
-
-#nuvbdtfrtq .gt_super {
-  font-size: 65%;
-}
-
-#nuvbdtfrtq .gt_footnote_marks {
-  font-size: 75%;
-  vertical-align: 0.4em;
-  position: initial;
-}
-
-#nuvbdtfrtq .gt_asterisk {
-  font-size: 100%;
-  vertical-align: 0;
-}
-
-#nuvbdtfrtq .gt_indent_1 {
-  text-indent: 5px;
-}
-
-#nuvbdtfrtq .gt_indent_2 {
-  text-indent: 10px;
-}
-
-#nuvbdtfrtq .gt_indent_3 {
-  text-indent: 15px;
-}
-
-#nuvbdtfrtq .gt_indent_4 {
-  text-indent: 20px;
-}
-
-#nuvbdtfrtq .gt_indent_5 {
-  text-indent: 25px;
-}
-
-#nuvbdtfrtq .katex-display {
-  display: inline-flex !important;
-  margin-bottom: 0.75em !important;
-}
-
-#nuvbdtfrtq div.Reactable > div.rt-table > div.rt-thead > div.rt-tr.rt-tr-group-header > div.rt-th-group:after {
-  height: 0px !important;
-}
-</style>
-
-<table class="gt_table caption-top" data-quarto-postprocess="true" data-quarto-disable-processing="false" data-quarto-bootstrap="false">
-<thead>
-<tr class="header gt_col_headings">
-<th id="Location" class="gt_col_heading gt_columns_bottom_border gt_left" data-quarto-table-cell-role="th" scope="col">Location</th>
-<th id="Year" class="gt_col_heading gt_columns_bottom_border gt_right" data-quarto-table-cell-role="th" scope="col">Year</th>
-<th id="P" class="gt_col_heading gt_columns_bottom_border gt_right" data-quarto-table-cell-role="th" scope="col">P</th>
-<th id="Q" class="gt_col_heading gt_columns_bottom_border gt_right" data-quarto-table-cell-role="th" scope="col">Q</th>
-</tr>
-</thead>
-<tbody class="gt_table_body">
-<tr class="odd">
-<td class="gt_row gt_left" headers="Location">Chicago</td>
-<td class="gt_row gt_right" headers="Year">2003</td>
-<td class="gt_row gt_right" headers="P">75</td>
-<td class="gt_row gt_right" headers="Q">2.0</td>
-</tr>
-<tr class="even">
-<td class="gt_row gt_left" headers="Location">Peoria</td>
-<td class="gt_row gt_right" headers="Year">2003</td>
-<td class="gt_row gt_right" headers="P">50</td>
-<td class="gt_row gt_right" headers="Q">1.0</td>
-</tr>
-<tr class="odd">
-<td class="gt_row gt_left" headers="Location">Milwaukee</td>
-<td class="gt_row gt_right" headers="Year">2003</td>
-<td class="gt_row gt_right" headers="P">60</td>
-<td class="gt_row gt_right" headers="Q">1.5</td>
-</tr>
-<tr class="even">
-<td class="gt_row gt_left" headers="Location">Madison</td>
-<td class="gt_row gt_right" headers="Year">2003</td>
-<td class="gt_row gt_right" headers="P">55</td>
-<td class="gt_row gt_right" headers="Q">0.8</td>
-</tr>
-</tbody>
-</table>
-
-</div>
-</div>
-</div>
-<p><br></p>
-<p><strong>Question</strong></p>
-<p>What could be causing the positive correlation?</p>
-<br>
-<details>
-<summary>
-Answer
-</summary>
-<ul>
-<li>Income (can be observed)</li>
-<li>Quality of massages (hard to observe)</li>
-<li>How physically taxing jobs are (?)</li>
-</ul>
-</details>
-</div>
-<div id="tabset-3-3">
-<p><strong>Demand for massage (cross-sectional)</strong></p>
-<div id="qwebr-insertion-location-3"></div>
-<noscript>Please enable JavaScript to experience the dynamic code cell content on this page.</noscript>
-<p><br></p>
-<p><strong>Key</strong></p>
-<p>Massage quality was hidden (omitted) affecting .red[both] price and massages per capita.</p>
-<p><br></p>
-<p><strong>Problem</strong></p>
-<p>Massage quality is not observable, and thus cannot be controlled for.</p>
-</div>
-<div id="tabset-3-4">
-<p><strong>Mathematically</strong></p>
-<p><span class="math inline">\(Q  = \beta_0 + \beta_1 P + v \;\;( = \beta_2 + Ql + u)\)</span></p>
-<ul>
-<li><span class="math inline">\(P\)</span>: the price of one massage</li>
-<li><span class="math inline">\(Q\)</span>: the number of massages received per capita<br>
-</li>
-<li><span class="math inline">\(Ql\)</span>: the quality of massages</li>
-<li><span class="math inline">\(u\)</span>: everything else that affect <span class="math inline">\(P\)</span></li>
-</ul>
-<p><br></p>
-<p><strong>Endogeneity Problem</strong></p>
-<p><span class="math inline">\(P\)</span> is correlated with <span class="math inline">\(Ql\)</span>.</p>
-</div>
-<div id="tabset-3-5">
-<div id="qwebr-insertion-location-4"></div>
-<noscript>Please enable JavaScript to experience the dynamic code cell content on this page.</noscript>
-<div class="cell">
-<div class="cell-output-display">
-<div id="iqtadcxwpy" style="padding-left:0px;padding-right:0px;padding-top:10px;padding-bottom:10px;overflow-x:auto;overflow-y:auto;width:auto;height:auto;">
-<style>#iqtadcxwpy table {
-  font-family: system-ui, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol', 'Noto Color Emoji';
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
-}
-
-#iqtadcxwpy thead, #iqtadcxwpy tbody, #iqtadcxwpy tfoot, #iqtadcxwpy tr, #iqtadcxwpy td, #iqtadcxwpy th {
-  border-style: none;
-}
-
-#iqtadcxwpy p {
-  margin: 0;
-  padding: 0;
-}
-
-#iqtadcxwpy .gt_table {
-  display: table;
-  border-collapse: collapse;
-  line-height: normal;
-  margin-left: auto;
-  margin-right: auto;
-  color: #333333;
-  font-size: 16px;
-  font-weight: normal;
-  font-style: normal;
-  background-color: #FFFFFF;
-  width: auto;
-  border-top-style: solid;
-  border-top-width: 2px;
-  border-top-color: #A8A8A8;
-  border-right-style: none;
-  border-right-width: 2px;
-  border-right-color: #D3D3D3;
-  border-bottom-style: solid;
-  border-bottom-width: 2px;
-  border-bottom-color: #A8A8A8;
-  border-left-style: none;
-  border-left-width: 2px;
-  border-left-color: #D3D3D3;
-}
-
-#iqtadcxwpy .gt_caption {
-  padding-top: 4px;
-  padding-bottom: 4px;
-}
-
-#iqtadcxwpy .gt_title {
-  color: #333333;
-  font-size: 125%;
-  font-weight: initial;
-  padding-top: 4px;
-  padding-bottom: 4px;
-  padding-left: 5px;
-  padding-right: 5px;
-  border-bottom-color: #FFFFFF;
-  border-bottom-width: 0;
-}
-
-#iqtadcxwpy .gt_subtitle {
-  color: #333333;
-  font-size: 85%;
-  font-weight: initial;
-  padding-top: 3px;
-  padding-bottom: 5px;
-  padding-left: 5px;
-  padding-right: 5px;
-  border-top-color: #FFFFFF;
-  border-top-width: 0;
-}
-
-#iqtadcxwpy .gt_heading {
-  background-color: #FFFFFF;
-  text-align: center;
-  border-bottom-color: #FFFFFF;
-  border-left-style: none;
-  border-left-width: 1px;
-  border-left-color: #D3D3D3;
-  border-right-style: none;
-  border-right-width: 1px;
-  border-right-color: #D3D3D3;
-}
-
-#iqtadcxwpy .gt_bottom_border {
-  border-bottom-style: solid;
-  border-bottom-width: 2px;
-  border-bottom-color: #D3D3D3;
-}
-
-#iqtadcxwpy .gt_col_headings {
-  border-top-style: solid;
-  border-top-width: 2px;
-  border-top-color: #D3D3D3;
-  border-bottom-style: solid;
-  border-bottom-width: 2px;
-  border-bottom-color: #D3D3D3;
-  border-left-style: none;
-  border-left-width: 1px;
-  border-left-color: #D3D3D3;
-  border-right-style: none;
-  border-right-width: 1px;
-  border-right-color: #D3D3D3;
-}
-
-#iqtadcxwpy .gt_col_heading {
-  color: #333333;
-  background-color: #FFFFFF;
-  font-size: 100%;
-  font-weight: normal;
-  text-transform: inherit;
-  border-left-style: none;
-  border-left-width: 1px;
-  border-left-color: #D3D3D3;
-  border-right-style: none;
-  border-right-width: 1px;
-  border-right-color: #D3D3D3;
-  vertical-align: bottom;
-  padding-top: 5px;
-  padding-bottom: 6px;
-  padding-left: 5px;
-  padding-right: 5px;
-  overflow-x: hidden;
-}
-
-#iqtadcxwpy .gt_column_spanner_outer {
-  color: #333333;
-  background-color: #FFFFFF;
-  font-size: 100%;
-  font-weight: normal;
-  text-transform: inherit;
-  padding-top: 0;
-  padding-bottom: 0;
-  padding-left: 4px;
-  padding-right: 4px;
-}
-
-#iqtadcxwpy .gt_column_spanner_outer:first-child {
-  padding-left: 0;
-}
-
-#iqtadcxwpy .gt_column_spanner_outer:last-child {
-  padding-right: 0;
-}
-
-#iqtadcxwpy .gt_column_spanner {
-  border-bottom-style: solid;
-  border-bottom-width: 2px;
-  border-bottom-color: #D3D3D3;
-  vertical-align: bottom;
-  padding-top: 5px;
-  padding-bottom: 5px;
-  overflow-x: hidden;
-  display: inline-block;
-  width: 100%;
-}
-
-#iqtadcxwpy .gt_spanner_row {
-  border-bottom-style: hidden;
-}
-
-#iqtadcxwpy .gt_group_heading {
-  padding-top: 8px;
-  padding-bottom: 8px;
-  padding-left: 5px;
-  padding-right: 5px;
-  color: #333333;
-  background-color: #FFFFFF;
-  font-size: 100%;
-  font-weight: initial;
-  text-transform: inherit;
-  border-top-style: solid;
-  border-top-width: 2px;
-  border-top-color: #D3D3D3;
-  border-bottom-style: solid;
-  border-bottom-width: 2px;
-  border-bottom-color: #D3D3D3;
-  border-left-style: none;
-  border-left-width: 1px;
-  border-left-color: #D3D3D3;
-  border-right-style: none;
-  border-right-width: 1px;
-  border-right-color: #D3D3D3;
-  vertical-align: middle;
-  text-align: left;
-}
-
-#iqtadcxwpy .gt_empty_group_heading {
-  padding: 0.5px;
-  color: #333333;
-  background-color: #FFFFFF;
-  font-size: 100%;
-  font-weight: initial;
-  border-top-style: solid;
-  border-top-width: 2px;
-  border-top-color: #D3D3D3;
-  border-bottom-style: solid;
-  border-bottom-width: 2px;
-  border-bottom-color: #D3D3D3;
-  vertical-align: middle;
-}
-
-#iqtadcxwpy .gt_from_md > :first-child {
-  margin-top: 0;
-}
-
-#iqtadcxwpy .gt_from_md > :last-child {
-  margin-bottom: 0;
-}
-
-#iqtadcxwpy .gt_row {
-  padding-top: 8px;
-  padding-bottom: 8px;
-  padding-left: 5px;
-  padding-right: 5px;
-  margin: 10px;
-  border-top-style: solid;
-  border-top-width: 1px;
-  border-top-color: #D3D3D3;
-  border-left-style: none;
-  border-left-width: 1px;
-  border-left-color: #D3D3D3;
-  border-right-style: none;
-  border-right-width: 1px;
-  border-right-color: #D3D3D3;
-  vertical-align: middle;
-  overflow-x: hidden;
-}
-
-#iqtadcxwpy .gt_stub {
-  color: #333333;
-  background-color: #FFFFFF;
-  font-size: 100%;
-  font-weight: initial;
-  text-transform: inherit;
-  border-right-style: solid;
-  border-right-width: 2px;
-  border-right-color: #D3D3D3;
-  padding-left: 5px;
-  padding-right: 5px;
-}
-
-#iqtadcxwpy .gt_stub_row_group {
-  color: #333333;
-  background-color: #FFFFFF;
-  font-size: 100%;
-  font-weight: initial;
-  text-transform: inherit;
-  border-right-style: solid;
-  border-right-width: 2px;
-  border-right-color: #D3D3D3;
-  padding-left: 5px;
-  padding-right: 5px;
-  vertical-align: top;
-}
-
-#iqtadcxwpy .gt_row_group_first td {
-  border-top-width: 2px;
-}
-
-#iqtadcxwpy .gt_row_group_first th {
-  border-top-width: 2px;
-}
-
-#iqtadcxwpy .gt_summary_row {
-  color: #333333;
-  background-color: #FFFFFF;
-  text-transform: inherit;
-  padding-top: 8px;
-  padding-bottom: 8px;
-  padding-left: 5px;
-  padding-right: 5px;
-}
-
-#iqtadcxwpy .gt_first_summary_row {
-  border-top-style: solid;
-  border-top-color: #D3D3D3;
-}
-
-#iqtadcxwpy .gt_first_summary_row.thick {
-  border-top-width: 2px;
-}
-
-#iqtadcxwpy .gt_last_summary_row {
-  padding-top: 8px;
-  padding-bottom: 8px;
-  padding-left: 5px;
-  padding-right: 5px;
-  border-bottom-style: solid;
-  border-bottom-width: 2px;
-  border-bottom-color: #D3D3D3;
-}
-
-#iqtadcxwpy .gt_grand_summary_row {
-  color: #333333;
-  background-color: #FFFFFF;
-  text-transform: inherit;
-  padding-top: 8px;
-  padding-bottom: 8px;
-  padding-left: 5px;
-  padding-right: 5px;
-}
-
-#iqtadcxwpy .gt_first_grand_summary_row {
-  padding-top: 8px;
-  padding-bottom: 8px;
-  padding-left: 5px;
-  padding-right: 5px;
-  border-top-style: double;
-  border-top-width: 6px;
-  border-top-color: #D3D3D3;
-}
-
-#iqtadcxwpy .gt_last_grand_summary_row_top {
-  padding-top: 8px;
-  padding-bottom: 8px;
-  padding-left: 5px;
-  padding-right: 5px;
-  border-bottom-style: double;
-  border-bottom-width: 6px;
-  border-bottom-color: #D3D3D3;
-}
-
-#iqtadcxwpy .gt_striped {
-  background-color: rgba(128, 128, 128, 0.05);
-}
-
-#iqtadcxwpy .gt_table_body {
-  border-top-style: solid;
-  border-top-width: 2px;
-  border-top-color: #D3D3D3;
-  border-bottom-style: solid;
-  border-bottom-width: 2px;
-  border-bottom-color: #D3D3D3;
-}
-
-#iqtadcxwpy .gt_footnotes {
-  color: #333333;
-  background-color: #FFFFFF;
-  border-bottom-style: none;
-  border-bottom-width: 2px;
-  border-bottom-color: #D3D3D3;
-  border-left-style: none;
-  border-left-width: 2px;
-  border-left-color: #D3D3D3;
-  border-right-style: none;
-  border-right-width: 2px;
-  border-right-color: #D3D3D3;
-}
-
-#iqtadcxwpy .gt_footnote {
-  margin: 0px;
-  font-size: 90%;
-  padding-top: 4px;
-  padding-bottom: 4px;
-  padding-left: 5px;
-  padding-right: 5px;
-}
-
-#iqtadcxwpy .gt_sourcenotes {
-  color: #333333;
-  background-color: #FFFFFF;
-  border-bottom-style: none;
-  border-bottom-width: 2px;
-  border-bottom-color: #D3D3D3;
-  border-left-style: none;
-  border-left-width: 2px;
-  border-left-color: #D3D3D3;
-  border-right-style: none;
-  border-right-width: 2px;
-  border-right-color: #D3D3D3;
-}
-
-#iqtadcxwpy .gt_sourcenote {
-  font-size: 90%;
-  padding-top: 4px;
-  padding-bottom: 4px;
-  padding-left: 5px;
-  padding-right: 5px;
-}
-
-#iqtadcxwpy .gt_left {
-  text-align: left;
-}
-
-#iqtadcxwpy .gt_center {
-  text-align: center;
-}
-
-#iqtadcxwpy .gt_right {
-  text-align: right;
-  font-variant-numeric: tabular-nums;
-}
-
-#iqtadcxwpy .gt_font_normal {
-  font-weight: normal;
-}
-
-#iqtadcxwpy .gt_font_bold {
-  font-weight: bold;
-}
-
-#iqtadcxwpy .gt_font_italic {
-  font-style: italic;
-}
-
-#iqtadcxwpy .gt_super {
-  font-size: 65%;
-}
-
-#iqtadcxwpy .gt_footnote_marks {
-  font-size: 75%;
-  vertical-align: 0.4em;
-  position: initial;
-}
-
-#iqtadcxwpy .gt_asterisk {
-  font-size: 100%;
-  vertical-align: 0;
-}
-
-#iqtadcxwpy .gt_indent_1 {
-  text-indent: 5px;
-}
-
-#iqtadcxwpy .gt_indent_2 {
-  text-indent: 10px;
-}
-
-#iqtadcxwpy .gt_indent_3 {
-  text-indent: 15px;
-}
-
-#iqtadcxwpy .gt_indent_4 {
-  text-indent: 20px;
-}
-
-#iqtadcxwpy .gt_indent_5 {
-  text-indent: 25px;
-}
-
-#iqtadcxwpy .katex-display {
-  display: inline-flex !important;
-  margin-bottom: 0.75em !important;
-}
-
-#iqtadcxwpy div.Reactable > div.rt-table > div.rt-thead > div.rt-tr.rt-tr-group-header > div.rt-th-group:after {
-  height: 0px !important;
-}
-</style>
-
-<table class="gt_table caption-top" data-quarto-postprocess="true" data-quarto-disable-processing="false" data-quarto-bootstrap="false">
-<thead>
-<tr class="header gt_col_headings">
-<th id="Location" class="gt_col_heading gt_columns_bottom_border gt_left" data-quarto-table-cell-role="th" scope="col">Location</th>
-<th id="Year" class="gt_col_heading gt_columns_bottom_border gt_right" data-quarto-table-cell-role="th" scope="col">Year</th>
-<th id="P" class="gt_col_heading gt_columns_bottom_border gt_right" data-quarto-table-cell-role="th" scope="col">P</th>
-<th id="Q" class="gt_col_heading gt_columns_bottom_border gt_right" data-quarto-table-cell-role="th" scope="col">Q</th>
-<th id="Ql" class="gt_col_heading gt_columns_bottom_border gt_right" data-quarto-table-cell-role="th" scope="col">Ql</th>
-</tr>
-</thead>
-<tbody class="gt_table_body">
-<tr class="odd">
-<td class="gt_row gt_left" headers="Location">Chicago</td>
-<td class="gt_row gt_right" headers="Year">2003</td>
-<td class="gt_row gt_right" headers="P">75</td>
-<td class="gt_row gt_right" headers="Q">2.0</td>
-<td class="gt_row gt_right" headers="Ql">10</td>
-</tr>
-<tr class="even">
-<td class="gt_row gt_left" headers="Location">Chicago</td>
-<td class="gt_row gt_right" headers="Year">2004</td>
-<td class="gt_row gt_right" headers="P">85</td>
-<td class="gt_row gt_right" headers="Q">1.8</td>
-<td class="gt_row gt_right" headers="Ql">10</td>
-</tr>
-<tr class="odd">
-<td class="gt_row gt_left" headers="Location">Peoria</td>
-<td class="gt_row gt_right" headers="Year">2003</td>
-<td class="gt_row gt_right" headers="P">50</td>
-<td class="gt_row gt_right" headers="Q">1.0</td>
-<td class="gt_row gt_right" headers="Ql">5</td>
-</tr>
-<tr class="even">
-<td class="gt_row gt_left" headers="Location">Peoria</td>
-<td class="gt_row gt_right" headers="Year">2004</td>
-<td class="gt_row gt_right" headers="P">48</td>
-<td class="gt_row gt_right" headers="Q">1.1</td>
-<td class="gt_row gt_right" headers="Ql">5</td>
-</tr>
-<tr class="odd">
-<td class="gt_row gt_left" headers="Location">Milwaukee</td>
-<td class="gt_row gt_right" headers="Year">2003</td>
-<td class="gt_row gt_right" headers="P">60</td>
-<td class="gt_row gt_right" headers="Q">1.5</td>
-<td class="gt_row gt_right" headers="Ql">7</td>
-</tr>
-<tr class="even">
-<td class="gt_row gt_left" headers="Location">Milwaukee</td>
-<td class="gt_row gt_right" headers="Year">2004</td>
-<td class="gt_row gt_right" headers="P">65</td>
-<td class="gt_row gt_right" headers="Q">1.4</td>
-<td class="gt_row gt_right" headers="Ql">7</td>
-</tr>
-<tr class="odd">
-<td class="gt_row gt_left" headers="Location">Madison</td>
-<td class="gt_row gt_right" headers="Year">2003</td>
-<td class="gt_row gt_right" headers="P">55</td>
-<td class="gt_row gt_right" headers="Q">0.8</td>
-<td class="gt_row gt_right" headers="Ql">6</td>
-</tr>
-<tr class="even">
-<td class="gt_row gt_left" headers="Location">Madison</td>
-<td class="gt_row gt_right" headers="Year">2004</td>
-<td class="gt_row gt_right" headers="P">60</td>
-<td class="gt_row gt_right" headers="Q">0.7</td>
-<td class="gt_row gt_right" headers="Ql">6</td>
-</tr>
-</tbody>
-</table>
-
-</div>
-</div>
-</div>
-<div class="panel-tabset">
-<ul id="tabset-2" class="panel-tabset-tabby"><li><a data-tabby-default="" href="#tabset-2-1">Key</a></li><li><a href="#tabset-2-2">within-city</a></li><li><a href="#tabset-2-3">Question</a></li></ul>
-<div class="tab-content">
-<div id="tabset-2-1">
-<p>There are two kinds of variations:</p>
-<ul>
-<li>inte-rcity (across city) variation</li>
-<li>intra-city (within city) variation</li>
-</ul>
-<p>The cross-sectional data offers only the inte-rcity (across city) variations.</p>
-</div>
-<div id="tabset-2-2">
-<p>Now, compare the massage price and massages per capita <span style="color: blue;"> within </span> each city (over time). What do you see?</p>
-<br>
-<details>
-<summary>
-Answer
-</summary>
-Price and quantity are <span style="color: red;"> negatively </span> correlated!
-</details>
-</div>
-<div id="tabset-2-3">
-<p>Why looking at the <span style="color: blue;"> intra-city (within city) </span> variation seemed to help us estimate the impact of massage price on demand more credibly?</p>
-<br>
-<details>
-<summary>
-Answer
-</summary>
-The omitted variable, massage quality, did not change over time within city, which means it is controlled for as long as you look only at the intra-city variations (you do not compare .red[across] cities).
-</details>
-</div>
-</div>
-</div>
-<!--end of panel-->
-</div>
-</div>
-</div>
-<!--end of panel-->
-</section>
-<section id="using-only-the-intra-city-variations" class="slide level2">
-<h2>Using only the intra-city variations</h2>
-<div class="panel-tabset">
-<ul id="tabset-4" class="panel-tabset-tabby"><li><a data-tabby-default="" href="#tabset-4-1">first-differencing</a></li><li><a href="#tabset-4-2">first-differenced model</a></li><li><a href="#tabset-4-3">Estimate the model</a></li><li><a href="#tabset-4-4">Summary</a></li></ul>
+<ul id="tabset-4" class="panel-tabset-tabby"><li><a data-tabby-default="" href="#tabset-4-1">Review of Endogeneity</a></li><li><a href="#tabset-4-2">Causal Diagram</a></li><li><a href="#tabset-4-3">Rough idea</a></li><li><a href="#tabset-4-4">Estimation procedure</a></li><li><a href="#tabset-4-5">Example</a></li></ul>
 <div class="tab-content">
 <div id="tabset-4-1">
-<p><strong>Question</strong></p>
-<p>So, how do we use only the intra-city variations in a regression framework?</p>
+<p><strong>Endogeneity</strong></p>
+<p><span class="math inline">\(E[u|x_k] \ne 0\)</span> (the error term is not correlated with any of the independent variables)</p>
 <p><br></p>
-<p><strong>first-differencing</strong></p>
-<p>One way to do this is to compute the changes in prices and th changes in quantities in each city <span class="math inline">\((\Delta P\)</span> and <span class="math inline">\(\Delta Q)\)</span> and then regress <span class="math inline">\(\Delta Q\)</span> and <span class="math inline">\(\Delta P\)</span>.</p>
-<p><br></p>
-<div class="columns">
-<div class="column" style="width:70%;">
-<p><strong>First-differenced Data</strong></p>
-<div id="qwebr-insertion-location-5"></div>
-<noscript>Please enable JavaScript to experience the dynamic code cell content on this page.</noscript>
-<div class="cell">
-<div class="cell-output-display">
-<div id="mzdcvdhfua" style="padding-left:0px;padding-right:0px;padding-top:10px;padding-bottom:10px;overflow-x:auto;overflow-y:auto;width:auto;height:auto;">
-<style>#mzdcvdhfua table {
-  font-family: system-ui, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol', 'Noto Color Emoji';
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
-}
-
-#mzdcvdhfua thead, #mzdcvdhfua tbody, #mzdcvdhfua tfoot, #mzdcvdhfua tr, #mzdcvdhfua td, #mzdcvdhfua th {
-  border-style: none;
-}
-
-#mzdcvdhfua p {
-  margin: 0;
-  padding: 0;
-}
-
-#mzdcvdhfua .gt_table {
-  display: table;
-  border-collapse: collapse;
-  line-height: normal;
-  margin-left: auto;
-  margin-right: auto;
-  color: #333333;
-  font-size: 16px;
-  font-weight: normal;
-  font-style: normal;
-  background-color: #FFFFFF;
-  width: auto;
-  border-top-style: solid;
-  border-top-width: 2px;
-  border-top-color: #A8A8A8;
-  border-right-style: none;
-  border-right-width: 2px;
-  border-right-color: #D3D3D3;
-  border-bottom-style: solid;
-  border-bottom-width: 2px;
-  border-bottom-color: #A8A8A8;
-  border-left-style: none;
-  border-left-width: 2px;
-  border-left-color: #D3D3D3;
-}
-
-#mzdcvdhfua .gt_caption {
-  padding-top: 4px;
-  padding-bottom: 4px;
-}
-
-#mzdcvdhfua .gt_title {
-  color: #333333;
-  font-size: 125%;
-  font-weight: initial;
-  padding-top: 4px;
-  padding-bottom: 4px;
-  padding-left: 5px;
-  padding-right: 5px;
-  border-bottom-color: #FFFFFF;
-  border-bottom-width: 0;
-}
-
-#mzdcvdhfua .gt_subtitle {
-  color: #333333;
-  font-size: 85%;
-  font-weight: initial;
-  padding-top: 3px;
-  padding-bottom: 5px;
-  padding-left: 5px;
-  padding-right: 5px;
-  border-top-color: #FFFFFF;
-  border-top-width: 0;
-}
-
-#mzdcvdhfua .gt_heading {
-  background-color: #FFFFFF;
-  text-align: center;
-  border-bottom-color: #FFFFFF;
-  border-left-style: none;
-  border-left-width: 1px;
-  border-left-color: #D3D3D3;
-  border-right-style: none;
-  border-right-width: 1px;
-  border-right-color: #D3D3D3;
-}
-
-#mzdcvdhfua .gt_bottom_border {
-  border-bottom-style: solid;
-  border-bottom-width: 2px;
-  border-bottom-color: #D3D3D3;
-}
-
-#mzdcvdhfua .gt_col_headings {
-  border-top-style: solid;
-  border-top-width: 2px;
-  border-top-color: #D3D3D3;
-  border-bottom-style: solid;
-  border-bottom-width: 2px;
-  border-bottom-color: #D3D3D3;
-  border-left-style: none;
-  border-left-width: 1px;
-  border-left-color: #D3D3D3;
-  border-right-style: none;
-  border-right-width: 1px;
-  border-right-color: #D3D3D3;
-}
-
-#mzdcvdhfua .gt_col_heading {
-  color: #333333;
-  background-color: #FFFFFF;
-  font-size: 100%;
-  font-weight: normal;
-  text-transform: inherit;
-  border-left-style: none;
-  border-left-width: 1px;
-  border-left-color: #D3D3D3;
-  border-right-style: none;
-  border-right-width: 1px;
-  border-right-color: #D3D3D3;
-  vertical-align: bottom;
-  padding-top: 5px;
-  padding-bottom: 6px;
-  padding-left: 5px;
-  padding-right: 5px;
-  overflow-x: hidden;
-}
-
-#mzdcvdhfua .gt_column_spanner_outer {
-  color: #333333;
-  background-color: #FFFFFF;
-  font-size: 100%;
-  font-weight: normal;
-  text-transform: inherit;
-  padding-top: 0;
-  padding-bottom: 0;
-  padding-left: 4px;
-  padding-right: 4px;
-}
-
-#mzdcvdhfua .gt_column_spanner_outer:first-child {
-  padding-left: 0;
-}
-
-#mzdcvdhfua .gt_column_spanner_outer:last-child {
-  padding-right: 0;
-}
-
-#mzdcvdhfua .gt_column_spanner {
-  border-bottom-style: solid;
-  border-bottom-width: 2px;
-  border-bottom-color: #D3D3D3;
-  vertical-align: bottom;
-  padding-top: 5px;
-  padding-bottom: 5px;
-  overflow-x: hidden;
-  display: inline-block;
-  width: 100%;
-}
-
-#mzdcvdhfua .gt_spanner_row {
-  border-bottom-style: hidden;
-}
-
-#mzdcvdhfua .gt_group_heading {
-  padding-top: 8px;
-  padding-bottom: 8px;
-  padding-left: 5px;
-  padding-right: 5px;
-  color: #333333;
-  background-color: #FFFFFF;
-  font-size: 100%;
-  font-weight: initial;
-  text-transform: inherit;
-  border-top-style: solid;
-  border-top-width: 2px;
-  border-top-color: #D3D3D3;
-  border-bottom-style: solid;
-  border-bottom-width: 2px;
-  border-bottom-color: #D3D3D3;
-  border-left-style: none;
-  border-left-width: 1px;
-  border-left-color: #D3D3D3;
-  border-right-style: none;
-  border-right-width: 1px;
-  border-right-color: #D3D3D3;
-  vertical-align: middle;
-  text-align: left;
-}
-
-#mzdcvdhfua .gt_empty_group_heading {
-  padding: 0.5px;
-  color: #333333;
-  background-color: #FFFFFF;
-  font-size: 100%;
-  font-weight: initial;
-  border-top-style: solid;
-  border-top-width: 2px;
-  border-top-color: #D3D3D3;
-  border-bottom-style: solid;
-  border-bottom-width: 2px;
-  border-bottom-color: #D3D3D3;
-  vertical-align: middle;
-}
-
-#mzdcvdhfua .gt_from_md > :first-child {
-  margin-top: 0;
-}
-
-#mzdcvdhfua .gt_from_md > :last-child {
-  margin-bottom: 0;
-}
-
-#mzdcvdhfua .gt_row {
-  padding-top: 8px;
-  padding-bottom: 8px;
-  padding-left: 5px;
-  padding-right: 5px;
-  margin: 10px;
-  border-top-style: solid;
-  border-top-width: 1px;
-  border-top-color: #D3D3D3;
-  border-left-style: none;
-  border-left-width: 1px;
-  border-left-color: #D3D3D3;
-  border-right-style: none;
-  border-right-width: 1px;
-  border-right-color: #D3D3D3;
-  vertical-align: middle;
-  overflow-x: hidden;
-}
-
-#mzdcvdhfua .gt_stub {
-  color: #333333;
-  background-color: #FFFFFF;
-  font-size: 100%;
-  font-weight: initial;
-  text-transform: inherit;
-  border-right-style: solid;
-  border-right-width: 2px;
-  border-right-color: #D3D3D3;
-  padding-left: 5px;
-  padding-right: 5px;
-}
-
-#mzdcvdhfua .gt_stub_row_group {
-  color: #333333;
-  background-color: #FFFFFF;
-  font-size: 100%;
-  font-weight: initial;
-  text-transform: inherit;
-  border-right-style: solid;
-  border-right-width: 2px;
-  border-right-color: #D3D3D3;
-  padding-left: 5px;
-  padding-right: 5px;
-  vertical-align: top;
-}
-
-#mzdcvdhfua .gt_row_group_first td {
-  border-top-width: 2px;
-}
-
-#mzdcvdhfua .gt_row_group_first th {
-  border-top-width: 2px;
-}
-
-#mzdcvdhfua .gt_summary_row {
-  color: #333333;
-  background-color: #FFFFFF;
-  text-transform: inherit;
-  padding-top: 8px;
-  padding-bottom: 8px;
-  padding-left: 5px;
-  padding-right: 5px;
-}
-
-#mzdcvdhfua .gt_first_summary_row {
-  border-top-style: solid;
-  border-top-color: #D3D3D3;
-}
-
-#mzdcvdhfua .gt_first_summary_row.thick {
-  border-top-width: 2px;
-}
-
-#mzdcvdhfua .gt_last_summary_row {
-  padding-top: 8px;
-  padding-bottom: 8px;
-  padding-left: 5px;
-  padding-right: 5px;
-  border-bottom-style: solid;
-  border-bottom-width: 2px;
-  border-bottom-color: #D3D3D3;
-}
-
-#mzdcvdhfua .gt_grand_summary_row {
-  color: #333333;
-  background-color: #FFFFFF;
-  text-transform: inherit;
-  padding-top: 8px;
-  padding-bottom: 8px;
-  padding-left: 5px;
-  padding-right: 5px;
-}
-
-#mzdcvdhfua .gt_first_grand_summary_row {
-  padding-top: 8px;
-  padding-bottom: 8px;
-  padding-left: 5px;
-  padding-right: 5px;
-  border-top-style: double;
-  border-top-width: 6px;
-  border-top-color: #D3D3D3;
-}
-
-#mzdcvdhfua .gt_last_grand_summary_row_top {
-  padding-top: 8px;
-  padding-bottom: 8px;
-  padding-left: 5px;
-  padding-right: 5px;
-  border-bottom-style: double;
-  border-bottom-width: 6px;
-  border-bottom-color: #D3D3D3;
-}
-
-#mzdcvdhfua .gt_striped {
-  background-color: rgba(128, 128, 128, 0.05);
-}
-
-#mzdcvdhfua .gt_table_body {
-  border-top-style: solid;
-  border-top-width: 2px;
-  border-top-color: #D3D3D3;
-  border-bottom-style: solid;
-  border-bottom-width: 2px;
-  border-bottom-color: #D3D3D3;
-}
-
-#mzdcvdhfua .gt_footnotes {
-  color: #333333;
-  background-color: #FFFFFF;
-  border-bottom-style: none;
-  border-bottom-width: 2px;
-  border-bottom-color: #D3D3D3;
-  border-left-style: none;
-  border-left-width: 2px;
-  border-left-color: #D3D3D3;
-  border-right-style: none;
-  border-right-width: 2px;
-  border-right-color: #D3D3D3;
-}
-
-#mzdcvdhfua .gt_footnote {
-  margin: 0px;
-  font-size: 90%;
-  padding-top: 4px;
-  padding-bottom: 4px;
-  padding-left: 5px;
-  padding-right: 5px;
-}
-
-#mzdcvdhfua .gt_sourcenotes {
-  color: #333333;
-  background-color: #FFFFFF;
-  border-bottom-style: none;
-  border-bottom-width: 2px;
-  border-bottom-color: #D3D3D3;
-  border-left-style: none;
-  border-left-width: 2px;
-  border-left-color: #D3D3D3;
-  border-right-style: none;
-  border-right-width: 2px;
-  border-right-color: #D3D3D3;
-}
-
-#mzdcvdhfua .gt_sourcenote {
-  font-size: 90%;
-  padding-top: 4px;
-  padding-bottom: 4px;
-  padding-left: 5px;
-  padding-right: 5px;
-}
-
-#mzdcvdhfua .gt_left {
-  text-align: left;
-}
-
-#mzdcvdhfua .gt_center {
-  text-align: center;
-}
-
-#mzdcvdhfua .gt_right {
-  text-align: right;
-  font-variant-numeric: tabular-nums;
-}
-
-#mzdcvdhfua .gt_font_normal {
-  font-weight: normal;
-}
-
-#mzdcvdhfua .gt_font_bold {
-  font-weight: bold;
-}
-
-#mzdcvdhfua .gt_font_italic {
-  font-style: italic;
-}
-
-#mzdcvdhfua .gt_super {
-  font-size: 65%;
-}
-
-#mzdcvdhfua .gt_footnote_marks {
-  font-size: 75%;
-  vertical-align: 0.4em;
-  position: initial;
-}
-
-#mzdcvdhfua .gt_asterisk {
-  font-size: 100%;
-  vertical-align: 0;
-}
-
-#mzdcvdhfua .gt_indent_1 {
-  text-indent: 5px;
-}
-
-#mzdcvdhfua .gt_indent_2 {
-  text-indent: 10px;
-}
-
-#mzdcvdhfua .gt_indent_3 {
-  text-indent: 15px;
-}
-
-#mzdcvdhfua .gt_indent_4 {
-  text-indent: 20px;
-}
-
-#mzdcvdhfua .gt_indent_5 {
-  text-indent: 25px;
-}
-
-#mzdcvdhfua .katex-display {
-  display: inline-flex !important;
-  margin-bottom: 0.75em !important;
-}
-
-#mzdcvdhfua div.Reactable > div.rt-table > div.rt-thead > div.rt-tr.rt-tr-group-header > div.rt-th-group:after {
-  height: 0px !important;
-}
-</style>
-
-<table class="gt_table caption-top" data-quarto-postprocess="true" data-quarto-disable-processing="false" data-quarto-bootstrap="false">
-<thead>
-<tr class="header gt_col_headings">
-<th id="Location" class="gt_col_heading gt_columns_bottom_border gt_left" data-quarto-table-cell-role="th" scope="col">Location</th>
-<th id="Year" class="gt_col_heading gt_columns_bottom_border gt_right" data-quarto-table-cell-role="th" scope="col">Year</th>
-<th id="P" class="gt_col_heading gt_columns_bottom_border gt_right" data-quarto-table-cell-role="th" scope="col">P</th>
-<th id="Q" class="gt_col_heading gt_columns_bottom_border gt_right" data-quarto-table-cell-role="th" scope="col">Q</th>
-<th id="Ql" class="gt_col_heading gt_columns_bottom_border gt_right" data-quarto-table-cell-role="th" scope="col">Ql</th>
-<th id="P_dif" class="gt_col_heading gt_columns_bottom_border gt_right" data-quarto-table-cell-role="th" scope="col">P_dif</th>
-<th id="Q_dif" class="gt_col_heading gt_columns_bottom_border gt_right" data-quarto-table-cell-role="th" scope="col">Q_dif</th>
-<th id="Ql_dif" class="gt_col_heading gt_columns_bottom_border gt_right" data-quarto-table-cell-role="th" scope="col">Ql_dif</th>
-</tr>
-</thead>
-<tbody class="gt_table_body">
-<tr class="odd">
-<td class="gt_row gt_left" headers="Location">Chicago</td>
-<td class="gt_row gt_right" headers="Year">2003</td>
-<td class="gt_row gt_right" headers="P">75</td>
-<td class="gt_row gt_right" headers="Q">2.0</td>
-<td class="gt_row gt_right" headers="Ql">10</td>
-<td class="gt_row gt_right" headers="P_dif">NA</td>
-<td class="gt_row gt_right" headers="Q_dif">NA</td>
-<td class="gt_row gt_right" headers="Ql_dif">NA</td>
-</tr>
-<tr class="even">
-<td class="gt_row gt_left" headers="Location">Chicago</td>
-<td class="gt_row gt_right" headers="Year">2004</td>
-<td class="gt_row gt_right" headers="P">85</td>
-<td class="gt_row gt_right" headers="Q">1.8</td>
-<td class="gt_row gt_right" headers="Ql">10</td>
-<td class="gt_row gt_right" headers="P_dif" style="background-color: #FFA500">10</td>
-<td class="gt_row gt_right" headers="Q_dif" style="background-color: #FFA500">-0.2</td>
-<td class="gt_row gt_right" headers="Ql_dif" style="background-color: #FFA500">0</td>
-</tr>
-<tr class="odd">
-<td class="gt_row gt_left" headers="Location">Peoria</td>
-<td class="gt_row gt_right" headers="Year">2003</td>
-<td class="gt_row gt_right" headers="P">50</td>
-<td class="gt_row gt_right" headers="Q">1.0</td>
-<td class="gt_row gt_right" headers="Ql">5</td>
-<td class="gt_row gt_right" headers="P_dif">NA</td>
-<td class="gt_row gt_right" headers="Q_dif">NA</td>
-<td class="gt_row gt_right" headers="Ql_dif">NA</td>
-</tr>
-<tr class="even">
-<td class="gt_row gt_left" headers="Location">Peoria</td>
-<td class="gt_row gt_right" headers="Year">2004</td>
-<td class="gt_row gt_right" headers="P">48</td>
-<td class="gt_row gt_right" headers="Q">1.1</td>
-<td class="gt_row gt_right" headers="Ql">5</td>
-<td class="gt_row gt_right" headers="P_dif" style="background-color: #FFA500">-2</td>
-<td class="gt_row gt_right" headers="Q_dif" style="background-color: #FFA500">0.1</td>
-<td class="gt_row gt_right" headers="Ql_dif" style="background-color: #FFA500">0</td>
-</tr>
-<tr class="odd">
-<td class="gt_row gt_left" headers="Location">Milwaukee</td>
-<td class="gt_row gt_right" headers="Year">2003</td>
-<td class="gt_row gt_right" headers="P">60</td>
-<td class="gt_row gt_right" headers="Q">1.5</td>
-<td class="gt_row gt_right" headers="Ql">7</td>
-<td class="gt_row gt_right" headers="P_dif">NA</td>
-<td class="gt_row gt_right" headers="Q_dif">NA</td>
-<td class="gt_row gt_right" headers="Ql_dif">NA</td>
-</tr>
-<tr class="even">
-<td class="gt_row gt_left" headers="Location">Milwaukee</td>
-<td class="gt_row gt_right" headers="Year">2004</td>
-<td class="gt_row gt_right" headers="P">65</td>
-<td class="gt_row gt_right" headers="Q">1.4</td>
-<td class="gt_row gt_right" headers="Ql">7</td>
-<td class="gt_row gt_right" headers="P_dif" style="background-color: #FFA500">5</td>
-<td class="gt_row gt_right" headers="Q_dif" style="background-color: #FFA500">-0.1</td>
-<td class="gt_row gt_right" headers="Ql_dif" style="background-color: #FFA500">0</td>
-</tr>
-<tr class="odd">
-<td class="gt_row gt_left" headers="Location">Madison</td>
-<td class="gt_row gt_right" headers="Year">2003</td>
-<td class="gt_row gt_right" headers="P">55</td>
-<td class="gt_row gt_right" headers="Q">0.8</td>
-<td class="gt_row gt_right" headers="Ql">6</td>
-<td class="gt_row gt_right" headers="P_dif">NA</td>
-<td class="gt_row gt_right" headers="Q_dif">NA</td>
-<td class="gt_row gt_right" headers="Ql_dif">NA</td>
-</tr>
-<tr class="even">
-<td class="gt_row gt_left" headers="Location">Madison</td>
-<td class="gt_row gt_right" headers="Year">2004</td>
-<td class="gt_row gt_right" headers="P">60</td>
-<td class="gt_row gt_right" headers="Q">0.7</td>
-<td class="gt_row gt_right" headers="Ql">6</td>
-<td class="gt_row gt_right" headers="P_dif" style="background-color: #FFA500">5</td>
-<td class="gt_row gt_right" headers="Q_dif" style="background-color: #FFA500">-0.1</td>
-<td class="gt_row gt_right" headers="Ql_dif" style="background-color: #FFA500">0</td>
-</tr>
-</tbody>
-</table>
-
-</div>
-</div>
-</div>
-</div><!--end of the 1st column--><div class="column" style="width:30%;">
-<p><strong>Key</strong></p>
-<p>Variations in quality is eliminated after first differentiation!! (quality is controlled for)</p>
-</div><!--end of the 2nd column-->
-</div>
-<!--end of the columns-->
+<p><strong>Endogenous independent variable</strong></p>
+<p>If the error term is, .red[for whatever reason], correlated with the independent variable <span class="math inline">\(x_k\)</span>, then we say that <span class="math inline">\(x_k\)</span> is an endogenous independent variable.</p>
+<ul>
+<li>Omitted variable</li>
+<li>Selection</li>
+<li>Reverse causality</li>
+<li>Measurement error</li>
+</ul>
 </div>
 <div id="tabset-4-2">
-<p><strong>A new way of writing a model</strong></p>
-<p><span class="math inline">\(Q_{i,t}  = \beta_0 + \beta_1 P_{i,t} + v_{i,t} \;\; ( = \beta_2 Ql_{i,t} + u_{i,t})\)</span></p>
+<div class="panel-tabset">
+<ul id="tabset-1" class="panel-tabset-tabby"><li><a data-tabby-default="" href="#tabset-1-1">Causal diagram of the model</a></li><li><a href="#tabset-1-2">Causal diagram with an instrument</a></li></ul>
+<div class="tab-content">
+<div id="tabset-1-1">
+<p>You want to estimate the causal impact of education on income.</p>
 <ul>
-<li><code>i</code>: indicates city</li>
-<li><code>t</code>: indicates time</li>
+<li>Variable of interest: Education</li>
+<li>Dependent variable: Income</li>
 </ul>
-<p><br></p>
-<p><strong>First differencing</strong></p>
-<p><span class="math inline">\(Q_{i,1}  = \beta_0 + \beta_1 P_{i,1} + v_{i,1} \;\; ( = \beta_2 Ql_{i,1} + u_{i,1})\)</span></p>
-<p><span class="math inline">\(Q_{i,2}  = \beta_0 + \beta_1 P_{i,2} + v_{i,2} \;\; ( = \beta_2 Ql_{i,2} + u_{i,2})\)</span></p>
-<p><span class="math inline">\(\Rightarrow\)</span></p>
-<p><span class="math inline">\(\Delta Q  = \beta_1 \Delta P + \Delta v ( = \beta_2 \Delta Ql + \Delta u)\)</span></p>
-<p><br></p>
-<p><strong>Endogeneity Problem?</strong></p>
-<p>Since <span class="math inline">\(Ql_{i,1} = Ql_{i,2}\)</span>, <span class="math inline">\(\Delta Ql = 0 \Rightarrow \Delta Q  = \beta_0 + \beta_1 \Delta P + \Delta u\)</span></p>
-<p>No endogeneity problem after first differentiation!</p>
+<p><strong>Causal diagram</strong></p>
+<p><img data-src="causal_graph.svg"></p>
 </div>
-<div id="tabset-4-3">
-<p><strong>Data</strong></p>
-<div id="qwebr-insertion-location-6"></div>
-<noscript>Please enable JavaScript to experience the dynamic code cell content on this page.</noscript>
+<div id="tabset-1-2">
+<p>We want to find a variable like <span class="math inline">\(Z\)</span> in the diagram below:</p>
+<p><br></p>
 <div class="columns">
 <div class="column" style="width:50%;">
-<p><strong>OLS on the original data:</strong></p>
-<div id="qwebr-insertion-location-7"></div>
-<noscript>Please enable JavaScript to experience the dynamic code cell content on this page.</noscript>
+<p><img data-src="causal_graph_z.svg"></p>
 </div><!--end of the 1st column--><div class="column" style="width:50%;">
-<p><strong>OLS on the first-differenced data:</strong></p>
-<div id="qwebr-insertion-location-8"></div>
-<noscript>Please enable JavaScript to experience the dynamic code cell content on this page.</noscript>
+<ul>
+<li><span class="math inline">\(Z\)</span> does <span style="color: blue;"> NOT </span> affect income <span style="color: blue;"> directly </span></li>
+<li><span class="math inline">\(Z\)</span> is correlated with the variable of interest (education)
+<ul>
+<li>does not matter which causes which (associattion is enough)</li>
+</ul></li>
+<li><span class="math inline">\(Z\)</span> is <span style="color: blue;"> NOT </span> correlated with <span style="color: red;"> any </span> of the unobservable variables in the error term (including ability) that is making the vairable of interest (education) endogeneous.
+<ul>
+<li><span class="math inline">\(Z\)</span> does not affect ability</li>
+<li>abiliyt does not affect <span class="math inline">\(Z\)</span></li>
+</ul></li>
+</ul>
 </div><!--end of the 2nd column-->
 </div>
 <!--end of the columns-->
 </div>
-<div id="tabset-4-4">
+</div>
+</div>
+<!--end of panel-->
+</div>
+<div id="tabset-4-3">
+<p><strong>The Model</strong></p>
+<p><span class="math inline">\(y=\beta_0 + \beta_1 x_1 + \beta_2 x_2 + u\)</span></p>
 <ul>
-<li><p>As long as the omitted variable that affects both the dependent and independent variables are constant over time (time-invariant), then using only the variations over time (ignoring variations across cross-sectional units) can eliminate the omitted variable bias</p></li>
-<li><p>First-differencing the data and then regressing changes on changes does the trick of ignoring variations across cross-sectional units</p></li>
-<li><p>Of course, first-differencing is possible only because the same cross-sectional units are observed multiple times over time.</p></li>
+<li><span class="math inline">\(x_1\)</span> is endogenous: <span class="math inline">\(E[u|x_1] \ne 0\)</span> (or <span class="math inline">\(Cov(u,x_1)\ne 0\)</span>)</li>
+<li><span class="math inline">\(x_2\)</span> is exogenous: <span class="math inline">\(E[u|x_1] = 0\)</span> (or <span class="math inline">\(Cov(u,x_1) = 0\)</span>)</li>
 </ul>
+<p><br></p>
+<p><strong>Idea (very loosely put)</strong></p>
+<p>Bring in variable(s) (<span style="color: blue;"> Instrumental variable(s) </span>) that does <span style="color: red;"> NOT </span> belong to the model, but <span style="color: red;"> IS </span> related with the endogenous variable,</p>
+<ul>
+<li><p>Using the instrumental variable(s) (which we denote by <span class="math inline">\(Z\)</span>), make the endogenous variable exogenous, which we call .blue[instrumented] variable(s)</p></li>
+<li><p>Use the variation in the instrumented variable instead of the original endogenous variable to estimate the impact of the original variable</p></li>
+</ul>
+</div>
+<div id="tabset-4-4">
+<div class="panel-tabset">
+<ul id="tabset-2" class="panel-tabset-tabby"><li><a data-tabby-default="" href="#tabset-2-1">Step 1</a></li><li><a href="#tabset-2-2">Step 2</a></li></ul>
+<div class="tab-content">
+<div id="tabset-2-1">
+<p><strong>Idea</strong></p>
+<p>Using the instrumental variables, make the endogenous variable exogenous, which we call <span style="color: blue;"> instrumented </span> variable.</p>
+<p><br></p>
+<p><strong>Step 1: mathematically</strong></p>
+<ul>
+<li>Regress the endogenous variable <span class="math inline">\((x_1)\)</span> on the instrumental variable(s) <span class="math inline">\((Z=\{z_1,z_2\}\)</span>, two instruments here) and all the other exogenous variables <span class="math inline">\((x_2\)</span> here)</li>
+</ul>
+<p><span class="math inline">\(x_1 = \alpha_0 + \sigma_2 x_2 + \alpha_1 z_1 +\alpha_2 z_2 + v\)</span></p>
+<ul>
+<li>obtain the predicted value of <span class="math inline">\(x\)</span> from the regression</li>
+</ul>
+<p><span class="math inline">\(\widehat{x}_1 = \widehat{\alpha}_0 + \widehat{\sigma}_2 x_2 + \widehat{\alpha}_1 z_1 + \widehat{\alpha}_2 z_2\)</span></p>
+</div>
+<div id="tabset-2-2">
+<p><strong>Idea</strong></p>
+<p>Use the variation in the instrumented variable instead of the original endogenous variable to estimate the impact of the original variable</p>
+<p><br></p>
+<p><strong>Step 2: Mathematically</strong></p>
+<p>Regress the dependent variable <span class="math inline">\((y)\)</span> on the instrumented variable <span class="math inline">\((\widehat{x}_1)\)</span>,</p>
+<p><span class="math inline">\(y= \beta_0 + \beta_1 \widehat{x}_1+ \beta_2 x_2 + \varepsilon\)</span></p>
+<p>to estimate the coefficient on <span class="math inline">\(x\)</span> in the original model</p>
+</div>
+</div>
+</div>
+<!--end of panel-->
+</div>
+<div id="tabset-4-5">
+<div class="panel-tabset">
+<ul id="tabset-3" class="panel-tabset-tabby"><li><a data-tabby-default="" href="#tabset-3-1">Model of interest</a></li><li><a href="#tabset-3-2">Step 1</a></li><li><a href="#tabset-3-3">Step 2</a></li></ul>
+<div class="tab-content">
+<div id="tabset-3-1">
+<p><strong>Model</strong></p>
+<p><span class="math inline">\(log(wage) = \beta_0 + \beta_1 educ + \beta_2 exper + (\beta_3 ability + v)\)</span></p>
+<ul>
+<li>Regress <span class="math inline">\(log(wage)\)</span> on <span class="math inline">\(educ\)</span> and <span class="math inline">\(exper\)</span> <span class="math inline">\((ability\)</span> not included because you do not observe it)</li>
+<li><span class="math inline">\((\beta_3 ability + v)\)</span> is the error term</li>
+<li><span class="math inline">\(educ\)</span> is considered endogenous (correlated with <span class="math inline">\(ability\)</span>)</li>
+<li><span class="math inline">\(exper\)</span> is considered exogenous (not correlated with <span class="math inline">\(ability\)</span>)</li>
+</ul>
+<p><br></p>
+<p><strong>Instruments (Z)</strong></p>
+<p>Suppose you selected the following variables as instruments:</p>
+<ul>
+<li>IQ test score <span class="math inline">\((IQ)\)</span></li>
+<li>number of siblings <span class="math inline">\((sibs)\)</span></li>
+</ul>
+</div>
+<div id="tabset-3-2">
+<p>Regress <span class="math inline">\(educ\)</span> on <span class="math inline">\(exper\)</span>, <span class="math inline">\(IQ\)</span>, and <span class="math inline">\(sibs\)</span>:</p>
+<span class="math display">\[\begin{align*}
+educ = \alpha_0 + \alpha_1 exper + \alpha_2 IQ + \alpha_3 sibs + u
+\end{align*}\]</span>
+<p>Use the coefficient estimates on <span class="math inline">\(\alpha_0\)</span>, <span class="math inline">\(\alpha_1\)</span>, <span class="math inline">\(\alpha_2\)</span>, and <span class="math inline">\(\alpha_3\)</span> to predict <span class="math inline">\(educ\)</span> as a function of <span class="math inline">\(exper\)</span>, <span class="math inline">\(IQ\)</span>, and <span class="math inline">\(sibs\)</span>.</p>
+<span class="math display">\[\begin{align*}
+\widehat{educ} = \widehat{\alpha_0} + \widehat{\alpha_1} exper + \widehat{\alpha_2} IQ + \widehat{\alpha_3} sibs
+\end{align*}\]</span>
+<p><br></p>
+<div id="qwebr-insertion-location-1"></div>
+<noscript>Please enable JavaScript to experience the dynamic code cell content on this page.</noscript>
+</div>
+<div id="tabset-3-3">
+<p>Use <span class="math inline">\(\widehat{educ}\)</span> in place of <span class="math inline">\(educ\)</span> to estimate the model of interest:</p>
+<span class="math display">\[\begin{align*}
+log(wage) = \beta_0 + \beta_1 \widehat{educ} + \beta_2 exper + u
+\end{align*}\]</span>
+<p><br></p>
+<div id="qwebr-insertion-location-2"></div>
+<noscript>Please enable JavaScript to experience the dynamic code cell content on this page.</noscript>
+</div>
+</div>
+</div>
+<!--end of panel-->
 </div>
 </div>
 </div>
 <!--end of panel-->
 </section>
-<section id="multi-year-general-panel-datasets" class="slide level2">
-<h2>Multi-year (general) panel datasets</h2>
+<section id="when-does-iv-work" class="slide level2">
+<h2>When does IV work?</h2>
 <div class="panel-tabset">
-<ul id="tabset-6" class="panel-tabset-tabby"><li><a data-tabby-default="" href="#tabset-6-1">deviation from the mean</a></li><li><a href="#tabset-6-2">Fixed Effects Regression</a></li></ul>
+<ul id="tabset-6" class="panel-tabset-tabby"><li><a data-tabby-default="" href="#tabset-6-1">Introduction</a></li><li><a href="#tabset-6-2">Condition 1</a></li><li><a href="#tabset-6-3">Condition 2</a></li><li><a href="#tabset-6-4">Review of the conditions</a></li><li><a href="#tabset-6-5">2SLS</a></li></ul>
 <div class="tab-content">
 <div id="tabset-6-1">
-<p><strong>within-transformation</strong></p>
-<ul>
-<li><p>If we have lots of years of data, we could, in principle, compute all of the first differences (i.e., 2004 versus 2003, 2005 versus 2004, etc.) and then run a single regression. But there is an easier way.</p></li>
-<li><p>Instead of thinking of each year’s observation in terms of how much it differs from the prior year for the same city, let’s think about how much each observation differs from the average for that city.</p></li>
-</ul>
-<p><strong>Example</strong></p>
-<p>How much each observation differs from the average for that city?</p>
-<div id="qwebr-insertion-location-9"></div>
-<noscript>Please enable JavaScript to experience the dynamic code cell content on this page.</noscript>
-<div class="cell">
-<div class="cell-output-display">
-<div id="zsexmorfdu" style="padding-left:0px;padding-right:0px;padding-top:10px;padding-bottom:10px;overflow-x:auto;overflow-y:auto;width:auto;height:auto;">
-<style>#zsexmorfdu table {
-  font-family: system-ui, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol', 'Noto Color Emoji';
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
-}
-
-#zsexmorfdu thead, #zsexmorfdu tbody, #zsexmorfdu tfoot, #zsexmorfdu tr, #zsexmorfdu td, #zsexmorfdu th {
-  border-style: none;
-}
-
-#zsexmorfdu p {
-  margin: 0;
-  padding: 0;
-}
-
-#zsexmorfdu .gt_table {
-  display: table;
-  border-collapse: collapse;
-  line-height: normal;
-  margin-left: auto;
-  margin-right: auto;
-  color: #333333;
-  font-size: 16px;
-  font-weight: normal;
-  font-style: normal;
-  background-color: #FFFFFF;
-  width: auto;
-  border-top-style: solid;
-  border-top-width: 2px;
-  border-top-color: #A8A8A8;
-  border-right-style: none;
-  border-right-width: 2px;
-  border-right-color: #D3D3D3;
-  border-bottom-style: solid;
-  border-bottom-width: 2px;
-  border-bottom-color: #A8A8A8;
-  border-left-style: none;
-  border-left-width: 2px;
-  border-left-color: #D3D3D3;
-}
-
-#zsexmorfdu .gt_caption {
-  padding-top: 4px;
-  padding-bottom: 4px;
-}
-
-#zsexmorfdu .gt_title {
-  color: #333333;
-  font-size: 125%;
-  font-weight: initial;
-  padding-top: 4px;
-  padding-bottom: 4px;
-  padding-left: 5px;
-  padding-right: 5px;
-  border-bottom-color: #FFFFFF;
-  border-bottom-width: 0;
-}
-
-#zsexmorfdu .gt_subtitle {
-  color: #333333;
-  font-size: 85%;
-  font-weight: initial;
-  padding-top: 3px;
-  padding-bottom: 5px;
-  padding-left: 5px;
-  padding-right: 5px;
-  border-top-color: #FFFFFF;
-  border-top-width: 0;
-}
-
-#zsexmorfdu .gt_heading {
-  background-color: #FFFFFF;
-  text-align: center;
-  border-bottom-color: #FFFFFF;
-  border-left-style: none;
-  border-left-width: 1px;
-  border-left-color: #D3D3D3;
-  border-right-style: none;
-  border-right-width: 1px;
-  border-right-color: #D3D3D3;
-}
-
-#zsexmorfdu .gt_bottom_border {
-  border-bottom-style: solid;
-  border-bottom-width: 2px;
-  border-bottom-color: #D3D3D3;
-}
-
-#zsexmorfdu .gt_col_headings {
-  border-top-style: solid;
-  border-top-width: 2px;
-  border-top-color: #D3D3D3;
-  border-bottom-style: solid;
-  border-bottom-width: 2px;
-  border-bottom-color: #D3D3D3;
-  border-left-style: none;
-  border-left-width: 1px;
-  border-left-color: #D3D3D3;
-  border-right-style: none;
-  border-right-width: 1px;
-  border-right-color: #D3D3D3;
-}
-
-#zsexmorfdu .gt_col_heading {
-  color: #333333;
-  background-color: #FFFFFF;
-  font-size: 100%;
-  font-weight: normal;
-  text-transform: inherit;
-  border-left-style: none;
-  border-left-width: 1px;
-  border-left-color: #D3D3D3;
-  border-right-style: none;
-  border-right-width: 1px;
-  border-right-color: #D3D3D3;
-  vertical-align: bottom;
-  padding-top: 5px;
-  padding-bottom: 6px;
-  padding-left: 5px;
-  padding-right: 5px;
-  overflow-x: hidden;
-}
-
-#zsexmorfdu .gt_column_spanner_outer {
-  color: #333333;
-  background-color: #FFFFFF;
-  font-size: 100%;
-  font-weight: normal;
-  text-transform: inherit;
-  padding-top: 0;
-  padding-bottom: 0;
-  padding-left: 4px;
-  padding-right: 4px;
-}
-
-#zsexmorfdu .gt_column_spanner_outer:first-child {
-  padding-left: 0;
-}
-
-#zsexmorfdu .gt_column_spanner_outer:last-child {
-  padding-right: 0;
-}
-
-#zsexmorfdu .gt_column_spanner {
-  border-bottom-style: solid;
-  border-bottom-width: 2px;
-  border-bottom-color: #D3D3D3;
-  vertical-align: bottom;
-  padding-top: 5px;
-  padding-bottom: 5px;
-  overflow-x: hidden;
-  display: inline-block;
-  width: 100%;
-}
-
-#zsexmorfdu .gt_spanner_row {
-  border-bottom-style: hidden;
-}
-
-#zsexmorfdu .gt_group_heading {
-  padding-top: 8px;
-  padding-bottom: 8px;
-  padding-left: 5px;
-  padding-right: 5px;
-  color: #333333;
-  background-color: #FFFFFF;
-  font-size: 100%;
-  font-weight: initial;
-  text-transform: inherit;
-  border-top-style: solid;
-  border-top-width: 2px;
-  border-top-color: #D3D3D3;
-  border-bottom-style: solid;
-  border-bottom-width: 2px;
-  border-bottom-color: #D3D3D3;
-  border-left-style: none;
-  border-left-width: 1px;
-  border-left-color: #D3D3D3;
-  border-right-style: none;
-  border-right-width: 1px;
-  border-right-color: #D3D3D3;
-  vertical-align: middle;
-  text-align: left;
-}
-
-#zsexmorfdu .gt_empty_group_heading {
-  padding: 0.5px;
-  color: #333333;
-  background-color: #FFFFFF;
-  font-size: 100%;
-  font-weight: initial;
-  border-top-style: solid;
-  border-top-width: 2px;
-  border-top-color: #D3D3D3;
-  border-bottom-style: solid;
-  border-bottom-width: 2px;
-  border-bottom-color: #D3D3D3;
-  vertical-align: middle;
-}
-
-#zsexmorfdu .gt_from_md > :first-child {
-  margin-top: 0;
-}
-
-#zsexmorfdu .gt_from_md > :last-child {
-  margin-bottom: 0;
-}
-
-#zsexmorfdu .gt_row {
-  padding-top: 8px;
-  padding-bottom: 8px;
-  padding-left: 5px;
-  padding-right: 5px;
-  margin: 10px;
-  border-top-style: solid;
-  border-top-width: 1px;
-  border-top-color: #D3D3D3;
-  border-left-style: none;
-  border-left-width: 1px;
-  border-left-color: #D3D3D3;
-  border-right-style: none;
-  border-right-width: 1px;
-  border-right-color: #D3D3D3;
-  vertical-align: middle;
-  overflow-x: hidden;
-}
-
-#zsexmorfdu .gt_stub {
-  color: #333333;
-  background-color: #FFFFFF;
-  font-size: 100%;
-  font-weight: initial;
-  text-transform: inherit;
-  border-right-style: solid;
-  border-right-width: 2px;
-  border-right-color: #D3D3D3;
-  padding-left: 5px;
-  padding-right: 5px;
-}
-
-#zsexmorfdu .gt_stub_row_group {
-  color: #333333;
-  background-color: #FFFFFF;
-  font-size: 100%;
-  font-weight: initial;
-  text-transform: inherit;
-  border-right-style: solid;
-  border-right-width: 2px;
-  border-right-color: #D3D3D3;
-  padding-left: 5px;
-  padding-right: 5px;
-  vertical-align: top;
-}
-
-#zsexmorfdu .gt_row_group_first td {
-  border-top-width: 2px;
-}
-
-#zsexmorfdu .gt_row_group_first th {
-  border-top-width: 2px;
-}
-
-#zsexmorfdu .gt_summary_row {
-  color: #333333;
-  background-color: #FFFFFF;
-  text-transform: inherit;
-  padding-top: 8px;
-  padding-bottom: 8px;
-  padding-left: 5px;
-  padding-right: 5px;
-}
-
-#zsexmorfdu .gt_first_summary_row {
-  border-top-style: solid;
-  border-top-color: #D3D3D3;
-}
-
-#zsexmorfdu .gt_first_summary_row.thick {
-  border-top-width: 2px;
-}
-
-#zsexmorfdu .gt_last_summary_row {
-  padding-top: 8px;
-  padding-bottom: 8px;
-  padding-left: 5px;
-  padding-right: 5px;
-  border-bottom-style: solid;
-  border-bottom-width: 2px;
-  border-bottom-color: #D3D3D3;
-}
-
-#zsexmorfdu .gt_grand_summary_row {
-  color: #333333;
-  background-color: #FFFFFF;
-  text-transform: inherit;
-  padding-top: 8px;
-  padding-bottom: 8px;
-  padding-left: 5px;
-  padding-right: 5px;
-}
-
-#zsexmorfdu .gt_first_grand_summary_row {
-  padding-top: 8px;
-  padding-bottom: 8px;
-  padding-left: 5px;
-  padding-right: 5px;
-  border-top-style: double;
-  border-top-width: 6px;
-  border-top-color: #D3D3D3;
-}
-
-#zsexmorfdu .gt_last_grand_summary_row_top {
-  padding-top: 8px;
-  padding-bottom: 8px;
-  padding-left: 5px;
-  padding-right: 5px;
-  border-bottom-style: double;
-  border-bottom-width: 6px;
-  border-bottom-color: #D3D3D3;
-}
-
-#zsexmorfdu .gt_striped {
-  background-color: rgba(128, 128, 128, 0.05);
-}
-
-#zsexmorfdu .gt_table_body {
-  border-top-style: solid;
-  border-top-width: 2px;
-  border-top-color: #D3D3D3;
-  border-bottom-style: solid;
-  border-bottom-width: 2px;
-  border-bottom-color: #D3D3D3;
-}
-
-#zsexmorfdu .gt_footnotes {
-  color: #333333;
-  background-color: #FFFFFF;
-  border-bottom-style: none;
-  border-bottom-width: 2px;
-  border-bottom-color: #D3D3D3;
-  border-left-style: none;
-  border-left-width: 2px;
-  border-left-color: #D3D3D3;
-  border-right-style: none;
-  border-right-width: 2px;
-  border-right-color: #D3D3D3;
-}
-
-#zsexmorfdu .gt_footnote {
-  margin: 0px;
-  font-size: 90%;
-  padding-top: 4px;
-  padding-bottom: 4px;
-  padding-left: 5px;
-  padding-right: 5px;
-}
-
-#zsexmorfdu .gt_sourcenotes {
-  color: #333333;
-  background-color: #FFFFFF;
-  border-bottom-style: none;
-  border-bottom-width: 2px;
-  border-bottom-color: #D3D3D3;
-  border-left-style: none;
-  border-left-width: 2px;
-  border-left-color: #D3D3D3;
-  border-right-style: none;
-  border-right-width: 2px;
-  border-right-color: #D3D3D3;
-}
-
-#zsexmorfdu .gt_sourcenote {
-  font-size: 90%;
-  padding-top: 4px;
-  padding-bottom: 4px;
-  padding-left: 5px;
-  padding-right: 5px;
-}
-
-#zsexmorfdu .gt_left {
-  text-align: left;
-}
-
-#zsexmorfdu .gt_center {
-  text-align: center;
-}
-
-#zsexmorfdu .gt_right {
-  text-align: right;
-  font-variant-numeric: tabular-nums;
-}
-
-#zsexmorfdu .gt_font_normal {
-  font-weight: normal;
-}
-
-#zsexmorfdu .gt_font_bold {
-  font-weight: bold;
-}
-
-#zsexmorfdu .gt_font_italic {
-  font-style: italic;
-}
-
-#zsexmorfdu .gt_super {
-  font-size: 65%;
-}
-
-#zsexmorfdu .gt_footnote_marks {
-  font-size: 75%;
-  vertical-align: 0.4em;
-  position: initial;
-}
-
-#zsexmorfdu .gt_asterisk {
-  font-size: 100%;
-  vertical-align: 0;
-}
-
-#zsexmorfdu .gt_indent_1 {
-  text-indent: 5px;
-}
-
-#zsexmorfdu .gt_indent_2 {
-  text-indent: 10px;
-}
-
-#zsexmorfdu .gt_indent_3 {
-  text-indent: 15px;
-}
-
-#zsexmorfdu .gt_indent_4 {
-  text-indent: 20px;
-}
-
-#zsexmorfdu .gt_indent_5 {
-  text-indent: 25px;
-}
-
-#zsexmorfdu .katex-display {
-  display: inline-flex !important;
-  margin-bottom: 0.75em !important;
-}
-
-#zsexmorfdu div.Reactable > div.rt-table > div.rt-thead > div.rt-tr.rt-tr-group-header > div.rt-th-group:after {
-  height: 0px !important;
-}
-</style>
-
-<table class="gt_table caption-top" data-quarto-postprocess="true" data-quarto-disable-processing="false" data-quarto-bootstrap="false">
-<thead>
-<tr class="header gt_col_headings">
-<th id="Location" class="gt_col_heading gt_columns_bottom_border gt_left" data-quarto-table-cell-role="th" scope="col">Location</th>
-<th id="Year" class="gt_col_heading gt_columns_bottom_border gt_right" data-quarto-table-cell-role="th" scope="col">Year</th>
-<th id="P" class="gt_col_heading gt_columns_bottom_border gt_right" data-quarto-table-cell-role="th" scope="col">P</th>
-<th id="P_mean" class="gt_col_heading gt_columns_bottom_border gt_right" data-quarto-table-cell-role="th" scope="col">P_mean</th>
-<th id="P_dev" class="gt_col_heading gt_columns_bottom_border gt_right" data-quarto-table-cell-role="th" scope="col">P_dev</th>
-<th id="Q" class="gt_col_heading gt_columns_bottom_border gt_right" data-quarto-table-cell-role="th" scope="col">Q</th>
-<th id="Q_mean" class="gt_col_heading gt_columns_bottom_border gt_right" data-quarto-table-cell-role="th" scope="col">Q_mean</th>
-<th id="Q_dev" class="gt_col_heading gt_columns_bottom_border gt_right" data-quarto-table-cell-role="th" scope="col">Q_dev</th>
-<th id="Ql" class="gt_col_heading gt_columns_bottom_border gt_right" data-quarto-table-cell-role="th" scope="col">Ql</th>
-<th id="Ql_mean" class="gt_col_heading gt_columns_bottom_border gt_right" data-quarto-table-cell-role="th" scope="col">Ql_mean</th>
-<th id="Ql_dev" class="gt_col_heading gt_columns_bottom_border gt_right" data-quarto-table-cell-role="th" scope="col">Ql_dev</th>
-</tr>
-</thead>
-<tbody class="gt_table_body">
-<tr class="odd">
-<td class="gt_row gt_left" headers="Location">Chicago</td>
-<td class="gt_row gt_right" headers="Year">2003</td>
-<td class="gt_row gt_right" headers="P">75</td>
-<td class="gt_row gt_right" headers="P_mean">80.0</td>
-<td class="gt_row gt_right" headers="P_dev" style="background-color: #FFA500">-5.0</td>
-<td class="gt_row gt_right" headers="Q">2.0</td>
-<td class="gt_row gt_right" headers="Q_mean">1.90</td>
-<td class="gt_row gt_right" headers="Q_dev" style="background-color: #FFA500">0.10</td>
-<td class="gt_row gt_right" headers="Ql">10</td>
-<td class="gt_row gt_right" headers="Ql_mean">10</td>
-<td class="gt_row gt_right" headers="Ql_dev" style="background-color: #FFA500">0</td>
-</tr>
-<tr class="even">
-<td class="gt_row gt_left" headers="Location">Chicago</td>
-<td class="gt_row gt_right" headers="Year">2004</td>
-<td class="gt_row gt_right" headers="P">85</td>
-<td class="gt_row gt_right" headers="P_mean">80.0</td>
-<td class="gt_row gt_right" headers="P_dev" style="background-color: #FFA500">5.0</td>
-<td class="gt_row gt_right" headers="Q">1.8</td>
-<td class="gt_row gt_right" headers="Q_mean">1.90</td>
-<td class="gt_row gt_right" headers="Q_dev" style="background-color: #FFA500">-0.10</td>
-<td class="gt_row gt_right" headers="Ql">10</td>
-<td class="gt_row gt_right" headers="Ql_mean">10</td>
-<td class="gt_row gt_right" headers="Ql_dev" style="background-color: #FFA500">0</td>
-</tr>
-<tr class="odd">
-<td class="gt_row gt_left" headers="Location">Peoria</td>
-<td class="gt_row gt_right" headers="Year">2003</td>
-<td class="gt_row gt_right" headers="P">50</td>
-<td class="gt_row gt_right" headers="P_mean">49.0</td>
-<td class="gt_row gt_right" headers="P_dev" style="background-color: #FFA500">1.0</td>
-<td class="gt_row gt_right" headers="Q">1.0</td>
-<td class="gt_row gt_right" headers="Q_mean">1.05</td>
-<td class="gt_row gt_right" headers="Q_dev" style="background-color: #FFA500">-0.05</td>
-<td class="gt_row gt_right" headers="Ql">5</td>
-<td class="gt_row gt_right" headers="Ql_mean">5</td>
-<td class="gt_row gt_right" headers="Ql_dev" style="background-color: #FFA500">0</td>
-</tr>
-<tr class="even">
-<td class="gt_row gt_left" headers="Location">Peoria</td>
-<td class="gt_row gt_right" headers="Year">2004</td>
-<td class="gt_row gt_right" headers="P">48</td>
-<td class="gt_row gt_right" headers="P_mean">49.0</td>
-<td class="gt_row gt_right" headers="P_dev" style="background-color: #FFA500">-1.0</td>
-<td class="gt_row gt_right" headers="Q">1.1</td>
-<td class="gt_row gt_right" headers="Q_mean">1.05</td>
-<td class="gt_row gt_right" headers="Q_dev" style="background-color: #FFA500">0.05</td>
-<td class="gt_row gt_right" headers="Ql">5</td>
-<td class="gt_row gt_right" headers="Ql_mean">5</td>
-<td class="gt_row gt_right" headers="Ql_dev" style="background-color: #FFA500">0</td>
-</tr>
-<tr class="odd">
-<td class="gt_row gt_left" headers="Location">Milwaukee</td>
-<td class="gt_row gt_right" headers="Year">2003</td>
-<td class="gt_row gt_right" headers="P">60</td>
-<td class="gt_row gt_right" headers="P_mean">62.5</td>
-<td class="gt_row gt_right" headers="P_dev" style="background-color: #FFA500">-2.5</td>
-<td class="gt_row gt_right" headers="Q">1.5</td>
-<td class="gt_row gt_right" headers="Q_mean">1.45</td>
-<td class="gt_row gt_right" headers="Q_dev" style="background-color: #FFA500">0.05</td>
-<td class="gt_row gt_right" headers="Ql">7</td>
-<td class="gt_row gt_right" headers="Ql_mean">7</td>
-<td class="gt_row gt_right" headers="Ql_dev" style="background-color: #FFA500">0</td>
-</tr>
-<tr class="even">
-<td class="gt_row gt_left" headers="Location">Milwaukee</td>
-<td class="gt_row gt_right" headers="Year">2004</td>
-<td class="gt_row gt_right" headers="P">65</td>
-<td class="gt_row gt_right" headers="P_mean">62.5</td>
-<td class="gt_row gt_right" headers="P_dev" style="background-color: #FFA500">2.5</td>
-<td class="gt_row gt_right" headers="Q">1.4</td>
-<td class="gt_row gt_right" headers="Q_mean">1.45</td>
-<td class="gt_row gt_right" headers="Q_dev" style="background-color: #FFA500">-0.05</td>
-<td class="gt_row gt_right" headers="Ql">7</td>
-<td class="gt_row gt_right" headers="Ql_mean">7</td>
-<td class="gt_row gt_right" headers="Ql_dev" style="background-color: #FFA500">0</td>
-</tr>
-<tr class="odd">
-<td class="gt_row gt_left" headers="Location">Madison</td>
-<td class="gt_row gt_right" headers="Year">2003</td>
-<td class="gt_row gt_right" headers="P">55</td>
-<td class="gt_row gt_right" headers="P_mean">57.5</td>
-<td class="gt_row gt_right" headers="P_dev" style="background-color: #FFA500">-2.5</td>
-<td class="gt_row gt_right" headers="Q">0.8</td>
-<td class="gt_row gt_right" headers="Q_mean">0.75</td>
-<td class="gt_row gt_right" headers="Q_dev" style="background-color: #FFA500">0.05</td>
-<td class="gt_row gt_right" headers="Ql">6</td>
-<td class="gt_row gt_right" headers="Ql_mean">6</td>
-<td class="gt_row gt_right" headers="Ql_dev" style="background-color: #FFA500">0</td>
-</tr>
-<tr class="even">
-<td class="gt_row gt_left" headers="Location">Madison</td>
-<td class="gt_row gt_right" headers="Year">2004</td>
-<td class="gt_row gt_right" headers="P">60</td>
-<td class="gt_row gt_right" headers="P_mean">57.5</td>
-<td class="gt_row gt_right" headers="P_dev" style="background-color: #FFA500">2.5</td>
-<td class="gt_row gt_right" headers="Q">0.7</td>
-<td class="gt_row gt_right" headers="Q_mean">0.75</td>
-<td class="gt_row gt_right" headers="Q_dev" style="background-color: #FFA500">-0.05</td>
-<td class="gt_row gt_right" headers="Ql">6</td>
-<td class="gt_row gt_right" headers="Ql_mean">6</td>
-<td class="gt_row gt_right" headers="Ql_dev" style="background-color: #FFA500">0</td>
-</tr>
-</tbody>
-</table>
-
-</div>
-</div>
-</div>
+<p>Just like OLS needs to satisy some conditions for it to consistently estimate the coefficients, IV approach needs to satisy some conditions for it to work.</p>
 <p><br></p>
-<p><strong>Note</strong></p>
-<p>We call this data transformation <span style="color: red;"> within-transformation </span> or <span style="color: red;"> demeaning </span>.</p>
+<p><strong>Estimation Procedure</strong></p>
+<ul>
+<li><p>Step 1: <span class="math inline">\(\widehat{x}_1 = \widehat{\alpha}_0 +\widehat{\sigma}_2 x_2 + \widehat{\alpha}_1 z_1 + \widehat{\alpha}_2 z_2\)</span></p></li>
+<li><p>Step 2: <span class="math inline">\(y = \beta_0 + \beta_1 \widehat{x}_1+ \beta_2 x_2 + \varepsilon\)</span></p></li>
+</ul>
+<p><br></p>
+<p><strong>Important question</strong></p>
+<p>What are the conditions under which IV estimation is consistent?</p>
+<p>The instruments <span class="math inline">\((Z)\)</span> need to satisfy two conditions, which we will discuss.</p>
 </div>
 <div id="tabset-6-2">
+<p><strong>Estimation Procedure</strong></p>
+<ul>
+<li><p>Step 1: <span class="math inline">\(\widehat{x}_1 = \widehat{\alpha}_0 +\widehat{\sigma}_2 x_2 + \widehat{\alpha}_1 z_1 + \widehat{\alpha}_2 z_2\)</span></p></li>
+<li><p>Step 2: <span class="math inline">\(y = \beta_0 + \beta_1 \widehat{x}_1+ \beta_2 x_2 + \varepsilon\)</span></p></li>
+</ul>
+<p><br></p>
+<p><strong>Question</strong></p>
+<p>What happens if <span class="math inline">\(Z\)</span> have no power to explain <span class="math inline">\(x_1\)</span> <span class="math inline">\((\alpha_1=0\)</span> and <span class="math inline">\(\alpha_2=0)\)</span>?</p>
+<br>
+<details>
+<summary>
+Answer
+</summary>
+<ul>
+<li><span class="math inline">\(\widehat{x}_1=\widehat{\alpha}_0+\widehat{\sigma}^2 x_2\)</span></li>
+<li><span class="math inline">\(\widehat{\beta}_1?\)</span></li>
+</ul>
+<p>That is, <span class="math inline">\(\widehat{x}_1\)</span> has no information beyond the information <span class="math inline">\(x_2\)</span> possesses.</p>
+The instrument(s) <span class="math inline">\(Z\)</span> have jointly significant explanatory power on the endogenous variable <span class="math inline">\(x_1\)</span> .red[after] you control for all the other exogenous variables (here <span class="math inline">\(x_2\)</span>)
+</details>
+</div>
+<div id="tabset-6-3">
+<div class="columns">
+<div class="column" style="width:50%;">
+<p><strong>Model of interest</strong></p>
+<p><span class="math inline">\(y = \beta_0 + \beta_1 x_1 + \beta_2 x_2 + u\)</span></p>
+</div><!--end of the 1st column--><div class="column" style="width:50%;">
+<p><strong>Estimation Procedure</strong></p>
+<ul>
+<li><p>Step 1: <span class="math inline">\(\widehat{x}_1 = \widehat{\alpha}_0 +\widehat{\sigma}_2 x_2 + \widehat{\alpha}_1 z_1 + \widehat{\alpha}_2 z_2\)</span></p></li>
+<li><p>Step 2: <span class="math inline">\(y = \beta_0 + \beta_1 \widehat{x}_1+ \beta_2 x_2 + \varepsilon\)</span></p></li>
+</ul>
+</div><!--end of the 2nd column-->
+</div>
+<!--end of the columns-->
 <div class="panel-tabset">
-<ul id="tabset-5" class="panel-tabset-tabby"><li><a data-tabby-default="" href="#tabset-5-1">Example</a></li><li><a href="#tabset-5-2">within-transformation</a></li><li><a href="#tabset-5-3">Endogeneity Problem?</a></li></ul>
+<ul id="tabset-5" class="panel-tabset-tabby"><li><a data-tabby-default="" href="#tabset-5-1">Investigation of the model</a></li><li><a href="#tabset-5-2">When is it unbiased?</a></li><li><a href="#tabset-5-3">So,</a></li></ul>
 <div class="tab-content">
 <div id="tabset-5-1">
-<p><strong>Model</strong></p>
-<ul>
-<li>Dependent variable: <code>Q_dev</code></li>
-<li>Independent variable: <code>P_dev</code></li>
-</ul>
-<p><strong>Key</strong></p>
-<p>In calculating <code>P_dev</code> (deviation from the mean by city), <code>Ql_dev</code> is eliminated.</p>
+<p>Remember you can break <span class="math inline">\(x_1\)</span> into the predicted part and the residuals.</p>
+<span class="math display">\[\begin{align*}
+x_1 = \widehat{x}_1 + \widehat{\varepsilon}
+\end{align*}\]</span>
+<p>where <span class="math inline">\(\widehat{\varepsilon}\)</span> is the residual of the first stage estimation.</p>
+<p>Plugging in <span class="math inline">\(x_1 = \widehat{x}_1 + \widehat{\varepsilon}\)</span> into the model of interest,</p>
+<span class="math display">\[\begin{align*}
+y &amp; =  \beta_0 + \beta_1 (\widehat{x}_1 + \widehat{\varepsilon}) + \beta_2 x_2+ u\\
+
+&amp; = \beta_0 + \beta_1 \widehat{x}_1 + \beta_2 x_2+ (\beta_1\widehat{\varepsilon} + u)
+\end{align*}\]</span>
+<p>So, if you regress <span class="math inline">\(y\)</span> on <span class="math inline">\(\widehat{x}_1\)</span> and <span class="math inline">\(x_2\)</span>, then the error term is <span class="math inline">\((\beta_1\widehat{\varepsilon} + u)\)</span>.</p>
+<p><br></p>
+<p><strong>Question</strong></p>
+<p>What is the condition under which the OLS estimation of <span class="math inline">\(\beta_1\)</span> in the main model is unbiased?</p>
+<br>
+<details>
+<summary>
+Answer
+</summary>
+<span class="math inline">\(\widehat{x}_1\)</span> is not correlated with <span class="math inline">\((\beta_1\widehat{\varepsilon} + u)\)</span>
+</details>
 </div>
 <div id="tabset-5-2">
-<p><span class="math inline">\(Q_{i,1}  = \beta_0 + \beta_1 P_{i,1} + v_{i,1} \;\; ( = \beta_2 Ql_{i,1} + u_{i,1})\)</span></p>
-<p><span class="math inline">\(Q_{i,2}  = \beta_0 + \beta_1 P_{i,2} + v_{i,2} \;\; ( = \beta_2 Ql_{i,2} + u_{i,2})\)</span></p>
-<p><span class="math inline">\(\vdots\)</span></p>
-<p><span class="math inline">\(Q_{i,T}  = \beta_0 + \beta_1 P_{i,T} + v_{i,T} \;\; ( = \beta_2 Ql_{i,T} + u_{i,T})\)</span></p>
-<p><span class="math inline">\(\Rightarrow\)</span></p>
-<p><span class="math inline">\(Q_{i,t} - \bar{Q_{i}}   = \beta_1 [P_{i,t} - \bar{P_{i}}] + [v_{i,t} - \bar{v_{i}}] ( = \beta_2 [Ql_{i,t} - \bar{Ql_{i}}] + [u_{i,t} - \bar{u_{i}}])\)</span></p>
+<p>We confirmed that we need the following condition to be satisfied:</p>
+<div data-tile="Condition">
+<div class="callout callout-note no-icon callout-titled callout-style-default">
+<div class="callout-body">
+<div class="callout-title">
+<p><strong>Note</strong></p>
+</div>
+<div class="callout-content">
+<p><span class="math inline">\(\widehat{x}_1\)</span> is not correlated with <span class="math inline">\((\beta_1\widehat{\varepsilon} + u)\)</span></p>
+</div>
+</div>
+</div>
+</div>
+<p>This in turn means that <span class="math inline">\(x_2\)</span>, <span class="math inline">\(z_1\)</span>, and <span class="math inline">\(z_2\)</span> are not correlated with <span class="math inline">\(u\)</span> (the error term of the true model.)</p>
+<p><span class="math inline">\((\widehat{x}_1\)</span> is always not correlated (orthogonal) with <span class="math inline">\(\varepsilon)\)</span></p>
 </div>
 <div id="tabset-5-3">
-<p><span class="math inline">\(Ql_{i,1} = Ql_{i,2} = \dots = Ql_{i,T} = \bar{Ql_i}\)</span></p>
-<p><span class="math inline">\(\Rightarrow\)</span></p>
-<p><span class="math inline">\(Q_{i,t} - \bar{Q_{i}}   = \beta_1 [P_{i,t} - \bar{P_{i}}] + [u_{i,t} - \bar{u_{i}}]\)</span></p>
+<div title="Condition 2">
+<div class="callout callout-important no-icon callout-titled callout-style-default">
+<div class="callout-body">
+<div class="callout-title">
+<p><strong>Condition 2</strong></p>
+</div>
+<div class="callout-content">
+<ul>
+<li><p><span class="math inline">\(z_1\)</span> and <span class="math inline">\(z_2\)</span> do not belong in the main model, meaning they do not have any explanatory power beyond <span class="math inline">\(x_2\)</span> (they should have been included in the model in the first place as independent variables)</p></li>
+<li><p><span class="math inline">\(z_1\)</span> and <span class="math inline">\(z_2\)</span> are not correlated with the error term (there are no unobserved factors in the error term that are correlated with <span class="math inline">\(Z\)</span>)</p></li>
+</ul>
+</div>
+</div>
+</div>
+</div>
 <p><br></p>
-<p>No endogeneity problem after the within-transformation because <span class="math inline">\(Ql\)</span> is gone.</p>
+<p><strong>Question</strong></p>
+<p>Do you think we can test condition 2?</p>
+<br>
+<details>
+<summary>
+Answer
+</summary>
+No, because we never observe the error term.
+</details>
+<p><br></p>
+<div class="callout callout-important no-icon callout-titled callout-style-default">
+<div class="callout-body">
+<div class="callout-title">
+<p><strong>Important</strong></p>
+</div>
+<div class="callout-content">
+<ul>
+<li><p>All we can do is to <span style="color: red;"> argue </span> that the instruments are not correlated with the error term.</p></li>
+<li><p>In journal articles that use IV method, they make careful arguments as to why their choice of instruments are not correlated with the error term.</p></li>
+</ul>
+</div>
+</div>
+</div>
 </div>
 </div>
 </div>
 <!--end of panel-->
+</div>
+<div id="tabset-6-4">
+<p><strong>Condition 1</strong></p>
+<ul>
+<li>The instrument(s) <span class="math inline">\(Z\)</span> have jointly significant explanatory power on the endogenous variable <span class="math inline">\(x_1\)</span> <span style="color: red;"> after </span> you control for all the other exogenous variables (here <span class="math inline">\(x_2\)</span>)</li>
+</ul>
+<p><br></p>
+<p><strong>Condition 2</strong></p>
+<ul>
+<li><p><span class="math inline">\(z_1\)</span> and <span class="math inline">\(z_2\)</span> do not belong in the main model, meaning they do not have any explanatory power beyond <span class="math inline">\(x_2\)</span> (they should have been included in the model in the first place as independent variables)</p></li>
+<li><p><span class="math inline">\(z_1\)</span> and <span class="math inline">\(z_2\)</span> are not correlated with the error term (there are no unobserved factors in the error term that are correlated with <span class="math inline">\(Z)\)</span></p></li>
+</ul>
+<p><br></p>
+<div class="callout callout-important no-icon callout-titled callout-style-default">
+<div class="callout-body">
+<div class="callout-title">
+<p><strong>Important</strong></p>
+</div>
+<div class="callout-content">
+<ul>
+<li><p>Condition 1 is always testable</p></li>
+<li><p>Condition 2 is NOT testable (unless you have more instruments than endogenous variables)</p></li>
+</ul>
+</div>
+</div>
+</div>
+</div>
+<div id="tabset-6-5">
+<p>IV estimator is also called two-stage least squares estimator (2SLS) because it involves two stages of OLS.</p>
+<ul>
+<li><p>Step 1: <span class="math inline">\(\widehat{x}_1 = \widehat{\alpha}_0 +\widehat{\sigma}_2 x_2 + \widehat{\alpha}_1 z_1 + \widehat{\alpha}_2 z_2\)</span></p></li>
+<li><p>Step 2: <span class="math inline">\(y = \beta_0 + \beta_1 \widehat{x}_1+ \beta_2 x_2 + \varepsilon\)</span></p></li>
+</ul>
+<p>2SLS framework is a good way to understand conceptually why and how instrumental variable estimation works. But, IV estimation is done in one-step</p>
 </div>
 </div>
 </div>
 <!--end of panel-->
 </section>
-<section id="fixed-effects-fe-estimation-in-general" class="slide level2">
-<h2>Fixed Effects (FE) Estimation (in general)</h2>
+<section id="instrumental-variable-validity" class="slide level2">
+<h2>Instrumental variable validity</h2>
 <div class="panel-tabset">
-<ul id="tabset-8" class="panel-tabset-tabby"><li><a data-tabby-default="" href="#tabset-8-1">FE estimation</a></li><li><a href="#tabset-8-2">When is FE estimation unbiased?</a></li><li><a href="#tabset-8-3">Example</a></li></ul>
-<div class="tab-content">
-<div id="tabset-8-1">
-<p>Consider the following general model</p>
-<p><span class="math inline">\(y_{i,t}=\beta_1 x_{i,t} + \alpha_i + u_{i,t}\)</span></p>
-<ul>
-<li><span class="math inline">\(\alpha_i\)</span>: the impact of time-invariant <span style="color: blue;"> unobserved </span> factor that is specific to <span class="math inline">\(i\)</span> (also termed .blue[individual fixed effect])</li>
-<li><span class="math inline">\(\alpha_i\)</span> is thought to be correlated with <span class="math inline">\(x_{i,t}\)</span></li>
-</ul>
-<div class="panel-tabset">
-<ul id="tabset-7" class="panel-tabset-tabby"><li><a data-tabby-default="" href="#tabset-7-1">Find individual averages</a></li><li><a href="#tabset-7-2">within-transformation</a></li><li><a href="#tabset-7-3">Estimation of <span class="math inline">\(\beta\)</span>s</a></li></ul>
+<ul id="tabset-7" class="panel-tabset-tabby"><li><a data-tabby-default="" href="#tabset-7-1">Setup</a></li><li><a href="#tabset-7-2">Instrument example 1</a></li><li><a href="#tabset-7-3">Instrument example 2</a></li><li><a href="#tabset-7-4">Instrument example 3</a></li><li><a href="#tabset-7-5">Instrument example 4</a></li></ul>
 <div class="tab-content">
 <div id="tabset-7-1">
-<p>For each <span class="math inline">\(i\)</span>, average this equation over time, we get</p>
-<p><span class="math inline">\(\frac{\sum_{t=1}^T y_{i,t}}{T} = \frac{\sum_{t=1}^T x_{i,t}}{T} + \alpha_i  + \frac{\sum_{t=1}^T u_{i,t}}{T}\)</span></p>
-<p>We use <span class="math inline">\(\bar{z}_i\)</span> to indicate the average of <span class="math inline">\(\bar{z}_{i,t}\)</span> over time for individual <span class="math inline">\(i\)</span>. Using this notation,</p>
-<p><span class="math inline">\(\bar{y}_i = \bar{x}_i + \alpha_i  + \bar{u}_i\)</span></p>
-<p>Note that <span class="math inline">\(\frac{\sum_{t=1}^T \alpha_{i}}{T} = \alpha_i\)</span></p>
+<p><strong>The model</strong></p>
+<p><span class="math inline">\(log(wage) = \beta_0 + \beta_1 educ + \beta_2 exper + v \;\; ( = \beta_3 ability + u)\)</span></p>
+<p><code>educ</code> is endogenous because of its correlation with <code>ability</code>.</p>
+<p><br></p>
+<p><strong>Question</strong></p>
+<p>What conditions would a good instrument <span class="math inline">\((z)\)</span> satisfy?</p>
+<p><br></p>
+<br>
+<details>
+<summary>
+Answer
+</summary>
+<ul>
+<li><p><span class="math inline">\(z\)</span> has explanatory power on <span class="math inline">\(educ\)</span> .blue[after] you control for the impact of <span class="math inline">\(epxer\)</span> on <span class="math inline">\(educ\)</span></p></li>
+<li><p><span class="math inline">\(z\)</span> is uncorrelated with <span class="math inline">\(v\)</span> (<span class="math inline">\(ability\)</span> and all the other important unobservables)</p></li>
+</ul>
+</details>
 </div>
 <div id="tabset-7-2">
-<p>Subtracting the equation of the average from the original model,</p>
-<p><span class="math inline">\((y_{i,t}-\bar{y}_i=\beta_1 (x_{i,t} -\bar{x}_i) + (u_{i,t} -\bar{u}_i) + a_i - a_i\)</span></p>
+<p><strong>The model</strong></p>
+<p><span class="math inline">\(log(wage) = \beta_0 + \beta_1 educ + \beta_2 exper + v \;\; ( = \beta_3 ability + u)\)</span></p>
 <p><br></p>
-<div class="callout callout-important no-icon callout-titled callout-style-default">
-<div class="callout-body">
-<div class="callout-title">
-<p><strong>Important</strong></p>
-</div>
-<div class="callout-content">
-<p><span class="math inline">\(\alpha_i\)</span> is gone!</p>
-</div>
-</div>
-</div>
+<p><strong>Instrument</strong></p>
+<p>The last digit of an individual’s Social Security Number? (this has been actually used in some journal articles)</p>
+<p><br></p>
+<p><strong>Question</strong></p>
+<ul>
+<li><p>Is it uncorrelated with <span class="math inline">\(v\)</span> (<span class="math inline">\(ability\)</span> and all the other important unobservables)?</p></li>
+<li><p>does it have explanatory power on <span class="math inline">\(educ\)</span> .blue[after] you control for the impact of <span class="math inline">\(epxer\)</span> on <span class="math inline">\(educ\)</span>?</p></li>
+</ul>
 </div>
 <div id="tabset-7-3">
-<p>We then regress <span class="math inline">\((y_{i,t}-\bar{y}_i)\)</span> on <span class="math inline">\((x_{i,t}-\bar{x}_i)\)</span> to estimate <span class="math inline">\(\beta_1\)</span>.</p>
+<p><strong>The model</strong></p>
+<p><span class="math inline">\(log(wage) = \beta_0 + \beta_1 educ + \beta_2 exper + v \;\; ( = \beta_3 ability + u)\)</span></p>
+<p><br></p>
+<p><strong>Instrument</strong></p>
+<p>IQ test score</p>
+<p><br></p>
+<p><strong>Question</strong></p>
+<ul>
+<li><p>Is it uncorrelated with <span class="math inline">\(v\)</span> (<span class="math inline">\(ability\)</span> and all the other important unobservables)?</p></li>
+<li><p>does it have explanatory power on <span class="math inline">\(educ\)</span> .blue[after] you control for the impact of <span class="math inline">\(epxer\)</span> on <span class="math inline">\(educ\)</span>?</p></li>
+</ul>
+</div>
+<div id="tabset-7-4">
+<p><strong>The model</strong></p>
+<p><span class="math inline">\(log(wage) = \beta_0 + \beta_1 educ + \beta_2 exper + v \;\; ( = \beta_3 ability + u)\)</span></p>
+<p><br></p>
+<p><strong>Instrument</strong></p>
+<p>Mother’s education</p>
+<p><br></p>
+<p><strong>Question</strong></p>
+<ul>
+<li><p>Is it uncorrelated with <span class="math inline">\(v\)</span> (<span class="math inline">\(ability\)</span> and all the other important unobservables)?</p></li>
+<li><p>does it have explanatory power on <span class="math inline">\(educ\)</span> .blue[after] you control for the impact of <span class="math inline">\(epxer\)</span> on <span class="math inline">\(educ\)</span>?</p></li>
+</ul>
+</div>
+<div id="tabset-7-5">
+<p><strong>The model</strong></p>
+<p><span class="math inline">\(log(wage) = \beta_0 + \beta_1 educ + \beta_2 exper + v \;\; ( = \beta_3 ability + u)\)</span></p>
+<p><br> <strong>Instrument</strong></p>
+<p>Number of siblings</p>
+<p><br></p>
+<p><strong>Question</strong></p>
+<ul>
+<li><p>Is it uncorrelated with <span class="math inline">\(v\)</span> (<span class="math inline">\(ability\)</span> and all the other important unobservables)?</p></li>
+<li><p>does it have explanatory power on <span class="math inline">\(educ\)</span> .blue[after] you control for the impact of <span class="math inline">\(epxer\)</span> on <span class="math inline">\(educ\)</span>?</p></li>
+</ul>
 </div>
 </div>
 </div>
 <!--end of panel-->
+</section>
+<section id="implementation-of-instrumental-variable-iv-estimation-in-r" class="slide level2">
+<h2>Implementation of Instrumental Variable (IV) Estimation in R</h2>
+<div class="panel-tabset">
+<ul id="tabset-8" class="panel-tabset-tabby"><li><a data-tabby-default="" href="#tabset-8-1">Introduction</a></li><li><a href="#tabset-8-2">Dataset</a></li><li><a href="#tabset-8-3">How</a></li><li><a href="#tabset-8-4">Results</a></li><li><a href="#tabset-8-5">Comparison</a></li><li><a href="#tabset-8-6">Fixed effects</a></li><li><a href="#tabset-8-7">Clustered SE</a></li></ul>
+<div class="tab-content">
+<div id="tabset-8-1">
+<p><strong>Model</strong></p>
+<p><span class="math inline">\(log(wage) = \beta_0 + \beta_1 educ + \beta_2 exper + v \;\; (=\beta_3 ability + u)\)</span></p>
+<p>We believe</p>
+<ul>
+<li><p><span class="math inline">\(educ\)</span> is endogenous <span class="math inline">\((x_1)\)</span></p></li>
+<li><p><span class="math inline">\(exper\)</span> is exogenous <span class="math inline">\((x_2)\)</span></p></li>
+<li><p>we use the number of siblings <span class="math inline">\((sibs)\)</span> and father’s education <span class="math inline">\((feduc)\)</span> as the instruments (<span class="math inline">\(Z\)</span>)</p></li>
+</ul>
+<p><br></p>
+<p><strong>Terminology</strong></p>
+<ul>
+<li><p>exogenous variable included in the model (here, <span class="math inline">\(exper\)</span>) is also called .blue[included instruments]</p></li>
+<li><p>instruments that do not belong to the main model (here, <span class="math inline">\(sibs\)</span> and <span class="math inline">\(feduc\)</span>) are also called .blue[excluded instruments]</p></li>
+<li><p>we refer to the collection of included and excluded instruments as .blue[instruments]</p></li>
+</ul>
 </div>
 <div id="tabset-8-2">
-<p>Here is the model after within-transformation:</p>
-<span class="math display">\[\begin{align*}
-y_{i,t}-\bar{y}_i=\beta_1 (x_{i,t} -\bar{x}_i) + (u_{i,t} -\bar{u}_i)
-\end{align*}\]</span>
-<p>So,</p>
-<p><span class="math inline">\(x_{i,t} -\bar{x}_i\)</span> needs to be uncorrelated with <span class="math inline">\(u_{i,t} -\bar{u}_i\)</span>.</p>
-<p><br></p>
-<div class="callout callout-important no-icon callout-titled callout-style-default">
-<div class="callout-body">
-<div class="callout-title">
-<p><strong>Important</strong></p>
-</div>
-<div class="callout-content">
-<p>The above condition is satisfied if</p>
-<p><span class="math inline">\(E[u_{i,s}|x_{i,t}] = 0 \;\; ^\forall s, \;\; t, \;\;\mbox{and} \;\;j\)</span></p>
-<p>e.g., <span class="math inline">\(E[u_{i,1}|x_{i,4}]=0\)</span></p>
-</div>
-</div>
-</div>
+<div id="qwebr-insertion-location-3"></div>
+<noscript>Please enable JavaScript to experience the dynamic code cell content on this page.</noscript>
 </div>
 <div id="tabset-8-3">
-<p><strong>Fixed effects estimation</strong></p>
-<p>Regress within-transformed <code>Q</code> on within-transformed <code>P</code>:</p>
-<div id="qwebr-insertion-location-10"></div>
-<noscript>Please enable JavaScript to experience the dynamic code cell content on this page.</noscript>
-</div>
-</div>
-</div>
-<!--end of panel-->
-</section>
-<section id="an-alternative-way-to-view-the-fixed-effects-estimation-methods" class="slide level2">
-<h2>An alternative way to view the Fixed Effects estimation methods</h2>
-<div class="panel-tabset">
-<ul id="tabset-10" class="panel-tabset-tabby"><li><a data-tabby-default="" href="#tabset-10-1">two equivalent models</a></li><li><a href="#tabset-10-2">Estimation with the alternative model</a></li><li><a href="#tabset-10-3">What does this tell us?</a></li></ul>
-<div class="tab-content">
-<div id="tabset-10-1">
-<p><strong>Important</strong></p>
-<p>The two approaches below will result in the same coefficient estimates (mathematically identical).</p>
-<ul>
-<li>Running OLS on the within-tranformed (demeaned) data</li>
-<li>Running OLS on the untransformed data but including the dummy variables for the individuals (city in our example)</li>
-</ul>
-</div>
-<div id="tabset-10-2">
-<p>You can use the original data (no within-transformation) and include dummy variables for all the cities except one.</p>
-<div class="panel-tabset">
-<ul id="tabset-9" class="panel-tabset-tabby"><li><a data-tabby-default="" href="#tabset-9-1">Create dummy variables</a></li><li><a href="#tabset-9-2">Estimate with dummy variables</a></li></ul>
-<div class="tab-content">
-<div id="tabset-9-1">
-<div id="qwebr-insertion-location-11"></div>
-<noscript>Please enable JavaScript to experience the dynamic code cell content on this page.</noscript>
-</div>
-<div id="tabset-9-2">
-<div id="qwebr-insertion-location-12"></div>
-<noscript>Please enable JavaScript to experience the dynamic code cell content on this page.</noscript>
-<p><br></p>
-<p>Note that the coefficient estimate on <code>P</code> is exactly the same as the one we saw earlier when we regressed <code>Q_dev</code> on <code>P_dev</code>.</p>
-</div>
-</div>
-</div>
-<!--end of panel-->
-</div>
-<div id="tabset-10-3">
-<p>By including individual dummies (individual fixed effects), you are effectively eliminating the between (inter-city) variations and using only the clean within (within-city) variations for estimation.</p>
-<p><br></p>
-<div title="Very Important">
-<div class="callout callout-note no-icon callout-titled callout-style-default">
-<div class="callout-body">
-<div class="callout-title">
-<p><strong>Very Important</strong></p>
-</div>
-<div class="callout-content">
-<p>More generally, including dummy variables of a categorical variable (like city in the example above), eliminates the variations <span style="color: red;"> between </span> the elements of the category (e.g., different cities), and use only the variations <span style="color: blue;"> within </span> each of the element of the category.</p>
-</div>
-</div>
-</div>
-</div>
-</div>
-</div>
-</div>
-<!--end of panel-->
-</section>
-<section id="lets-go-back-to-the-avocado-example" class="slide level2">
-<h2>Let’s go back to the avocado example</h2>
-<p>This was how the avocado makert worked:</p>
-<div class="callout callout-note no-icon callout-titled callout-style-default">
-<div class="callout-body">
-<div class="callout-title">
-<p><strong>Note</strong></p>
-</div>
-<div class="callout-content">
-<p><span style="color: blue;"> At the beginning of each month, avocado suppliers make a plan for what avocado prices will be each week in that month, and never change their plans until the next month. </span></p>
-</div>
-</div>
-</div>
-<p>We agreed that we should use only the within-month varaitions instead of between-month variations.</p>
-<p><br></p>
-<div class="panel-tabset">
-<ul id="tabset-11" class="panel-tabset-tabby"><li><a data-tabby-default="" href="#tabset-11-1">Case 1</a></li><li><a href="#tabset-11-2">Case 2</a></li></ul>
-<div class="tab-content">
-<div id="tabset-11-1">
-<p>We have three months of avocado purchase and price observed weekly.</p>
-<p><br></p>
-<p><strong>Question</strong></p>
-<p>What should we do?</p>
-<br>
-<details>
-<summary>
-Answer
-</summary>
-Include month dummy variables.
-</details>
-</div>
-<div id="tabset-11-2">
-<p>We have two years of avocado purchase and price observed weekly.</p>
-<p><br></p>
-<p><strong>Question</strong></p>
-<p>What should we do?</p>
-<br>
-<details>
-<summary>
-Answer
-</summary>
-<ul>
-<li><p>Include <span style="color: blue;"> month-year </span> dummy variables.</p></li>
-<li><p>Including <span style="color: blue;"> month </span> dummy variables will not do it. Because the observations in the same month in two different years are considered to belong to the same group. That is, variations between two different years of the same month will be used for estimation. (e.g., January in 2014 and January in 2015)</p></li>
-</ul>
-</details>
-</div>
-</div>
-</div>
-<!--end of panel-->
-</section>
-<section id="fixed-effects-estimation-in-practice-using-r" class="slide level2">
-<h2>Fixed Effects Estimation in Practice Using R</h2>
-<div class="panel-tabset">
-<ul id="tabset-12" class="panel-tabset-tabby"><li><a data-tabby-default="" href="#tabset-12-1">How</a></li><li><a href="#tabset-12-2">Demonstration</a></li><li><a href="#tabset-12-3">Random Effects (RE) Model</a></li></ul>
-<div class="tab-content">
-<div id="tabset-12-1">
-<p><strong>Advice</strong></p>
-<ul>
-<li>Do not within-transform the data yourself and run a regression</li>
-<li>Do not create dummy variables yourself and run a regression with the dummies</li>
-</ul>
-<p><br></p>
-<p><strong>In practice</strong></p>
-<p>We will use the <code>fixest</code> package.</p>
-<p><br></p>
+<p>We can continue to use the <code>fixest</code> package to run IV estimation method.</p>
 <p><strong>Syntax</strong></p>
 <div class="cell">
-<div class="sourceCode cell-code" id="cb1"><pre class="sourceCode numberSource r number-lines code-with-copy"><code class="sourceCode r"><span id="cb1-1"><a></a>fixest<span class="sc">::</span><span class="fu">feols</span>(dep_var <span class="sc">~</span> indep_vars <span class="sc">|</span> FE, data)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode cell-code" id="cb1"><pre class="sourceCode numberSource r number-lines code-with-copy"><code class="sourceCode r"><span id="cb1-1"><a></a>fixest<span class="sc">::</span><span class="fu">feols</span>(dep var <span class="sc">~</span> included instruments <span class="sc">|</span> first stage formula, <span class="at">data =</span> dataset)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 </div>
 <ul>
-<li><code>FE</code>: the name of the variable that identifies the cross-sectional units that are observed over time (<code>Location</code> in our example)</li>
-<li><code>dep_var</code>: (non-transformed) dependet variable</li>
-<li><code>indep_vars</code>: list of (non-transformed) independent variables</li>
+<li><code>included instruments</code>: exogenous included variables (do not include endogenous variables here)</li>
 </ul>
+<p><br></p>
+<p><strong>first stage formula</strong></p>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb2"><pre class="sourceCode numberSource r number-lines code-with-copy"><code class="sourceCode r"><span id="cb2-1"><a></a>(endogenous vars <span class="sc">~</span> excluded instruments)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 </div>
-<div id="tabset-12-2">
-<p><strong>Data</strong></p>
-<div id="qwebr-insertion-location-13"></div>
-<noscript>Please enable JavaScript to experience the dynamic code cell content on this page.</noscript>
 <p><br></p>
 <p><strong>Example</strong></p>
-<div id="qwebr-insertion-location-14"></div>
+<div id="qwebr-insertion-location-4"></div>
 <noscript>Please enable JavaScript to experience the dynamic code cell content on this page.</noscript>
-</div>
-<div id="tabset-12-3">
-<p><strong>How is it different from the FE model?</strong></p>
 <ul>
-<li><p>Can be more efficient (lower variance) than FE under certain cases</p></li>
-<li><p>If <span class="math inline">\(\alpha_i\)</span> and independent variables are correlated, then RE estimators are biased</p></li>
-<li><p>Unless <span class="math inline">\(\alpha_i\)</span> and independent variables are not correlated (which does not hold most of the time unless you got data from controlled experiments), <span class="math inline">\(RE\)</span> is not an attractive option</p></li>
-<li><p>You almost never see this estimation method used in papers that use non-experimental data</p></li>
+<li><code>included variable</code>:
+<ul>
+<li>exogenous included variables: <code>exper</code></li>
+<li>endogenous included variables: <code>educ</code></li>
+</ul></li>
+<li><code>instruments</code>:
+<ul>
+<li>included instruments: <code>exper</code></li>
+<li>excluded instruments: <code>sibs</code> and <code>feduc</code></li>
+</ul></li>
 </ul>
+</div>
+<div id="tabset-8-4">
+<p><strong>IV regression results</strong></p>
+<div id="qwebr-insertion-location-5"></div>
+<noscript>Please enable JavaScript to experience the dynamic code cell content on this page.</noscript>
 <p><br></p>
 <p><strong>Note</strong></p>
-<p>We do not cover this estimation method as you almost certainly would not use this estimation method.</p>
+<ul>
+<li><p>When variable <code>x</code> is the endogenous variable, <code>fixest</code> changes the name of <code>x</code> to <code>x(fit)</code>.</p></li>
+<li><p>Here, <code>educ</code> has become <code>educ(fit)</code>.</p></li>
+</ul>
+</div>
+<div id="tabset-8-5">
+<div class="columns">
+<div class="column" style="width:60%;">
+<p><strong>Comparison of OLS and IV Estimation Results</strong></p>
+<div class="cell">
+<div class="cell-output-display">
+ 
+
+  
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>tinytable_vgwrbgfjz8828zgp92pa</title>
+    <style>
+.table td.tinytable_css_tnmxjgh574qjm9rmtz14, .table th.tinytable_css_tnmxjgh574qjm9rmtz14 {    border-bottom: solid 0.1em #d3d8dc; }
+.table td.tinytable_css_cn69uj0uwnv9kw1pvzyq, .table th.tinytable_css_cn69uj0uwnv9kw1pvzyq {    text-align: left; }
+.table td.tinytable_css_sel6vg5h9m36r4ch54ae, .table th.tinytable_css_sel6vg5h9m36r4ch54ae {    text-align: center; }
+.table td.tinytable_css_yyp0hypx0jczu4z2oqqf, .table th.tinytable_css_yyp0hypx0jczu4z2oqqf {    text-align: center; }
+.table td.tinytable_css_jkzy58kibo5qbp308iz4, .table th.tinytable_css_jkzy58kibo5qbp308iz4 {    border-bottom: solid 0.05em black; }
+    </style>
+    <script src="https://polyfill.io/v3/polyfill.min.js?features=es6"></script>
+    <script id="MathJax-script" async="" src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+    <script>
+    MathJax = {
+      tex: {
+        inlineMath: [['$', '$'], ['\\(', '\\)']]
+      },
+      svg: {
+        fontCache: 'global'
+      }
+    };
+    </script>
+  
+
+  
+    <div class="container">
+      <table class="table table-borderless" id="tinytable_vgwrbgfjz8828zgp92pa" style="width: auto; margin-left: auto; margin-right: auto;" data-quarto-disable-processing="true">
+        <thead>
+        
+              <tr>
+                <th scope="col"> </th>
+                <th scope="col">(1)</th>
+                <th scope="col">(2)</th>
+              </tr>
+        </thead>
+        <tfoot><tr><td colspan="3">+ p &lt; 0.1, * p &lt; 0.05, ** p &lt; 0.01, *** p &lt; 0.001</td></tr></tfoot>
+        <tbody>
+                <tr>
+                  <td>(Intercept)</td>
+                  <td>5.503***</td>
+                  <td>4.507***</td>
+                </tr>
+                <tr>
+                  <td>           </td>
+                  <td>(0.112) </td>
+                  <td>(0.316) </td>
+                </tr>
+                <tr>
+                  <td>educ       </td>
+                  <td>0.078***</td>
+                  <td>        </td>
+                </tr>
+                <tr>
+                  <td>           </td>
+                  <td>(0.007) </td>
+                  <td>        </td>
+                </tr>
+                <tr>
+                  <td>exper      </td>
+                  <td>0.020***</td>
+                  <td>0.037***</td>
+                </tr>
+                <tr>
+                  <td>           </td>
+                  <td>(0.003) </td>
+                  <td>(0.006) </td>
+                </tr>
+                <tr>
+                  <td>fit_educ   </td>
+                  <td>        </td>
+                  <td>0.137***</td>
+                </tr>
+                <tr>
+                  <td>           </td>
+                  <td>        </td>
+                  <td>(0.019) </td>
+                </tr>
+                <tr>
+                  <td>Num.Obs.   </td>
+                  <td>935     </td>
+                  <td>741     </td>
+                </tr>
+                <tr>
+                  <td>R2         </td>
+                  <td>0.131   </td>
+                  <td>0.053   </td>
+                </tr>
+                <tr>
+                  <td>RMSE       </td>
+                  <td>0.39    </td>
+                  <td>0.41    </td>
+                </tr>
+                <tr>
+                  <td>Std.Errors </td>
+                  <td>IID     </td>
+                  <td>IID     </td>
+                </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <script>
+      function styleCell_tinytable_4r14qhnfketot6pt6gc9(i, j, css_id) {
+        var table = document.getElementById("tinytable_vgwrbgfjz8828zgp92pa");
+        table.rows[i].cells[j].classList.add(css_id);
+      }
+      function insertSpanRow(i, colspan, content) {
+        var table = document.getElementById('tinytable_vgwrbgfjz8828zgp92pa');
+        var newRow = table.insertRow(i);
+        var newCell = newRow.insertCell(0);
+        newCell.setAttribute("colspan", colspan);
+        // newCell.innerText = content;
+        // this may be unsafe, but innerText does not interpret <br>
+        newCell.innerHTML = content;
+      }
+      function spanCell_tinytable_4r14qhnfketot6pt6gc9(i, j, rowspan, colspan) {
+        var table = document.getElementById("tinytable_vgwrbgfjz8828zgp92pa");
+        const targetRow = table.rows[i];
+        const targetCell = targetRow.cells[j];
+        for (let r = 0; r < rowspan; r++) {
+          // Only start deleting cells to the right for the first row (r == 0)
+          if (r === 0) {
+            // Delete cells to the right of the target cell in the first row
+            for (let c = colspan - 1; c > 0; c--) {
+              if (table.rows[i + r].cells[j + c]) {
+                table.rows[i + r].deleteCell(j + c);
+              }
+            }
+          }
+          // For rows below the first, delete starting from the target column
+          if (r > 0) {
+            for (let c = colspan - 1; c >= 0; c--) {
+              if (table.rows[i + r] && table.rows[i + r].cells[j]) {
+                table.rows[i + r].deleteCell(j);
+              }
+            }
+          }
+        }
+        // Set rowspan and colspan of the target cell
+        targetCell.rowSpan = rowspan;
+        targetCell.colSpan = colspan;
+      }
+
+window.addEventListener('load', function () { styleCell_tinytable_4r14qhnfketot6pt6gc9(0, 0, 'tinytable_css_tnmxjgh574qjm9rmtz14') })
+window.addEventListener('load', function () { styleCell_tinytable_4r14qhnfketot6pt6gc9(0, 1, 'tinytable_css_tnmxjgh574qjm9rmtz14') })
+window.addEventListener('load', function () { styleCell_tinytable_4r14qhnfketot6pt6gc9(0, 2, 'tinytable_css_tnmxjgh574qjm9rmtz14') })
+window.addEventListener('load', function () { styleCell_tinytable_4r14qhnfketot6pt6gc9(0, 0, 'tinytable_css_cn69uj0uwnv9kw1pvzyq') })
+window.addEventListener('load', function () { styleCell_tinytable_4r14qhnfketot6pt6gc9(1, 0, 'tinytable_css_cn69uj0uwnv9kw1pvzyq') })
+window.addEventListener('load', function () { styleCell_tinytable_4r14qhnfketot6pt6gc9(2, 0, 'tinytable_css_cn69uj0uwnv9kw1pvzyq') })
+window.addEventListener('load', function () { styleCell_tinytable_4r14qhnfketot6pt6gc9(3, 0, 'tinytable_css_cn69uj0uwnv9kw1pvzyq') })
+window.addEventListener('load', function () { styleCell_tinytable_4r14qhnfketot6pt6gc9(4, 0, 'tinytable_css_cn69uj0uwnv9kw1pvzyq') })
+window.addEventListener('load', function () { styleCell_tinytable_4r14qhnfketot6pt6gc9(5, 0, 'tinytable_css_cn69uj0uwnv9kw1pvzyq') })
+window.addEventListener('load', function () { styleCell_tinytable_4r14qhnfketot6pt6gc9(6, 0, 'tinytable_css_cn69uj0uwnv9kw1pvzyq') })
+window.addEventListener('load', function () { styleCell_tinytable_4r14qhnfketot6pt6gc9(7, 0, 'tinytable_css_cn69uj0uwnv9kw1pvzyq') })
+window.addEventListener('load', function () { styleCell_tinytable_4r14qhnfketot6pt6gc9(8, 0, 'tinytable_css_cn69uj0uwnv9kw1pvzyq') })
+window.addEventListener('load', function () { styleCell_tinytable_4r14qhnfketot6pt6gc9(9, 0, 'tinytable_css_cn69uj0uwnv9kw1pvzyq') })
+window.addEventListener('load', function () { styleCell_tinytable_4r14qhnfketot6pt6gc9(10, 0, 'tinytable_css_cn69uj0uwnv9kw1pvzyq') })
+window.addEventListener('load', function () { styleCell_tinytable_4r14qhnfketot6pt6gc9(11, 0, 'tinytable_css_cn69uj0uwnv9kw1pvzyq') })
+window.addEventListener('load', function () { styleCell_tinytable_4r14qhnfketot6pt6gc9(12, 0, 'tinytable_css_cn69uj0uwnv9kw1pvzyq') })
+window.addEventListener('load', function () { styleCell_tinytable_4r14qhnfketot6pt6gc9(0, 1, 'tinytable_css_sel6vg5h9m36r4ch54ae') })
+window.addEventListener('load', function () { styleCell_tinytable_4r14qhnfketot6pt6gc9(1, 1, 'tinytable_css_sel6vg5h9m36r4ch54ae') })
+window.addEventListener('load', function () { styleCell_tinytable_4r14qhnfketot6pt6gc9(2, 1, 'tinytable_css_sel6vg5h9m36r4ch54ae') })
+window.addEventListener('load', function () { styleCell_tinytable_4r14qhnfketot6pt6gc9(3, 1, 'tinytable_css_sel6vg5h9m36r4ch54ae') })
+window.addEventListener('load', function () { styleCell_tinytable_4r14qhnfketot6pt6gc9(4, 1, 'tinytable_css_sel6vg5h9m36r4ch54ae') })
+window.addEventListener('load', function () { styleCell_tinytable_4r14qhnfketot6pt6gc9(5, 1, 'tinytable_css_sel6vg5h9m36r4ch54ae') })
+window.addEventListener('load', function () { styleCell_tinytable_4r14qhnfketot6pt6gc9(6, 1, 'tinytable_css_sel6vg5h9m36r4ch54ae') })
+window.addEventListener('load', function () { styleCell_tinytable_4r14qhnfketot6pt6gc9(7, 1, 'tinytable_css_sel6vg5h9m36r4ch54ae') })
+window.addEventListener('load', function () { styleCell_tinytable_4r14qhnfketot6pt6gc9(8, 1, 'tinytable_css_sel6vg5h9m36r4ch54ae') })
+window.addEventListener('load', function () { styleCell_tinytable_4r14qhnfketot6pt6gc9(9, 1, 'tinytable_css_sel6vg5h9m36r4ch54ae') })
+window.addEventListener('load', function () { styleCell_tinytable_4r14qhnfketot6pt6gc9(10, 1, 'tinytable_css_sel6vg5h9m36r4ch54ae') })
+window.addEventListener('load', function () { styleCell_tinytable_4r14qhnfketot6pt6gc9(11, 1, 'tinytable_css_sel6vg5h9m36r4ch54ae') })
+window.addEventListener('load', function () { styleCell_tinytable_4r14qhnfketot6pt6gc9(12, 1, 'tinytable_css_sel6vg5h9m36r4ch54ae') })
+window.addEventListener('load', function () { styleCell_tinytable_4r14qhnfketot6pt6gc9(0, 2, 'tinytable_css_yyp0hypx0jczu4z2oqqf') })
+window.addEventListener('load', function () { styleCell_tinytable_4r14qhnfketot6pt6gc9(1, 2, 'tinytable_css_yyp0hypx0jczu4z2oqqf') })
+window.addEventListener('load', function () { styleCell_tinytable_4r14qhnfketot6pt6gc9(2, 2, 'tinytable_css_yyp0hypx0jczu4z2oqqf') })
+window.addEventListener('load', function () { styleCell_tinytable_4r14qhnfketot6pt6gc9(3, 2, 'tinytable_css_yyp0hypx0jczu4z2oqqf') })
+window.addEventListener('load', function () { styleCell_tinytable_4r14qhnfketot6pt6gc9(4, 2, 'tinytable_css_yyp0hypx0jczu4z2oqqf') })
+window.addEventListener('load', function () { styleCell_tinytable_4r14qhnfketot6pt6gc9(5, 2, 'tinytable_css_yyp0hypx0jczu4z2oqqf') })
+window.addEventListener('load', function () { styleCell_tinytable_4r14qhnfketot6pt6gc9(6, 2, 'tinytable_css_yyp0hypx0jczu4z2oqqf') })
+window.addEventListener('load', function () { styleCell_tinytable_4r14qhnfketot6pt6gc9(7, 2, 'tinytable_css_yyp0hypx0jczu4z2oqqf') })
+window.addEventListener('load', function () { styleCell_tinytable_4r14qhnfketot6pt6gc9(8, 2, 'tinytable_css_yyp0hypx0jczu4z2oqqf') })
+window.addEventListener('load', function () { styleCell_tinytable_4r14qhnfketot6pt6gc9(9, 2, 'tinytable_css_yyp0hypx0jczu4z2oqqf') })
+window.addEventListener('load', function () { styleCell_tinytable_4r14qhnfketot6pt6gc9(10, 2, 'tinytable_css_yyp0hypx0jczu4z2oqqf') })
+window.addEventListener('load', function () { styleCell_tinytable_4r14qhnfketot6pt6gc9(11, 2, 'tinytable_css_yyp0hypx0jczu4z2oqqf') })
+window.addEventListener('load', function () { styleCell_tinytable_4r14qhnfketot6pt6gc9(12, 2, 'tinytable_css_yyp0hypx0jczu4z2oqqf') })
+window.addEventListener('load', function () { styleCell_tinytable_4r14qhnfketot6pt6gc9(8, 0, 'tinytable_css_jkzy58kibo5qbp308iz4') })
+window.addEventListener('load', function () { styleCell_tinytable_4r14qhnfketot6pt6gc9(8, 1, 'tinytable_css_jkzy58kibo5qbp308iz4') })
+window.addEventListener('load', function () { styleCell_tinytable_4r14qhnfketot6pt6gc9(8, 2, 'tinytable_css_jkzy58kibo5qbp308iz4') })
+    </script>
+
+  
+
+
+</div>
+</div>
+</div><!--end of the 1st column--><div class="column" style="width:40%;">
+<p><strong>Question</strong></p>
+<p>Do you think <span class="math inline">\(sibs\)</span> and <span class="math inline">\(feduc\)</span> are good instruments?</p>
+<ul>
+<li>Condition 1: weak instruments?</li>
+<li>Condition 2: uncorrelated with the error term?</li>
+</ul>
+</div><!--end of the 2nd column-->
+</div>
+<!--end of the columns-->
+</div>
+<div id="tabset-8-6">
+<p>You can include fixed effects in your IV estimation.</p>
+<p><strong>Syntax</strong></p>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb3"><pre class="sourceCode numberSource r number-lines code-with-copy"><code class="sourceCode r"><span id="cb3-1"><a></a>fixest<span class="sc">::</span><span class="fu">feols</span>(dep var <span class="sc">~</span> included instruments <span class="sc">|</span> FE <span class="sc">|</span> <span class="dv">1</span>st stage formula, <span class="at">data =</span> dataset)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</div>
+<p><br></p>
+<p><strong>Example</strong></p>
+<p>Include <code>married</code> and <code>south</code> as fixed effects.</p>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb4"><pre class="sourceCode numberSource r number-lines code-with-copy"><code class="sourceCode r"><span id="cb4-1"><a></a>fixest<span class="sc">::</span><span class="fu">feols</span>(<span class="fu">log</span>(wage) <span class="sc">~</span> exper <span class="sc">|</span> married <span class="sc">+</span> south <span class="sc">|</span> educ <span class="sc">~</span> feduc <span class="sc">+</span> sibs, <span class="at">data =</span> wage2)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>TSLS estimation - Dep. Var.: log(wage)
+                  Endo.    : educ
+                  Instr.   : feduc, sibs
+Second stage: Dep. Var.: log(wage)
+Observations: 741
+Fixed-effects: married: 2,  south: 2
+Standard-errors: Clustered (married) 
+         Estimate Std. Error t value Pr(&gt;|t|)    
+fit_educ 0.124355   0.003627 34.2906 0.018560 *  
+exper    0.032128   0.002260 14.2144 0.044713 *  
+---
+Signif. codes:  0 '***' 0.001 '**' 0.01 '*' 0.05 '.' 0.1 ' ' 1
+RMSE: 0.391178     Adj. R2: 0.116588
+                 Within R2: 0.069595
+F-test (1st stage), educ: stat = 62.0     , p &lt; 2.2e-16 , on 2 and 736 DoF.
+              Wu-Hausman: stat =  8.98498 , p = 0.002814, on 1 and 735 DoF.
+                  Sargan: stat =  0.169226, p = 0.6808  , on 1 DoF.</code></pre>
+</div>
+</div>
+</div>
+<div id="tabset-8-7">
+<p>You can just add <code>cluster =</code> option just like we previously did.</p>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb6"><pre class="sourceCode numberSource r number-lines code-with-copy"><code class="sourceCode r"><span id="cb6-1"><a></a>fixest<span class="sc">::</span><span class="fu">feols</span>(<span class="fu">log</span>(wage) <span class="sc">~</span> exper <span class="sc">|</span> married <span class="sc">+</span> south <span class="sc">|</span> educ <span class="sc">~</span> feduc <span class="sc">+</span> sibs, <span class="at">cluster =</span> <span class="sc">~</span>black, <span class="at">data =</span> wage2)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>TSLS estimation - Dep. Var.: log(wage)
+                  Endo.    : educ
+                  Instr.   : feduc, sibs
+Second stage: Dep. Var.: log(wage)
+Observations: 741
+Fixed-effects: married: 2,  south: 2
+Standard-errors: Clustered (black) 
+         Estimate Std. Error t value Pr(&gt;|t|)    
+fit_educ 0.124355   0.005258 23.6526 0.026899 *  
+exper    0.032128   0.002798 11.4842 0.055295 .  
+---
+Signif. codes:  0 '***' 0.001 '**' 0.01 '*' 0.05 '.' 0.1 ' ' 1
+RMSE: 0.391178     Adj. R2: 0.116588
+                 Within R2: 0.069595
+F-test (1st stage), educ: stat = 61.9     , p &lt; 2.2e-16 , on 2 and 735 DoF.
+              Wu-Hausman: stat =  8.98498 , p = 0.002814, on 1 and 735 DoF.
+                  Sargan: stat =  0.169226, p = 0.6808  , on 1 DoF.</code></pre>
+</div>
+</div>
 </div>
 </div>
 </div>
 <!--end of panel-->
 </section>
-<section id="year-fixed-effects" class="slide level2">
-<h2>Year Fixed Effects</h2>
+<section id="weak-instrument" class="slide level2">
+<h2>Weak instrument</h2>
 <div class="panel-tabset">
-<ul id="tabset-13" class="panel-tabset-tabby"><li><a data-tabby-default="" href="#tabset-13-1">What is it?</a></li><li><a href="#tabset-13-2">What do year FEs do?</a></li><li><a href="#tabset-13-3">Recommendation</a></li><li><a href="#tabset-13-4">R implementation</a></li></ul>
+<ul id="tabset-12" class="panel-tabset-tabby"><li><a data-tabby-default="" href="#tabset-12-1">What is it?</a></li><li><a href="#tabset-12-2">How?</a></li><li><a href="#tabset-12-3">Consequences of weak instruments</a></li></ul>
 <div class="tab-content">
-<div id="tabset-13-1">
-<p>Just a collection of year dummies, which takes 1 if in a specific year, 0 otherwise.</p>
-<div id="qwebr-insertion-location-15"></div>
-<noscript>Please enable JavaScript to experience the dynamic code cell content on this page.</noscript>
-</div>
-<div id="tabset-13-2">
-<p>They capture anything that happened to <span style="color: red;"> all </span> the individuals for a specific year relative to the base year</p>
-<p><br></p>
-<p><strong>Example</strong></p>
-<p>Education and wage data from <span class="math inline">\(2012\)</span> to <span class="math inline">\(2014\)</span>,</p>
-<p><span class="math inline">\(log(income) = \beta_0 + \beta_1 educ + \beta_2 exper  + \sigma_1 FE_{2012} + \sigma_2 FE_{2013}\)</span></p>
-<ul>
-<li><p><span class="math inline">\(\sigma_1\)</span>: captures the difference in <span class="math inline">\(log(income)\)</span> between <span class="math inline">\(2012\)</span> and <span class="math inline">\(2014\)</span> (base year)</p></li>
-<li><p><span class="math inline">\(\sigma_2\)</span>: captures the difference in <span class="math inline">\(log(income)\)</span> between <span class="math inline">\(2013\)</span> and <span class="math inline">\(2014\)</span> (base year)</p></li>
-</ul>
-<p><br></p>
-<p><strong>Interpretation</strong></p>
-<p><span class="math inline">\(\sigma_1=0.05\)</span> would mean that <span class="math inline">\(log(income)\)</span> is greater in <span class="math inline">\(2012\)</span> than <span class="math inline">\(2014\)</span> by <span class="math inline">\(5\%\)</span> on average for whatever reasons with everything else fixed.</p>
-</div>
-<div id="tabset-13-3">
-<p><strong>Recommendation</strong></p>
-<p>It is almost always a good practice to include year FEs if you are using a panel dataset with annual observations.</p>
-<p><br></p>
-<p><strong>Why?</strong></p>
-<ul>
-<li><p>Remember year FEs capture .blue[anything] that happened to all the individuals for a specific year relative to the base year</p></li>
-<li><p>In other words, .blue[all the unobserved factors] that are common to all the individuals in a specific year is .blue[controlled for (taken out of the error term)]</p></li>
-</ul>
-<p><br></p>
-<p><strong>Example</strong></p>
-<p>Economic trend in:</p>
-<p><span class="math inline">\(log(income) =  \beta_0 + \beta_1 educ + \sigma_1 FE_{2012} + \sigma_2 FE_{2013}\)</span></p>
-<ul>
-<li><p>Education is non-decreasing through time</p></li>
-<li><p>Economy might have either been going down or up during the observed period</p></li>
-</ul>
-<p>Without year FE, <span class="math inline">\(\beta_1\)</span> may capture the impact of overall economic trend.</p>
-</div>
-<div id="tabset-13-4">
-<p>In order to include year FEs to individual FEs, you can simply add the variable that indicates year like below:</p>
-<div id="qwebr-insertion-location-16"></div>
-<noscript>Please enable JavaScript to experience the dynamic code cell content on this page.</noscript>
-<div title="Caveats">
-<div class="callout callout-important no-icon callout-titled callout-style-default">
+<div id="tabset-12-1">
+<div title="Definition: weak instrument">
+<div class="callout callout-note no-icon callout-titled callout-style-default">
 <div class="callout-body">
 <div class="callout-title">
-<p><strong>Caveats</strong></p>
+<p><strong>Definition: weak instrument</strong></p>
 </div>
 <div class="callout-content">
-<ul>
-<li><p>Year FEs would be perfectly collinear with variables that change only across time, but not across individuals.</p></li>
-<li><p>If your variable of interest is such a variable, you cannot include year FEs, which would then make your estimation subject to omitted variable bias due to .red[other] unobserved yearly-changing factors.</p></li>
-</ul>
+<p>The external instrument(s) does not have <strong>enough</strong> explanatory power on the instrumented (endogenous) variabl beyond the other controls.</p>
 </div>
 </div>
 </div>
 </div>
-</div>
-</div>
-</div>
-<!--end of panel-->
-</section>
-<section id="standard-error-estimation-for-panel-data-methods" class="slide level2">
-<h2>Standard Error Estimation for Panel Data Methods</h2>
-<div class="panel-tabset">
-<ul id="tabset-14" class="panel-tabset-tabby"><li><a data-tabby-default="" href="#tabset-14-1">non-homegeneous error</a></li><li><a href="#tabset-14-2">Consequences?</a></li><li><a href="#tabset-14-3">What to do and R implementation</a></li></ul>
-<div class="tab-content">
-<div id="tabset-14-1">
-<p><strong>Heteroskedasticity</strong></p>
-<p>Just like we saw for OLS using cross-sectional data, heteroskedasticity leads to biased estimation of the standard error of the coefficient estimators if not taken into account</p>
 <p><br></p>
-<p><strong>Serial Correlation</strong></p>
-<p>Correlation of errors over time, which we call .blue[serial correlation]</p>
-</div>
-<div id="tabset-14-2">
-<ul>
-<li><p>just like heteroskedasticity, serial correlation could lead to biased estimation of the standard error of the coefficient estimators if not taken into account</p></li>
-<li><p>do not affect the unbiasedness and consistency property of your estimators</p></li>
-</ul>
 <div class="callout callout-important no-icon callout-titled callout-style-default">
 <div class="callout-body">
 <div class="callout-title">
 <p><strong>Important</strong></p>
 </div>
 <div class="callout-content">
-<ul>
-<li><p>Taking into account the potential of serial correlation when estimating the standard error of the coefficient estimators can dramatically change your conclusions about the statistical significance of some independent variables!!</p></li>
-<li><p>When serial correlation is ignored, you tend to underestimate the standard error (why?), inflating <span class="math inline">\(t\)</span>-statistic, which in turn leads to over-rejection that you should.</p></li>
-</ul>
-<p><strong>Bertrand, Duflo, and Mullainathan (2004)</strong></p>
-<ul>
-<li><p>Examined how problematic serial correlation is in terms of inference via Monte Carlo simulation</p>
-<ul>
-<li><p>generate a fake treatment dummy variable in a way that it has no impact on the outcome (dependent variable) in the dataset of women’s wages from the Current Population Survey (CPS)</p></li>
-<li><p>run regression of the oucome on the treatment variable</p></li>
-<li><p>test if the treatment variable has statistically significant effect via <span class="math inline">\(t\)</span>-test</p></li>
-</ul></li>
-<li><p>They rejected the null <span class="math inline">\(67.5\%\)</span> at the <span class="math inline">\(5\%\)</span> significance level!!</p></li>
-</ul>
+<p>We can always test if the excluded instruments are weak or not!</p>
 </div>
 </div>
 </div>
-</div>
-<div id="tabset-14-3">
-<p><strong>SE robust to heteroskedasticity and serial correlation</strong></p>
-<ul>
-<li><p>You can take into account <span style="color: blue;"> both </span> heteroskedasticity and serial correlation by clustering by individual (whatever the unit of individual is: state, county, farmer)</p></li>
-<li><p>Cluster by individual can take into account the correlation within individuals (over time)</p></li>
-</ul>
 <p><br></p>
-<p><strong>R implementation</strong></p>
-<p>The last partition is used for clustering standard error estimation by variable like below.</p>
-<div id="qwebr-insertion-location-17"></div>
+</div>
+<div id="tabset-12-2">
+<div class="panel-tabset">
+<ul id="tabset-9" class="panel-tabset-tabby"><li><a data-tabby-default="" href="#tabset-9-1">Steps</a></li><li><a href="#tabset-9-2">R implementation</a></li></ul>
+<div class="tab-content">
+<div id="tabset-9-1">
+<p>Run the 1st stage regression</p>
+<span class="math display">\[\begin{align*}
+educ = \alpha_0 + \alpha_1 exper + \alpha_2 sibs + \alpha_3 feduc + v
+\end{align*}\]</span>
+<p><br></p>
+<p>Then, test the joint significance of <span class="math inline">\(\alpha_2\)</span> and <span class="math inline">\(\alpha_3\)</span> (<span class="math inline">\(F\)</span>-test)</p>
+<p>If excluded instruments <span class="math inline">\((sibs\)</span> and <span class="math inline">\(feduc\)</span>, here) are jointly significant, then it would mean that <span class="math inline">\(sibs\)</span> and <span class="math inline">\(feduc\)</span> are not weak instruments, satisfying condition 1.</p>
+</div>
+<div id="tabset-9-2">
+<div class="columns">
+<div class="column" style="width:60%;">
+<p>When we ran the IV estimation using <code>fixest::feols()</code> earlier, it automatically calculated the F-statistic for the weak instrument test.</p>
+<div id="qwebr-insertion-location-6"></div>
 <noscript>Please enable JavaScript to experience the dynamic code cell content on this page.</noscript>
+<p><br></p>
+<p>Here, F-test for the null hypothesis of the excluded instruments (<code>sibs</code> and <code>feduc</code>) do not have any explanatory power on the endogenous variable (<code>educ</code>) beyond the included instrument (<code>exper</code>) is rejected.</p>
+<br>
+<details>
+<summary>
+Alternatively
+</summary>
+<p>You can access the <code>iv_first_stage</code> component of the regression results.</p>
+<div id="qwebr-insertion-location-7"></div>
+<noscript>Please enable JavaScript to experience the dynamic code cell content on this page.</noscript>
+</details>
+</div><!--end of the 1st column--><div class="column" style="width:40%;">
+<div class="callout callout-note no-icon callout-titled callout-style-default">
+<div class="callout-body">
+<div class="callout-title">
+<p><strong>Note</strong></p>
+</div>
+<div class="callout-content">
+<ul>
+<li><p>It is generally recommended that you have <span class="math inline">\(F\)</span>-stat of over <span class="math inline">\(10\)</span> (this is not a clear-cut criteria that applied to all the empirical cases)</p></li>
+<li><p>Even if you reject the null if <span class="math inline">\(F\)</span>-stat is small, you may have a problem</p></li>
+<li><p>You know nothing about if your excluded instruments satisfy Condition 2.</p></li>
+<li><p>If you cannot reject the null, it is a strong indication that your instruments are weak. Look for other instruments.</p></li>
+<li><p>Always, always report this test. There is no reason not to.</p></li>
+</ul>
+</div>
+</div>
+</div>
+</div><!--end of the 2nd column-->
+</div>
+<!--end of the columns-->
 </div>
 </div>
 </div>
 <!--end of panel-->
+</div>
+<div id="tabset-12-3">
+<div class="panel-tabset">
+<ul id="tabset-11" class="panel-tabset-tabby"><li><a data-tabby-default="" href="#tabset-11-1">Data generating process</a></li><li><a href="#tabset-11-2">Estimation</a></li><li><a href="#tabset-11-3">Comparison of the weak instrument tests</a></li><li><a href="#tabset-11-4">MC simulation</a></li></ul>
+<div class="tab-content">
+<div id="tabset-11-1">
+<p><strong>Data generation</strong></p>
+<div id="qwebr-insertion-location-8"></div>
+<noscript>Please enable JavaScript to experience the dynamic code cell content on this page.</noscript>
+<p><br></p>
+<p><strong>Correlation</strong></p>
+<div id="qwebr-insertion-location-9"></div>
+<noscript>Please enable JavaScript to experience the dynamic code cell content on this page.</noscript>
+</div>
+<div id="tabset-11-2">
+<p><strong>Estimation with the strong instrumental variable</strong></p>
+<div id="qwebr-insertion-location-10"></div>
+<noscript>Please enable JavaScript to experience the dynamic code cell content on this page.</noscript>
+<p><br></p>
+<p><strong>Estimation with the weak instrumental variable</strong></p>
+<div id="qwebr-insertion-location-11"></div>
+<noscript>Please enable JavaScript to experience the dynamic code cell content on this page.</noscript>
+<p><br></p>
+<p><strong>Question</strong></p>
+<p>Any notable differences?</p>
+<br>
+<details>
+<summary>
+Answer
+</summary>
+The coefficient estimate on <span class="math inline">\(x\_end\)</span> is far away from the true value in the weak instrument case.
+</details>
+</div>
+<div id="tabset-11-3">
+<div class="columns">
+<div class="column" style="width:50%;">
+<p><strong>diagnostics (strong instrument)</strong></p>
+<div id="qwebr-insertion-location-12"></div>
+<noscript>Please enable JavaScript to experience the dynamic code cell content on this page.</noscript>
+</div><!--end of the 1st column--><div class="column" style="width:50%;">
+<p><strong>diagnostics (weak instrument)</strong></p>
+<div id="qwebr-insertion-location-13"></div>
+<noscript>Please enable JavaScript to experience the dynamic code cell content on this page.</noscript>
+</div><!--end of the 2nd column-->
+</div>
+<!--end of the columns-->
+<p><br></p>
+<div class="callout callout-note no-icon callout-titled callout-style-default">
+<div class="callout-body">
+<div class="callout-title">
+<p><strong>Note</strong></p>
+</div>
+<div class="callout-content">
+<p>You cannot reject the null hypothesis of weak instrument in the weak instrument case.</p>
+</div>
+</div>
+</div>
+</div>
+<div id="tabset-11-4">
+<div class="panel-tabset">
+<ul id="tabset-10" class="panel-tabset-tabby"><li><a data-tabby-default="" href="#tabset-10-1">Run</a></li><li><a href="#tabset-10-2">Visualization of the results</a></li></ul>
+<div class="tab-content">
+<div id="tabset-10-1">
+<div class="cell">
+<div class="sourceCode cell-code" id="cb8"><pre class="sourceCode numberSource r number-lines code-with-copy"><code class="sourceCode r"><span id="cb8-1"><a></a><span class="fu">set.seed</span>(<span class="dv">238354</span>)</span>
+<span id="cb8-2"><a></a>B <span class="ot">&lt;-</span> <span class="dv">1000</span> <span class="co"># the number of experiments</span></span>
+<span id="cb8-3"><a></a>N <span class="ot">&lt;-</span> <span class="dv">500</span> <span class="co"># number of observations</span></span>
+<span id="cb8-4"><a></a>beta_hat_store <span class="ot">&lt;-</span> <span class="fu">matrix</span>(<span class="dv">0</span>, B, <span class="dv">2</span>) <span class="co"># storage of beta hat</span></span>
+<span id="cb8-5"><a></a></span>
+<span id="cb8-6"><a></a><span class="cf">for</span> (i <span class="cf">in</span> <span class="dv">1</span><span class="sc">:</span>B) {</span>
+<span id="cb8-7"><a></a></span>
+<span id="cb8-8"><a></a>  <span class="co">#--- data generation ---#</span></span>
+<span id="cb8-9"><a></a>  u_common <span class="ot">&lt;-</span> <span class="fu">runif</span>(N)</span>
+<span id="cb8-10"><a></a>  z_common <span class="ot">&lt;-</span> <span class="fu">runif</span>(N)</span>
+<span id="cb8-11"><a></a>  x_end <span class="ot">&lt;-</span> u_common <span class="sc">+</span> z_common <span class="sc">+</span> <span class="fu">runif</span>(N)</span>
+<span id="cb8-12"><a></a>  z_strong <span class="ot">&lt;-</span> z_common <span class="sc">+</span> <span class="fu">runif</span>(N)</span>
+<span id="cb8-13"><a></a>  z_weak <span class="ot">&lt;-</span> <span class="fl">0.01</span> <span class="sc">*</span> z_common <span class="sc">+</span> <span class="fl">0.99995</span> <span class="sc">*</span> <span class="fu">runif</span>(N)</span>
+<span id="cb8-14"><a></a>  u <span class="ot">&lt;-</span> u_common <span class="sc">+</span> <span class="fu">runif</span>(N)</span>
+<span id="cb8-15"><a></a>  y <span class="ot">&lt;-</span> x_end <span class="sc">+</span> u</span>
+<span id="cb8-16"><a></a>  data <span class="ot">&lt;-</span> <span class="fu">data.table</span>(y, x_end, z_strong, z_weak)</span>
+<span id="cb8-17"><a></a></span>
+<span id="cb8-18"><a></a>  <span class="co">#--- IV estimation with a strong instrument ---#</span></span>
+<span id="cb8-19"><a></a>  iv_strong <span class="ot">&lt;-</span> fixest<span class="sc">::</span><span class="fu">feols</span>(y <span class="sc">~</span> <span class="dv">1</span> <span class="sc">|</span> x_end <span class="sc">~</span> z_strong, <span class="at">data =</span> data)</span>
+<span id="cb8-20"><a></a>  beta_hat_store[i, <span class="dv">1</span>] <span class="ot">&lt;-</span> iv_strong<span class="sc">$</span>coefficients[<span class="dv">2</span>]</span>
+<span id="cb8-21"><a></a></span>
+<span id="cb8-22"><a></a>  <span class="co">#--- IV estimation with a weak instrument ---#</span></span>
+<span id="cb8-23"><a></a>  iv_weak <span class="ot">&lt;-</span> fixest<span class="sc">::</span><span class="fu">feols</span>(y <span class="sc">~</span> <span class="dv">1</span> <span class="sc">|</span> x_end <span class="sc">~</span> z_weak, <span class="at">data =</span> data)</span>
+<span id="cb8-24"><a></a>  beta_hat_store[i, <span class="dv">2</span>] <span class="ot">&lt;-</span> iv_weak<span class="sc">$</span>coefficients[<span class="dv">2</span>]</span>
+<span id="cb8-25"><a></a>}</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</div>
+</div>
+<div id="tabset-10-2">
+<div class="cell">
+<details class="code-fold">
+<summary>Code</summary>
+<div class="sourceCode cell-code" id="cb9"><pre class="sourceCode numberSource r number-lines code-with-copy"><code class="sourceCode r"><span id="cb9-1"><a></a>melted <span class="ot">&lt;-</span> <span class="fu">melt</span>(<span class="fu">data.table</span>(beta_hat_store))</span>
+<span id="cb9-2"><a></a>melted[variable <span class="sc">==</span> <span class="st">"V1"</span>, variable <span class="sc">:</span><span class="er">=</span> <span class="st">"Strong"</span>]</span>
+<span id="cb9-3"><a></a>melted[variable <span class="sc">==</span> <span class="st">"V2"</span>, variable <span class="sc">:</span><span class="er">=</span> <span class="st">"Weak"</span>]</span>
+<span id="cb9-4"><a></a></span>
+<span id="cb9-5"><a></a><span class="fu">ggplot</span>(<span class="at">data =</span> melted[<span class="fu">abs</span>(value) <span class="sc">&lt;</span> <span class="dv">5</span>, ]) <span class="sc">+</span></span>
+<span id="cb9-6"><a></a>  <span class="fu">geom_density</span>(<span class="fu">aes</span>(<span class="at">x =</span> value, <span class="at">fill =</span> variable), <span class="at">alpha =</span> <span class="fl">0.3</span>) <span class="sc">+</span></span>
+<span id="cb9-7"><a></a>  <span class="fu">geom_vline</span>(<span class="at">xintercept =</span> <span class="dv">1</span>, <span class="at">color =</span> <span class="st">"red"</span>) <span class="sc">+</span></span>
+<span id="cb9-8"><a></a>  <span class="fu">scale_fill_discrete</span>(<span class="at">name =</span> <span class="st">""</span>) <span class="sc">+</span></span>
+<span id="cb9-9"><a></a>  <span class="fu">theme</span>(</span>
+<span id="cb9-10"><a></a>    <span class="at">legend.position =</span> <span class="st">"bottom"</span></span>
+<span id="cb9-11"><a></a>  )</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</details>
+<div class="cell-output-display">
+<div>
+<figure>
+<p><img data-src="11-iv_files/figure-revealjs/unnamed-chunk-12-1.png" width="4000"></p>
+</figure>
+</div>
+</div>
+</div>
+</div>
+</div>
+</div>
+<!--end of panel-->
+</div>
+</div>
+</div>
+<!--end of panel-->
+</div>
+</div>
+</div>
+<!--end of panel-->
+</section>
+<section id="flow-of-iv-estimation-in-practice" class="slide level2 scrollable">
+<h2>Flow of IV Estimation in Practice</h2>
+<div title="Flow">
+<div class="callout callout-note no-icon callout-titled callout-style-default">
+<div class="callout-body">
+<div class="callout-title">
+<p><strong>Flow</strong></p>
+</div>
+<div class="callout-content">
+<ol type="1">
+<li><p>Identify endogenous variable(s) and included instrument(s)</p></li>
+<li><p>Identify potential excluded instrument(s)</p></li>
+<li><p><span style="color: blue;"> Argue </span> why the excluded instrument(s) you pick is uncorrelated with the error term (<strong>condition 2</strong>)</p></li>
+<li><p>Once you decide what variable(s) to use as excluded instruments, .red[test] whether the excluded instrument(s) is weak or not ( <strong>condition 1</strong>)</p></li>
+<li><p>Implement IV estimation and report the results</p></li>
+</ol>
+</div>
+</div>
+</div>
+</div>
 
 <div class="quarto-auto-generated-content">
 <div class="footer footer-default">
 <p><a href="https://tmieno2.github.io/Applied-Econometrics-MS-Quarto/lectures/">back to course website with lecture slides</a></p>
 </div>
 </div>
-</section>
+</section></section>
     </div>
   </div>
 

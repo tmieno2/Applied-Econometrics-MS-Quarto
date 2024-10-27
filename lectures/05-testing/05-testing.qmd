@@ -1267,10 +1267,13 @@ $$se(\widehat{\beta}_1-\widehat{\beta}_2)= \sqrt{Var(\widehat{\beta}_1-\widehat{
 #### Regression
 
 ```{webr-r}
+#| autorun: true
 #--- import data ---#
 data("twoyear", package = "wooldridge")
 
+(
 reg_sc <- fixest::feols(lwage ~ jc + univ + exper, data = twoyear) # OLS
+)
 ```
 
 #### Variance covariance matrix
@@ -1287,7 +1290,10 @@ Variance covariance matrix is a matrix where
 You can get it by applying `vcov()` to regression results:
 
 ```{webr-r}
+#| autorun: true
+(
 vcov_sc <- vcov(reg_sc) # variance covariance matrix
+)
 ```
 
 <br>
@@ -1302,6 +1308,7 @@ For example, $vcov_{sc}[2, 2]$ is the variance of $\widehat{\beta}_{jc}$, and $v
 Get coefficient estimates: 
 
 ```{webr-r}
+#| autorun: true
 #--- reg results ---#
 reg_sc_td <- broom::tidy(reg_sc)
 
@@ -1322,7 +1329,7 @@ beta_univ <-
 Calcualt t-statistic:
 
 ```{webr-r}
-#---  ---#
+#| autorun: true
 numerator <- beta_jc - beta_univ
 denominator <-
   sqrt(
@@ -1339,6 +1346,45 @@ t_stat
 <!--end of the 2nd column-->
 :::
 <!--end of the columns-->
+
+#### In practice
+
+In practice, you can just use `car::linearHypothesis()` to implement t-test involving a linear combination of multiple coefficients.
+
+**Syntax**
+
+```{r}
+#| eval: false
+car::linearHypothesis(regression resultss, expression of the test) 
+```
+
+<br>
+
+**Example**
+
+```{webr-r}
+#| autorun: true
+car::linearHypothesis(reg_sc, "jc=univ")
+```
+
+<br>
+
+Please note that it runs $\chi^2$ test. When t-statistic is squared, it follows a $\chi^2$ distribution. So, it calcualtes the square of the t-statistic and look up the $\chi^2$ distribution critical value to decide whether to reject the null or not. 
+
+Let's confirm this:
+
+```{webr-r}
+#| autorun: true
+t_stat^2
+```
+
+<br>
+
+Yes, this is the same as the $\chi^2$ value reported by `car::linearHypothesis(reg_sc, "jc=univ")`
+
+:::{.callout-important}
+The test results would be the same whether you run t-test or $\chi^2$ test.
+:::
 
 :::
 <!--end of panel-->
@@ -1677,12 +1723,12 @@ car::linearHypothesis(regression, hypothesis)
 
 #### Demonstration
 
-```{webr-r}
-#--- unrestricted regression ---#
-reg_u <- fixest::feols(y ~ x1 + x2 + x3, data = data)
+The following code test if $\beta_{bavg} = 0$, $\beta_{hrunsyr} = 0$, and $\beta_{rbisyr} = 0$. 
 
+```{webr-r}
+#| autorun: true
 #--- F-test ---#
-car::linearHypothesis(reg_u, c("x1=0", "x2=0"))
+car::linearHypothesis(mlb_reg, c("bavg=0", "hrunsyr=0", "rbisyr=0"))
 ```
 
 :::
