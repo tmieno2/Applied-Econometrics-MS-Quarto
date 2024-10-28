@@ -8,7 +8,7 @@
 <link href="../../site_libs/quarto-html/light-border.css" rel="stylesheet">
 <link href="../../site_libs/quarto-html/quarto-html.min.css" rel="stylesheet" data-mode="light">
 <link href="../../site_libs/quarto-html/quarto-syntax-highlighting.css" rel="stylesheet" id="quarto-text-highlighting-styles"><meta charset="utf-8">
-  <meta name="generator" content="quarto-1.5.56">
+  <meta name="generator" content="quarto-1.5.57">
 
   <title>Applied Econometrics (AECN 896-004) – 06: Standard Error Estimation</title>
   <meta name="apple-mobile-web-app-capable" content="yes">
@@ -385,6 +385,8 @@
       margin-right: 0; 
     }
   </style>
+  <script src="../../site_libs/kePrint-0.0.1/kePrint.js"></script>
+  <link href="../../site_libs/lightable-0.0.1/lightable.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/monaco-editor@0.47.0/min/vs/editor/editor.main.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
     
@@ -675,7 +677,7 @@
   };
 
   // Store cell data
-  globalThis.qwebrCellDetails = [{"id":1,"code":"set.seed(927834)\n\nN <- 1000 # number of observations\nB <- 1000 # number of simulations\n\nb_hat_store <- rep(0, B) # beta hat storage\nt_stat_store <- rep(0, B) # t-stat storage\nc_value <- qt(0.975, N - 2) # critical value\n\nx <- runif(N, 0, 1) # x (fixed across iterations)\n\nfor (i in 1:B){\n  #--- generate data ---#\n  het_u <- 3 * rnorm(N, mean = 0, sd = 2 * x) # heteroskedastic error\n  y <- 1 + het_u # y\n  data_temp <- data.frame(y = y, x = x)\n\n  #--- regression ---#\n  ols_res <- lm(y ~ x, data = data_temp)  \n\n  b_hat <- ols_res$coef['x'] # coef estimate on x\n  b_hat_store[i] <- b_hat # save the coef estimate\n  vcov_ols <- vcov(ols_res) # get variance covariance matrix\n  t_stat_store[i] <- b_hat / sqrt(vcov_ols['x', 'x']) # calculate t-stat\n} ","options":{"editor-quick-suggestions":"false","fig-height":5,"label":"unnamed-chunk-1","classes":"","context":"interactive","message":"true","warning":"true","autorun":"false","results":"markup","editor-word-wrap":"true","comment":"","out-height":"","fig-width":7,"dpi":72,"read-only":"false","output":"true","editor-font-scale":"0.8","out-width":"700px","fig-cap":"","editor-max-height":""}},{"id":2,"code":"#--- how many times do you reject? ---#\nreject_or_not <- \n  abs(t_stat_store) > c_value\n\nmean(reject_or_not) ","options":{"editor-quick-suggestions":"false","fig-height":5,"label":"unnamed-chunk-2","classes":"","context":"interactive","message":"true","warning":"true","autorun":"false","results":"markup","editor-word-wrap":"true","comment":"","out-height":"","fig-width":7,"dpi":72,"read-only":"false","output":"true","editor-font-scale":"0.8","out-width":"700px","fig-cap":"","editor-max-height":""}},{"id":3,"code":"#--- import the data ---#\ndata(\"mlb1\", package = \"wooldridge\")\n\n#--- regression ---#\nreg_mlb <- fixest::feols(log(salary) ~ years + bavg, data = mlb1) ","options":{"editor-quick-suggestions":"false","fig-height":5,"label":"unnamed-chunk-3","classes":"","context":"interactive","message":"true","warning":"true","autorun":"true","results":"markup","editor-word-wrap":"true","comment":"","out-height":"","fig-width":7,"dpi":72,"read-only":"false","output":"true","editor-font-scale":"0.8","out-width":"700px","fig-cap":"","editor-max-height":""}},{"id":4,"code":"#* vcov\nvcov(reg_mlb, vcov = \"hetero\")\n\n#* only the standard errors\nfixest::se(reg_mlb, vcov = \"hetero\")","options":{"editor-quick-suggestions":"false","fig-height":5,"label":"unnamed-chunk-4","classes":"","context":"interactive","message":"true","warning":"true","autorun":"false","results":"markup","editor-word-wrap":"true","comment":"","out-height":"","fig-width":7,"dpi":72,"read-only":"false","output":"true","editor-font-scale":"0.8","out-width":"700px","fig-cap":"","editor-max-height":""}},{"id":5,"code":"(\n  se_hom <- se(reg_mlb)\n)","options":{"editor-quick-suggestions":"false","fig-height":5,"label":"unnamed-chunk-5","classes":"","context":"interactive","message":"true","warning":"true","autorun":"false","results":"markup","editor-word-wrap":"true","comment":"","out-height":"","fig-width":7,"dpi":72,"read-only":"false","output":"true","editor-font-scale":"0.8","out-width":"700px","fig-cap":"","editor-max-height":""}},{"id":6,"code":"(\n  se_het <- se(reg_mlb, vcov = \"hetero\")\n)","options":{"editor-quick-suggestions":"false","fig-height":5,"label":"unnamed-chunk-6","classes":"","context":"interactive","message":"true","warning":"true","autorun":"false","results":"markup","editor-word-wrap":"true","comment":"","out-height":"","fig-width":7,"dpi":72,"read-only":"false","output":"true","editor-font-scale":"0.8","out-width":"700px","fig-cap":"","editor-max-height":""}},{"id":7,"code":"set.seed(478954)\n\n#--- x fixed across iterations ---#\nx <- runif(N,0,1) # x\n\nfor (i in 1:B){\n  #--- generate data ---#\n  het_u <- 3 * rnorm(N, mean = 0, sd = 2 * x) # heteroskedastic error\n  y <- 1 + het_u # y\n  data_temp <- data.frame(y = y, x = x)\n\n  #--- regression ---#\n  ols_res <- feols(y ~ x,data = data_temp)\n  b_hat <- ols_res$coefficient['x'] # coef estimate on x\n  b_hat_store[i] <- b_hat # save the coef estimate\n  se_het <- se(ols_res, vcov = \"hetero\")[\"x\"] # get variance covariance matrix #<<\n  t_stat_store[i] <- b_hat/se_het # calculate t-stat\n}","options":{"cache":"true","editor-quick-suggestions":"false","fig-height":5,"label":"unnamed-chunk-7","classes":"","context":"interactive","message":"true","warning":"true","autorun":"false","results":"markup","editor-word-wrap":"true","comment":"","out-height":"","fig-width":7,"dpi":72,"read-only":"false","output":"true","editor-font-scale":"0.8","out-width":"700px","fig-cap":"","editor-max-height":""}},{"id":8,"code":"reject_or_not <- \n  abs(t_stat_store) > c_value\n\nmean(reject_or_not)","options":{"cache":"true","editor-quick-suggestions":"false","fig-height":5,"label":"unnamed-chunk-8","classes":"","context":"interactive","message":"true","warning":"true","autorun":"false","results":"markup","editor-word-wrap":"true","comment":"","out-height":"","fig-width":7,"dpi":72,"read-only":"false","output":"true","editor-font-scale":"0.8","out-width":"700px","fig-cap":"","editor-max-height":""}},{"id":9,"code":"#--- setup ---#\nN <- 2000 # total number of observations\nG <- 50 # number of groups\nNg <- N/G # number of observations per group\n\n#--- error correlated within group ---#\nu <- \n  MASS::mvrnorm(\n    G, mu = rep(0, Ng), \n    Sigma = matrix(10, nrow = Ng, ncol = Ng) + diag(Ng)\n  ) %>% t() %>% c()\n\n#--- x correlated within group ---#\nx <- \n  MASS::mvrnorm(\n    G, mu = rep(0, Ng), \n    Sigma = matrix(1, nrow = Ng, ncol = Ng) + diag(Ng) * .2\n  ) %>% t() %>% c()\n\n#--- other variables ---#\ny <- 1 + 0 * x + u\n\n#--- data.frame ---#\ndata <- data.frame(y = y, x = x, group = rep(1:G, each = Ng))","options":{"editor-quick-suggestions":"false","fig-height":5,"label":"unnamed-chunk-9","classes":"","context":"interactive","message":"true","warning":"true","autorun":"false","results":"markup","editor-word-wrap":"true","comment":"","out-height":"","fig-width":7,"dpi":72,"read-only":"false","output":"true","editor-font-scale":"0.8","out-width":"700px","fig-cap":"","editor-max-height":""}},{"id":10,"code":"ggplot(data) +\n  geom_point(aes(y = y, x = factor(group)), size = 0.2) +\n  xlab(\"group\") +\n  theme(\n    axis.text.x = element_text(size = 6, angle = 90)\n  )","options":{"editor-quick-suggestions":"false","fig-height":5,"label":"unnamed-chunk-10","classes":"","context":"interactive","message":"true","warning":"true","autorun":"false","results":"markup","editor-word-wrap":"true","comment":"","out-height":"","fig-width":7,"dpi":72,"read-only":"false","output":"true","editor-font-scale":"0.8","out-width":"700px","fig-cap":"","editor-max-height":""}},{"id":11,"code":"c_value <- qt(0.975, N - 2)\n\n#--- how often do you reject the null ---#\nmean(abs(t_stat_store) > c_value) ","options":{"editor-quick-suggestions":"false","fig-height":5,"label":"unnamed-chunk-11","classes":"","context":"interactive","message":"true","warning":"true","autorun":"false","results":"markup","editor-word-wrap":"true","comment":"","out-height":"","fig-width":7,"dpi":72,"read-only":"false","output":"true","editor-font-scale":"0.8","out-width":"700px","fig-cap":"","editor-max-height":""}},{"id":12,"code":"dplyr::select(mlb1, salary, years, bavg, nl) %>% head()","options":{"editor-quick-suggestions":"false","fig-height":5,"label":"unnamed-chunk-12","classes":"","context":"interactive","message":"true","warning":"true","autorun":"false","results":"markup","editor-word-wrap":"true","comment":"","out-height":"","fig-width":7,"dpi":72,"read-only":"false","output":"true","editor-font-scale":"0.8","out-width":"700px","fig-cap":"","editor-max-height":""}},{"id":13,"code":"reg_mlb <- feols(log(salary) ~ years + bavg, data = mlb1) ","options":{"editor-quick-suggestions":"false","fig-height":5,"label":"unnamed-chunk-13","classes":"","context":"interactive","message":"true","warning":"true","autorun":"false","results":"markup","editor-word-wrap":"true","comment":"","out-height":"","fig-width":7,"dpi":72,"read-only":"false","output":"true","editor-font-scale":"0.8","out-width":"700px","fig-cap":"","editor-max-height":""}},{"id":14,"code":"#* vcov clustered by nl\nvcov(reg_mlb, cluster = ~ nl)\n\n#* se clustered by nl\nse(reg_mlb, cluster = ~ nl)","options":{"editor-quick-suggestions":"false","fig-height":5,"label":"unnamed-chunk-14","classes":"","context":"interactive","message":"true","warning":"true","autorun":"false","results":"markup","editor-word-wrap":"true","comment":"","out-height":"","fig-width":7,"dpi":72,"read-only":"false","output":"true","editor-font-scale":"0.8","out-width":"700px","fig-cap":"","editor-max-height":""}},{"id":15,"code":"se(reg_mlb) ","options":{"editor-quick-suggestions":"false","fig-height":5,"label":"unnamed-chunk-15","classes":"","context":"interactive","message":"true","warning":"true","autorun":"false","results":"markup","editor-word-wrap":"true","comment":"","out-height":"","fig-width":7,"dpi":72,"read-only":"false","output":"true","editor-font-scale":"0.8","out-width":"700px","fig-cap":"","editor-max-height":""}},{"id":16,"code":"se(reg_mlb, cluster = ~ nl) ","options":{"editor-quick-suggestions":"false","fig-height":5,"label":"unnamed-chunk-16","classes":"","context":"interactive","message":"true","warning":"true","autorun":"false","results":"markup","editor-word-wrap":"true","comment":"","out-height":"","fig-width":7,"dpi":72,"read-only":"false","output":"true","editor-font-scale":"0.8","out-width":"700px","fig-cap":"","editor-max-height":""}},{"id":17,"code":"reg_mlb <- feols(log(salary) ~ years + bavg, cluster = ~ nl, data = mlb1) \n\ntidy(reg_mlb)","options":{"editor-quick-suggestions":"false","fig-height":5,"label":"unnamed-chunk-17","classes":"","context":"interactive","message":"true","warning":"true","autorun":"false","results":"markup","editor-word-wrap":"true","comment":"","out-height":"","fig-width":7,"dpi":72,"read-only":"false","output":"true","editor-font-scale":"0.8","out-width":"700px","fig-cap":"","editor-max-height":""}},{"id":18,"code":"set.seed(58934)\nB <- 1000\nt_stat_store <- rep(0,B)\nN <- 2000 # number of observations per cluster\nG <- 50 # number of groups\nNg <- N/G # number of observations per group\n\nfor (i in 1:B){\n  #--- error correlated within group ---#\n  u <- \n  mvrnorm(\n    G, mu = rep(0, Ng), \n    Sigma = matrix(10, nrow = Ng, ncol = Ng) + diag(Ng)\n  ) %>% t() %>% c()\n\n  #--- x correlated within group ---#\n  x <- \n    mvrnorm(\n      G, mu = rep(0, Ng), \n      Sigma = matrix(1, nrow = Ng, ncol = Ng) + diag(Ng) * .2\n    ) %>% t() %>% c()\n\n  #--- other variables ---#\n  y <- 1 + 0 * x + u\n\n  #--- data.frame ---#\n  data <- data.frame(y = y, x = x, group = rep(1:G, each = Ng))\n\n  #--- OLS with cluster-robust se---#\n  reg <- feols(y ~ x, data = data, cluster = ~ group) #<<\n\n  #--- get vcov ---#\n  se_cl <- se(reg)[\"x\"]\n\n  #--- calculate t-stat ---#\n  t_stat <- reg$coefficient['x']/se_cl\n  t_stat_store[i] <- t_stat\n}","options":{"editor-quick-suggestions":"false","fig-height":5,"label":"cl-MC-robust","classes":"","context":"interactive","message":"true","warning":"true","autorun":"false","results":"markup","editor-word-wrap":"true","comment":"","out-height":"","fig-width":7,"dpi":72,"read-only":"false","output":"true","editor-font-scale":"0.8","out-width":"700px","fig-cap":"","editor-max-height":""}},{"id":19,"code":"#--- critical value ---#\nc_value <- qt(0.95, N-2)\n\n#--- how often do you reject the null ---#\nmean(abs(t_stat_store) > c_value)","options":{"editor-quick-suggestions":"false","fig-height":5,"label":"unnamed-chunk-19","classes":"","context":"interactive","message":"true","warning":"true","autorun":"false","results":"markup","editor-word-wrap":"true","comment":"","out-height":"","fig-width":7,"dpi":72,"read-only":"false","output":"true","editor-font-scale":"0.8","out-width":"700px","fig-cap":"","editor-max-height":""}},{"id":20,"code":"set.seed(58934)\nB <- 1000\nt_stat_store <- rep(0,B)\nN <- 20000 # total number of observations\nG <- 1000 # number of groups #<<\nNg <- N/G # number of observations per group\n\nfor (i in 1:B){\n  #--- error correlated within group ---#\n  u <- \n  mvrnorm(\n    G, mu = rep(0, Ng), \n    Sigma = matrix(10, nrow = Ng, ncol = Ng) + diag(Ng)\n  ) %>% t() %>% c()\n\n  #--- x correlated within group ---#\n  x <- \n    mvrnorm(\n      G, mu = rep(0, Ng), \n      Sigma = matrix(1, nrow = Ng, ncol = Ng) + diag(Ng) * .2\n    ) %>% t() %>% c()\n\n  #--- other variables ---#\n  y <- 1 + 0 * x + u\n\n  #--- data.frame ---#\n  data <- data.frame(y = y, x = x, group = rep(1:G, each = Ng))\n\n  #--- OLS with cluster-robust se---#\n  reg <- feols(y ~ x, data = data, cluster = ~ group)\n\n  #--- get vcov ---#\n  se_cl <- se(reg)[\"x\"]\n\n  #--- calculate t-stat ---#\n  t_stat <- reg$coefficient['x']/se_cl\n  t_stat_store[i] <- t_stat\n}","options":{"editor-quick-suggestions":"false","fig-height":5,"label":"cl-MC-robust-more-groups","classes":"","context":"interactive","message":"true","warning":"true","autorun":"false","results":"markup","editor-word-wrap":"true","comment":"","out-height":"","fig-width":7,"dpi":72,"read-only":"false","output":"true","editor-font-scale":"0.8","out-width":"700px","fig-cap":"","editor-max-height":""}},{"id":21,"code":"#--- critical value ---#\nc_value <- qt(0.95, N-2)\n\n#--- how often do you reject the null ---#\nmean(abs(t_stat_store) > c_value)","options":{"editor-quick-suggestions":"false","fig-height":5,"label":"unnamed-chunk-21","classes":"","context":"interactive","message":"true","warning":"true","autorun":"false","results":"markup","editor-word-wrap":"true","comment":"","out-height":"","fig-width":7,"dpi":72,"read-only":"false","output":"true","editor-font-scale":"0.8","out-width":"700px","fig-cap":"","editor-max-height":""}}];
+  globalThis.qwebrCellDetails = [{"code":"set.seed(927834)\n\nN <- 1000 # number of observations\nB <- 1000 # number of simulations\n\nb_hat_store <- rep(0, B) # beta hat storage\nt_stat_store <- rep(0, B) # t-stat storage\nc_value <- qt(0.975, N - 2) # critical value\n\nx <- runif(N, 0, 1) # x (fixed across iterations)\n\nfor (i in 1:B){\n  #--- generate data ---#\n  het_u <- 3 * rnorm(N, mean = 0, sd = 2 * x) # heteroskedastic error\n  y <- 1 + het_u # y\n  data_temp <- data.frame(y = y, x = x)\n\n  #--- regression ---#\n  ols_res <- lm(y ~ x, data = data_temp)  \n\n  b_hat <- ols_res$coef['x'] # coef estimate on x\n  b_hat_store[i] <- b_hat # save the coef estimate\n  vcov_ols <- vcov(ols_res) # get variance covariance matrix\n  t_stat_store[i] <- b_hat / sqrt(vcov_ols['x', 'x']) # calculate t-stat\n} ","options":{"out-width":"700px","warning":"true","autorun":"false","comment":"","fig-width":7,"dpi":72,"fig-cap":"","editor-max-height":"","editor-quick-suggestions":"false","results":"markup","label":"unnamed-chunk-1","context":"interactive","classes":"","message":"true","read-only":"false","output":"true","editor-word-wrap":"true","out-height":"","editor-font-scale":"0.8","fig-height":5},"id":1},{"code":"#--- how many times do you reject? ---#\nreject_or_not <- \n  abs(t_stat_store) > c_value\n\nmean(reject_or_not) ","options":{"out-width":"700px","warning":"true","autorun":"false","comment":"","fig-width":7,"dpi":72,"fig-cap":"","editor-max-height":"","editor-quick-suggestions":"false","results":"markup","label":"unnamed-chunk-2","context":"interactive","classes":"","message":"true","read-only":"false","output":"true","editor-word-wrap":"true","out-height":"","editor-font-scale":"0.8","fig-height":5},"id":2},{"code":"#--- import the data ---#\ndata(\"mlb1\", package = \"wooldridge\")\n\n#--- regression ---#\nreg_mlb <- fixest::feols(log(salary) ~ years + bavg, data = mlb1) ","options":{"out-width":"700px","warning":"true","autorun":"true","comment":"","fig-width":7,"dpi":72,"fig-cap":"","editor-max-height":"","editor-quick-suggestions":"false","results":"markup","label":"unnamed-chunk-3","context":"interactive","classes":"","message":"true","read-only":"false","output":"true","editor-word-wrap":"true","out-height":"","editor-font-scale":"0.8","fig-height":5},"id":3},{"code":"#* vcov\nvcov(reg_mlb, vcov = \"hetero\")\n\n#* only the standard errors\nfixest::se(reg_mlb, vcov = \"hetero\")","options":{"out-width":"700px","warning":"true","autorun":"false","comment":"","fig-width":7,"dpi":72,"fig-cap":"","editor-max-height":"","editor-quick-suggestions":"false","results":"markup","label":"unnamed-chunk-4","context":"interactive","classes":"","message":"true","read-only":"false","output":"true","editor-word-wrap":"true","out-height":"","editor-font-scale":"0.8","fig-height":5},"id":4},{"code":"(\n  se_hom <- se(reg_mlb)\n)","options":{"out-width":"700px","warning":"true","autorun":"false","comment":"","fig-width":7,"dpi":72,"fig-cap":"","editor-max-height":"","editor-quick-suggestions":"false","results":"markup","label":"unnamed-chunk-5","context":"interactive","classes":"","message":"true","read-only":"false","output":"true","editor-word-wrap":"true","out-height":"","editor-font-scale":"0.8","fig-height":5},"id":5},{"code":"(\n  se_het <- se(reg_mlb, vcov = \"hetero\")\n)","options":{"out-width":"700px","warning":"true","autorun":"false","comment":"","fig-width":7,"dpi":72,"fig-cap":"","editor-max-height":"","editor-quick-suggestions":"false","results":"markup","label":"unnamed-chunk-6","context":"interactive","classes":"","message":"true","read-only":"false","output":"true","editor-word-wrap":"true","out-height":"","editor-font-scale":"0.8","fig-height":5},"id":6},{"code":"set.seed(478954)\n\n#--- x fixed across iterations ---#\nx <- runif(N,0,1) # x\n\nfor (i in 1:B){\n  #--- generate data ---#\n  het_u <- 3 * rnorm(N, mean = 0, sd = 2 * x) # heteroskedastic error\n  y <- 1 + het_u # y\n  data_temp <- data.frame(y = y, x = x)\n\n  #--- regression ---#\n  ols_res <- feols(y ~ x,data = data_temp)\n  b_hat <- ols_res$coefficient['x'] # coef estimate on x\n  b_hat_store[i] <- b_hat # save the coef estimate\n  se_het <- se(ols_res, vcov = \"hetero\")[\"x\"] # get variance covariance matrix #<<\n  t_stat_store[i] <- b_hat/se_het # calculate t-stat\n}","options":{"out-width":"700px","warning":"true","autorun":"false","comment":"","fig-width":7,"dpi":72,"fig-cap":"","editor-max-height":"","editor-quick-suggestions":"false","cache":"true","results":"markup","label":"unnamed-chunk-7","context":"interactive","classes":"","message":"true","read-only":"false","output":"true","editor-word-wrap":"true","out-height":"","editor-font-scale":"0.8","fig-height":5},"id":7},{"code":"reject_or_not <- \n  abs(t_stat_store) > c_value\n\nmean(reject_or_not)","options":{"out-width":"700px","warning":"true","autorun":"false","comment":"","fig-width":7,"dpi":72,"fig-cap":"","editor-max-height":"","editor-quick-suggestions":"false","cache":"true","results":"markup","label":"unnamed-chunk-8","context":"interactive","classes":"","message":"true","read-only":"false","output":"true","editor-word-wrap":"true","out-height":"","editor-font-scale":"0.8","fig-height":5},"id":8},{"code":"#--- setup ---#\nN <- 2000 # total number of observations\nG <- 50 # number of groups\nNg <- N/G # number of observations per group\n\n#--- error correlated within group ---#\nu <- \n  MASS::mvrnorm(\n    G, mu = rep(0, Ng), \n    Sigma = matrix(10, nrow = Ng, ncol = Ng) + diag(Ng)\n  ) %>% t() %>% c()\n\n#--- x correlated within group ---#\nx <- \n  MASS::mvrnorm(\n    G, mu = rep(0, Ng), \n    Sigma = matrix(1, nrow = Ng, ncol = Ng) + diag(Ng) * .2\n  ) %>% t() %>% c()\n\n#--- other variables ---#\ny <- 1 + 0 * x + u\n\n#--- data.frame ---#\ndata <- data.frame(y = y, x = x, group = rep(1:G, each = Ng))","options":{"out-width":"700px","warning":"true","autorun":"false","comment":"","fig-width":7,"dpi":72,"fig-cap":"","editor-max-height":"","editor-quick-suggestions":"false","results":"markup","label":"unnamed-chunk-9","context":"interactive","classes":"","message":"true","read-only":"false","output":"true","editor-word-wrap":"true","out-height":"","editor-font-scale":"0.8","fig-height":5},"id":9},{"code":"ggplot(data) +\n  geom_point(aes(y = y, x = factor(group)), size = 0.2) +\n  xlab(\"group\") +\n  theme(\n    axis.text.x = element_text(size = 6, angle = 90)\n  )","options":{"out-width":"700px","warning":"true","autorun":"false","comment":"","fig-width":7,"dpi":72,"fig-cap":"","editor-max-height":"","editor-quick-suggestions":"false","results":"markup","label":"unnamed-chunk-10","context":"interactive","classes":"","message":"true","read-only":"false","output":"true","editor-word-wrap":"true","out-height":"","editor-font-scale":"0.8","fig-height":5},"id":10},{"code":"c_value <- qt(0.975, N - 2)\n\n#--- how often do you reject the null ---#\nmean(abs(t_stat_store) > c_value) ","options":{"out-width":"700px","warning":"true","autorun":"false","comment":"","fig-width":7,"dpi":72,"fig-cap":"","editor-max-height":"","editor-quick-suggestions":"false","results":"markup","label":"unnamed-chunk-11","context":"interactive","classes":"","message":"true","read-only":"false","output":"true","editor-word-wrap":"true","out-height":"","editor-font-scale":"0.8","fig-height":5},"id":11},{"code":"dplyr::select(mlb1, salary, years, bavg, nl) %>% head()","options":{"out-width":"700px","warning":"true","autorun":"false","comment":"","fig-width":7,"dpi":72,"fig-cap":"","editor-max-height":"","editor-quick-suggestions":"false","results":"markup","label":"unnamed-chunk-12","context":"interactive","classes":"","message":"true","read-only":"false","output":"true","editor-word-wrap":"true","out-height":"","editor-font-scale":"0.8","fig-height":5},"id":12},{"code":"reg_mlb <- feols(log(salary) ~ years + bavg, data = mlb1) ","options":{"out-width":"700px","warning":"true","autorun":"false","comment":"","fig-width":7,"dpi":72,"fig-cap":"","editor-max-height":"","editor-quick-suggestions":"false","results":"markup","label":"unnamed-chunk-13","context":"interactive","classes":"","message":"true","read-only":"false","output":"true","editor-word-wrap":"true","out-height":"","editor-font-scale":"0.8","fig-height":5},"id":13},{"code":"#* vcov clustered by nl\nvcov(reg_mlb, cluster = ~ nl)\n\n#* se clustered by nl\nse(reg_mlb, cluster = ~ nl)","options":{"out-width":"700px","warning":"true","autorun":"false","comment":"","fig-width":7,"dpi":72,"fig-cap":"","editor-max-height":"","editor-quick-suggestions":"false","results":"markup","label":"unnamed-chunk-14","context":"interactive","classes":"","message":"true","read-only":"false","output":"true","editor-word-wrap":"true","out-height":"","editor-font-scale":"0.8","fig-height":5},"id":14},{"code":"se(reg_mlb) ","options":{"out-width":"700px","warning":"true","autorun":"false","comment":"","fig-width":7,"dpi":72,"fig-cap":"","editor-max-height":"","editor-quick-suggestions":"false","results":"markup","label":"unnamed-chunk-15","context":"interactive","classes":"","message":"true","read-only":"false","output":"true","editor-word-wrap":"true","out-height":"","editor-font-scale":"0.8","fig-height":5},"id":15},{"code":"se(reg_mlb, cluster = ~ nl) ","options":{"out-width":"700px","warning":"true","autorun":"false","comment":"","fig-width":7,"dpi":72,"fig-cap":"","editor-max-height":"","editor-quick-suggestions":"false","results":"markup","label":"unnamed-chunk-16","context":"interactive","classes":"","message":"true","read-only":"false","output":"true","editor-word-wrap":"true","out-height":"","editor-font-scale":"0.8","fig-height":5},"id":16},{"code":"reg_mlb <- feols(log(salary) ~ years + bavg, cluster = ~ nl, data = mlb1) \n\ntidy(reg_mlb)","options":{"out-width":"700px","warning":"true","autorun":"false","comment":"","fig-width":7,"dpi":72,"fig-cap":"","editor-max-height":"","editor-quick-suggestions":"false","results":"markup","label":"unnamed-chunk-17","context":"interactive","classes":"","message":"true","read-only":"false","output":"true","editor-word-wrap":"true","out-height":"","editor-font-scale":"0.8","fig-height":5},"id":17},{"code":"set.seed(58934)\nB <- 1000\nt_stat_store <- rep(0,B)\nN <- 2000 # number of observations per cluster\nG <- 50 # number of groups\nNg <- N/G # number of observations per group\n\nfor (i in 1:B){\n  #--- error correlated within group ---#\n  u <- \n  mvrnorm(\n    G, mu = rep(0, Ng), \n    Sigma = matrix(10, nrow = Ng, ncol = Ng) + diag(Ng)\n  ) %>% t() %>% c()\n\n  #--- x correlated within group ---#\n  x <- \n    mvrnorm(\n      G, mu = rep(0, Ng), \n      Sigma = matrix(1, nrow = Ng, ncol = Ng) + diag(Ng) * .2\n    ) %>% t() %>% c()\n\n  #--- other variables ---#\n  y <- 1 + 0 * x + u\n\n  #--- data.frame ---#\n  data <- data.frame(y = y, x = x, group = rep(1:G, each = Ng))\n\n  #--- OLS with cluster-robust se---#\n  reg <- feols(y ~ x, data = data, cluster = ~ group) #<<\n\n  #--- get vcov ---#\n  se_cl <- se(reg)[\"x\"]\n\n  #--- calculate t-stat ---#\n  t_stat <- reg$coefficient['x']/se_cl\n  t_stat_store[i] <- t_stat\n}","options":{"out-width":"700px","warning":"true","autorun":"false","comment":"","fig-width":7,"dpi":72,"fig-cap":"","editor-max-height":"","editor-quick-suggestions":"false","results":"markup","label":"cl-MC-robust","context":"interactive","classes":"","message":"true","read-only":"false","output":"true","editor-word-wrap":"true","out-height":"","editor-font-scale":"0.8","fig-height":5},"id":18},{"code":"#--- critical value ---#\nc_value <- qt(0.95, N-2)\n\n#--- how often do you reject the null ---#\nmean(abs(t_stat_store) > c_value)","options":{"out-width":"700px","warning":"true","autorun":"false","comment":"","fig-width":7,"dpi":72,"fig-cap":"","editor-max-height":"","editor-quick-suggestions":"false","results":"markup","label":"unnamed-chunk-19","context":"interactive","classes":"","message":"true","read-only":"false","output":"true","editor-word-wrap":"true","out-height":"","editor-font-scale":"0.8","fig-height":5},"id":19},{"code":"set.seed(58934)\nB <- 1000\nt_stat_store <- rep(0,B)\nN <- 20000 # total number of observations\nG <- 1000 # number of groups #<<\nNg <- N/G # number of observations per group\n\nfor (i in 1:B){\n  #--- error correlated within group ---#\n  u <- \n  mvrnorm(\n    G, mu = rep(0, Ng), \n    Sigma = matrix(10, nrow = Ng, ncol = Ng) + diag(Ng)\n  ) %>% t() %>% c()\n\n  #--- x correlated within group ---#\n  x <- \n    mvrnorm(\n      G, mu = rep(0, Ng), \n      Sigma = matrix(1, nrow = Ng, ncol = Ng) + diag(Ng) * .2\n    ) %>% t() %>% c()\n\n  #--- other variables ---#\n  y <- 1 + 0 * x + u\n\n  #--- data.frame ---#\n  data <- data.frame(y = y, x = x, group = rep(1:G, each = Ng))\n\n  #--- OLS with cluster-robust se---#\n  reg <- feols(y ~ x, data = data, cluster = ~ group)\n\n  #--- get vcov ---#\n  se_cl <- se(reg)[\"x\"]\n\n  #--- calculate t-stat ---#\n  t_stat <- reg$coefficient['x']/se_cl\n  t_stat_store[i] <- t_stat\n}","options":{"out-width":"700px","warning":"true","autorun":"false","comment":"","fig-width":7,"dpi":72,"fig-cap":"","editor-max-height":"","editor-quick-suggestions":"false","results":"markup","label":"cl-MC-robust-more-groups","context":"interactive","classes":"","message":"true","read-only":"false","output":"true","editor-word-wrap":"true","out-height":"","editor-font-scale":"0.8","fig-height":5},"id":20},{"code":"#--- critical value ---#\nc_value <- qt(0.95, N-2)\n\n#--- how often do you reject the null ---#\nmean(abs(t_stat_store) > c_value)","options":{"out-width":"700px","warning":"true","autorun":"false","comment":"","fig-width":7,"dpi":72,"fig-cap":"","editor-max-height":"","editor-quick-suggestions":"false","results":"markup","label":"unnamed-chunk-21","context":"interactive","classes":"","message":"true","read-only":"false","output":"true","editor-word-wrap":"true","out-height":"","editor-font-scale":"0.8","fig-height":5},"id":21}];
 
   </script>
   <script type="module">
@@ -2528,184 +2530,74 @@ globalThis.qwebrCreateMonacoEditorInstance = function (cellData) {
 </div><!--end of the 1st column--><div class="column" style="width:50%;">
 <div class="cell">
 <div class="cell-output-display">
- 
+<table class="table caption-top" data-quarto-postprocess="true" style="NAborder-bottom: 0; width: auto !important; margin-left: auto; margin-right: auto;">
+<thead>
+<tr class="header">
+<th style="text-align: left;" data-quarto-table-cell-role="th"></th>
+<th style="text-align: center;" data-quarto-table-cell-role="th">&nbsp;(1)</th>
+<th style="text-align: center;" data-quarto-table-cell-role="th">&nbsp;&nbsp;(2)</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td style="text-align: left;">(Intercept)</td>
+<td style="text-align: center;">11.042***</td>
+<td style="text-align: center;">11.042***</td>
+</tr>
+<tr class="even">
+<td style="text-align: left;"></td>
+<td style="text-align: center;">(0.704)</td>
+<td style="text-align: center;">(0.343)</td>
+</tr>
+<tr class="odd">
+<td style="text-align: left;">years</td>
+<td style="text-align: center;">0.166***</td>
+<td style="text-align: center;">0.166***</td>
+</tr>
+<tr class="even">
+<td style="text-align: left;"></td>
+<td style="text-align: center;">(0.018)</td>
+<td style="text-align: center;">(0.013)</td>
+</tr>
+<tr class="odd">
+<td style="text-align: left;">bavg</td>
+<td style="text-align: center;">0.005+</td>
+<td style="text-align: center;">0.005***</td>
+</tr>
+<tr class="even">
+<td style="text-align: left; box-shadow: 0px 1.5px;"></td>
+<td style="text-align: center; box-shadow: 0px 1.5px;">(0.003)</td>
+<td style="text-align: center; box-shadow: 0px 1.5px;">(0.001)</td>
+</tr>
+<tr class="odd">
+<td style="text-align: left;">Num.Obs.</td>
+<td style="text-align: center;">353</td>
+<td style="text-align: center;">353</td>
+</tr>
+<tr class="even">
+<td style="text-align: left;">R2</td>
+<td style="text-align: center;">0.367</td>
+<td style="text-align: center;">0.367</td>
+</tr>
+<tr class="odd">
+<td style="text-align: left;">RMSE</td>
+<td style="text-align: center;">0.94</td>
+<td style="text-align: center;">0.94</td>
+</tr>
+<tr class="even">
+<td style="text-align: left;">Std.Errors</td>
+<td style="text-align: center;">Custom</td>
+<td style="text-align: center;">Custom</td>
+</tr>
+</tbody><tfoot>
+<tr class="odd">
+<td style="text-align: left; padding: 0;"><sup></sup> + p &lt; 0.1, * p &lt; 0.05, ** p &lt; 0.01, *** p &lt; 0.001</td>
+<td style="text-align: center;"></td>
+<td style="text-align: center;"></td>
+</tr>
+</tfoot>
 
-  
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>tinytable_n6pj76sr9t3q3voh6uyv</title>
-    <style>
-.table td.tinytable_css_vgu89hebaako0ur5pypo, .table th.tinytable_css_vgu89hebaako0ur5pypo {    border-bottom: solid 0.1em #d3d8dc; }
-.table td.tinytable_css_l8341qy88rfssz9vwnll, .table th.tinytable_css_l8341qy88rfssz9vwnll {    text-align: left; }
-.table td.tinytable_css_j6nt0yqjn0w9sc9m3ac0, .table th.tinytable_css_j6nt0yqjn0w9sc9m3ac0 {    text-align: center; }
-.table td.tinytable_css_23jdn9ygbbsshjny5xpk, .table th.tinytable_css_23jdn9ygbbsshjny5xpk {    text-align: center; }
-.table td.tinytable_css_sc71eke5qx9qeqn31tfj, .table th.tinytable_css_sc71eke5qx9qeqn31tfj {    border-bottom: solid 0.05em black; }
-    </style>
-    <script src="https://polyfill.io/v3/polyfill.min.js?features=es6"></script>
-    <script id="MathJax-script" async="" src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
-    <script>
-    MathJax = {
-      tex: {
-        inlineMath: [['$', '$'], ['\\(', '\\)']]
-      },
-      svg: {
-        fontCache: 'global'
-      }
-    };
-    </script>
-  
-
-  
-    <div class="container">
-      <table class="table table-borderless" id="tinytable_n6pj76sr9t3q3voh6uyv" style="width: auto; margin-left: auto; margin-right: auto;" data-quarto-disable-processing="true">
-        <thead>
-        
-              <tr>
-                <th scope="col"> </th>
-                <th scope="col">(1)</th>
-                <th scope="col">(2)</th>
-              </tr>
-        </thead>
-        <tfoot><tr><td colspan="3">+ p &lt; 0.1, * p &lt; 0.05, ** p &lt; 0.01, *** p &lt; 0.001</td></tr></tfoot>
-        <tbody>
-                <tr>
-                  <td>(Intercept)</td>
-                  <td>11.042***</td>
-                  <td>11.042***</td>
-                </tr>
-                <tr>
-                  <td>           </td>
-                  <td>(0.343)  </td>
-                  <td>(0.343)  </td>
-                </tr>
-                <tr>
-                  <td>years      </td>
-                  <td>0.166*** </td>
-                  <td>0.166*** </td>
-                </tr>
-                <tr>
-                  <td>           </td>
-                  <td>(0.013)  </td>
-                  <td>(0.013)  </td>
-                </tr>
-                <tr>
-                  <td>bavg       </td>
-                  <td>0.005*** </td>
-                  <td>0.005*** </td>
-                </tr>
-                <tr>
-                  <td>           </td>
-                  <td>(0.001)  </td>
-                  <td>(0.001)  </td>
-                </tr>
-                <tr>
-                  <td>Num.Obs.   </td>
-                  <td>353      </td>
-                  <td>353      </td>
-                </tr>
-                <tr>
-                  <td>R2         </td>
-                  <td>0.367    </td>
-                  <td>0.367    </td>
-                </tr>
-                <tr>
-                  <td>RMSE       </td>
-                  <td>0.94     </td>
-                  <td>0.94     </td>
-                </tr>
-                <tr>
-                  <td>Std.Errors </td>
-                  <td>IID      </td>
-                  <td>IID      </td>
-                </tr>
-        </tbody>
-      </table>
-    </div>
-
-    <script>
-      function styleCell_tinytable_dgy7e18o5o9jd87u76bm(i, j, css_id) {
-        var table = document.getElementById("tinytable_n6pj76sr9t3q3voh6uyv");
-        table.rows[i].cells[j].classList.add(css_id);
-      }
-      function insertSpanRow(i, colspan, content) {
-        var table = document.getElementById('tinytable_n6pj76sr9t3q3voh6uyv');
-        var newRow = table.insertRow(i);
-        var newCell = newRow.insertCell(0);
-        newCell.setAttribute("colspan", colspan);
-        // newCell.innerText = content;
-        // this may be unsafe, but innerText does not interpret <br>
-        newCell.innerHTML = content;
-      }
-      function spanCell_tinytable_dgy7e18o5o9jd87u76bm(i, j, rowspan, colspan) {
-        var table = document.getElementById("tinytable_n6pj76sr9t3q3voh6uyv");
-        const targetRow = table.rows[i];
-        const targetCell = targetRow.cells[j];
-        for (let r = 0; r < rowspan; r++) {
-          // Only start deleting cells to the right for the first row (r == 0)
-          if (r === 0) {
-            // Delete cells to the right of the target cell in the first row
-            for (let c = colspan - 1; c > 0; c--) {
-              if (table.rows[i + r].cells[j + c]) {
-                table.rows[i + r].deleteCell(j + c);
-              }
-            }
-          }
-          // For rows below the first, delete starting from the target column
-          if (r > 0) {
-            for (let c = colspan - 1; c >= 0; c--) {
-              if (table.rows[i + r] && table.rows[i + r].cells[j]) {
-                table.rows[i + r].deleteCell(j);
-              }
-            }
-          }
-        }
-        // Set rowspan and colspan of the target cell
-        targetCell.rowSpan = rowspan;
-        targetCell.colSpan = colspan;
-      }
-
-window.addEventListener('load', function () { styleCell_tinytable_dgy7e18o5o9jd87u76bm(0, 0, 'tinytable_css_vgu89hebaako0ur5pypo') })
-window.addEventListener('load', function () { styleCell_tinytable_dgy7e18o5o9jd87u76bm(0, 1, 'tinytable_css_vgu89hebaako0ur5pypo') })
-window.addEventListener('load', function () { styleCell_tinytable_dgy7e18o5o9jd87u76bm(0, 2, 'tinytable_css_vgu89hebaako0ur5pypo') })
-window.addEventListener('load', function () { styleCell_tinytable_dgy7e18o5o9jd87u76bm(0, 0, 'tinytable_css_l8341qy88rfssz9vwnll') })
-window.addEventListener('load', function () { styleCell_tinytable_dgy7e18o5o9jd87u76bm(1, 0, 'tinytable_css_l8341qy88rfssz9vwnll') })
-window.addEventListener('load', function () { styleCell_tinytable_dgy7e18o5o9jd87u76bm(2, 0, 'tinytable_css_l8341qy88rfssz9vwnll') })
-window.addEventListener('load', function () { styleCell_tinytable_dgy7e18o5o9jd87u76bm(3, 0, 'tinytable_css_l8341qy88rfssz9vwnll') })
-window.addEventListener('load', function () { styleCell_tinytable_dgy7e18o5o9jd87u76bm(4, 0, 'tinytable_css_l8341qy88rfssz9vwnll') })
-window.addEventListener('load', function () { styleCell_tinytable_dgy7e18o5o9jd87u76bm(5, 0, 'tinytable_css_l8341qy88rfssz9vwnll') })
-window.addEventListener('load', function () { styleCell_tinytable_dgy7e18o5o9jd87u76bm(6, 0, 'tinytable_css_l8341qy88rfssz9vwnll') })
-window.addEventListener('load', function () { styleCell_tinytable_dgy7e18o5o9jd87u76bm(7, 0, 'tinytable_css_l8341qy88rfssz9vwnll') })
-window.addEventListener('load', function () { styleCell_tinytable_dgy7e18o5o9jd87u76bm(8, 0, 'tinytable_css_l8341qy88rfssz9vwnll') })
-window.addEventListener('load', function () { styleCell_tinytable_dgy7e18o5o9jd87u76bm(9, 0, 'tinytable_css_l8341qy88rfssz9vwnll') })
-window.addEventListener('load', function () { styleCell_tinytable_dgy7e18o5o9jd87u76bm(10, 0, 'tinytable_css_l8341qy88rfssz9vwnll') })
-window.addEventListener('load', function () { styleCell_tinytable_dgy7e18o5o9jd87u76bm(0, 1, 'tinytable_css_j6nt0yqjn0w9sc9m3ac0') })
-window.addEventListener('load', function () { styleCell_tinytable_dgy7e18o5o9jd87u76bm(1, 1, 'tinytable_css_j6nt0yqjn0w9sc9m3ac0') })
-window.addEventListener('load', function () { styleCell_tinytable_dgy7e18o5o9jd87u76bm(2, 1, 'tinytable_css_j6nt0yqjn0w9sc9m3ac0') })
-window.addEventListener('load', function () { styleCell_tinytable_dgy7e18o5o9jd87u76bm(3, 1, 'tinytable_css_j6nt0yqjn0w9sc9m3ac0') })
-window.addEventListener('load', function () { styleCell_tinytable_dgy7e18o5o9jd87u76bm(4, 1, 'tinytable_css_j6nt0yqjn0w9sc9m3ac0') })
-window.addEventListener('load', function () { styleCell_tinytable_dgy7e18o5o9jd87u76bm(5, 1, 'tinytable_css_j6nt0yqjn0w9sc9m3ac0') })
-window.addEventListener('load', function () { styleCell_tinytable_dgy7e18o5o9jd87u76bm(6, 1, 'tinytable_css_j6nt0yqjn0w9sc9m3ac0') })
-window.addEventListener('load', function () { styleCell_tinytable_dgy7e18o5o9jd87u76bm(7, 1, 'tinytable_css_j6nt0yqjn0w9sc9m3ac0') })
-window.addEventListener('load', function () { styleCell_tinytable_dgy7e18o5o9jd87u76bm(8, 1, 'tinytable_css_j6nt0yqjn0w9sc9m3ac0') })
-window.addEventListener('load', function () { styleCell_tinytable_dgy7e18o5o9jd87u76bm(9, 1, 'tinytable_css_j6nt0yqjn0w9sc9m3ac0') })
-window.addEventListener('load', function () { styleCell_tinytable_dgy7e18o5o9jd87u76bm(10, 1, 'tinytable_css_j6nt0yqjn0w9sc9m3ac0') })
-window.addEventListener('load', function () { styleCell_tinytable_dgy7e18o5o9jd87u76bm(0, 2, 'tinytable_css_23jdn9ygbbsshjny5xpk') })
-window.addEventListener('load', function () { styleCell_tinytable_dgy7e18o5o9jd87u76bm(1, 2, 'tinytable_css_23jdn9ygbbsshjny5xpk') })
-window.addEventListener('load', function () { styleCell_tinytable_dgy7e18o5o9jd87u76bm(2, 2, 'tinytable_css_23jdn9ygbbsshjny5xpk') })
-window.addEventListener('load', function () { styleCell_tinytable_dgy7e18o5o9jd87u76bm(3, 2, 'tinytable_css_23jdn9ygbbsshjny5xpk') })
-window.addEventListener('load', function () { styleCell_tinytable_dgy7e18o5o9jd87u76bm(4, 2, 'tinytable_css_23jdn9ygbbsshjny5xpk') })
-window.addEventListener('load', function () { styleCell_tinytable_dgy7e18o5o9jd87u76bm(5, 2, 'tinytable_css_23jdn9ygbbsshjny5xpk') })
-window.addEventListener('load', function () { styleCell_tinytable_dgy7e18o5o9jd87u76bm(6, 2, 'tinytable_css_23jdn9ygbbsshjny5xpk') })
-window.addEventListener('load', function () { styleCell_tinytable_dgy7e18o5o9jd87u76bm(7, 2, 'tinytable_css_23jdn9ygbbsshjny5xpk') })
-window.addEventListener('load', function () { styleCell_tinytable_dgy7e18o5o9jd87u76bm(8, 2, 'tinytable_css_23jdn9ygbbsshjny5xpk') })
-window.addEventListener('load', function () { styleCell_tinytable_dgy7e18o5o9jd87u76bm(9, 2, 'tinytable_css_23jdn9ygbbsshjny5xpk') })
-window.addEventListener('load', function () { styleCell_tinytable_dgy7e18o5o9jd87u76bm(10, 2, 'tinytable_css_23jdn9ygbbsshjny5xpk') })
-window.addEventListener('load', function () { styleCell_tinytable_dgy7e18o5o9jd87u76bm(6, 0, 'tinytable_css_sc71eke5qx9qeqn31tfj') })
-window.addEventListener('load', function () { styleCell_tinytable_dgy7e18o5o9jd87u76bm(6, 1, 'tinytable_css_sc71eke5qx9qeqn31tfj') })
-window.addEventListener('load', function () { styleCell_tinytable_dgy7e18o5o9jd87u76bm(6, 2, 'tinytable_css_sc71eke5qx9qeqn31tfj') })
-    </script>
-
-  
+</table>
 
 
 </div>
@@ -2737,159 +2629,62 @@ window.addEventListener('load', function () { styleCell_tinytable_dgy7e18o5o9jd8
 </div><!--end of the 1st column--><div class="column" style="width:50%;">
 <div class="cell">
 <div class="cell-output-display">
- 
+<table class="table caption-top" data-quarto-postprocess="true" style="NAborder-bottom: 0; width: auto !important; margin-left: auto; margin-right: auto;">
+<thead>
+<tr class="header">
+<th style="text-align: left;" data-quarto-table-cell-role="th"></th>
+<th style="text-align: center;" data-quarto-table-cell-role="th">&nbsp;(1)</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td style="text-align: left;">(Intercept)</td>
+<td style="text-align: center;">11.042***</td>
+</tr>
+<tr class="even">
+<td style="text-align: left;"></td>
+<td style="text-align: center;">(0.704)</td>
+</tr>
+<tr class="odd">
+<td style="text-align: left;">years</td>
+<td style="text-align: center;">0.166***</td>
+</tr>
+<tr class="even">
+<td style="text-align: left;"></td>
+<td style="text-align: center;">(0.018)</td>
+</tr>
+<tr class="odd">
+<td style="text-align: left;">bavg</td>
+<td style="text-align: center;">0.005+</td>
+</tr>
+<tr class="even">
+<td style="text-align: left; box-shadow: 0px 1.5px;"></td>
+<td style="text-align: center; box-shadow: 0px 1.5px;">(0.003)</td>
+</tr>
+<tr class="odd">
+<td style="text-align: left;">Num.Obs.</td>
+<td style="text-align: center;">353</td>
+</tr>
+<tr class="even">
+<td style="text-align: left;">R2</td>
+<td style="text-align: center;">0.367</td>
+</tr>
+<tr class="odd">
+<td style="text-align: left;">RMSE</td>
+<td style="text-align: center;">0.94</td>
+</tr>
+<tr class="even">
+<td style="text-align: left;">Std.Errors</td>
+<td style="text-align: center;">Heteroskedasticity-robust</td>
+</tr>
+</tbody><tfoot>
+<tr class="odd">
+<td style="text-align: left; padding: 0;"><sup></sup> + p &lt; 0.1, * p &lt; 0.05, ** p &lt; 0.01, *** p &lt; 0.001</td>
+<td style="text-align: center;"></td>
+</tr>
+</tfoot>
 
-  
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>tinytable_pz3jc4vn9is36vy1k18e</title>
-    <style>
-.table td.tinytable_css_kh5ymxawci9d4cr00xj7, .table th.tinytable_css_kh5ymxawci9d4cr00xj7 {    border-bottom: solid 0.1em #d3d8dc; }
-.table td.tinytable_css_0uzajy5yfn4i3hkppvdw, .table th.tinytable_css_0uzajy5yfn4i3hkppvdw {    text-align: left; }
-.table td.tinytable_css_10xzyoamv8dv18foep1t, .table th.tinytable_css_10xzyoamv8dv18foep1t {    text-align: center; }
-.table td.tinytable_css_wq39gi8vt6tqcg2u9kal, .table th.tinytable_css_wq39gi8vt6tqcg2u9kal {    border-bottom: solid 0.05em black; }
-    </style>
-    <script src="https://polyfill.io/v3/polyfill.min.js?features=es6"></script>
-    <script id="MathJax-script" async="" src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
-    <script>
-    MathJax = {
-      tex: {
-        inlineMath: [['$', '$'], ['\\(', '\\)']]
-      },
-      svg: {
-        fontCache: 'global'
-      }
-    };
-    </script>
-  
-
-  
-    <div class="container">
-      <table class="table table-borderless" id="tinytable_pz3jc4vn9is36vy1k18e" style="width: auto; margin-left: auto; margin-right: auto;" data-quarto-disable-processing="true">
-        <thead>
-        
-              <tr>
-                <th scope="col"> </th>
-                <th scope="col">(1)</th>
-              </tr>
-        </thead>
-        <tfoot><tr><td colspan="2">+ p &lt; 0.1, * p &lt; 0.05, ** p &lt; 0.01, *** p &lt; 0.001</td></tr></tfoot>
-        <tbody>
-                <tr>
-                  <td>(Intercept)</td>
-                  <td>11.042***                </td>
-                </tr>
-                <tr>
-                  <td>           </td>
-                  <td>(0.704)                  </td>
-                </tr>
-                <tr>
-                  <td>years      </td>
-                  <td>0.166***                 </td>
-                </tr>
-                <tr>
-                  <td>           </td>
-                  <td>(0.018)                  </td>
-                </tr>
-                <tr>
-                  <td>bavg       </td>
-                  <td>0.005+                   </td>
-                </tr>
-                <tr>
-                  <td>           </td>
-                  <td>(0.003)                  </td>
-                </tr>
-                <tr>
-                  <td>Num.Obs.   </td>
-                  <td>353                      </td>
-                </tr>
-                <tr>
-                  <td>R2         </td>
-                  <td>0.367                    </td>
-                </tr>
-                <tr>
-                  <td>RMSE       </td>
-                  <td>0.94                     </td>
-                </tr>
-                <tr>
-                  <td>Std.Errors </td>
-                  <td>Heteroskedasticity-robust</td>
-                </tr>
-        </tbody>
-      </table>
-    </div>
-
-    <script>
-      function styleCell_tinytable_uff5oi6wvcbg1spvm1wr(i, j, css_id) {
-        var table = document.getElementById("tinytable_pz3jc4vn9is36vy1k18e");
-        table.rows[i].cells[j].classList.add(css_id);
-      }
-      function insertSpanRow(i, colspan, content) {
-        var table = document.getElementById('tinytable_pz3jc4vn9is36vy1k18e');
-        var newRow = table.insertRow(i);
-        var newCell = newRow.insertCell(0);
-        newCell.setAttribute("colspan", colspan);
-        // newCell.innerText = content;
-        // this may be unsafe, but innerText does not interpret <br>
-        newCell.innerHTML = content;
-      }
-      function spanCell_tinytable_uff5oi6wvcbg1spvm1wr(i, j, rowspan, colspan) {
-        var table = document.getElementById("tinytable_pz3jc4vn9is36vy1k18e");
-        const targetRow = table.rows[i];
-        const targetCell = targetRow.cells[j];
-        for (let r = 0; r < rowspan; r++) {
-          // Only start deleting cells to the right for the first row (r == 0)
-          if (r === 0) {
-            // Delete cells to the right of the target cell in the first row
-            for (let c = colspan - 1; c > 0; c--) {
-              if (table.rows[i + r].cells[j + c]) {
-                table.rows[i + r].deleteCell(j + c);
-              }
-            }
-          }
-          // For rows below the first, delete starting from the target column
-          if (r > 0) {
-            for (let c = colspan - 1; c >= 0; c--) {
-              if (table.rows[i + r] && table.rows[i + r].cells[j]) {
-                table.rows[i + r].deleteCell(j);
-              }
-            }
-          }
-        }
-        // Set rowspan and colspan of the target cell
-        targetCell.rowSpan = rowspan;
-        targetCell.colSpan = colspan;
-      }
-
-window.addEventListener('load', function () { styleCell_tinytable_uff5oi6wvcbg1spvm1wr(0, 0, 'tinytable_css_kh5ymxawci9d4cr00xj7') })
-window.addEventListener('load', function () { styleCell_tinytable_uff5oi6wvcbg1spvm1wr(0, 1, 'tinytable_css_kh5ymxawci9d4cr00xj7') })
-window.addEventListener('load', function () { styleCell_tinytable_uff5oi6wvcbg1spvm1wr(0, 0, 'tinytable_css_0uzajy5yfn4i3hkppvdw') })
-window.addEventListener('load', function () { styleCell_tinytable_uff5oi6wvcbg1spvm1wr(1, 0, 'tinytable_css_0uzajy5yfn4i3hkppvdw') })
-window.addEventListener('load', function () { styleCell_tinytable_uff5oi6wvcbg1spvm1wr(2, 0, 'tinytable_css_0uzajy5yfn4i3hkppvdw') })
-window.addEventListener('load', function () { styleCell_tinytable_uff5oi6wvcbg1spvm1wr(3, 0, 'tinytable_css_0uzajy5yfn4i3hkppvdw') })
-window.addEventListener('load', function () { styleCell_tinytable_uff5oi6wvcbg1spvm1wr(4, 0, 'tinytable_css_0uzajy5yfn4i3hkppvdw') })
-window.addEventListener('load', function () { styleCell_tinytable_uff5oi6wvcbg1spvm1wr(5, 0, 'tinytable_css_0uzajy5yfn4i3hkppvdw') })
-window.addEventListener('load', function () { styleCell_tinytable_uff5oi6wvcbg1spvm1wr(6, 0, 'tinytable_css_0uzajy5yfn4i3hkppvdw') })
-window.addEventListener('load', function () { styleCell_tinytable_uff5oi6wvcbg1spvm1wr(7, 0, 'tinytable_css_0uzajy5yfn4i3hkppvdw') })
-window.addEventListener('load', function () { styleCell_tinytable_uff5oi6wvcbg1spvm1wr(8, 0, 'tinytable_css_0uzajy5yfn4i3hkppvdw') })
-window.addEventListener('load', function () { styleCell_tinytable_uff5oi6wvcbg1spvm1wr(9, 0, 'tinytable_css_0uzajy5yfn4i3hkppvdw') })
-window.addEventListener('load', function () { styleCell_tinytable_uff5oi6wvcbg1spvm1wr(10, 0, 'tinytable_css_0uzajy5yfn4i3hkppvdw') })
-window.addEventListener('load', function () { styleCell_tinytable_uff5oi6wvcbg1spvm1wr(0, 1, 'tinytable_css_10xzyoamv8dv18foep1t') })
-window.addEventListener('load', function () { styleCell_tinytable_uff5oi6wvcbg1spvm1wr(1, 1, 'tinytable_css_10xzyoamv8dv18foep1t') })
-window.addEventListener('load', function () { styleCell_tinytable_uff5oi6wvcbg1spvm1wr(2, 1, 'tinytable_css_10xzyoamv8dv18foep1t') })
-window.addEventListener('load', function () { styleCell_tinytable_uff5oi6wvcbg1spvm1wr(3, 1, 'tinytable_css_10xzyoamv8dv18foep1t') })
-window.addEventListener('load', function () { styleCell_tinytable_uff5oi6wvcbg1spvm1wr(4, 1, 'tinytable_css_10xzyoamv8dv18foep1t') })
-window.addEventListener('load', function () { styleCell_tinytable_uff5oi6wvcbg1spvm1wr(5, 1, 'tinytable_css_10xzyoamv8dv18foep1t') })
-window.addEventListener('load', function () { styleCell_tinytable_uff5oi6wvcbg1spvm1wr(6, 1, 'tinytable_css_10xzyoamv8dv18foep1t') })
-window.addEventListener('load', function () { styleCell_tinytable_uff5oi6wvcbg1spvm1wr(7, 1, 'tinytable_css_10xzyoamv8dv18foep1t') })
-window.addEventListener('load', function () { styleCell_tinytable_uff5oi6wvcbg1spvm1wr(8, 1, 'tinytable_css_10xzyoamv8dv18foep1t') })
-window.addEventListener('load', function () { styleCell_tinytable_uff5oi6wvcbg1spvm1wr(9, 1, 'tinytable_css_10xzyoamv8dv18foep1t') })
-window.addEventListener('load', function () { styleCell_tinytable_uff5oi6wvcbg1spvm1wr(10, 1, 'tinytable_css_10xzyoamv8dv18foep1t') })
-window.addEventListener('load', function () { styleCell_tinytable_uff5oi6wvcbg1spvm1wr(6, 0, 'tinytable_css_wq39gi8vt6tqcg2u9kal') })
-window.addEventListener('load', function () { styleCell_tinytable_uff5oi6wvcbg1spvm1wr(6, 1, 'tinytable_css_wq39gi8vt6tqcg2u9kal') })
-    </script>
-
-  
+</table>
 
 
 </div>
