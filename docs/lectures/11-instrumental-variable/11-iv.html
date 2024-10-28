@@ -8,7 +8,7 @@
 <link href="../../site_libs/quarto-html/light-border.css" rel="stylesheet">
 <link href="../../site_libs/quarto-html/quarto-html.min.css" rel="stylesheet" data-mode="light">
 <link href="../../site_libs/quarto-html/quarto-syntax-highlighting.css" rel="stylesheet" id="quarto-text-highlighting-styles"><meta charset="utf-8">
-  <meta name="generator" content="quarto-1.5.56">
+  <meta name="generator" content="quarto-1.5.57">
 
   <title>Applied Econometrics (AECN 896-004) – 11: Dealing with Endogeneity: Instrumental Variable</title>
   <meta name="apple-mobile-web-app-capable" content="yes">
@@ -385,6 +385,8 @@
       margin-right: 0; 
     }
   </style>
+  <script src="../../site_libs/kePrint-0.0.1/kePrint.js"></script>
+  <link href="../../site_libs/lightable-0.0.1/lightable.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/monaco-editor@0.47.0/min/vs/editor/editor.main.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
     
@@ -675,7 +677,7 @@
   };
 
   // Store cell data
-  globalThis.qwebrCellDetails = [{"options":{"comment":"","read-only":"false","output":"true","warning":"true","results":"markup","autorun":"true","fig-width":7,"out-width":"700px","out-height":"","label":"unnamed-chunk-1","editor-max-height":"","classes":"","dpi":72,"fig-cap":"","fig-height":5,"context":"interactive","message":"true","editor-quick-suggestions":"false","editor-word-wrap":"true","editor-font-scale":"0.8"},"id":1,"code":"data(\"wage2\", package = \"wooldridge\")\n\n#* regress educ on exper, IQ, and sibs\nfirst_reg <- fixest::feols(educ ~ exper + IQ + sibs, data = wage2)\n\n#* predict educ as a function of exper, IQ, and sibs\nwage2 <- dplyr::mutate(wage2, educ_hat = first_reg$fitted.values)\n\n#* seed the predicted values\nwage2 %>%\n  dplyr::relocate(educ_hat) %>%\n  head()"},{"options":{"comment":"","read-only":"false","output":"true","warning":"true","results":"markup","autorun":"true","fig-width":7,"out-width":"700px","out-height":"","label":"unnamed-chunk-2","editor-max-height":"","classes":"","dpi":72,"fig-cap":"","fig-height":5,"context":"interactive","message":"true","editor-quick-suggestions":"false","editor-word-wrap":"true","editor-font-scale":"0.8"},"id":2,"code":"#* regression with educ_hat in place of educ\nsecond_reg <- fixest::feols(wage ~ educ_hat + exper, data = wage2)\n\n#* see the results\nsecond_reg"},{"options":{"comment":"","read-only":"false","output":"true","warning":"true","results":"markup","autorun":"true","fig-width":7,"out-width":"700px","out-height":"","label":"unnamed-chunk-3","editor-max-height":"","classes":"","dpi":72,"fig-cap":"","fig-height":5,"context":"interactive","message":"true","editor-quick-suggestions":"false","editor-word-wrap":"true","editor-font-scale":"0.8"},"id":3,"code":"#--- take a look at the data ---#\nwage2 %>%\n  select(wage, educ, sibs, feduc) %>%\n  head()"},{"options":{"comment":"","read-only":"false","output":"true","warning":"true","results":"markup","autorun":"true","fig-width":7,"out-width":"700px","out-height":"","label":"unnamed-chunk-4","editor-max-height":"","classes":"","dpi":72,"fig-cap":"","fig-height":5,"context":"interactive","message":"true","editor-quick-suggestions":"false","editor-word-wrap":"true","editor-font-scale":"0.8"},"id":4,"code":"iv_res <- fixest::feols(log(wage) ~ exper | educ ~ sibs + feduc, data = wage2)"},{"options":{"comment":"","read-only":"false","output":"true","warning":"true","results":"markup","autorun":"true","fig-width":7,"out-width":"700px","out-height":"","label":"unnamed-chunk-5","editor-max-height":"","classes":"","dpi":72,"fig-cap":"","fig-height":5,"context":"interactive","message":"true","editor-quick-suggestions":"false","editor-word-wrap":"true","editor-font-scale":"0.8"},"id":5,"code":"iv_res"},{"options":{"comment":"","read-only":"false","output":"true","warning":"true","results":"markup","autorun":"true","fig-width":7,"out-width":"700px","out-height":"","label":"unnamed-chunk-6","editor-max-height":"","classes":"","dpi":72,"fig-cap":"","fig-height":5,"context":"interactive","message":"true","editor-quick-suggestions":"false","editor-word-wrap":"true","editor-font-scale":"0.8"},"id":6,"code":"iv_res"},{"options":{"comment":"","read-only":"false","output":"true","warning":"true","results":"markup","autorun":"true","fig-width":7,"out-width":"700px","out-height":"","label":"unnamed-chunk-7","editor-max-height":"","classes":"","dpi":72,"fig-cap":"","fig-height":5,"context":"interactive","message":"true","editor-quick-suggestions":"false","editor-word-wrap":"true","editor-font-scale":"0.8"},"id":7,"code":"iv_res$iv_first_stage"},{"options":{"comment":"","read-only":"false","output":"true","warning":"true","results":"markup","autorun":"false","fig-width":7,"out-width":"700px","out-height":"","label":"unnamed-chunk-8","editor-max-height":"","classes":"","dpi":72,"fig-cap":"","fig-height":5,"context":"interactive","message":"true","editor-quick-suggestions":"false","editor-word-wrap":"true","editor-font-scale":"0.8"},"id":8,"code":"set.seed(73289)\nN <- 500 # number of observations\n\nu_common <- runif(N) # the term shared by the endogenous variable and the error term\nz_common <- runif(N) # the term shared by the endogenous variable and instruments\nx_end <- u_common + z_common + runif(N) # the endogenous variable\nz_strong <- z_common + runif(N) # strong instrument\nz_weak <- 0.01 * z_common + 0.99995 * runif(N) # weak instrument\nu <- u_common + runif(N) # error term\ny <- x_end + u # dependent variable\n\ndata <- data.frame(y, x_end, z_strong, z_weak)"},{"options":{"comment":"","read-only":"false","output":"true","warning":"true","results":"markup","autorun":"false","fig-width":7,"out-width":"700px","out-height":"","label":"unnamed-chunk-9","editor-max-height":"","classes":"","dpi":72,"fig-cap":"","fig-height":5,"context":"interactive","message":"true","editor-quick-suggestions":"false","editor-word-wrap":"true","editor-font-scale":"0.8"},"id":9,"code":"cor(data)"},{"options":{"comment":"","read-only":"false","output":"true","warning":"true","results":"markup","autorun":"false","fig-width":7,"out-width":"700px","out-height":"","label":"unnamed-chunk-10","editor-max-height":"","classes":"","dpi":72,"fig-cap":"","fig-height":5,"context":"interactive","message":"true","editor-quick-suggestions":"false","editor-word-wrap":"true","editor-font-scale":"0.8"},"id":10,"code":"#--- IV estimation (strong) ---#\niv_strong <- fixest::feols(y ~ 1 | x_end ~ z_strong, data = data)\n\n#--- coefs (strong) ---#\ntidy(iv_strong)"},{"options":{"comment":"","read-only":"false","output":"true","warning":"true","results":"markup","autorun":"false","fig-width":7,"out-width":"700px","out-height":"","label":"unnamed-chunk-11","editor-max-height":"","classes":"","dpi":72,"fig-cap":"","fig-height":5,"context":"interactive","message":"true","editor-quick-suggestions":"false","editor-word-wrap":"true","editor-font-scale":"0.8"},"id":11,"code":"#--- IV estimation (weak) ---#\niv_weak <- fixest::feols(y ~ 1 | x_end ~ z_weak, data = data)\n\n#--- coefs (weak) ---#\ntidy(iv_weak)"},{"options":{"comment":"","read-only":"false","output":"true","warning":"true","results":"markup","autorun":"false","fig-width":7,"out-width":"700px","out-height":"","label":"unnamed-chunk-12","editor-max-height":"","classes":"","dpi":72,"fig-cap":"","fig-height":5,"context":"interactive","message":"true","editor-quick-suggestions":"false","editor-word-wrap":"true","editor-font-scale":"0.8"},"id":12,"code":"iv_strong$iv_first_stage"},{"options":{"comment":"","read-only":"false","output":"true","warning":"true","results":"markup","autorun":"false","fig-width":7,"out-width":"700px","out-height":"","label":"unnamed-chunk-13","editor-max-height":"","classes":"","dpi":72,"fig-cap":"","fig-height":5,"context":"interactive","message":"true","editor-quick-suggestions":"false","editor-word-wrap":"true","editor-font-scale":"0.8"},"id":13,"code":"iv_weak$iv_first_stage"}];
+  globalThis.qwebrCellDetails = [{"code":"data(\"wage2\", package = \"wooldridge\")\n\n#* regress educ on exper, IQ, and sibs\nfirst_reg <- fixest::feols(educ ~ exper + IQ + sibs, data = wage2)\n\n#* predict educ as a function of exper, IQ, and sibs\nwage2 <- dplyr::mutate(wage2, educ_hat = first_reg$fitted.values)\n\n#* seed the predicted values\nwage2 %>%\n  dplyr::relocate(educ_hat) %>%\n  head()","id":1,"options":{"output":"true","editor-max-height":"","fig-height":5,"comment":"","results":"markup","out-width":"700px","out-height":"","fig-width":7,"warning":"true","classes":"","context":"interactive","label":"unnamed-chunk-1","read-only":"false","editor-font-scale":"0.8","fig-cap":"","editor-quick-suggestions":"false","message":"true","editor-word-wrap":"true","autorun":"true","dpi":72}},{"code":"#* regression with educ_hat in place of educ\nsecond_reg <- fixest::feols(wage ~ educ_hat + exper, data = wage2)\n\n#* see the results\nsecond_reg","id":2,"options":{"output":"true","editor-max-height":"","fig-height":5,"comment":"","results":"markup","out-width":"700px","out-height":"","fig-width":7,"warning":"true","classes":"","context":"interactive","label":"unnamed-chunk-2","read-only":"false","editor-font-scale":"0.8","fig-cap":"","editor-quick-suggestions":"false","message":"true","editor-word-wrap":"true","autorun":"true","dpi":72}},{"code":"#--- take a look at the data ---#\nwage2 %>%\n  select(wage, educ, sibs, feduc) %>%\n  head()","id":3,"options":{"output":"true","editor-max-height":"","fig-height":5,"comment":"","results":"markup","out-width":"700px","out-height":"","fig-width":7,"warning":"true","classes":"","context":"interactive","label":"unnamed-chunk-3","read-only":"false","editor-font-scale":"0.8","fig-cap":"","editor-quick-suggestions":"false","message":"true","editor-word-wrap":"true","autorun":"true","dpi":72}},{"code":"iv_res <- fixest::feols(log(wage) ~ exper | educ ~ sibs + feduc, data = wage2)","id":4,"options":{"output":"true","editor-max-height":"","fig-height":5,"comment":"","results":"markup","out-width":"700px","out-height":"","fig-width":7,"warning":"true","classes":"","context":"interactive","label":"unnamed-chunk-4","read-only":"false","editor-font-scale":"0.8","fig-cap":"","editor-quick-suggestions":"false","message":"true","editor-word-wrap":"true","autorun":"true","dpi":72}},{"code":"iv_res","id":5,"options":{"output":"true","editor-max-height":"","fig-height":5,"comment":"","results":"markup","out-width":"700px","out-height":"","fig-width":7,"warning":"true","classes":"","context":"interactive","label":"unnamed-chunk-5","read-only":"false","editor-font-scale":"0.8","fig-cap":"","editor-quick-suggestions":"false","message":"true","editor-word-wrap":"true","autorun":"true","dpi":72}},{"code":"iv_res","id":6,"options":{"output":"true","editor-max-height":"","fig-height":5,"comment":"","results":"markup","out-width":"700px","out-height":"","fig-width":7,"warning":"true","classes":"","context":"interactive","label":"unnamed-chunk-6","read-only":"false","editor-font-scale":"0.8","fig-cap":"","editor-quick-suggestions":"false","message":"true","editor-word-wrap":"true","autorun":"true","dpi":72}},{"code":"iv_res$iv_first_stage","id":7,"options":{"output":"true","editor-max-height":"","fig-height":5,"comment":"","results":"markup","out-width":"700px","out-height":"","fig-width":7,"warning":"true","classes":"","context":"interactive","label":"unnamed-chunk-7","read-only":"false","editor-font-scale":"0.8","fig-cap":"","editor-quick-suggestions":"false","message":"true","editor-word-wrap":"true","autorun":"true","dpi":72}},{"code":"set.seed(73289)\nN <- 500 # number of observations\n\nu_common <- runif(N) # the term shared by the endogenous variable and the error term\nz_common <- runif(N) # the term shared by the endogenous variable and instruments\nx_end <- u_common + z_common + runif(N) # the endogenous variable\nz_strong <- z_common + runif(N) # strong instrument\nz_weak <- 0.01 * z_common + 0.99995 * runif(N) # weak instrument\nu <- u_common + runif(N) # error term\ny <- x_end + u # dependent variable\n\ndata <- data.frame(y, x_end, z_strong, z_weak)","id":8,"options":{"output":"true","editor-max-height":"","fig-height":5,"comment":"","results":"markup","out-width":"700px","out-height":"","fig-width":7,"warning":"true","classes":"","context":"interactive","label":"unnamed-chunk-8","read-only":"false","editor-font-scale":"0.8","fig-cap":"","editor-quick-suggestions":"false","message":"true","editor-word-wrap":"true","autorun":"false","dpi":72}},{"code":"cor(data)","id":9,"options":{"output":"true","editor-max-height":"","fig-height":5,"comment":"","results":"markup","out-width":"700px","out-height":"","fig-width":7,"warning":"true","classes":"","context":"interactive","label":"unnamed-chunk-9","read-only":"false","editor-font-scale":"0.8","fig-cap":"","editor-quick-suggestions":"false","message":"true","editor-word-wrap":"true","autorun":"false","dpi":72}},{"code":"#--- IV estimation (strong) ---#\niv_strong <- fixest::feols(y ~ 1 | x_end ~ z_strong, data = data)\n\n#--- coefs (strong) ---#\ntidy(iv_strong)","id":10,"options":{"output":"true","editor-max-height":"","fig-height":5,"comment":"","results":"markup","out-width":"700px","out-height":"","fig-width":7,"warning":"true","classes":"","context":"interactive","label":"unnamed-chunk-10","read-only":"false","editor-font-scale":"0.8","fig-cap":"","editor-quick-suggestions":"false","message":"true","editor-word-wrap":"true","autorun":"false","dpi":72}},{"code":"#--- IV estimation (weak) ---#\niv_weak <- fixest::feols(y ~ 1 | x_end ~ z_weak, data = data)\n\n#--- coefs (weak) ---#\ntidy(iv_weak)","id":11,"options":{"output":"true","editor-max-height":"","fig-height":5,"comment":"","results":"markup","out-width":"700px","out-height":"","fig-width":7,"warning":"true","classes":"","context":"interactive","label":"unnamed-chunk-11","read-only":"false","editor-font-scale":"0.8","fig-cap":"","editor-quick-suggestions":"false","message":"true","editor-word-wrap":"true","autorun":"false","dpi":72}},{"code":"iv_strong$iv_first_stage","id":12,"options":{"output":"true","editor-max-height":"","fig-height":5,"comment":"","results":"markup","out-width":"700px","out-height":"","fig-width":7,"warning":"true","classes":"","context":"interactive","label":"unnamed-chunk-12","read-only":"false","editor-font-scale":"0.8","fig-cap":"","editor-quick-suggestions":"false","message":"true","editor-word-wrap":"true","autorun":"false","dpi":72}},{"code":"iv_weak$iv_first_stage","id":13,"options":{"output":"true","editor-max-height":"","fig-height":5,"comment":"","results":"markup","out-width":"700px","out-height":"","fig-width":7,"warning":"true","classes":"","context":"interactive","label":"unnamed-chunk-13","read-only":"false","editor-font-scale":"0.8","fig-cap":"","editor-quick-suggestions":"false","message":"true","editor-word-wrap":"true","autorun":"false","dpi":72}}];
 
   </script>
   <script type="module">
@@ -2669,200 +2671,84 @@ Answer
 <p><strong>Comparison of OLS and IV Estimation Results</strong></p>
 <div class="cell">
 <div class="cell-output-display">
- 
+<table class="table caption-top" data-quarto-postprocess="true" style="NAborder-bottom: 0; width: auto !important; margin-left: auto; margin-right: auto;">
+<thead>
+<tr class="header">
+<th style="text-align: left;" data-quarto-table-cell-role="th"></th>
+<th style="text-align: center;" data-quarto-table-cell-role="th">&nbsp;(1)</th>
+<th style="text-align: center;" data-quarto-table-cell-role="th">&nbsp;&nbsp;(2)</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td style="text-align: left;">(Intercept)</td>
+<td style="text-align: center;">5.503***</td>
+<td style="text-align: center;">4.507***</td>
+</tr>
+<tr class="even">
+<td style="text-align: left;"></td>
+<td style="text-align: center;">(0.112)</td>
+<td style="text-align: center;">(0.316)</td>
+</tr>
+<tr class="odd">
+<td style="text-align: left;">educ</td>
+<td style="text-align: center;">0.078***</td>
+<td style="text-align: center;"></td>
+</tr>
+<tr class="even">
+<td style="text-align: left;"></td>
+<td style="text-align: center;">(0.007)</td>
+<td style="text-align: center;"></td>
+</tr>
+<tr class="odd">
+<td style="text-align: left;">exper</td>
+<td style="text-align: center;">0.020***</td>
+<td style="text-align: center;">0.037***</td>
+</tr>
+<tr class="even">
+<td style="text-align: left;"></td>
+<td style="text-align: center;">(0.003)</td>
+<td style="text-align: center;">(0.006)</td>
+</tr>
+<tr class="odd">
+<td style="text-align: left;">fit_educ</td>
+<td style="text-align: center;"></td>
+<td style="text-align: center;">0.137***</td>
+</tr>
+<tr class="even">
+<td style="text-align: left; box-shadow: 0px 1.5px;"></td>
+<td style="text-align: center; box-shadow: 0px 1.5px;"></td>
+<td style="text-align: center; box-shadow: 0px 1.5px;">(0.019)</td>
+</tr>
+<tr class="odd">
+<td style="text-align: left;">Num.Obs.</td>
+<td style="text-align: center;">935</td>
+<td style="text-align: center;">741</td>
+</tr>
+<tr class="even">
+<td style="text-align: left;">R2</td>
+<td style="text-align: center;">0.131</td>
+<td style="text-align: center;">0.053</td>
+</tr>
+<tr class="odd">
+<td style="text-align: left;">RMSE</td>
+<td style="text-align: center;">0.39</td>
+<td style="text-align: center;">0.41</td>
+</tr>
+<tr class="even">
+<td style="text-align: left;">Std.Errors</td>
+<td style="text-align: center;">IID</td>
+<td style="text-align: center;">IID</td>
+</tr>
+</tbody><tfoot>
+<tr class="odd">
+<td style="text-align: left; padding: 0;"><sup></sup> + p &lt; 0.1, * p &lt; 0.05, ** p &lt; 0.01, *** p &lt; 0.001</td>
+<td style="text-align: center;"></td>
+<td style="text-align: center;"></td>
+</tr>
+</tfoot>
 
-  
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>tinytable_vgwrbgfjz8828zgp92pa</title>
-    <style>
-.table td.tinytable_css_tnmxjgh574qjm9rmtz14, .table th.tinytable_css_tnmxjgh574qjm9rmtz14 {    border-bottom: solid 0.1em #d3d8dc; }
-.table td.tinytable_css_cn69uj0uwnv9kw1pvzyq, .table th.tinytable_css_cn69uj0uwnv9kw1pvzyq {    text-align: left; }
-.table td.tinytable_css_sel6vg5h9m36r4ch54ae, .table th.tinytable_css_sel6vg5h9m36r4ch54ae {    text-align: center; }
-.table td.tinytable_css_yyp0hypx0jczu4z2oqqf, .table th.tinytable_css_yyp0hypx0jczu4z2oqqf {    text-align: center; }
-.table td.tinytable_css_jkzy58kibo5qbp308iz4, .table th.tinytable_css_jkzy58kibo5qbp308iz4 {    border-bottom: solid 0.05em black; }
-    </style>
-    <script src="https://polyfill.io/v3/polyfill.min.js?features=es6"></script>
-    <script id="MathJax-script" async="" src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
-    <script>
-    MathJax = {
-      tex: {
-        inlineMath: [['$', '$'], ['\\(', '\\)']]
-      },
-      svg: {
-        fontCache: 'global'
-      }
-    };
-    </script>
-  
-
-  
-    <div class="container">
-      <table class="table table-borderless" id="tinytable_vgwrbgfjz8828zgp92pa" style="width: auto; margin-left: auto; margin-right: auto;" data-quarto-disable-processing="true">
-        <thead>
-        
-              <tr>
-                <th scope="col"> </th>
-                <th scope="col">(1)</th>
-                <th scope="col">(2)</th>
-              </tr>
-        </thead>
-        <tfoot><tr><td colspan="3">+ p &lt; 0.1, * p &lt; 0.05, ** p &lt; 0.01, *** p &lt; 0.001</td></tr></tfoot>
-        <tbody>
-                <tr>
-                  <td>(Intercept)</td>
-                  <td>5.503***</td>
-                  <td>4.507***</td>
-                </tr>
-                <tr>
-                  <td>           </td>
-                  <td>(0.112) </td>
-                  <td>(0.316) </td>
-                </tr>
-                <tr>
-                  <td>educ       </td>
-                  <td>0.078***</td>
-                  <td>        </td>
-                </tr>
-                <tr>
-                  <td>           </td>
-                  <td>(0.007) </td>
-                  <td>        </td>
-                </tr>
-                <tr>
-                  <td>exper      </td>
-                  <td>0.020***</td>
-                  <td>0.037***</td>
-                </tr>
-                <tr>
-                  <td>           </td>
-                  <td>(0.003) </td>
-                  <td>(0.006) </td>
-                </tr>
-                <tr>
-                  <td>fit_educ   </td>
-                  <td>        </td>
-                  <td>0.137***</td>
-                </tr>
-                <tr>
-                  <td>           </td>
-                  <td>        </td>
-                  <td>(0.019) </td>
-                </tr>
-                <tr>
-                  <td>Num.Obs.   </td>
-                  <td>935     </td>
-                  <td>741     </td>
-                </tr>
-                <tr>
-                  <td>R2         </td>
-                  <td>0.131   </td>
-                  <td>0.053   </td>
-                </tr>
-                <tr>
-                  <td>RMSE       </td>
-                  <td>0.39    </td>
-                  <td>0.41    </td>
-                </tr>
-                <tr>
-                  <td>Std.Errors </td>
-                  <td>IID     </td>
-                  <td>IID     </td>
-                </tr>
-        </tbody>
-      </table>
-    </div>
-
-    <script>
-      function styleCell_tinytable_4r14qhnfketot6pt6gc9(i, j, css_id) {
-        var table = document.getElementById("tinytable_vgwrbgfjz8828zgp92pa");
-        table.rows[i].cells[j].classList.add(css_id);
-      }
-      function insertSpanRow(i, colspan, content) {
-        var table = document.getElementById('tinytable_vgwrbgfjz8828zgp92pa');
-        var newRow = table.insertRow(i);
-        var newCell = newRow.insertCell(0);
-        newCell.setAttribute("colspan", colspan);
-        // newCell.innerText = content;
-        // this may be unsafe, but innerText does not interpret <br>
-        newCell.innerHTML = content;
-      }
-      function spanCell_tinytable_4r14qhnfketot6pt6gc9(i, j, rowspan, colspan) {
-        var table = document.getElementById("tinytable_vgwrbgfjz8828zgp92pa");
-        const targetRow = table.rows[i];
-        const targetCell = targetRow.cells[j];
-        for (let r = 0; r < rowspan; r++) {
-          // Only start deleting cells to the right for the first row (r == 0)
-          if (r === 0) {
-            // Delete cells to the right of the target cell in the first row
-            for (let c = colspan - 1; c > 0; c--) {
-              if (table.rows[i + r].cells[j + c]) {
-                table.rows[i + r].deleteCell(j + c);
-              }
-            }
-          }
-          // For rows below the first, delete starting from the target column
-          if (r > 0) {
-            for (let c = colspan - 1; c >= 0; c--) {
-              if (table.rows[i + r] && table.rows[i + r].cells[j]) {
-                table.rows[i + r].deleteCell(j);
-              }
-            }
-          }
-        }
-        // Set rowspan and colspan of the target cell
-        targetCell.rowSpan = rowspan;
-        targetCell.colSpan = colspan;
-      }
-
-window.addEventListener('load', function () { styleCell_tinytable_4r14qhnfketot6pt6gc9(0, 0, 'tinytable_css_tnmxjgh574qjm9rmtz14') })
-window.addEventListener('load', function () { styleCell_tinytable_4r14qhnfketot6pt6gc9(0, 1, 'tinytable_css_tnmxjgh574qjm9rmtz14') })
-window.addEventListener('load', function () { styleCell_tinytable_4r14qhnfketot6pt6gc9(0, 2, 'tinytable_css_tnmxjgh574qjm9rmtz14') })
-window.addEventListener('load', function () { styleCell_tinytable_4r14qhnfketot6pt6gc9(0, 0, 'tinytable_css_cn69uj0uwnv9kw1pvzyq') })
-window.addEventListener('load', function () { styleCell_tinytable_4r14qhnfketot6pt6gc9(1, 0, 'tinytable_css_cn69uj0uwnv9kw1pvzyq') })
-window.addEventListener('load', function () { styleCell_tinytable_4r14qhnfketot6pt6gc9(2, 0, 'tinytable_css_cn69uj0uwnv9kw1pvzyq') })
-window.addEventListener('load', function () { styleCell_tinytable_4r14qhnfketot6pt6gc9(3, 0, 'tinytable_css_cn69uj0uwnv9kw1pvzyq') })
-window.addEventListener('load', function () { styleCell_tinytable_4r14qhnfketot6pt6gc9(4, 0, 'tinytable_css_cn69uj0uwnv9kw1pvzyq') })
-window.addEventListener('load', function () { styleCell_tinytable_4r14qhnfketot6pt6gc9(5, 0, 'tinytable_css_cn69uj0uwnv9kw1pvzyq') })
-window.addEventListener('load', function () { styleCell_tinytable_4r14qhnfketot6pt6gc9(6, 0, 'tinytable_css_cn69uj0uwnv9kw1pvzyq') })
-window.addEventListener('load', function () { styleCell_tinytable_4r14qhnfketot6pt6gc9(7, 0, 'tinytable_css_cn69uj0uwnv9kw1pvzyq') })
-window.addEventListener('load', function () { styleCell_tinytable_4r14qhnfketot6pt6gc9(8, 0, 'tinytable_css_cn69uj0uwnv9kw1pvzyq') })
-window.addEventListener('load', function () { styleCell_tinytable_4r14qhnfketot6pt6gc9(9, 0, 'tinytable_css_cn69uj0uwnv9kw1pvzyq') })
-window.addEventListener('load', function () { styleCell_tinytable_4r14qhnfketot6pt6gc9(10, 0, 'tinytable_css_cn69uj0uwnv9kw1pvzyq') })
-window.addEventListener('load', function () { styleCell_tinytable_4r14qhnfketot6pt6gc9(11, 0, 'tinytable_css_cn69uj0uwnv9kw1pvzyq') })
-window.addEventListener('load', function () { styleCell_tinytable_4r14qhnfketot6pt6gc9(12, 0, 'tinytable_css_cn69uj0uwnv9kw1pvzyq') })
-window.addEventListener('load', function () { styleCell_tinytable_4r14qhnfketot6pt6gc9(0, 1, 'tinytable_css_sel6vg5h9m36r4ch54ae') })
-window.addEventListener('load', function () { styleCell_tinytable_4r14qhnfketot6pt6gc9(1, 1, 'tinytable_css_sel6vg5h9m36r4ch54ae') })
-window.addEventListener('load', function () { styleCell_tinytable_4r14qhnfketot6pt6gc9(2, 1, 'tinytable_css_sel6vg5h9m36r4ch54ae') })
-window.addEventListener('load', function () { styleCell_tinytable_4r14qhnfketot6pt6gc9(3, 1, 'tinytable_css_sel6vg5h9m36r4ch54ae') })
-window.addEventListener('load', function () { styleCell_tinytable_4r14qhnfketot6pt6gc9(4, 1, 'tinytable_css_sel6vg5h9m36r4ch54ae') })
-window.addEventListener('load', function () { styleCell_tinytable_4r14qhnfketot6pt6gc9(5, 1, 'tinytable_css_sel6vg5h9m36r4ch54ae') })
-window.addEventListener('load', function () { styleCell_tinytable_4r14qhnfketot6pt6gc9(6, 1, 'tinytable_css_sel6vg5h9m36r4ch54ae') })
-window.addEventListener('load', function () { styleCell_tinytable_4r14qhnfketot6pt6gc9(7, 1, 'tinytable_css_sel6vg5h9m36r4ch54ae') })
-window.addEventListener('load', function () { styleCell_tinytable_4r14qhnfketot6pt6gc9(8, 1, 'tinytable_css_sel6vg5h9m36r4ch54ae') })
-window.addEventListener('load', function () { styleCell_tinytable_4r14qhnfketot6pt6gc9(9, 1, 'tinytable_css_sel6vg5h9m36r4ch54ae') })
-window.addEventListener('load', function () { styleCell_tinytable_4r14qhnfketot6pt6gc9(10, 1, 'tinytable_css_sel6vg5h9m36r4ch54ae') })
-window.addEventListener('load', function () { styleCell_tinytable_4r14qhnfketot6pt6gc9(11, 1, 'tinytable_css_sel6vg5h9m36r4ch54ae') })
-window.addEventListener('load', function () { styleCell_tinytable_4r14qhnfketot6pt6gc9(12, 1, 'tinytable_css_sel6vg5h9m36r4ch54ae') })
-window.addEventListener('load', function () { styleCell_tinytable_4r14qhnfketot6pt6gc9(0, 2, 'tinytable_css_yyp0hypx0jczu4z2oqqf') })
-window.addEventListener('load', function () { styleCell_tinytable_4r14qhnfketot6pt6gc9(1, 2, 'tinytable_css_yyp0hypx0jczu4z2oqqf') })
-window.addEventListener('load', function () { styleCell_tinytable_4r14qhnfketot6pt6gc9(2, 2, 'tinytable_css_yyp0hypx0jczu4z2oqqf') })
-window.addEventListener('load', function () { styleCell_tinytable_4r14qhnfketot6pt6gc9(3, 2, 'tinytable_css_yyp0hypx0jczu4z2oqqf') })
-window.addEventListener('load', function () { styleCell_tinytable_4r14qhnfketot6pt6gc9(4, 2, 'tinytable_css_yyp0hypx0jczu4z2oqqf') })
-window.addEventListener('load', function () { styleCell_tinytable_4r14qhnfketot6pt6gc9(5, 2, 'tinytable_css_yyp0hypx0jczu4z2oqqf') })
-window.addEventListener('load', function () { styleCell_tinytable_4r14qhnfketot6pt6gc9(6, 2, 'tinytable_css_yyp0hypx0jczu4z2oqqf') })
-window.addEventListener('load', function () { styleCell_tinytable_4r14qhnfketot6pt6gc9(7, 2, 'tinytable_css_yyp0hypx0jczu4z2oqqf') })
-window.addEventListener('load', function () { styleCell_tinytable_4r14qhnfketot6pt6gc9(8, 2, 'tinytable_css_yyp0hypx0jczu4z2oqqf') })
-window.addEventListener('load', function () { styleCell_tinytable_4r14qhnfketot6pt6gc9(9, 2, 'tinytable_css_yyp0hypx0jczu4z2oqqf') })
-window.addEventListener('load', function () { styleCell_tinytable_4r14qhnfketot6pt6gc9(10, 2, 'tinytable_css_yyp0hypx0jczu4z2oqqf') })
-window.addEventListener('load', function () { styleCell_tinytable_4r14qhnfketot6pt6gc9(11, 2, 'tinytable_css_yyp0hypx0jczu4z2oqqf') })
-window.addEventListener('load', function () { styleCell_tinytable_4r14qhnfketot6pt6gc9(12, 2, 'tinytable_css_yyp0hypx0jczu4z2oqqf') })
-window.addEventListener('load', function () { styleCell_tinytable_4r14qhnfketot6pt6gc9(8, 0, 'tinytable_css_jkzy58kibo5qbp308iz4') })
-window.addEventListener('load', function () { styleCell_tinytable_4r14qhnfketot6pt6gc9(8, 1, 'tinytable_css_jkzy58kibo5qbp308iz4') })
-window.addEventListener('load', function () { styleCell_tinytable_4r14qhnfketot6pt6gc9(8, 2, 'tinytable_css_jkzy58kibo5qbp308iz4') })
-    </script>
-
-  
+</table>
 
 
 </div>
@@ -2890,11 +2776,9 @@ window.addEventListener('load', function () { styleCell_tinytable_4r14qhnfketot6
 <div class="cell">
 <div class="sourceCode cell-code" id="cb4"><pre class="sourceCode numberSource r number-lines code-with-copy"><code class="sourceCode r"><span id="cb4-1"><a></a>fixest<span class="sc">::</span><span class="fu">feols</span>(<span class="fu">log</span>(wage) <span class="sc">~</span> exper <span class="sc">|</span> married <span class="sc">+</span> south <span class="sc">|</span> educ <span class="sc">~</span> feduc <span class="sc">+</span> sibs, <span class="at">data =</span> wage2)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <div class="cell-output cell-output-stdout">
-<pre><code>TSLS estimation - Dep. Var.: log(wage)
-                  Endo.    : educ
-                  Instr.   : feduc, sibs
+<pre><code>TSLS estimation, Dep. Var.: log(wage), Endo.: educ, Instr.: feduc, sibs
 Second stage: Dep. Var.: log(wage)
-Observations: 741
+Observations: 741 
 Fixed-effects: married: 2,  south: 2
 Standard-errors: Clustered (married) 
          Estimate Std. Error t value Pr(&gt;|t|)    
@@ -2915,11 +2799,9 @@ F-test (1st stage), educ: stat = 62.0     , p &lt; 2.2e-16 , on 2 and 736 DoF.
 <div class="cell">
 <div class="sourceCode cell-code" id="cb6"><pre class="sourceCode numberSource r number-lines code-with-copy"><code class="sourceCode r"><span id="cb6-1"><a></a>fixest<span class="sc">::</span><span class="fu">feols</span>(<span class="fu">log</span>(wage) <span class="sc">~</span> exper <span class="sc">|</span> married <span class="sc">+</span> south <span class="sc">|</span> educ <span class="sc">~</span> feduc <span class="sc">+</span> sibs, <span class="at">cluster =</span> <span class="sc">~</span>black, <span class="at">data =</span> wage2)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <div class="cell-output cell-output-stdout">
-<pre><code>TSLS estimation - Dep. Var.: log(wage)
-                  Endo.    : educ
-                  Instr.   : feduc, sibs
+<pre><code>TSLS estimation, Dep. Var.: log(wage), Endo.: educ, Instr.: feduc, sibs
 Second stage: Dep. Var.: log(wage)
-Observations: 741
+Observations: 741 
 Fixed-effects: married: 2,  south: 2
 Standard-errors: Clustered (black) 
          Estimate Std. Error t value Pr(&gt;|t|)    
