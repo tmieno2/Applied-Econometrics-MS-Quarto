@@ -1,0 +1,509 @@
+---
+title: "Assignment 2 (<span style='color:blue'>Score: /10 </span>)"
+author: "Your Name Here"
+format:
+  html:
+    number-sections: true
+    number-depth: 1
+    theme: flatly
+    toc: true
+execute:
+  echo: true
+  message: false
+  warning: false
+---
+
+
+```{r setup_not_remove, echo=FALSE, include = F}
+library(knitr)
+library(here)
+# opts_knit$set(root.dir = here("AssignmentsInstructor/Assignment_2"))
+# setwd(here("AssignmentsInstructor/Assignment_2"))
+opts_chunk$set(
+  echo = TRUE,
+  comment = NA,
+  message = FALSE,
+  warning = FALSE,
+  tidy = FALSE,
+  #--- figure related ---#
+  fig.align = "center",
+  fig.width = 5,
+  fig.height = 4
+  # dev='pdf'
+)
+```
+
+# Instruction
+
+Due date is <span style='color:blue'>November, 27th </span> <span style='color:red'>before</span> the lab session on that day, in which this assignment is reviewed by the TA. Submission after the deadline would result in a heavy discount on the score. 
+
+Please submit your assignment (both the qmd and the resulting html files) using the following [Dropbox submission request link](https://www.dropbox.com/request/QoEGkBxBSn1xvmYhJbe1). Name your qmd file using the following convention: `lastname_assignment_2.qmd`. For example, it would be `Mieno_assignment_2.qmd` for me. 
+
+I do not accept any hand-written answers (you will get score of zero for that problem). Leave all the R codes and results in your answer (where appropriate) for the computer exercises. If your R codes are not provided, you will get score of 0 for that question.
+
+You are encouraged to discuss the problems with your classmates. However, I would recommend that you do so after you try all the problems yourself. You would be simply doing disservice to yourself if you resort to your friends' help immediately, depriving you of important opportunities to think carefully about what we have learned and understand them through solving the problems. 
+
+------
+
+<span style='color:blue'>
+Here, I load all the packages I will be using:
+</span>
+
+```{r library, include=FALSE, cache = F}
+library(car)
+library(modelsummary)
+library(fixest)
+library(tidyverse)
+```
+
+<!-- Non-computer Exercises -->
+# Non-computer Exercises
+
+<!-- Problem 3 -->
+## Problem 3 (Chapter 3)
+
+The following model is a simplified version of the multiple regression model used by Biddle and Hamermesh (1990) to study the trade-off between time spent sleeping and working and to look at other factors affecting sleep:
+$$sleep = \beta_0 + \beta_1 totwrk + \beta_2 educ + \beta_3 age + u$$
+where $sleep$ and $totwrk$ (total work) are measured in minutes per week and $educ$ and $age$
+are measured in years.
+
+------
+
+(i) If adults trade off sleep for work, what is the sign of $\beta_1$?
+
+<span style='color:blue'> negative because more hours at work means less time to sleep </span>
+
+------
+
+(ii) What signs do you think $\beta_2$ and $\beta_3$ will have?
+
+<span style='color:blue'> It seems ambiguous to me. It could be that higher education lead to high-paying job ($/hour), which means they need to spend less time working to obtain the same amount of wealth. If that's the case, higher educated people are likely to spend more time sleeping. However, it also seems possible that higher educated people are engaged in more demanding jobs that they spend more time working at home outside of the work hours. In that case, $\beta_2$ is negative. </span>
+
+<span style='color:blue'> I would expect $\beta_3$ to be positive as older people tend to sleep more, especially elderlies. At the same time, I also expect kids to sleep more than those in their 20's to 50's. So, I would argue that $age$ is unlikely to be linearly related with $sleep$. </span>
+
+------
+
+(iii) Using the data in SLEEP75.RAW, the estimated equation is
+$$\hat{sleep} = 3,638.25 -0.148 totwrk -11.13 educ + 2.20 age $$
+$$ n=706, \;\; R^2=0.113$$
+If someone works five more hours per week, by how many minutes is sleep predicted to fall? Is this a large trade-off?
+
+<span style='color:blue'> One is expected to sleep `r 0.148*5*60` (in minutes) less on average. For a week, this does not seem a large trade-off to me. </span>
+
+------
+
+(iv) Discuss the sign and magnitude of the estimated coefficient on $educ$.
+
+<span style='color:blue'> More education implies less predicted time sleeping, but the effect is quite small. If we assume the difference between college and high school is four years, the college graduate sleeps about `r 11.13*4` minutes less per week, other things equal. </span>
+
+------
+
+(v) Would you say $totwrk$, $educ$, and $age$ explain much of the variation in $sleep$? What other factors might affect the time spent sleeping? Are these likely to be correlated
+with $totwrk$? What happens to the coefficient estimator on $totwrk$ if the other factors are indeed correlated with $torwrk$?
+
+<span style='color:blue'> $R^2$ is only $0.113$, which indicates there are other factors than $totwrk$, $educ$, and $age$ that should explain the remaining variation in $sleep$. Variables that are missing (omitted) in the models would be health status, marital status, the number of kids. They all seem to be correlated with $totwrk$. Consequently, the coefficient estimator on $totwrk$ in the above equation is likely to be biased.</span>
+
+------
+
+<!-- Problem 7 -->
+## Problem 7 (Chapter 3)
+
+Which of the following can cause OLS estimators to be biased? Explain why or why not?
+
+(i) Heteroskedasticity.
+(ii) Omitting an important variable.
+(iii) A sample correlation coefficient of .95 between two independent variables both included in the model.
+
+<span style='color:blue'>
+Heteroskedasicity assumption was not necessary to prove the unbiasedness of OLS estimators (we only used $MLR.1$ through $MLR.4$). Therefore, heteroskedasticity does not bias OLS estimators. Omitting an important variable can cause bias. If "important" means the coefficient on the omitted variable is non-zero, then bias occurs when the omitted variable is correlated with the included variables. Low correlation was not part of the assumptions we used to prove the unbiasedness of OLS estimators. High correlation affects efficiency of estimators, but not unbiasedness.
+</span>
+
+------
+
+## Problem 9 (Chapter 3)
+
+The following equation describes the median housing price in a community in terms of amount of pollution ($nox$ for nitrous oxide) and the average number of rooms in houses in the community ($rooms$):
+
+$$log(price)=\beta_0+\beta_1log(nox)+\beta_2 rooms+u$$
+
+------
+
+(i) What are the probable signs of $\beta_1$ and $\beta_2$? What is the interpretation of $\beta_1$? Explain.
+
+<span style='color:blue'>
+I would expect that $\beta_1$ is negative because high level of nitrous oxide could cause negative health effects, which should be reflected on the house price. I would expect $\beta_2$ to be positive because larger houses tend to fetch higher prices.
+</span>
+
+------
+
+(ii) Why might $nox$ [or more precisely, log($nox$)] and $rooms$ be negatively correlated? If this is the case, does the simple regression of log($price$) on log($nox$) produce an upward or a downward biased estimator of $\beta_1$? (Hint: look at the slides on the direction of omitted variable bias)
+
+<span style='color:blue'> It is possible that poorer neighborhood is associated with higher pollution level. If that's the case, $nox$ and $rooms$ would be correlated. If $\beta_2>0$ and $cor(nox,rooms)<0$, then the simple regression estimator $\hat{\beta_1}$ suffers from negative bias. This means that $\hat{\beta_1}$ would over-state the negative impact of $nox$. </span>
+
+------
+
+(iii) Using the data in HPRICE2.RAW, the following equations were estimated:
+$$\hat{log(price)}=11.71-1.043log(nox) $$
+$$\hat{log(price)}=9.23-0.718log(nox)+ 0.306 rooms$$
+Is the relationship between the simple and multiple regression estimates of the elasticity of price with respect to $nox$ what you would have predicted, given your answer in part (ii)? Does this mean that $-0.718$ is definitely closer to the true elasticity than $-1.043$?
+
+<span style='color:blue'>
+This is what we expect from the typical sample based on our analysis in part (ii). The simple regression estimate, −1.043, is more negative (larger in magnitude) than the multiple regression estimate, $−.718$. As those estimates are only for one sample, we can never know which is closer to $\beta_1$. But if this is a "typical" sample, $\beta_1$ is closer to $−.718$.
+</span>
+
+------
+
+<!-- Computer Exercises -->
+
+# Computer Exercises
+
+<span style = "color: blue;"> Before starting the computer exercises, I will load some packages first.</span>
+
+```{r cache = F}
+library(fixest)
+library(broom)
+library(modelsummary)
+```
+
+## Problem C6 (Chapter 3)
+
+Use the data set in **wage2.rds** for this problem. As usual, be sure all of the following regressions contain an intercept (Hint: this question is about omitted variable bias). 
+
+------
+
+<span style='color:blue'>
+Here, I import the data set.
+</span>
+
+```{r c6_data_import}
+#--- import the data ---#
+data_c6 <- readRDS("wage2.rds")
+```
+
+------
+
+(i) Run a simple regression of $IQ$ on $educ$ to obtain the slope coefficient, say, $\tilde{\sigma}_1$.
+
+```{r c6_1}
+sigma_tilde_1 <- feols(IQ ~ educ, data = data_c6)$coefficient["educ"]
+sigma_tilde_1
+```
+
+------
+
+(ii) Run the simple regression of log($wage$) on $educ$, and obtain the slope coefficient, $\tilde{\beta}_1$.
+
+```{r c6_2}
+beta_tilde_1 <- feols(log(wage) ~ educ, data = data_c6)$coefficient["educ"]
+beta_tilde_1
+```
+
+------
+
+(iii) Run the multiple regression of log($wage$) on $educ$ and $IQ$, and obtain the slope coefficients, $\hat{\beta}_1$ and $\hat{\beta}_2$, respectively.
+
+```{r c6_3}
+beta_hat <- feols(log(wage) ~ educ + IQ, data = data_c6)$coefficient
+beta_hat
+
+#--- coef on educ ---#
+beta_hat["educ"] # or beta_hat[2]
+
+#--- coef on IQ ---#
+beta_hat["IQ"] # or beta_hat[3]
+```
+
+------
+
+(iv) Verify that $\tilde{\beta}_1=\hat{\beta}_1$ + $\hat{\beta}_2\tilde{\sigma}_1$.
+
+```{r c6_4}
+beta_tilde_1 == beta_hat["educ"] + beta_hat["IQ"] * sigma_tilde_1
+```
+------
+
+(v) What does $\hat{\beta}_2\tilde{\sigma}_1$ represent?
+
+<span style='color:blue'>
+It represents the bias on the coefficient estimator on $educ$ when $IQ$ is omitted.
+</span>
+
+
+```{r bias}
+#--- bias ---#
+bias <- beta_hat["IQ"] * sigma_tilde_1
+bias
+```
+
+<span style='color:blue'>
+If you regress $log(wage)$ only on $educ$, ignoring $IQ$, you are likely to over-estimate the impact of $educ$ on $wage$.
+</span>
+
+## Problem C8 (Chapter 3)
+
+Use the data in **discrim.dta** to answer this question (there are NAs in the data set, so remove them first). These are ZIP code–level data on prices for various items at fast-food restaurants, along with characteristics of the zip code population, in New Jersey and Pennsylvania. The idea is to see whether fast-food restaurants charge higher prices in areas with a larger concentration of blacks.
+
+Here are the definitions of variables:
+
++ $prpblck$: proportion of black people
++ $income$: median income (in $\$$)
++ $lincome$: logged $income$
++ $psoda$: average price of soda (in $\$$)
++ $prppov$: proportion of people in poverty
++ $hseval$: median value of owner-occupied housing units (in $\$$)
++ $hseval$: logged $hseval$
+
+--------
+
+<span style='color:blue'>
+I first import the data
+</span>
+
+```{r c8_data, cache=TRUE}
+#--- import ---#
+data_c8 <- 
+  haven::read_dta("discrim.dta") %>%
+  na.omit()
+```
+
+--------
+
+(i) Find the average values of $prpblck$ and $income$ in the sample, along with their standard deviations. Use `dplyr::summarize()` function.
+
+<span style='color:blue'>
+Here are the codes and answers:
+</span>
+
+```{r c8_stat}
+#--- prpblck ---#
+summarize(
+  data_c8,
+  mean(prpblck),
+  sd(prpblck)
+)
+
+#--- income ---#
+summarize(
+  data_c8,
+  mean(income),
+  sd(income)
+)
+```
+
+--------
+
+(ii) Consider a model to explain the price of soda, $psoda$, in terms of the proportion of the population that is black and median income:
+$$psoda=\beta_0+\beta_1 prpblck + \beta_2 income +u $$
+Estimate this model by OLS and report the results, including the sample size and R-squared. Interpret the coefficient on $prpblck$. Do you think it is economically large?
+
+<span style='color:blue'>
+Here is the code and results of the regression analysis:
+</span>
+
+```{r reg_c8}
+reg_c8 <- feols(psoda ~ prpblck + income, data = data_c8)
+msummary(
+  reg_c8,
+  # keep these options as they are
+  stars = TRUE,
+  gof_omit = "IC|Log|Adj|F|Pseudo|Within"
+)
+```
+
+<br>
+
+<span style='color:blue'>
+If the proportion of black population goes up by $0.1$, then the price of soda goes up by $\$0.0148$. Given the average soda price is `r round(mean(data_c8$psoda),digits=3)`, I would not consider this impact as economically significant.
+</span>
+
+--------
+
+(iii) Compare the estimate from part (ii) with the simple regression estimate from $psoda$ on $prpblck$. Is the discrimination effect larger or smaller when you control for income?
+
+<span style='color:blue'>
+Here is the code and results of the regression analysis:
+</span>
+
+```{r reg_c8_3}
+reg_c8_simple <- feols(psoda ~ prpblck, data = data_c8)
+msummary(
+  reg_c8_simple,
+  # keep these options as they are
+  stars = TRUE,
+  gof_omit = "IC|Log|Adj|F|Pseudo|Within"
+)
+```
+
+<br>
+
+--------
+
+(iv) A model with a constant price elasticity with respect to income may be more appropriate. Report estimates of the model:
+$$log(psoda)=\beta_0+\beta_1 prpblck + \beta_2 log(income) +u $$
+If $prpblck$ increases by .20 (20 percentage points), what is the estimated percentage change in $psoda$?
+
+<span style='color:blue'>
+Here is the code and results of the regression analysis:
+</span>
+
+```{r reg_c8_4}
+reg_c8_4 <- feols(log(psoda) ~ prpblck + log(income), data = data_c8)
+msummary(
+  reg_c8_4,
+  # keep these options as they are
+  stars = TRUE,
+  gof_omit = "IC|Log|Adj|F|Pseudo|Within"
+)
+```
+
+<br>
+
+<span style='color:blue'>
+The estimated percentage change in $psoda$ induced by .20 increase in $prpblck$ is $0.2\times 0.160\times 100=3.2\%$.
+</span>
+
+--------
+
+(v) Now add the variable $prppov$ to the regression in part (iv). What happens to $\beta_{prpblck}$?
+
+<span style='color:blue'>
+Here is the code and results of the regression analysis:
+</span>
+
+```{r reg_c8_5}
+reg_c8_5 <- feols(log(psoda) ~ prpblck + I(log(income)) + prppov, data = data_c8)
+msummary(
+  reg_c8_5,
+  # keep these options as they are
+  stars = TRUE,
+  gof_omit = "IC|Log|Adj|F|Pseudo|Within"
+)
+```
+<br>
+
+<span style='color:blue'>
+$prpblck$ now has a smaller impact on the price of soda.
+</span>
+
+--------
+
+(vi) Find the correlation between log($income$) and $prppov$. Is it roughly what you expected?
+
+<span style='color:blue'>
+Here is the code:
+</span>
+
+```{r c8_6_cor}
+#--- correlation ---#
+select(data_c8, lincome, prppov) %>% cor()
+```
+<br>
+
+<span style='color:blue'>
+Yes. Income and proportion of people in poverty should be highly negatively correlated.
+</span>
+
+--------
+
+(vii) Evaluate the following statement: "Because log($income$) and $prppov$ are so highly correlated, they have no business being in the same regression."
+
+<span style='color:blue'>
+Your main interest lies in the impact of $prpblck$. Therefore, you need to consider what including $prppov$ does to the unbiasedness and efficiency of the OLS estimators of the coefficient on $prpblck$. As can be seen below, $prppov$ is rather highly correlated with $prpblck$. This indicates that omitting $prppov$ may cause severe bias on $\hat{\beta}_{prpblck}$. Moreover, judging from the regression results in (v), $prppov$ does have a sizable impact on $psoda$ even after you control for $log(income)$. Therefore, I would include $prppov$.
+</span>
+
+```{r c8_7_cor}
+#--- correlation ---#
+select(data_c8, prpblck, prppov) %>% cor()
+```
+
+------
+
+## Problem C9 (Chapter 4)
+
+Use the data in **discrim.dta** (you have imported this data already in the previous problem) to answer this question.
+
+------
+
+(i) Use OLS to estimate the model
+$$log(psoda)=\beta_0+\beta_1 prpblck + \beta_2 log(income) + \beta_2 prppov + u $$
+and report the results in the usual form. Is $\beta_1$ statistically different from zero at the $5\%$ level against a two-sided alternative? What about at the $1\%$ level?
+
+
+```{r c9_1_result}
+tidy(reg_c8_5)
+```
+<span style='color:blue'>
+$p$-value for $\hat{\beta}_1$ is `r tidy(reg_c8_5) %>% filter(term == "prpblck") %>% pull(p.value) %>% round(digits = 4)`. Since the $p$-value is less than $0.01$ and $0.05$, $\hat{\beta}_1$ is statistically significant at both at the $1\%$ and $5\%$ levels
+</span>
+
+------
+
+(ii) What is the correlation between log($income$) and $prppov$ (use **cor()** function in R to find correlation coefficient)? Is each variable statistically significant at the $5\%$ level? Report the two-sided p-values.
+
+<span style='color:blue'>
+Here is the correlation between log($income$) and $prppov$:
+</span>
+
+```{r c9_cor}
+select(data_c8, lincome, prppov) %>% cor()
+```
+<span style='color:blue'>
+Yet, they are both highly statistically significant. As shown in the regression results presented above, $p$-values for log($income$) and $prppov$ are `r tidy(reg_c8_5) %>% filter(term == "I(log(income))") %>% pull(p.value) %>% round(digits=4)` and `r tidy(reg_c8_5) %>% filter(term == "prppov") %>% pull(p.value) %>% round(digits=4)`, respectively. Therefore, they are both statistically significant at the $5\%$ level.
+</span>
+
+------
+
+(iii) To the regression in part (i), add the variable log($hseval$). Interpret its coefficient and report the two-sided $p$-value for $H_0$: $\beta_{log(hseval)}=0$
+
+<span style='color:blue'>
+Here is the code and results:
+</span>
+
+```{r reg_c9_3}
+reg_c9_3 <- feols(log(psoda) ~ prpblck + I(log(income)) + prppov + I(log(hseval)), data = data_c8)
+msummary(
+  reg_c9_3,
+  # keep these options as they are
+  stars = TRUE,
+  gof_omit = "IC|Log|Adj|F|Pseudo|Within"
+)
+```
+<br>
+
+<span style='color:blue'>
+One percentage increase in housing value would increase the price of soda by $0.13\%$ on average. The two sided $p$-value for $H_0$: $\beta_{log(hseval)}=0$ is the following:
+</span>
+
+```{r p_c9_3}
+reg_c9_3$coefficient["I(log(hseval))"]
+```
+
+------
+
+(iv) In the regression in part (iii), what happens to the individual statistical significance of log($income$) and $prppov$? Are these variables jointly significant? (Compute a p-value.) What do you make of your answers? Use `car::linearHypothesis()` to run the F-test.
+
+<span style='color:blue'>
+log($income$) and $prppov$ are no longer statistically significant even at the $10\%$ level, individually. Here is the R codes to conduct to $F$-test of the joint significance of the two variables:
+</span>
+
+```{r reg_c9_4}
+linearHypothesis(reg_c9_3, c("I(log(income))", "prppov"), test = "F")
+```
+<br>
+<span style='color:blue'>
+Therefore, they are jointly significant at the $10\%$ level. Since log($income$) and $prppov$ are highly correlated (leads to higher standard error), if you look at their statistical significance individually, you have a good chance to find that they are statistically insignificant. However, when looked at jointly, they are statistically significant at the $10\%$ level.
+</span>
+
+------
+
+(v) Given the results of the previous regressions, which one would you report as most reliable in determining whether the racial makeup of a zip code influences local fast-food prices?
+
+<span style='color:blue'>
+Since log($income$) and $prppov$ are jointly statistically significant, omitting them would cause bias on bias on $\hat{\beta}_{prpblck}$. In terms of efficiency, it is ambiguous whether it is beneficial to omit or include them. Since log($income$) and $prppov$ are moderately highly correlated with $prpblck$ (see below), including them would make estimation of $\hat{\beta}_{prpblck}$ less efficient. But, at the same time, including them would reduce the variance of error term, which makes estimation of $\hat{\beta}_{prpblck}$ more efficient. Given this ambiguity on efficiency, I would choose to include them to avoid omitted variable bias. Even after including them, $prpblck$ is statistically significant anyway. I would also leave log($hseval$). It is highly statistically significant and there is no doubt it belongs in the model. Moreover, since log($hseval$) is correlated with (see below), omitting it would cause bias on $\hat{\beta}_{prpblck}$.
+
+</span>
+
+```{r cor_c9_5}
+select(data_c8, prpblck, lincome, prppov, lhseval) %>% cor()
+```
+
