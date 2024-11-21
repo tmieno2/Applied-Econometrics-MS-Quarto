@@ -1,0 +1,1117 @@
+---
+title: "12: Difference in Differences (DID)"
+format: 
+  revealjs: 
+    theme: [default, ../custom.scss]
+    fontsize: 1.2em
+    callout-icon: false
+    scrollable: true
+    echo: true
+    fig-dpi: 400
+    footer: "[back to course website with lecture slides](https://tmieno2.github.io/Applied-Econometrics-MS-Quarto/lectures/)"
+execute:
+  echo: true
+  out-width: 80%
+webr:
+  packages: ['fixest', 'dplyr', 'data.table', 'ggplot2', 'wooldridge']
+  cell-options:
+    editor-font-scale: 0.8
+filters:
+  - webr
+---
+
+
+```{r}
+#| label: additional-libraries
+#| include: false
+#--- load packages ---#
+library(broom)
+library(knitr)
+library(fixest)
+library(ggplot2)
+library(data.table)
+library(flextable)
+library(officer)
+library(dplyr)
+library(flair)
+library(modelsummary)
+
+#--- load the kielmc data ---#
+data(kielmc, package = "wooldridge")
+
+#--- change the scale of a variable ---#
+data <- dplyr::mutate(kielmc, rprice = rprice / 1000)
+```
+
+# Impact (Program) Evaluation
+
+<html><div style='float:left'></div><hr color='#EB811B' size=1px width=1000px></html>
+
+## Impact Evaluation
+
+::: {.panel-tabset}
+
+### What is it?
+
+**Definition**
+
+Impact (program) evaluation is a field of econometrics that focuses on estimating the impact of a program or event.
+
+<br>
+
+**Examples**
+
++ Groundwater use limit in Nebraska $\Rightarrow$ water use 
++ Technology adoption (soil moisture sensor) $\Rightarrow$ water use 
++ Crop insurance $\Rightarrow$ input use 
++ Job training program $\Rightarrow$ productivty 
++ Food Stamp $\Rightarrow$ health, education, etc
+
+:::{.callout-note title="Key challenge"}
+Most of the programs you are interested in evaluating are not randomized.
+
+$\;\;\;\;\;\;\;\;\;\downarrow$
+
+Endogeneity problem arising from self-selection into the program.
+:::
+
+
+### Gold standard 
+
+**Gold Standard**
+
++ The best (if feasible) way to tackle the problem of selection bias in impact evaluation is randomized experiment, where who gets treated or not is determined randomly (you design a program or experiment and randomize treatment-control assignment)
+
++ This ensures that the treatment status (dummy variable indicating treated or not) is not correlated with the error term 
+
+<br>
+
+**Example**
+
+$y \;\;(\mbox{income}) = \beta_0 + \beta_1 program \;\;(\mbox{financial aid}) + u$
+
+, where $E[u|program]=0$ (the program is not correlated with the error term). OLS is just fine.
+
+<br>
+
+:::{.callout-note title="Problem"}
+Many of the programs are simply not possible to randomize because of financial and/or ethical reasons.
+
+$\downarrow$
+
+We need to use data from an event that happened outside our control.
+:::
+
+
+### Natural (Quasi) Experiment
+
+**Definition**
+
+An event or policy change (often a change in government policy) that happens <span style = "color: blue;">outside of the control of investigators</span>, which changes the environment in which agents (individuals, families, firms, or cities) operate.
+
+<br>
+
+**Challenges**
+
+The program is most likely correlated with the error term.
+
+<br>
+
+:::
+<!--end of panel-->
+
+## Assessment of various approaches
+
+::: {.panel-tabset}
+
+### Lecture objectives
+
++ Discuss different ways of estimating the impact of a program including the difference in differences (DID) method.
+
++ Understand the strength and weakness of these methods
+
+### Example program
+
+**Incinerator Construction**
+
++ rumored about the incinerator being built in North Andover, Massachusetts, began in 1978
+
++ construction started in 1981
+
+<br>
+
+**Data collected**
+
+Housing prices in 1978 and 1981, and other variables (we observations before and after the incinerator construction)
+
+### Data
+
+```{webr-r}
+#| autorun: true
+#--- load the kielmc data ---#
+data(kielmc, package = "wooldridge")
+
+#--- change the scale of a variable ---#
+(
+data <- 
+  kielmc %>%
+  as_tibble() %>%
+  dplyr::mutate(rprice = rprice / 1000)
+)
+```
+
+### Various approaches to evaluate
+
+:::{.callout-note title="Approach 1"}
+Cross-sectional comparison of houses that are close to (treated) and far away from (control) to the incinerator <span style = "color: red;">after</span> the incinerator was built (data in 1981)
+:::
+
+:::{.callout-note title="Approach 2"}
+Comparison of the houses that are close to the incinerator before (control) and after (treated) the incinerator was built (data in 1978 and 1981)
+:::
+
+:::{.callout-note title="Approach 3"}
+Comparison of differences (close by v.s. far away) in differences (before-after) of house prices (this method will become clearer later)
+:::
+
+
+:::
+<!--end of panel-->
+
+## Approach 1
+
+::: {.panel-tabset}
+
+### Estimation strategy
+
+Run regression on the following model using the 1981 data (cross-sectional data)
+
+$rprice = \gamma_0 + \gamma_1 nearinc + u$
+
++ $rprice$: house price in real terms (inflation-corrected)
+
++ $nearinc$: 1 if the house is near the incinerator, and 0 otherwise
+
+
+<span style = "color: blue;"> $\gamma_1$ </span>: the difference between the mean house price of houses nearby the incinerator and the rest (not nearby) in 1981
+
+<br>
+
+**Question**
+
+Is `nearinc` endogenous?
+
+### Estimate
+
+```{webr-r}
+#| autorun: true
+(
+reg_81 <-
+  feols(
+    rprice ~ nearinc,
+    data = filter(data, year == 1981)
+  )
+)
+```
+
+<br>
+
+**Question**
+Is this reliable? 
+
+### Take a look at 1978 
+
+::: {.columns}
+
+::: {.column width="40%"}
+Run regression on the following model using the <span style = "color: red;"> 1978 </span> data (cross-sectional data).
+
+```{=tex}
+\begin{align*}
+rpice = \gamma_0 + \gamma_1 nearinc + u
+\end{align*}
+```
+
+$\gamma_1$ represents the difference between the mean house price of houses nearby the incinerator and the rest (not nearby) <span style = "color: red;"> before </span> the incinerator was built.
+:::
+<!--end of the 1st column-->
+::: {.column width="60%"}
+```{webr-r}
+#| autorun: true
+(
+reg_78 <-
+  feols(
+    rprice ~ nearinc,
+    data = filter(data, year == 1978)
+  )
+)
+```
+:::
+<!--end of the 2nd column-->
+:::
+<!--end of the columns-->
+
+
+<br>
+
+:::{.callout-note title="Critical"}
+The price of houses nearby the incinerator were already lower than those houses that are not nearby <span style = "color: blue;"> before </span> the incinerator was built.
+:::
+
+
+### Visualization
+
+```{r echo = F}
+data_mean <- 
+  data %>%
+  group_by(year, nearinc) %>%
+  dplyr::summarize(m_rprice = mean(rprice))
+
+ggplot() +
+  geom_bar(
+    data = data_mean,
+    aes(
+      y = m_rprice,
+      x = factor(year),
+      fill = factor(nearinc)
+    ),
+    stat = "identity",
+    position = "dodge"
+  ) +
+  ylab("Mean House Price ($1000$)") +
+  xlab("Year") +
+  scale_fill_discrete(name = "") +
+  theme(legend.position = "bottom") +
+  theme_bw()
+```
+
+### Understanding the approach
+
+::: {.columns}
+
+::: {.column width="50%"}
+
+<br>
+
+```{r echo = F}
+ex_results_tab <- data.frame(
+  `treated` = c("nearinc = 0", "nearinc = 1"),
+  `before` = c("\\(\\gamma_0\\)", "\\(\\gamma_1\\)"),
+  after = c("\\(\\gamma_0 + \\alpha_0 + 0\\)", "\\(\\gamma_1 + \\alpha_1 + \\beta \\)")
+) %>%
+  knitr::kable(
+    format = "html",
+    escape = FALSE
+  )
+
+ex_results_tab
+```
+:::
+<!--end of the 1st column-->
+::: {.column width="50%"}
++ $\gamma_j$ is the average house price of those that are $nearinc=j$ in 1978 (before)
+
+<span style = "color: blue;">  </span>
+
++ $\alpha_j$ is <span style = "color: blue;">any</span> macro shocks <span style = "color: blue;">other than the incinerator event</span> that happened between the before and after period to the houses that are $nearinc=j$
+
++ $\beta$ is the true causal impact of the incinerator placement
+:::
+<!--end of the 2nd column-->
+:::
+<!--end of the columns-->
+
+
+**What did we estimate with Approach 1?**
+
+::: {.columns}
+
+::: {.column width="50%"}
+```{=tex}
+\begin{align*}
+& E[rprice|nearinc = 1, year = 1981] \\
+  & \;\; - E[rprice|nearinc = 0, year = 1981] \\
+  & \;\;= (\gamma_1 + \alpha_1 + \beta) - (\gamma_0 + \alpha_0 + 0) \\
+  & \;\;= (\gamma_1 - \gamma_0)+ (\alpha_1 - \alpha_0) + \beta
+\end{align*}
+```
+
+:::
+<!--end of the 1st column-->
+::: {.column width="50%"}
++ $\gamma_1 - \gamma_0$: pre-existing differences in house price <span style = "color: red;">before</span> the incinerator was built
+
+<span style = "color: red;">  </span>
+
++ $\alpha_1 - \alpha_0$: differences in the trends in housing price between the two groups  
+
+:::
+<!--end of the columns-->
+
+
+**Question**
+
+So, when Approach 1 gives us unbiased estimation of the impact of the incinerator? 
+
+<br>
+<details>
+  <summary>Answer</summary>
++ $\gamma_1 = \gamma_0$: the average house price between the two groups are the same before the incinerator was built
+
++ $\alpha_1 - \alpha_0$: the two groups experienced the same house price trend from 1978 to 1981
+</details>
+
+:::
+<!--end of panel-->
+
+:::
+<!--end of panel-->
+
+## Approach 2 
+
+::: {.panel-tabset}
+
+### Estimation strategy
+
+**Estimation strategy**
+
+Comparison of the houses that are close to the incinerator before (control) and after (treated) the incinerator was built (data in 1978 and 1981)
+
+<br>
+
+**Data**
+
+Restrict the data to the houses that are nearby the incinerator. 
+
+<br>
+
+**Model**
+
+$rpice = \beta_0 + \beta_1 y81 + u$
+
++ $rprice$: house price in real terms (inflation-corrected)
+
++ $y81$: 1 if the house is near the incinerator, and 0 otherwise
+
++ $\beta_1$: <span style = "color: blue;">the difference in the mean house price of houses nearby the incinerator before and after the incinerator was built</span>
+
+
+### Estimate
+
+```{webr-r}
+#| autorun: true
+(
+  fixest::feols(
+    rprice ~ y81,
+    data = filter(data, nearinc == 1)
+  )
+)
+```
+
+
+<br>
+
+The incinerator increased the average house price (not statistically significant)!
+
+### Understanding the approach
+
+::: {.columns}
+
+::: {.column width="50%"}
+```{r echo = F}
+ex_results_tab
+```
+:::
+<!--end of the 1st column-->
+::: {.column width="50%"}
++ $\gamma_j$ is the average house price of those that are $nearinc=j$ in 1978 (before)
+
++ $\alpha_j$ is <span style = "color: blue;">any</span> macro shocks <span style = "color: blue;">other than the incinerator event</span> that happened between the before and after period to the houses that are $nearinc=j$
+
++ $\beta$ is the true causal impact of the incinerator placement
+:::
+<!--end of the 2nd column-->
+:::
+<!--end of the columns-->
+
+**What did we estimate with Approach 2?**
+
+```{=tex}
+\begin{align*}
+& E[rprice|nearinc = 1, year = 1981] \\
+& \;\;- E[rprice|nearinc = 1, year = 1978] \\
+
+& \;\;= (\gamma_1 + \alpha_1 + \beta) - \gamma_1 \\
+
+& \;\;= \alpha_1 + \beta
+\end{align*}
+```
+
+
+**Question**
+
+So, when Approach 2 gives us unbiased estimation of the impact of the incinerator? 
+
+<br>
+<details>
+  <summary>Answer</summary>
+$\alpha_1 = 0$: no trend in house price for the houses near the incinerator (Nothing else significant other than the incinerator happened 
+between 1978 and 1981.)
+ 
+</details>
+
+
+:::
+<!--end of panel-->
+
+## Approach 3
+
+::: {.panel-tabset}
+
+### Estimation strategy
+
+**Estimation strategy (difference-in-differences or DID)**
+
+Compare of differences (close by v.s. far away) in differences (before-after) of house prices (this method will become clearer later)
+
++ Find the difference in the price of the houses <span style = "color: red;">close to</span> the incinerator before and after the incinerator was built 
+
++ Find the difference in house price (close to the incinerator) before and after the incinerator was built  
+
++ Find the difference in the differences
+
+<br>
+
+**Data**
+
+All the observations (1978 and 1981, treated and non-treated) 
+
+<br>
+
+**Model**
+
+$rpice = \beta_0 + \beta_1 y81 + \beta_2 nearinc + \beta_3 nearinc \times y81 + u$
+
++ $\beta_3$: the difference in differences estimate of the impact of the incinerator
+
+### DID
+
+Let's confirm $\beta_3$ indeed represents the difference in the differences.
+
+::: {.columns}
+
+::: {.column width="50%"}
+**Model**
+
+$rpice = \beta_0 + \beta_1 y81 + \beta_2 nearinc + \beta_3 nearinc \times y81 + u$
+
+<br>
+
+**Expected house price**
+
++ $E[rprice|year=1981, nearinc = 0] = \beta_0 + \beta_1$ 
+
++ $E[rprice|year=1981, nearinc = 1] = \beta_0 + \beta_1 + \beta_2 + \beta_3$
+
++ $E[rprice|year=1978, nearinc = 0] = \beta_0$
+
++ $E[rprice|year=1978, nearinc = 1] = \beta_0 + \beta_2$
+:::
+<!--end of the 1st column-->
+::: {.column width="50%"}
+**Differences**
+
+$E[rprice|year=1981, nearinc = 1] - E[rprice|year=1978, nearinc = 1]$
+
+$= (\beta_0 + \beta_1 + \beta_2 + \beta_3) - (\beta_0 + \beta_2)$
+$= \beta_1 + \beta_3$
+
+$E[rprice|year=1981, nearinc = 0] - E[rprice|year=1978, nearinc = 0]$
+
+$= (\beta_0 + \beta_1) - \beta_0$
+$= \beta_1$
+
+<br>
+
+**Difference in the differences**
+
+$(\beta_1 + \beta_3) - \beta_1 = \beta_3$
+:::
+<!--end of the 2nd column-->
+:::
+<!--end of the columns-->
+
+
+### Estimate
+
+```{webr-r}
+#| autorun: true
+fixest::feols(
+  rprice ~ nearinc + y81 + nearinc * y81,
+  data = data
+)
+```
+
+<br>
+
+The incinerator decreased the average house price (not statistically significant).  
+
+### Understanding the approach
+
+```{r echo = F}
+ex_results_tab
+```
+
+<br>
+
+**What did we estimate with Approach 3?
+**
+
+```{=tex}
+\begin{align*}
+& E[rprice|nearinc = 1, year = 1981] \;\; - E[rprice|nearinc = 1, year = 1978] \;\; = (\gamma_1 + \alpha_1 + \beta) - \gamma_1 = \alpha_1 + \beta \\
+
+& E[rprice|nearinc = 0, year = 1981] \;\; - E[rprice|nearinc = 0, year = 1978] \;\; = (\gamma_0 + \alpha_0) - \gamma_0 = \alpha_0
+\end{align*}
+```
+
+```{=tex}
+\begin{align*}
+\downarrow
+\end{align*}
+```
+
+```{=tex}
+\begin{align*}
+\widehat{\beta}_{DID} = \alpha_1 - \alpha_0 + \beta
+\end{align*}
+```
+
+**Question**
+
+So, when Approach 3 gives us unbiased estimation of the impact of the incinerator? 
+
+<br>
+<details>
+  <summary>Answer</summary>
++ $\alpha_1 = \alpha_0$: the two groups experienced the same trend in house price from 1978 to 1981
+
++ Unlike Approach 1, the pre-existing difference between the two group is not a problem as it gets canceled out 
+</details>
+
+### Parallel trend
+
+**Key condition (common/parallel trend assumption)**
+
+$\alpha_1 = \alpha_0$: the two groups experienced the same trend in house price from 1978 to 1981
+
+<br>
+**Common/parallel trend assumption in general**  
+
+If no treatment had occurred, the difference between the treated group and the untreated group would have stayed the same in the post-treatment period as it was in the pre-treatment period. 
+
+<br>
+
+**Important**
+
+This condition/assumption is <span style = "color: red;"> NOT </span> testable because you never observe what would the treament group be like if it were not for the treatment (we will discuss this further)
+
+:::
+<!--end of panel-->
+
+## Summary of the approaches
+
+**Approaches**
+    
+Approach 1: $(\gamma_1 - \gamma_0)+ (\alpha_1 - \alpha_0) + \beta$
+
+Approach 2: $\alpha_1 + \beta$
+
+Approach 3: $\alpha_1 - \alpha_0 + \beta$
+
+
+<br>
+
+**Important**
+
++ None of these approaches are perfect. 
+
++ It is hard to sell Approaches 1 and 2
+
++ Approach 3 (DID) is preferred over Approaches 1 and 2  
+
++ But, Approach 3 is not certainly perfect and could definitely have a larger bias than Approaches 1 and 2
+
+e.g., $\alpha_1 = 5$ and $\alpha_0 = - 5$
+
+
+## DID: Another Example
+
+::: {.panel-tabset}
+
+### Context
+
+**Cholera**
+
++ Back in mid 1800s', Cholera was believed to spread via air
++ John Snow believe it was actually through fecally-contaminated water
+
+<br>
+
+**Setting**
+
++ London's water needs were served by a number of competing companies, who got their water intake from different parts of the Thames river. 
+
++ Water taken in from the parts of the Thames that were downstream of London contained everything that Londoners dumped in the river, including plenty of fecal matter from people infected with cholera. 
+
+<br>
+
+**Natural Experiment**
+
++ Between those two periods of 1849 and 1854, a policy was enacted: the Lambeth Company was required by an Act of Parliament to move their water intake upstream of London. 
+
+### Control/treatment
+
+**Treatment**
+
++ Switch of where water is taken (downstream to upstream)
+
+<br>
+
+**Before and After**
+
++ "before" (1849): Lambeth took water downstream
++ "after" (1854): Lambeth took water upstream
+
+<br>
+
+**Control and Treatment Groups**
+
++ Control group: those who were not served by Lambeth 
++ Treatment group: those who were served by Lambeth 
+
+### DID estimate
+
+**Data** 
+
+```{r echo = F}
+data.table(
+  Supplier = c("Non-Lambeth only", "Lambeth + Others"),
+  `1849` = c(134.9, 146.6),
+  `1854` = c(130.1, 84.9)
+) %>%
+  flextable() %>%
+  autofit()
+```
+
+**DID estimate**
+
+Estimate treatment effect is:
+
+(84.9 - 130.1) - (146.6 - 134.9) = `r (84.9 - 130.1) - (146.6 - 134.9)`
+
+:::
+<!--end of panel-->
+
+## DID implementation using R 
+
+::: {.panel-tabset}
+
+### Data
+
+**Well-level groundwater use data in Kansas**
+
+```{r echo = TRUE}
+(
+  lema_data <- readRDS("LEMA_data.rds")
+)
+```
+
+<br>
+
+**Main variables**
+
++ `site`: well
++ `af_used`: groundwater used (dependent variable)
++ `in_LEMA`: whether located inside the LEMA region or not
++ `year`: year
+
+### Control and treated
+
+::: {.columns}
+
+::: {.column width="40%"}
+**Control and Treatment Units**
+
++ (to be) treated: wells inside the red boundary (LEMA)
++ control: wells outside the red boundary (LEMA)
+:::
+<!--end of the 1st column-->
+::: {.column width="60%"}
+```{r well-LEMA}
+#| echo: false
+include_graphics("well_lema_boundary.png")
+```
+:::
+<!--end of the 2nd column-->
+:::
+<!--end of the columns-->
+
+
+**Before and After** 
+
+Effective 2013, wells located inside the LEMA can pump groundwater up to a certian amount
+
++ before: ~ 2012
++ after: 2013 ~ 
+
+### Prepare variables for DID
+
+Data transformation:
+
+**before or after**
+```{r echo = TRUE}
+lema_data <- mutate(lema_data, before_after = ifelse(year >= 2013, 1, 0))
+```
+
+<br>
+
+Take a look at the one of the wells:
+
+```{r}
+lema_data %>%
+  dplyr::select(site, year, before_after) %>%
+  dplyr::filter(site == 160, year > 2000)
+```
+
+<br>
+
+**(to be) treated or not**
+
+Whether wells are (to be) treated or not is already there in this dataset, represented by `in_LEMA`
+
+### Estimation
+
+**DID estimating equation (in general)**
+
+$$
+\begin{aligned}
+y_{i,t} = \alpha_0 + \beta_1 before\_after_t + \beta_2 treated\_or\_not_i + \beta_3 before\_after_t \times treated\_or\_not_i + X_{i,t}\gamma + v_{i,t}
+\end{aligned}
+$$
+
+The variable of interest is $\beta_3$, which measures the impact of the treatment.
+
+<br>
+
+**R code** 
+
+```{r echo = TRUE}
+fixest::feols(
+  af_used ~ before_after + in_LEMA + I(before_after * in_LEMA) + pr + et0,
+  cluster = ~site,
+  data = lema_data
+)
+```
+
+### Individual FEs
+
+
+DID does <span style = "color: blue;"> NOT </span> require panel data. Two periods of cross-setional data are sufficient. But, if you have panel data, you can certainly include individual fixed effects, which would certainly help to control for time-invariant characteristics (both observed and unobserved) 
+
+```{r did-ife}
+fixest::feols(
+  af_used ~ before_after + in_LEMA + I(before_after * in_LEMA) + pr + et0 | site,
+  cluster = ~site,
+  data = lema_data
+)
+```
+
+Notice that `in_LEMA` was dropped due to perfect collinearity (this is not a problem). `in_LEMA` is effectively controlled for by including individual fixed effects.
+
+### Year FEs
+
+If you have multiple years of observations in the before and after periods, you can (and should) include year fixed effects. 
+
+```{r did-yfe}
+fixest::feols(
+  af_used ~ before_after + in_LEMA + I(before_after * in_LEMA) + pr + et0 | site + year,
+  cluster = ~site,
+  data = lema_data
+)
+```
+
+Notice that `before_after` was dropped due to perfect collinearity (this is not a problem). `before_after` is effectively controlled for by including year fixed effects. Indeed, year fixed effects provide a tighter controls on annual macro shocks. 
+
+:::
+<!--end of panel-->
+
+
+## How to argue your DID is reliable 
+
+::: {.panel-tabset}
+
+### Prallel trend condition
+
+**Important**
+
+Selecting the right control group is important in DID. If the following conditions are satisfied, it is more plausible that the control and treatment groups would have had the same macro shock $(\alpha_1 = \alpha_0)$ if it were not for the treatment.
+
++ There were no events that could significantly affect the dependent variable of the control group between the "before" and "after" period
++ The two groups are generally similar so other factors do not drive the differences between them
++ They had similar trajectories of the dependent variable prior to the treatment (possible if you have more than one years of data prior to the treatment)
+  - this does <span style = "color: red;"> NOT </span> guarantee that the their trends <span style = "color: red;"> after </span> the treatment are similar
+
+**To do** 
+
++ Show the trajectory of the dependent variable
++ Run placebo tests  
+
+### Examples of trends
+
+```{r echo = F}
+set.seed(1000)
+tb <- tibble(
+  Time = rep(1:10, 2),
+  Group = c(
+    rep("Treatment", 10),
+    rep("Control", 10)
+  )
+) %>%
+  mutate(After = Time >= 7) %>%
+  mutate(
+    YCons = .4 * Time + 2 * After * (Group == "Treatment") + (Group == "Treatment") + rnorm(20, 0, .5),
+    YDiv = (.3 + .5 * (Group == "Control")) * Time + 2 * After * (Group == "Treatment") + 3 * (Group == "Treatment") + rnorm(20, 0, .5)
+  )
+
+p1 <- ggplot(tb, aes(x = Time, y = YCons, color = Group)) +
+  geom_point() +
+  geom_line() +
+  geom_vline(aes(xintercept = 7), linetype = "dashed") +
+  geom_text(
+    data = tb %>% filter(Time == 10),
+    aes(x = Time + .1, label = Group, color = Group),
+    size = 2, hjust = 0
+  ) +
+  annotate(
+    geom = "label",
+    x = 7,
+    y = 1,
+    label = "Treatment\nPeriod",
+    size = 2
+  ) +
+  scale_color_manual(values = c("#676767", "black")) +
+  expand_limits(x = 14) +
+  labs(
+    y = "Outcome",
+    title = "(a) (More or less) Parallel Prior Trends"
+  ) +
+  theme_bw() +
+  guides(color = "none") +
+  theme(
+    text = element_text(size = 6),
+    axis.title.x = element_text(size = 6),
+    axis.title.y = element_text(size = 6),
+    axis.ticks = element_blank(),
+    axis.text = element_blank()
+  )
+
+p2 <- ggplot(tb, aes(x = Time, y = YDiv, color = Group)) +
+  geom_point() +
+  geom_line() +
+  geom_vline(aes(xintercept = 7), linetype = "dashed") +
+  geom_text(
+    data = tb %>% filter(Time == 10),
+    aes(x = Time + .1, label = Group, color = Group),
+    size = 2, hjust = 0
+  ) +
+  annotate(
+    geom = "label",
+    x = 7,
+    y = 2.5,
+    label = "Treatment\nPeriod",
+    size = 2
+  ) +
+  scale_color_manual(values = c("#676767", "black")) +
+  expand_limits(x = 14) +
+  labs(
+    y = "Outcome",
+    title = "(b) Converging Prior Trends"
+  ) +
+  theme_bw() +
+  guides(color = "none") +
+  theme(
+    text = element_text(size = 6),
+    axis.title.x = element_text(size = 6),
+    axis.title.y = element_text(size = 6),
+    axis.ticks = element_blank(),
+    axis.text = element_blank()
+  )
+
+
+# ggsave(
+#   'prior_trends.pdf', p1 | p2, width = 10, height = 5, units = 'in', device = cairo_pdf)
+```
+
+::: {.panel-tabset}
+
+#### Example 1
+
+```{r cache = FALSE, echo = F}
+p1
+```
+
+#### Example 2
+
+```{r cache = FALSE, echo = F}
+p2
+```
+
+:::
+<!--end of panel-->
+
+
+### the LEMA case
+
+
+So, how about our example?
+
+```{r }
+#| echo: false
+lema_mean_af <-
+  lema_data %>%
+  group_by(year, in_LEMA) %>%
+  summarize(mean_af = mean(af_used))
+
+ggplot(data = lema_mean_af) +
+  geom_line(aes(
+    y = mean_af,
+    x = year,
+    color = factor(in_LEMA)
+  )) +
+  geom_vline(xintercept = 2012.5, color = "black") +
+  scale_color_discrete(name = "") +
+  scale_x_continuous(
+    breaks = min(lema_data$year):max(lema_data$year)
+  ) +
+  theme(
+    legend.position = "bottom",
+    axis.text.x = element_text(angle = 90)
+  ) +
+  ylab("Groundwater Pumping (acre-feet)") +
+  xlab("Year") +
+  theme_bw()
+```
+
+Not too bad. We might want to consider starting from 1993.
+
+### Placebo tests
+
+:::{.callout-note title="Placebo tests: idea"}
++ Look at only the pre-treatment periods
++ Pretend that a treatment happend sometime in the middle of the pre-treatment period to the actual treatment group
++ Estimate the impact of the fake treatment
++ Check if the estimated impact is stastitically insignificantly different from 0 
++ If statistically significant, that would mean there is likley to be something wrong with the parallel trende assumption
+:::
+
+:::{.callout-note}
+Statistically insignificant estimated impacts of fake treatments bolster your claim about parallel trend assumption. But, it still does <span style = "color: red;"> NOT </span> guarantee the assumption is valid. Remember, the assumption is not testable.
+:::
+
+
+### 2000
+
+Create a fake treament for the wells inside LEMA in 2000.
+
+```{r echo = TRUE}
+pre_lema_data <-
+  filter(lema_data, year <= 2012 & year >= 1993) %>%
+  #* pretend that a treatment happend in 2000
+  mutate(after_2000 = ifelse(year >= 2000, 1, 0))
+```
+
+<br>
+
+Estimate the impact of the fake treatment variable:
+
+```{r}
+(
+  fixest::feols(
+    af_used ~ I(after_2000 * in_LEMA) + pr + et0 | site + year,
+    cluster = ~site,
+    data = pre_lema_data
+  )
+)
+```
+
+### 1995
+
+Create a fake treament for the wells inside LEMA in 1995.
+
+```{r echo = TRUE}
+pre_lema_data <-
+  filter(lema_data, year <= 2012 & year >= 1993) %>%
+  #* pretend that a treatment happend in 1995
+  mutate(after_1995 = ifelse(year >= 1995, 1, 0))
+```
+
+<br>
+
+Estimate the impact of the fake treatment variable:
+
+```{r}
+(
+  fixest::feols(
+    af_used ~ I(after_1995 * in_LEMA) + pr + et0 | site + year,
+    cluster = ~site,
+    data = pre_lema_data
+  )
+)
+  
+```
+
+You can try more years as the starting year of a fake treatment and see what happens.
+
+### What if
+
+What if your data spans from 1991 to 2000 with a treatment occuring at 1993? 
+
+```{r echo = TRUE}
+pre_lema_data <-
+  filter(lema_data, year <= 2000) %>%
+  #* pretend that a treatment happend in 1993
+  mutate(after_1993 = ifelse(year >= 1993, 1, 0))
+
+did_res_placebo <-
+  feols(
+    af_used ~ I(after_1993 * in_LEMA) + pr + et0 | site + year,
+    cluster = ~site,
+    data = pre_lema_data
+  )
+```
+
+Let's look at the regression results:
+
+```{r }
+#| code-fold: true
+msummary(
+  did_res_placebo,
+  gof_omit = "IC|Log|Adj|F|Pseudo|Within",
+  output = "flextable",
+  star = TRUE
+) %>%
+  fontsize(size = 9, part = "all") %>%
+  color(i = 1, j = 2, color = "red") %>%
+  autofit()
+```
+
++ So, this tells you that if it was a real treatment of which you want to understand the impact, then you would have suffered significant bias.
++ This clearly indicates that DID is by no means perfect and indeed can be very dangerous
+
+:::
+<!--end of panel-->  
+
+
+
+
