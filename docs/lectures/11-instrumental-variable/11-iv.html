@@ -675,7 +675,7 @@
   };
 
   // Store cell data
-  globalThis.qwebrCellDetails = [{"id":1,"options":{"fig-width":7,"output":"true","results":"markup","editor-font-scale":"0.8","classes":"","out-height":"","autorun":"true","label":"unnamed-chunk-1","message":"true","dpi":72,"read-only":"false","comment":"","fig-cap":"","context":"interactive","out-width":"700px","warning":"true","editor-quick-suggestions":"false","editor-max-height":"","editor-word-wrap":"true","fig-height":5},"code":"data(\"wage2\", package = \"wooldridge\")\n\n#* regress educ on exper, IQ, and sibs\nfirst_reg <- fixest::feols(educ ~ exper + IQ + sibs, data = wage2)\n\n#* predict educ as a function of exper, IQ, and sibs\nwage2 <- dplyr::mutate(wage2, educ_hat = first_reg$fitted.values)\n\n#* seed the predicted values\nwage2 %>%\n  dplyr::relocate(educ_hat) %>%\n  head()"},{"id":2,"options":{"fig-width":7,"output":"true","results":"markup","editor-font-scale":"0.8","classes":"","out-height":"","autorun":"true","label":"unnamed-chunk-2","message":"true","dpi":72,"read-only":"false","comment":"","fig-cap":"","context":"interactive","out-width":"700px","warning":"true","editor-quick-suggestions":"false","editor-max-height":"","editor-word-wrap":"true","fig-height":5},"code":"#* regression with educ_hat in place of educ\nsecond_reg <- fixest::feols(wage ~ educ_hat + exper, data = wage2)\n\n#* see the results\nsecond_reg"},{"id":3,"options":{"fig-width":7,"output":"true","results":"markup","editor-font-scale":"0.8","classes":"","out-height":"","autorun":"true","label":"unnamed-chunk-3","message":"true","dpi":72,"read-only":"false","comment":"","fig-cap":"","context":"interactive","out-width":"700px","warning":"true","editor-quick-suggestions":"false","editor-max-height":"","editor-word-wrap":"true","fig-height":5},"code":"#--- take a look at the data ---#\nwage2 %>%\n  select(wage, educ, sibs, feduc) %>%\n  head()"},{"id":4,"options":{"fig-width":7,"output":"true","results":"markup","editor-font-scale":"0.8","classes":"","out-height":"","autorun":"true","label":"unnamed-chunk-4","message":"true","dpi":72,"read-only":"false","comment":"","fig-cap":"","context":"interactive","out-width":"700px","warning":"true","editor-quick-suggestions":"false","editor-max-height":"","editor-word-wrap":"true","fig-height":5},"code":"iv_res <- fixest::feols(log(wage) ~ exper | educ ~ sibs + feduc, data = wage2)"},{"id":5,"options":{"fig-width":7,"output":"true","results":"markup","editor-font-scale":"0.8","classes":"","out-height":"","autorun":"true","label":"unnamed-chunk-5","message":"true","dpi":72,"read-only":"false","comment":"","fig-cap":"","context":"interactive","out-width":"700px","warning":"true","editor-quick-suggestions":"false","editor-max-height":"","editor-word-wrap":"true","fig-height":5},"code":"iv_res"},{"id":6,"options":{"fig-width":7,"output":"true","results":"markup","editor-font-scale":"0.8","classes":"","out-height":"","autorun":"true","label":"unnamed-chunk-6","message":"true","dpi":72,"read-only":"false","comment":"","fig-cap":"","context":"interactive","out-width":"700px","warning":"true","editor-quick-suggestions":"false","editor-max-height":"","editor-word-wrap":"true","fig-height":5},"code":"iv_res"},{"id":7,"options":{"fig-width":7,"output":"true","results":"markup","editor-font-scale":"0.8","classes":"","out-height":"","autorun":"true","label":"unnamed-chunk-7","message":"true","dpi":72,"read-only":"false","comment":"","fig-cap":"","context":"interactive","out-width":"700px","warning":"true","editor-quick-suggestions":"false","editor-max-height":"","editor-word-wrap":"true","fig-height":5},"code":"iv_res$iv_first_stage"},{"id":8,"options":{"fig-width":7,"output":"true","results":"markup","editor-font-scale":"0.8","classes":"","out-height":"","autorun":"false","label":"unnamed-chunk-8","message":"true","dpi":72,"read-only":"false","comment":"","fig-cap":"","context":"interactive","out-width":"700px","warning":"true","editor-quick-suggestions":"false","editor-max-height":"","editor-word-wrap":"true","fig-height":5},"code":"set.seed(73289)\nN <- 500 # number of observations\n\nu_common <- runif(N) # the term shared by the endogenous variable and the error term\nz_common <- runif(N) # the term shared by the endogenous variable and instruments\nx_end <- u_common + z_common + runif(N) # the endogenous variable\nz_strong <- z_common + runif(N) # strong instrument\nz_weak <- 0.01 * z_common + 0.99995 * runif(N) # weak instrument\nu <- u_common + runif(N) # error term\ny <- x_end + u # dependent variable\n\ndata <- data.frame(y, x_end, z_strong, z_weak)"},{"id":9,"options":{"fig-width":7,"output":"true","results":"markup","editor-font-scale":"0.8","classes":"","out-height":"","autorun":"false","label":"unnamed-chunk-9","message":"true","dpi":72,"read-only":"false","comment":"","fig-cap":"","context":"interactive","out-width":"700px","warning":"true","editor-quick-suggestions":"false","editor-max-height":"","editor-word-wrap":"true","fig-height":5},"code":"cor(data)"},{"id":10,"options":{"fig-width":7,"output":"true","results":"markup","editor-font-scale":"0.8","classes":"","out-height":"","autorun":"false","label":"unnamed-chunk-10","message":"true","dpi":72,"read-only":"false","comment":"","fig-cap":"","context":"interactive","out-width":"700px","warning":"true","editor-quick-suggestions":"false","editor-max-height":"","editor-word-wrap":"true","fig-height":5},"code":"#--- IV estimation (strong) ---#\niv_strong <- fixest::feols(y ~ 1 | x_end ~ z_strong, data = data)\n\n#--- coefs (strong) ---#\ntidy(iv_strong)"},{"id":11,"options":{"fig-width":7,"output":"true","results":"markup","editor-font-scale":"0.8","classes":"","out-height":"","autorun":"false","label":"unnamed-chunk-11","message":"true","dpi":72,"read-only":"false","comment":"","fig-cap":"","context":"interactive","out-width":"700px","warning":"true","editor-quick-suggestions":"false","editor-max-height":"","editor-word-wrap":"true","fig-height":5},"code":"#--- IV estimation (weak) ---#\niv_weak <- fixest::feols(y ~ 1 | x_end ~ z_weak, data = data)\n\n#--- coefs (weak) ---#\ntidy(iv_weak)"},{"id":12,"options":{"fig-width":7,"output":"true","results":"markup","editor-font-scale":"0.8","classes":"","out-height":"","autorun":"false","label":"unnamed-chunk-12","message":"true","dpi":72,"read-only":"false","comment":"","fig-cap":"","context":"interactive","out-width":"700px","warning":"true","editor-quick-suggestions":"false","editor-max-height":"","editor-word-wrap":"true","fig-height":5},"code":"iv_strong$iv_first_stage"},{"id":13,"options":{"fig-width":7,"output":"true","results":"markup","editor-font-scale":"0.8","classes":"","out-height":"","autorun":"false","label":"unnamed-chunk-13","message":"true","dpi":72,"read-only":"false","comment":"","fig-cap":"","context":"interactive","out-width":"700px","warning":"true","editor-quick-suggestions":"false","editor-max-height":"","editor-word-wrap":"true","fig-height":5},"code":"iv_weak$iv_first_stage"}];
+  globalThis.qwebrCellDetails = [{"id":1,"options":{"fig-height":5,"classes":"","label":"unnamed-chunk-1","editor-max-height":"","out-height":"","editor-word-wrap":"true","editor-font-scale":"0.8","editor-quick-suggestions":"false","results":"markup","out-width":"700px","comment":"","warning":"true","output":"true","read-only":"false","autorun":"true","dpi":72,"fig-cap":"","fig-width":7,"message":"true","context":"interactive"},"code":"data(\"wage2\", package = \"wooldridge\")\n\n#* regress educ on exper, IQ, and sibs\nfirst_reg <- fixest::feols(educ ~ exper + IQ + sibs, data = wage2)\n\n#* predict educ as a function of exper, IQ, and sibs\nwage2 <- dplyr::mutate(wage2, educ_hat = first_reg$fitted.values)\n\n#* seed the predicted values\nwage2 %>%\n  dplyr::relocate(educ_hat) %>%\n  head()"},{"id":2,"options":{"fig-height":5,"classes":"","label":"unnamed-chunk-2","editor-max-height":"","out-height":"","editor-word-wrap":"true","editor-font-scale":"0.8","editor-quick-suggestions":"false","results":"markup","out-width":"700px","comment":"","warning":"true","output":"true","read-only":"false","autorun":"true","dpi":72,"fig-cap":"","fig-width":7,"message":"true","context":"interactive"},"code":"#* regression with educ_hat in place of educ\nsecond_reg <- fixest::feols(wage ~ educ_hat + exper, data = wage2)\n\n#* see the results\nsecond_reg"},{"id":3,"options":{"fig-height":5,"classes":"","label":"unnamed-chunk-3","editor-max-height":"","out-height":"","editor-word-wrap":"true","editor-font-scale":"0.8","editor-quick-suggestions":"false","results":"markup","out-width":"700px","comment":"","warning":"true","output":"true","read-only":"false","autorun":"true","dpi":72,"fig-cap":"","fig-width":7,"message":"true","context":"interactive"},"code":"#--- take a look at the data ---#\nwage2 %>%\n  select(wage, educ, sibs, feduc) %>%\n  head()"},{"id":4,"options":{"fig-height":5,"classes":"","label":"unnamed-chunk-4","editor-max-height":"","out-height":"","editor-word-wrap":"true","editor-font-scale":"0.8","editor-quick-suggestions":"false","results":"markup","out-width":"700px","comment":"","warning":"true","output":"true","read-only":"false","autorun":"true","dpi":72,"fig-cap":"","fig-width":7,"message":"true","context":"interactive"},"code":"iv_res <- fixest::feols(log(wage) ~ exper | educ ~ sibs + feduc, data = wage2)"},{"id":5,"options":{"fig-height":5,"classes":"","label":"unnamed-chunk-5","editor-max-height":"","out-height":"","editor-word-wrap":"true","editor-font-scale":"0.8","editor-quick-suggestions":"false","results":"markup","out-width":"700px","comment":"","warning":"true","output":"true","read-only":"false","autorun":"true","dpi":72,"fig-cap":"","fig-width":7,"message":"true","context":"interactive"},"code":"iv_res"},{"id":6,"options":{"fig-height":5,"classes":"","label":"unnamed-chunk-6","editor-max-height":"","out-height":"","editor-word-wrap":"true","editor-font-scale":"0.8","editor-quick-suggestions":"false","results":"markup","out-width":"700px","comment":"","warning":"true","output":"true","read-only":"false","autorun":"true","dpi":72,"fig-cap":"","fig-width":7,"message":"true","context":"interactive"},"code":"iv_res"},{"id":7,"options":{"fig-height":5,"classes":"","label":"unnamed-chunk-7","editor-max-height":"","out-height":"","editor-word-wrap":"true","editor-font-scale":"0.8","editor-quick-suggestions":"false","results":"markup","out-width":"700px","comment":"","warning":"true","output":"true","read-only":"false","autorun":"true","dpi":72,"fig-cap":"","fig-width":7,"message":"true","context":"interactive"},"code":"iv_res$iv_first_stage"},{"id":8,"options":{"fig-height":5,"classes":"","label":"unnamed-chunk-8","editor-max-height":"","out-height":"","editor-word-wrap":"true","editor-font-scale":"0.8","editor-quick-suggestions":"false","results":"markup","out-width":"700px","comment":"","warning":"true","output":"true","read-only":"false","autorun":"false","dpi":72,"fig-cap":"","fig-width":7,"message":"true","context":"interactive"},"code":"set.seed(73289)\nN <- 500 # number of observations\n\nu_common <- runif(N) # the term shared by the endogenous variable and the error term\nz_common <- runif(N) # the term shared by the endogenous variable and instruments\nx_end <- u_common + z_common + runif(N) # the endogenous variable\nz_strong <- z_common + runif(N) # strong instrument\nz_weak <- 0.01 * z_common + 0.99995 * runif(N) # weak instrument\nu <- u_common + runif(N) # error term\ny <- x_end + u # dependent variable\n\ndata <- data.frame(y, x_end, z_strong, z_weak)"},{"id":9,"options":{"fig-height":5,"classes":"","label":"unnamed-chunk-9","editor-max-height":"","out-height":"","editor-word-wrap":"true","editor-font-scale":"0.8","editor-quick-suggestions":"false","results":"markup","out-width":"700px","comment":"","warning":"true","output":"true","read-only":"false","autorun":"false","dpi":72,"fig-cap":"","fig-width":7,"message":"true","context":"interactive"},"code":"cor(data)"},{"id":10,"options":{"fig-height":5,"classes":"","label":"unnamed-chunk-10","editor-max-height":"","out-height":"","editor-word-wrap":"true","editor-font-scale":"0.8","editor-quick-suggestions":"false","results":"markup","out-width":"700px","comment":"","warning":"true","output":"true","read-only":"false","autorun":"false","dpi":72,"fig-cap":"","fig-width":7,"message":"true","context":"interactive"},"code":"#--- IV estimation (strong) ---#\niv_strong <- fixest::feols(y ~ 1 | x_end ~ z_strong, data = data)\n\n#--- coefs (strong) ---#\ntidy(iv_strong)"},{"id":11,"options":{"fig-height":5,"classes":"","label":"unnamed-chunk-11","editor-max-height":"","out-height":"","editor-word-wrap":"true","editor-font-scale":"0.8","editor-quick-suggestions":"false","results":"markup","out-width":"700px","comment":"","warning":"true","output":"true","read-only":"false","autorun":"false","dpi":72,"fig-cap":"","fig-width":7,"message":"true","context":"interactive"},"code":"#--- IV estimation (weak) ---#\niv_weak <- fixest::feols(y ~ 1 | x_end ~ z_weak, data = data)\n\n#--- coefs (weak) ---#\ntidy(iv_weak)"},{"id":12,"options":{"fig-height":5,"classes":"","label":"unnamed-chunk-12","editor-max-height":"","out-height":"","editor-word-wrap":"true","editor-font-scale":"0.8","editor-quick-suggestions":"false","results":"markup","out-width":"700px","comment":"","warning":"true","output":"true","read-only":"false","autorun":"false","dpi":72,"fig-cap":"","fig-width":7,"message":"true","context":"interactive"},"code":"iv_strong$iv_first_stage"},{"id":13,"options":{"fig-height":5,"classes":"","label":"unnamed-chunk-13","editor-max-height":"","out-height":"","editor-word-wrap":"true","editor-font-scale":"0.8","editor-quick-suggestions":"false","results":"markup","out-width":"700px","comment":"","warning":"true","output":"true","read-only":"false","autorun":"false","dpi":72,"fig-cap":"","fig-width":7,"message":"true","context":"interactive"},"code":"iv_weak$iv_first_stage"}];
 
   </script>
   <script type="module">
@@ -2674,13 +2674,13 @@ Answer
   
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>tinytable_sq2uiucg62fz9sxl7d7m</title>
+    <title>tinytable_e1qjubpwg2mtfzomv89t</title>
     <style>
-.table td.tinytable_css_ueo285ycf4mcvod0val4, .table th.tinytable_css_ueo285ycf4mcvod0val4 {    border-bottom: solid 0.1em #d3d8dc; }
-.table td.tinytable_css_m7k230lmdyszh3e87t1c, .table th.tinytable_css_m7k230lmdyszh3e87t1c {    text-align: left; }
-.table td.tinytable_css_n5jk5b7h87uzz5jozc96, .table th.tinytable_css_n5jk5b7h87uzz5jozc96 {    text-align: center; }
-.table td.tinytable_css_jfvpw34uev7y3vbx7h5t, .table th.tinytable_css_jfvpw34uev7y3vbx7h5t {    text-align: center; }
-.table td.tinytable_css_5mz8y35bjtn1z8un2flh, .table th.tinytable_css_5mz8y35bjtn1z8un2flh {    border-bottom: solid 0.05em black; }
+.table td.tinytable_css_7zajvuwx4x8vp47yfs1m, .table th.tinytable_css_7zajvuwx4x8vp47yfs1m {    border-bottom: solid 0.1em #d3d8dc; }
+.table td.tinytable_css_ml01wu8vp4eq7s2jeewy, .table th.tinytable_css_ml01wu8vp4eq7s2jeewy {    text-align: left; }
+.table td.tinytable_css_8512kg9aarycgr599tx5, .table th.tinytable_css_8512kg9aarycgr599tx5 {    text-align: center; }
+.table td.tinytable_css_39c75u5kaep27881s2fe, .table th.tinytable_css_39c75u5kaep27881s2fe {    text-align: center; }
+.table td.tinytable_css_728nl00mowzwc8k0d8wc, .table th.tinytable_css_728nl00mowzwc8k0d8wc {    border-bottom: solid 0.05em black; }
     </style>
     <script src="https://polyfill.io/v3/polyfill.min.js?features=es6"></script>
     <script id="MathJax-script" async="" src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
@@ -2698,7 +2698,7 @@ Answer
 
   
     <div class="container">
-      <table class="table table-borderless" id="tinytable_sq2uiucg62fz9sxl7d7m" style="width: auto; margin-left: auto; margin-right: auto;" data-quarto-disable-processing="true">
+      <table class="table table-borderless" id="tinytable_e1qjubpwg2mtfzomv89t" style="width: auto; margin-left: auto; margin-right: auto;" data-quarto-disable-processing="true">
         <thead>
         
               <tr>
@@ -2774,12 +2774,12 @@ Answer
     </div>
 
     <script>
-      function styleCell_tinytable_e2qeurf1ptl12f1jat2u(i, j, css_id) {
-        var table = document.getElementById("tinytable_sq2uiucg62fz9sxl7d7m");
+      function styleCell_tinytable_upyetq2x748viwbjiixu(i, j, css_id) {
+        var table = document.getElementById("tinytable_e1qjubpwg2mtfzomv89t");
         table.rows[i].cells[j].classList.add(css_id);
       }
       function insertSpanRow(i, colspan, content) {
-        var table = document.getElementById('tinytable_sq2uiucg62fz9sxl7d7m');
+        var table = document.getElementById('tinytable_e1qjubpwg2mtfzomv89t');
         var newRow = table.insertRow(i);
         var newCell = newRow.insertCell(0);
         newCell.setAttribute("colspan", colspan);
@@ -2787,8 +2787,8 @@ Answer
         // this may be unsafe, but innerText does not interpret <br>
         newCell.innerHTML = content;
       }
-      function spanCell_tinytable_e2qeurf1ptl12f1jat2u(i, j, rowspan, colspan) {
-        var table = document.getElementById("tinytable_sq2uiucg62fz9sxl7d7m");
+      function spanCell_tinytable_upyetq2x748viwbjiixu(i, j, rowspan, colspan) {
+        var table = document.getElementById("tinytable_e1qjubpwg2mtfzomv89t");
         const targetRow = table.rows[i];
         const targetCell = targetRow.cells[j];
         for (let r = 0; r < rowspan; r++) {
@@ -2815,51 +2815,51 @@ Answer
         targetCell.colSpan = colspan;
       }
 
-window.addEventListener('load', function () { styleCell_tinytable_e2qeurf1ptl12f1jat2u(0, 0, 'tinytable_css_ueo285ycf4mcvod0val4') })
-window.addEventListener('load', function () { styleCell_tinytable_e2qeurf1ptl12f1jat2u(0, 1, 'tinytable_css_ueo285ycf4mcvod0val4') })
-window.addEventListener('load', function () { styleCell_tinytable_e2qeurf1ptl12f1jat2u(0, 2, 'tinytable_css_ueo285ycf4mcvod0val4') })
-window.addEventListener('load', function () { styleCell_tinytable_e2qeurf1ptl12f1jat2u(0, 0, 'tinytable_css_m7k230lmdyszh3e87t1c') })
-window.addEventListener('load', function () { styleCell_tinytable_e2qeurf1ptl12f1jat2u(1, 0, 'tinytable_css_m7k230lmdyszh3e87t1c') })
-window.addEventListener('load', function () { styleCell_tinytable_e2qeurf1ptl12f1jat2u(2, 0, 'tinytable_css_m7k230lmdyszh3e87t1c') })
-window.addEventListener('load', function () { styleCell_tinytable_e2qeurf1ptl12f1jat2u(3, 0, 'tinytable_css_m7k230lmdyszh3e87t1c') })
-window.addEventListener('load', function () { styleCell_tinytable_e2qeurf1ptl12f1jat2u(4, 0, 'tinytable_css_m7k230lmdyszh3e87t1c') })
-window.addEventListener('load', function () { styleCell_tinytable_e2qeurf1ptl12f1jat2u(5, 0, 'tinytable_css_m7k230lmdyszh3e87t1c') })
-window.addEventListener('load', function () { styleCell_tinytable_e2qeurf1ptl12f1jat2u(6, 0, 'tinytable_css_m7k230lmdyszh3e87t1c') })
-window.addEventListener('load', function () { styleCell_tinytable_e2qeurf1ptl12f1jat2u(7, 0, 'tinytable_css_m7k230lmdyszh3e87t1c') })
-window.addEventListener('load', function () { styleCell_tinytable_e2qeurf1ptl12f1jat2u(8, 0, 'tinytable_css_m7k230lmdyszh3e87t1c') })
-window.addEventListener('load', function () { styleCell_tinytable_e2qeurf1ptl12f1jat2u(9, 0, 'tinytable_css_m7k230lmdyszh3e87t1c') })
-window.addEventListener('load', function () { styleCell_tinytable_e2qeurf1ptl12f1jat2u(10, 0, 'tinytable_css_m7k230lmdyszh3e87t1c') })
-window.addEventListener('load', function () { styleCell_tinytable_e2qeurf1ptl12f1jat2u(11, 0, 'tinytable_css_m7k230lmdyszh3e87t1c') })
-window.addEventListener('load', function () { styleCell_tinytable_e2qeurf1ptl12f1jat2u(12, 0, 'tinytable_css_m7k230lmdyszh3e87t1c') })
-window.addEventListener('load', function () { styleCell_tinytable_e2qeurf1ptl12f1jat2u(0, 1, 'tinytable_css_n5jk5b7h87uzz5jozc96') })
-window.addEventListener('load', function () { styleCell_tinytable_e2qeurf1ptl12f1jat2u(1, 1, 'tinytable_css_n5jk5b7h87uzz5jozc96') })
-window.addEventListener('load', function () { styleCell_tinytable_e2qeurf1ptl12f1jat2u(2, 1, 'tinytable_css_n5jk5b7h87uzz5jozc96') })
-window.addEventListener('load', function () { styleCell_tinytable_e2qeurf1ptl12f1jat2u(3, 1, 'tinytable_css_n5jk5b7h87uzz5jozc96') })
-window.addEventListener('load', function () { styleCell_tinytable_e2qeurf1ptl12f1jat2u(4, 1, 'tinytable_css_n5jk5b7h87uzz5jozc96') })
-window.addEventListener('load', function () { styleCell_tinytable_e2qeurf1ptl12f1jat2u(5, 1, 'tinytable_css_n5jk5b7h87uzz5jozc96') })
-window.addEventListener('load', function () { styleCell_tinytable_e2qeurf1ptl12f1jat2u(6, 1, 'tinytable_css_n5jk5b7h87uzz5jozc96') })
-window.addEventListener('load', function () { styleCell_tinytable_e2qeurf1ptl12f1jat2u(7, 1, 'tinytable_css_n5jk5b7h87uzz5jozc96') })
-window.addEventListener('load', function () { styleCell_tinytable_e2qeurf1ptl12f1jat2u(8, 1, 'tinytable_css_n5jk5b7h87uzz5jozc96') })
-window.addEventListener('load', function () { styleCell_tinytable_e2qeurf1ptl12f1jat2u(9, 1, 'tinytable_css_n5jk5b7h87uzz5jozc96') })
-window.addEventListener('load', function () { styleCell_tinytable_e2qeurf1ptl12f1jat2u(10, 1, 'tinytable_css_n5jk5b7h87uzz5jozc96') })
-window.addEventListener('load', function () { styleCell_tinytable_e2qeurf1ptl12f1jat2u(11, 1, 'tinytable_css_n5jk5b7h87uzz5jozc96') })
-window.addEventListener('load', function () { styleCell_tinytable_e2qeurf1ptl12f1jat2u(12, 1, 'tinytable_css_n5jk5b7h87uzz5jozc96') })
-window.addEventListener('load', function () { styleCell_tinytable_e2qeurf1ptl12f1jat2u(0, 2, 'tinytable_css_jfvpw34uev7y3vbx7h5t') })
-window.addEventListener('load', function () { styleCell_tinytable_e2qeurf1ptl12f1jat2u(1, 2, 'tinytable_css_jfvpw34uev7y3vbx7h5t') })
-window.addEventListener('load', function () { styleCell_tinytable_e2qeurf1ptl12f1jat2u(2, 2, 'tinytable_css_jfvpw34uev7y3vbx7h5t') })
-window.addEventListener('load', function () { styleCell_tinytable_e2qeurf1ptl12f1jat2u(3, 2, 'tinytable_css_jfvpw34uev7y3vbx7h5t') })
-window.addEventListener('load', function () { styleCell_tinytable_e2qeurf1ptl12f1jat2u(4, 2, 'tinytable_css_jfvpw34uev7y3vbx7h5t') })
-window.addEventListener('load', function () { styleCell_tinytable_e2qeurf1ptl12f1jat2u(5, 2, 'tinytable_css_jfvpw34uev7y3vbx7h5t') })
-window.addEventListener('load', function () { styleCell_tinytable_e2qeurf1ptl12f1jat2u(6, 2, 'tinytable_css_jfvpw34uev7y3vbx7h5t') })
-window.addEventListener('load', function () { styleCell_tinytable_e2qeurf1ptl12f1jat2u(7, 2, 'tinytable_css_jfvpw34uev7y3vbx7h5t') })
-window.addEventListener('load', function () { styleCell_tinytable_e2qeurf1ptl12f1jat2u(8, 2, 'tinytable_css_jfvpw34uev7y3vbx7h5t') })
-window.addEventListener('load', function () { styleCell_tinytable_e2qeurf1ptl12f1jat2u(9, 2, 'tinytable_css_jfvpw34uev7y3vbx7h5t') })
-window.addEventListener('load', function () { styleCell_tinytable_e2qeurf1ptl12f1jat2u(10, 2, 'tinytable_css_jfvpw34uev7y3vbx7h5t') })
-window.addEventListener('load', function () { styleCell_tinytable_e2qeurf1ptl12f1jat2u(11, 2, 'tinytable_css_jfvpw34uev7y3vbx7h5t') })
-window.addEventListener('load', function () { styleCell_tinytable_e2qeurf1ptl12f1jat2u(12, 2, 'tinytable_css_jfvpw34uev7y3vbx7h5t') })
-window.addEventListener('load', function () { styleCell_tinytable_e2qeurf1ptl12f1jat2u(8, 0, 'tinytable_css_5mz8y35bjtn1z8un2flh') })
-window.addEventListener('load', function () { styleCell_tinytable_e2qeurf1ptl12f1jat2u(8, 1, 'tinytable_css_5mz8y35bjtn1z8un2flh') })
-window.addEventListener('load', function () { styleCell_tinytable_e2qeurf1ptl12f1jat2u(8, 2, 'tinytable_css_5mz8y35bjtn1z8un2flh') })
+window.addEventListener('load', function () { styleCell_tinytable_upyetq2x748viwbjiixu(0, 0, 'tinytable_css_7zajvuwx4x8vp47yfs1m') })
+window.addEventListener('load', function () { styleCell_tinytable_upyetq2x748viwbjiixu(0, 1, 'tinytable_css_7zajvuwx4x8vp47yfs1m') })
+window.addEventListener('load', function () { styleCell_tinytable_upyetq2x748viwbjiixu(0, 2, 'tinytable_css_7zajvuwx4x8vp47yfs1m') })
+window.addEventListener('load', function () { styleCell_tinytable_upyetq2x748viwbjiixu(0, 0, 'tinytable_css_ml01wu8vp4eq7s2jeewy') })
+window.addEventListener('load', function () { styleCell_tinytable_upyetq2x748viwbjiixu(1, 0, 'tinytable_css_ml01wu8vp4eq7s2jeewy') })
+window.addEventListener('load', function () { styleCell_tinytable_upyetq2x748viwbjiixu(2, 0, 'tinytable_css_ml01wu8vp4eq7s2jeewy') })
+window.addEventListener('load', function () { styleCell_tinytable_upyetq2x748viwbjiixu(3, 0, 'tinytable_css_ml01wu8vp4eq7s2jeewy') })
+window.addEventListener('load', function () { styleCell_tinytable_upyetq2x748viwbjiixu(4, 0, 'tinytable_css_ml01wu8vp4eq7s2jeewy') })
+window.addEventListener('load', function () { styleCell_tinytable_upyetq2x748viwbjiixu(5, 0, 'tinytable_css_ml01wu8vp4eq7s2jeewy') })
+window.addEventListener('load', function () { styleCell_tinytable_upyetq2x748viwbjiixu(6, 0, 'tinytable_css_ml01wu8vp4eq7s2jeewy') })
+window.addEventListener('load', function () { styleCell_tinytable_upyetq2x748viwbjiixu(7, 0, 'tinytable_css_ml01wu8vp4eq7s2jeewy') })
+window.addEventListener('load', function () { styleCell_tinytable_upyetq2x748viwbjiixu(8, 0, 'tinytable_css_ml01wu8vp4eq7s2jeewy') })
+window.addEventListener('load', function () { styleCell_tinytable_upyetq2x748viwbjiixu(9, 0, 'tinytable_css_ml01wu8vp4eq7s2jeewy') })
+window.addEventListener('load', function () { styleCell_tinytable_upyetq2x748viwbjiixu(10, 0, 'tinytable_css_ml01wu8vp4eq7s2jeewy') })
+window.addEventListener('load', function () { styleCell_tinytable_upyetq2x748viwbjiixu(11, 0, 'tinytable_css_ml01wu8vp4eq7s2jeewy') })
+window.addEventListener('load', function () { styleCell_tinytable_upyetq2x748viwbjiixu(12, 0, 'tinytable_css_ml01wu8vp4eq7s2jeewy') })
+window.addEventListener('load', function () { styleCell_tinytable_upyetq2x748viwbjiixu(0, 1, 'tinytable_css_8512kg9aarycgr599tx5') })
+window.addEventListener('load', function () { styleCell_tinytable_upyetq2x748viwbjiixu(1, 1, 'tinytable_css_8512kg9aarycgr599tx5') })
+window.addEventListener('load', function () { styleCell_tinytable_upyetq2x748viwbjiixu(2, 1, 'tinytable_css_8512kg9aarycgr599tx5') })
+window.addEventListener('load', function () { styleCell_tinytable_upyetq2x748viwbjiixu(3, 1, 'tinytable_css_8512kg9aarycgr599tx5') })
+window.addEventListener('load', function () { styleCell_tinytable_upyetq2x748viwbjiixu(4, 1, 'tinytable_css_8512kg9aarycgr599tx5') })
+window.addEventListener('load', function () { styleCell_tinytable_upyetq2x748viwbjiixu(5, 1, 'tinytable_css_8512kg9aarycgr599tx5') })
+window.addEventListener('load', function () { styleCell_tinytable_upyetq2x748viwbjiixu(6, 1, 'tinytable_css_8512kg9aarycgr599tx5') })
+window.addEventListener('load', function () { styleCell_tinytable_upyetq2x748viwbjiixu(7, 1, 'tinytable_css_8512kg9aarycgr599tx5') })
+window.addEventListener('load', function () { styleCell_tinytable_upyetq2x748viwbjiixu(8, 1, 'tinytable_css_8512kg9aarycgr599tx5') })
+window.addEventListener('load', function () { styleCell_tinytable_upyetq2x748viwbjiixu(9, 1, 'tinytable_css_8512kg9aarycgr599tx5') })
+window.addEventListener('load', function () { styleCell_tinytable_upyetq2x748viwbjiixu(10, 1, 'tinytable_css_8512kg9aarycgr599tx5') })
+window.addEventListener('load', function () { styleCell_tinytable_upyetq2x748viwbjiixu(11, 1, 'tinytable_css_8512kg9aarycgr599tx5') })
+window.addEventListener('load', function () { styleCell_tinytable_upyetq2x748viwbjiixu(12, 1, 'tinytable_css_8512kg9aarycgr599tx5') })
+window.addEventListener('load', function () { styleCell_tinytable_upyetq2x748viwbjiixu(0, 2, 'tinytable_css_39c75u5kaep27881s2fe') })
+window.addEventListener('load', function () { styleCell_tinytable_upyetq2x748viwbjiixu(1, 2, 'tinytable_css_39c75u5kaep27881s2fe') })
+window.addEventListener('load', function () { styleCell_tinytable_upyetq2x748viwbjiixu(2, 2, 'tinytable_css_39c75u5kaep27881s2fe') })
+window.addEventListener('load', function () { styleCell_tinytable_upyetq2x748viwbjiixu(3, 2, 'tinytable_css_39c75u5kaep27881s2fe') })
+window.addEventListener('load', function () { styleCell_tinytable_upyetq2x748viwbjiixu(4, 2, 'tinytable_css_39c75u5kaep27881s2fe') })
+window.addEventListener('load', function () { styleCell_tinytable_upyetq2x748viwbjiixu(5, 2, 'tinytable_css_39c75u5kaep27881s2fe') })
+window.addEventListener('load', function () { styleCell_tinytable_upyetq2x748viwbjiixu(6, 2, 'tinytable_css_39c75u5kaep27881s2fe') })
+window.addEventListener('load', function () { styleCell_tinytable_upyetq2x748viwbjiixu(7, 2, 'tinytable_css_39c75u5kaep27881s2fe') })
+window.addEventListener('load', function () { styleCell_tinytable_upyetq2x748viwbjiixu(8, 2, 'tinytable_css_39c75u5kaep27881s2fe') })
+window.addEventListener('load', function () { styleCell_tinytable_upyetq2x748viwbjiixu(9, 2, 'tinytable_css_39c75u5kaep27881s2fe') })
+window.addEventListener('load', function () { styleCell_tinytable_upyetq2x748viwbjiixu(10, 2, 'tinytable_css_39c75u5kaep27881s2fe') })
+window.addEventListener('load', function () { styleCell_tinytable_upyetq2x748viwbjiixu(11, 2, 'tinytable_css_39c75u5kaep27881s2fe') })
+window.addEventListener('load', function () { styleCell_tinytable_upyetq2x748viwbjiixu(12, 2, 'tinytable_css_39c75u5kaep27881s2fe') })
+window.addEventListener('load', function () { styleCell_tinytable_upyetq2x748viwbjiixu(8, 0, 'tinytable_css_728nl00mowzwc8k0d8wc') })
+window.addEventListener('load', function () { styleCell_tinytable_upyetq2x748viwbjiixu(8, 1, 'tinytable_css_728nl00mowzwc8k0d8wc') })
+window.addEventListener('load', function () { styleCell_tinytable_upyetq2x748viwbjiixu(8, 2, 'tinytable_css_728nl00mowzwc8k0d8wc') })
     </script>
 
   
@@ -2890,9 +2890,11 @@ window.addEventListener('load', function () { styleCell_tinytable_e2qeurf1ptl12f
 <div class="cell">
 <div class="sourceCode cell-code" id="cb4"><pre class="sourceCode numberSource r number-lines code-with-copy"><code class="sourceCode r"><span id="cb4-1"><a></a>fixest<span class="sc">::</span><span class="fu">feols</span>(<span class="fu">log</span>(wage) <span class="sc">~</span> exper <span class="sc">|</span> married <span class="sc">+</span> south <span class="sc">|</span> educ <span class="sc">~</span> feduc <span class="sc">+</span> sibs, <span class="at">data =</span> wage2)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <div class="cell-output cell-output-stdout">
-<pre><code>TSLS estimation, Dep. Var.: log(wage), Endo.: educ, Instr.: feduc, sibs
+<pre><code>TSLS estimation - Dep. Var.: log(wage)
+                  Endo.    : educ
+                  Instr.   : feduc, sibs
 Second stage: Dep. Var.: log(wage)
-Observations: 741 
+Observations: 741
 Fixed-effects: married: 2,  south: 2
 Standard-errors: Clustered (married) 
          Estimate Std. Error t value Pr(&gt;|t|)    
@@ -2913,9 +2915,11 @@ F-test (1st stage), educ: stat = 62.0     , p &lt; 2.2e-16 , on 2 and 736 DoF.
 <div class="cell">
 <div class="sourceCode cell-code" id="cb6"><pre class="sourceCode numberSource r number-lines code-with-copy"><code class="sourceCode r"><span id="cb6-1"><a></a>fixest<span class="sc">::</span><span class="fu">feols</span>(<span class="fu">log</span>(wage) <span class="sc">~</span> exper <span class="sc">|</span> married <span class="sc">+</span> south <span class="sc">|</span> educ <span class="sc">~</span> feduc <span class="sc">+</span> sibs, <span class="at">cluster =</span> <span class="sc">~</span>black, <span class="at">data =</span> wage2)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <div class="cell-output cell-output-stdout">
-<pre><code>TSLS estimation, Dep. Var.: log(wage), Endo.: educ, Instr.: feduc, sibs
+<pre><code>TSLS estimation - Dep. Var.: log(wage)
+                  Endo.    : educ
+                  Instr.   : feduc, sibs
 Second stage: Dep. Var.: log(wage)
-Observations: 741 
+Observations: 741
 Fixed-effects: married: 2,  south: 2
 Standard-errors: Clustered (black) 
          Estimate Std. Error t value Pr(&gt;|t|)    
