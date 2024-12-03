@@ -8,7 +8,7 @@
 <link href="../../site_libs/quarto-html/light-border.css" rel="stylesheet">
 <link href="../../site_libs/quarto-html/quarto-html.min.css" rel="stylesheet" data-mode="light">
 <link href="../../site_libs/quarto-html/quarto-syntax-highlighting.css" rel="stylesheet" id="quarto-text-highlighting-styles"><meta charset="utf-8">
-  <meta name="generator" content="quarto-1.5.56">
+  <meta name="generator" content="quarto-1.5.57">
 
   <title>Applied Econometrics (AECN 896-004) – 10: Panel Data Methods</title>
   <meta name="apple-mobile-web-app-capable" content="yes">
@@ -675,7 +675,7 @@
   };
 
   // Store cell data
-  globalThis.qwebrCellDetails = [{"options":{"context":"interactive","read-only":"false","label":"unnamed-chunk-1","editor-max-height":"","message":"true","out-height":"","comment":"","fig-width":7,"out-width":"700px","editor-font-scale":"0.8","warning":"true","autorun":"true","dpi":72,"results":"markup","fig-cap":"","editor-quick-suggestions":"false","fig-height":5,"output":"true","editor-word-wrap":"true","classes":""},"id":1,"code":"data(jtrain, package = \"wooldridge\")\n\ndplyr::select(jtrain, year, fcode, employ, sales) %>%\n  head(9)"},{"options":{"context":"setup","read-only":"false","label":"unnamed-chunk-2","editor-max-height":"","message":"true","out-height":"","comment":"","fig-width":7,"out-width":"700px","editor-font-scale":"0.8","warning":"true","autorun":"true","dpi":72,"results":"markup","fig-cap":"","editor-quick-suggestions":"false","fig-height":5,"output":"true","editor-word-wrap":"true","classes":""},"id":2,"code":"massage_data <- data.frame(\n  Location = c(\"Chicago\", \"Peoria\", \"Milwaukee\", \"Madison\"),\n  Year = rep(2003, 4),\n  P = c(75, 50, 60, 55),\n  Q = c(2, 1.0, 1.5, 0.8)\n)"},{"options":{"context":"setup","read-only":"false","label":"unnamed-chunk-3","editor-max-height":"","message":"true","out-height":"","comment":"","fig-width":7,"out-width":"700px","editor-font-scale":"0.8","warning":"true","autorun":"true","dpi":72,"results":"markup","fig-cap":"","editor-quick-suggestions":"false","fig-height":5,"output":"true","editor-word-wrap":"true","classes":""},"id":3,"code":"massage_data <- \n  massage_data %>%\n  mutate(Ql = c(10, 5, 7, 6))\n\ngt(massage_data)"},{"options":{"context":"setup","read-only":"false","label":"unnamed-chunk-4","editor-max-height":"","message":"true","out-height":"","comment":"","fig-width":7,"out-width":"700px","editor-font-scale":"0.8","warning":"true","autorun":"true","dpi":72,"results":"markup","fig-cap":"","editor-quick-suggestions":"false","fig-height":5,"output":"true","editor-word-wrap":"true","classes":""},"id":4,"code":"massage_data_2p <- \n  data.frame(\n    Location = rep(c(\"Chicago\", \"Peoria\", \"Milwaukee\", \"Madison\"), each = 2),\n    Year = rep(c(2003, 2004), 4),\n    P = c(75, 85, 50, 48, 60, 65, 55, 60),\n    Q = c(2, 1.8, 1.0, 1.1, 1.5, 1.4, 0.8, 0.7),\n    Ql = rep(c(10, 5, 7, 6), each = 2)\n  )"},{"options":{"context":"setup","read-only":"false","label":"unnamed-chunk-5","editor-max-height":"","message":"true","out-height":"","comment":"","fig-width":7,"out-width":"700px","editor-font-scale":"0.8","warning":"true","autorun":"true","dpi":72,"results":"markup","fig-cap":"","editor-quick-suggestions":"false","fig-height":5,"output":"true","editor-word-wrap":"true","classes":""},"id":5,"code":"massage_data_fd <- \n  massage_data_2p %>%\n  group_by(Location) %>%\n  mutate(\n    P_dif = P - lag(P),\n    Q_dif = Q - lag(Q),\n    Ql_dif = Ql - lag(Ql)\n  ) %>%\n  ungroup()"},{"options":{"context":"output","read-only":"false","label":"unnamed-chunk-6","editor-max-height":"","message":"true","out-height":"","comment":"","fig-width":7,"out-width":"700px","editor-font-scale":"0.8","warning":"true","autorun":"true","dpi":72,"results":"markup","fig-cap":"","editor-quick-suggestions":"false","fig-height":5,"output":"true","editor-word-wrap":"true","classes":""},"id":6,"code":"massage_data_fd %>% head(5)"},{"options":{"context":"interactive","read-only":"false","label":"unnamed-chunk-7","editor-max-height":"","message":"true","out-height":"","comment":"","fig-width":7,"out-width":"700px","editor-font-scale":"0.8","warning":"true","autorun":"true","dpi":72,"results":"markup","fig-cap":"","editor-quick-suggestions":"false","fig-height":5,"output":"true","editor-word-wrap":"true","classes":""},"id":7,"code":"fixest::feols(Q ~ P, data = massage_data_fd) %>% \n  broom::tidy()"},{"options":{"context":"interactive","read-only":"false","label":"unnamed-chunk-8","editor-max-height":"","message":"true","out-height":"","comment":"","fig-width":7,"out-width":"700px","editor-font-scale":"0.8","warning":"true","autorun":"true","dpi":72,"results":"markup","fig-cap":"","editor-quick-suggestions":"false","fig-height":5,"output":"true","editor-word-wrap":"true","classes":""},"id":8,"code":"fixest::feols(Q_dif ~ P_dif, data = massage_data_fd) %>% \n  broom::tidy()"},{"options":{"context":"setup","read-only":"false","label":"unnamed-chunk-9","editor-max-height":"","message":"true","out-height":"","comment":"","fig-width":7,"out-width":"700px","editor-font-scale":"0.8","warning":"true","autorun":"true","dpi":72,"results":"markup","fig-cap":"","editor-quick-suggestions":"false","fig-height":5,"output":"true","editor-word-wrap":"true","classes":""},"id":9,"code":"massage_data_wth <- \n  massage_data_2p %>%\n  dplyr::select(Location, Year, P, Q, Ql) %>%\n  group_by(Location) %>%\n  mutate(\n    P_mean = mean(P),\n    P_dev = P - P_mean,\n    Q_mean = mean(Q),\n    Q_dev = Q - Q_mean,\n    Ql_mean = mean(Ql),\n    Ql_dev = Ql - Ql_mean\n  ) %>%\n  ungroup() %>%\n  dplyr::select(Location, Year, P, P_mean, P_dev, Q, Q_mean, Q_dev, Ql, Ql_mean, Ql_dev)"},{"options":{"context":"interactive","read-only":"false","label":"unnamed-chunk-10","editor-max-height":"","message":"true","out-height":"","comment":"","fig-width":7,"out-width":"700px","editor-font-scale":"0.8","warning":"true","autorun":"true","dpi":72,"results":"markup","fig-cap":"","editor-quick-suggestions":"false","fig-height":5,"output":"true","editor-word-wrap":"true","classes":""},"id":10,"code":"fixest::feols(Q_dev ~ P_dev, data = massage_data_wth)"},{"options":{"context":"interactive","read-only":"false","label":"unnamed-chunk-11","editor-max-height":"","message":"true","out-height":"","comment":"","fig-width":7,"out-width":"700px","editor-font-scale":"0.8","warning":"true","autorun":"true","dpi":72,"results":"markup","fig-cap":"","editor-quick-suggestions":"false","fig-height":5,"output":"true","editor-word-wrap":"true","classes":""},"id":11,"code":"(\n  massage_data_d <- massage_data_2p %>%\n    mutate(\n      Peoria_D = ifelse(Location == \"Peoria\", 1, 0),\n      Milwaukee_D = ifelse(Location == \"Milwaukee\", 1, 0),\n      Madison_D = ifelse(Location == \"Madison\", 1, 0)\n    )\n)"},{"options":{"context":"interactive","read-only":"false","label":"unnamed-chunk-12","editor-max-height":"","message":"true","out-height":"","comment":"","fig-width":7,"out-width":"700px","editor-font-scale":"0.8","warning":"true","autorun":"true","dpi":72,"results":"markup","fig-cap":"","editor-quick-suggestions":"false","fig-height":5,"output":"true","editor-word-wrap":"true","classes":""},"id":12,"code":"fixest::feols(Q ~ P + Peoria_D + Milwaukee_D + Madison_D, data = massage_data_d)"},{"options":{"context":"interactive","read-only":"false","label":"unnamed-chunk-13","editor-max-height":"","message":"true","out-height":"","comment":"","fig-width":7,"out-width":"700px","editor-font-scale":"0.8","warning":"true","autorun":"true","dpi":72,"results":"markup","fig-cap":"","editor-quick-suggestions":"false","fig-height":5,"output":"true","editor-word-wrap":"true","classes":""},"id":13,"code":"massage_data_2p"},{"options":{"context":"interactive","read-only":"false","label":"unnamed-chunk-14","editor-max-height":"","message":"true","out-height":"","comment":"","fig-width":7,"out-width":"700px","editor-font-scale":"0.8","warning":"true","autorun":"true","dpi":72,"results":"markup","fig-cap":"","editor-quick-suggestions":"false","fig-height":5,"output":"true","editor-word-wrap":"true","classes":""},"id":14,"code":"fixest::feols(Q ~ P | Location, data = massage_data_2p)"},{"options":{"context":"output","read-only":"false","label":"unnamed-chunk-15","editor-max-height":"","message":"true","out-height":"","comment":"","fig-width":7,"out-width":"700px","editor-font-scale":"0.8","warning":"true","autorun":"true","dpi":72,"results":"markup","fig-cap":"","editor-quick-suggestions":"false","fig-height":5,"output":"true","editor-word-wrap":"true","classes":""},"id":15,"code":"year_fe <- data.frame(\n  id = rep(1:3, each = 4),\n  year = rep(2015:2017, 4),\n  income = c(77, 82, 84, 110, 120, 131, 56, 60, 61, 70, 71, 74),\n  educ = c(12:14, 18:20, 10:12, 13:15),\n  FE_2015 = rep(c(1, 0, 0), 4),\n  FE_2016 = rep(c(0, 1, 0), 4),\n  FE_2017 = rep(c(0, 0, 1), 4)\n)\nyear_fe"},{"options":{"context":"interactive","read-only":"false","label":"unnamed-chunk-16","editor-max-height":"","message":"true","out-height":"","comment":"","fig-width":7,"out-width":"700px","editor-font-scale":"0.8","warning":"true","autorun":"true","dpi":72,"results":"markup","fig-cap":"","editor-quick-suggestions":"false","fig-height":5,"output":"true","editor-word-wrap":"true","classes":""},"id":16,"code":"fixest::feols(I(log(income)) ~ educ | id + year, data = year_fe) %>%\n  tidy()"},{"options":{"context":"interactive","read-only":"false","label":"unnamed-chunk-17","editor-max-height":"","message":"true","out-height":"","comment":"","fig-width":7,"out-width":"700px","editor-font-scale":"0.8","warning":"true","autorun":"true","dpi":72,"results":"markup","fig-cap":"","editor-quick-suggestions":"false","fig-height":5,"output":"true","editor-word-wrap":"true","classes":""},"id":17,"code":"fixest::feols(I(log(income)) ~ educ | id + year, cluster = ~id, data = year_fe) %>% tidy()"}];
+  globalThis.qwebrCellDetails = [{"options":{"editor-max-height":"","out-width":"700px","comment":"","warning":"true","output":"true","results":"markup","fig-width":7,"message":"true","autorun":"true","fig-cap":"","fig-height":5,"label":"unnamed-chunk-1","read-only":"false","context":"interactive","dpi":72,"editor-word-wrap":"true","editor-quick-suggestions":"false","editor-font-scale":"0.8","classes":"","out-height":""},"id":1,"code":"data(jtrain, package = \"wooldridge\")\n\ndplyr::select(jtrain, year, fcode, employ, sales) %>%\n  head(9)"},{"options":{"editor-max-height":"","out-width":"700px","comment":"","warning":"true","output":"true","results":"markup","fig-width":7,"message":"true","autorun":"true","fig-cap":"","fig-height":5,"label":"unnamed-chunk-2","read-only":"false","context":"setup","dpi":72,"editor-word-wrap":"true","editor-quick-suggestions":"false","editor-font-scale":"0.8","classes":"","out-height":""},"id":2,"code":"massage_data <- data.frame(\n  Location = c(\"Chicago\", \"Peoria\", \"Milwaukee\", \"Madison\"),\n  Year = rep(2003, 4),\n  P = c(75, 50, 60, 55),\n  Q = c(2, 1.0, 1.5, 0.8)\n)"},{"options":{"editor-max-height":"","out-width":"700px","comment":"","warning":"true","output":"true","results":"markup","fig-width":7,"message":"true","autorun":"true","fig-cap":"","fig-height":5,"label":"unnamed-chunk-3","read-only":"false","context":"setup","dpi":72,"editor-word-wrap":"true","editor-quick-suggestions":"false","editor-font-scale":"0.8","classes":"","out-height":""},"id":3,"code":"massage_data <- \n  massage_data %>%\n  mutate(Ql = c(10, 5, 7, 6))\n\ngt(massage_data)"},{"options":{"editor-max-height":"","out-width":"700px","comment":"","warning":"true","output":"true","results":"markup","fig-width":7,"message":"true","autorun":"true","fig-cap":"","fig-height":5,"label":"unnamed-chunk-4","read-only":"false","context":"setup","dpi":72,"editor-word-wrap":"true","editor-quick-suggestions":"false","editor-font-scale":"0.8","classes":"","out-height":""},"id":4,"code":"massage_data_2p <- \n  data.frame(\n    Location = rep(c(\"Chicago\", \"Peoria\", \"Milwaukee\", \"Madison\"), each = 2),\n    Year = rep(c(2003, 2004), 4),\n    P = c(75, 85, 50, 48, 60, 65, 55, 60),\n    Q = c(2, 1.8, 1.0, 1.1, 1.5, 1.4, 0.8, 0.7),\n    Ql = rep(c(10, 5, 7, 6), each = 2)\n  )"},{"options":{"editor-max-height":"","out-width":"700px","comment":"","warning":"true","output":"true","results":"markup","fig-width":7,"message":"true","autorun":"true","fig-cap":"","fig-height":5,"label":"unnamed-chunk-5","read-only":"false","context":"setup","dpi":72,"editor-word-wrap":"true","editor-quick-suggestions":"false","editor-font-scale":"0.8","classes":"","out-height":""},"id":5,"code":"massage_data_fd <- \n  massage_data_2p %>%\n  group_by(Location) %>%\n  mutate(\n    P_dif = P - lag(P),\n    Q_dif = Q - lag(Q),\n    Ql_dif = Ql - lag(Ql)\n  ) %>%\n  ungroup()"},{"options":{"editor-max-height":"","out-width":"700px","comment":"","warning":"true","output":"true","results":"markup","fig-width":7,"message":"true","autorun":"true","fig-cap":"","fig-height":5,"label":"unnamed-chunk-6","read-only":"false","context":"output","dpi":72,"editor-word-wrap":"true","editor-quick-suggestions":"false","editor-font-scale":"0.8","classes":"","out-height":""},"id":6,"code":"massage_data_fd %>% head(5)"},{"options":{"editor-max-height":"","out-width":"700px","comment":"","warning":"true","output":"true","results":"markup","fig-width":7,"message":"true","autorun":"true","fig-cap":"","fig-height":5,"label":"unnamed-chunk-7","read-only":"false","context":"interactive","dpi":72,"editor-word-wrap":"true","editor-quick-suggestions":"false","editor-font-scale":"0.8","classes":"","out-height":""},"id":7,"code":"fixest::feols(Q ~ P, data = massage_data_fd) %>% \n  broom::tidy()"},{"options":{"editor-max-height":"","out-width":"700px","comment":"","warning":"true","output":"true","results":"markup","fig-width":7,"message":"true","autorun":"true","fig-cap":"","fig-height":5,"label":"unnamed-chunk-8","read-only":"false","context":"interactive","dpi":72,"editor-word-wrap":"true","editor-quick-suggestions":"false","editor-font-scale":"0.8","classes":"","out-height":""},"id":8,"code":"fixest::feols(Q_dif ~ P_dif, data = massage_data_fd) %>% \n  broom::tidy()"},{"options":{"editor-max-height":"","out-width":"700px","comment":"","warning":"true","output":"true","results":"markup","fig-width":7,"message":"true","autorun":"true","fig-cap":"","fig-height":5,"label":"unnamed-chunk-9","read-only":"false","context":"setup","dpi":72,"editor-word-wrap":"true","editor-quick-suggestions":"false","editor-font-scale":"0.8","classes":"","out-height":""},"id":9,"code":"massage_data_wth <- \n  massage_data_2p %>%\n  dplyr::select(Location, Year, P, Q, Ql) %>%\n  group_by(Location) %>%\n  mutate(\n    P_mean = mean(P),\n    P_dev = P - P_mean,\n    Q_mean = mean(Q),\n    Q_dev = Q - Q_mean,\n    Ql_mean = mean(Ql),\n    Ql_dev = Ql - Ql_mean\n  ) %>%\n  ungroup() %>%\n  dplyr::select(Location, Year, P, P_mean, P_dev, Q, Q_mean, Q_dev, Ql, Ql_mean, Ql_dev)"},{"options":{"editor-max-height":"","out-width":"700px","comment":"","warning":"true","output":"true","results":"markup","fig-width":7,"message":"true","autorun":"true","fig-cap":"","fig-height":5,"label":"unnamed-chunk-10","read-only":"false","context":"interactive","dpi":72,"editor-word-wrap":"true","editor-quick-suggestions":"false","editor-font-scale":"0.8","classes":"","out-height":""},"id":10,"code":"fixest::feols(Q_dev ~ P_dev, data = massage_data_wth)"},{"options":{"editor-max-height":"","out-width":"700px","comment":"","warning":"true","output":"true","results":"markup","fig-width":7,"message":"true","autorun":"true","fig-cap":"","fig-height":5,"label":"unnamed-chunk-11","read-only":"false","context":"interactive","dpi":72,"editor-word-wrap":"true","editor-quick-suggestions":"false","editor-font-scale":"0.8","classes":"","out-height":""},"id":11,"code":"(\n  massage_data_d <- massage_data_2p %>%\n    mutate(\n      Peoria_D = ifelse(Location == \"Peoria\", 1, 0),\n      Milwaukee_D = ifelse(Location == \"Milwaukee\", 1, 0),\n      Madison_D = ifelse(Location == \"Madison\", 1, 0)\n    )\n)"},{"options":{"editor-max-height":"","out-width":"700px","comment":"","warning":"true","output":"true","results":"markup","fig-width":7,"message":"true","autorun":"true","fig-cap":"","fig-height":5,"label":"unnamed-chunk-12","read-only":"false","context":"interactive","dpi":72,"editor-word-wrap":"true","editor-quick-suggestions":"false","editor-font-scale":"0.8","classes":"","out-height":""},"id":12,"code":"fixest::feols(Q ~ P + Peoria_D + Milwaukee_D + Madison_D, data = massage_data_d)"},{"options":{"editor-max-height":"","out-width":"700px","comment":"","warning":"true","output":"true","results":"markup","fig-width":7,"message":"true","autorun":"true","fig-cap":"","fig-height":5,"label":"unnamed-chunk-13","read-only":"false","context":"interactive","dpi":72,"editor-word-wrap":"true","editor-quick-suggestions":"false","editor-font-scale":"0.8","classes":"","out-height":""},"id":13,"code":"massage_data_2p"},{"options":{"editor-max-height":"","out-width":"700px","comment":"","warning":"true","output":"true","results":"markup","fig-width":7,"message":"true","autorun":"true","fig-cap":"","fig-height":5,"label":"unnamed-chunk-14","read-only":"false","context":"interactive","dpi":72,"editor-word-wrap":"true","editor-quick-suggestions":"false","editor-font-scale":"0.8","classes":"","out-height":""},"id":14,"code":"fixest::feols(Q ~ P | Location, data = massage_data_2p)"},{"options":{"editor-max-height":"","out-width":"700px","comment":"","warning":"true","output":"true","results":"markup","fig-width":7,"message":"true","autorun":"true","fig-cap":"","fig-height":5,"label":"unnamed-chunk-15","read-only":"false","context":"output","dpi":72,"editor-word-wrap":"true","editor-quick-suggestions":"false","editor-font-scale":"0.8","classes":"","out-height":""},"id":15,"code":"year_fe <- data.frame(\n  id = rep(1:3, each = 4),\n  year = rep(2015:2017, 4),\n  income = c(77, 82, 84, 110, 120, 131, 56, 60, 61, 70, 71, 74),\n  educ = c(12:14, 18:20, 10:12, 13:15),\n  FE_2015 = rep(c(1, 0, 0), 4),\n  FE_2016 = rep(c(0, 1, 0), 4),\n  FE_2017 = rep(c(0, 0, 1), 4)\n)\nyear_fe"},{"options":{"editor-max-height":"","out-width":"700px","comment":"","warning":"true","output":"true","results":"markup","fig-width":7,"message":"true","autorun":"true","fig-cap":"","fig-height":5,"label":"unnamed-chunk-16","read-only":"false","context":"interactive","dpi":72,"editor-word-wrap":"true","editor-quick-suggestions":"false","editor-font-scale":"0.8","classes":"","out-height":""},"id":16,"code":"fixest::feols(I(log(income)) ~ educ | id + year, data = year_fe) %>%\n  tidy()"},{"options":{"editor-max-height":"","out-width":"700px","comment":"","warning":"true","output":"true","results":"markup","fig-width":7,"message":"true","autorun":"true","fig-cap":"","fig-height":5,"label":"unnamed-chunk-17","read-only":"false","context":"interactive","dpi":72,"editor-word-wrap":"true","editor-quick-suggestions":"false","editor-font-scale":"0.8","classes":"","out-height":""},"id":17,"code":"fixest::feols(I(log(income)) ~ educ | id + year, cluster = ~id, data = year_fe) %>% tidy()"}];
 
   </script>
   <script type="module">
@@ -2215,23 +2215,23 @@ globalThis.qwebrCreateMonacoEditorInstance = function (cellData) {
 <noscript>Please enable JavaScript to experience the dynamic code cell content on this page.</noscript>
 <div class="cell">
 <div class="cell-output-display">
-<div id="yevmhjogse" style="padding-left:0px;padding-right:0px;padding-top:10px;padding-bottom:10px;overflow-x:auto;overflow-y:auto;width:auto;height:auto;">
-<style>#yevmhjogse table {
+<div id="wfioqlgfaz" style="padding-left:0px;padding-right:0px;padding-top:10px;padding-bottom:10px;overflow-x:auto;overflow-y:auto;width:auto;height:auto;">
+<style>#wfioqlgfaz table {
   font-family: system-ui, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol', 'Noto Color Emoji';
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
 
-#yevmhjogse thead, #yevmhjogse tbody, #yevmhjogse tfoot, #yevmhjogse tr, #yevmhjogse td, #yevmhjogse th {
+#wfioqlgfaz thead, #wfioqlgfaz tbody, #wfioqlgfaz tfoot, #wfioqlgfaz tr, #wfioqlgfaz td, #wfioqlgfaz th {
   border-style: none;
 }
 
-#yevmhjogse p {
+#wfioqlgfaz p {
   margin: 0;
   padding: 0;
 }
 
-#yevmhjogse .gt_table {
+#wfioqlgfaz .gt_table {
   display: table;
   border-collapse: collapse;
   line-height: normal;
@@ -2257,12 +2257,12 @@ globalThis.qwebrCreateMonacoEditorInstance = function (cellData) {
   border-left-color: #D3D3D3;
 }
 
-#yevmhjogse .gt_caption {
+#wfioqlgfaz .gt_caption {
   padding-top: 4px;
   padding-bottom: 4px;
 }
 
-#yevmhjogse .gt_title {
+#wfioqlgfaz .gt_title {
   color: #333333;
   font-size: 125%;
   font-weight: initial;
@@ -2274,7 +2274,7 @@ globalThis.qwebrCreateMonacoEditorInstance = function (cellData) {
   border-bottom-width: 0;
 }
 
-#yevmhjogse .gt_subtitle {
+#wfioqlgfaz .gt_subtitle {
   color: #333333;
   font-size: 85%;
   font-weight: initial;
@@ -2286,7 +2286,7 @@ globalThis.qwebrCreateMonacoEditorInstance = function (cellData) {
   border-top-width: 0;
 }
 
-#yevmhjogse .gt_heading {
+#wfioqlgfaz .gt_heading {
   background-color: #FFFFFF;
   text-align: center;
   border-bottom-color: #FFFFFF;
@@ -2298,13 +2298,13 @@ globalThis.qwebrCreateMonacoEditorInstance = function (cellData) {
   border-right-color: #D3D3D3;
 }
 
-#yevmhjogse .gt_bottom_border {
+#wfioqlgfaz .gt_bottom_border {
   border-bottom-style: solid;
   border-bottom-width: 2px;
   border-bottom-color: #D3D3D3;
 }
 
-#yevmhjogse .gt_col_headings {
+#wfioqlgfaz .gt_col_headings {
   border-top-style: solid;
   border-top-width: 2px;
   border-top-color: #D3D3D3;
@@ -2319,7 +2319,7 @@ globalThis.qwebrCreateMonacoEditorInstance = function (cellData) {
   border-right-color: #D3D3D3;
 }
 
-#yevmhjogse .gt_col_heading {
+#wfioqlgfaz .gt_col_heading {
   color: #333333;
   background-color: #FFFFFF;
   font-size: 100%;
@@ -2339,7 +2339,7 @@ globalThis.qwebrCreateMonacoEditorInstance = function (cellData) {
   overflow-x: hidden;
 }
 
-#yevmhjogse .gt_column_spanner_outer {
+#wfioqlgfaz .gt_column_spanner_outer {
   color: #333333;
   background-color: #FFFFFF;
   font-size: 100%;
@@ -2351,15 +2351,15 @@ globalThis.qwebrCreateMonacoEditorInstance = function (cellData) {
   padding-right: 4px;
 }
 
-#yevmhjogse .gt_column_spanner_outer:first-child {
+#wfioqlgfaz .gt_column_spanner_outer:first-child {
   padding-left: 0;
 }
 
-#yevmhjogse .gt_column_spanner_outer:last-child {
+#wfioqlgfaz .gt_column_spanner_outer:last-child {
   padding-right: 0;
 }
 
-#yevmhjogse .gt_column_spanner {
+#wfioqlgfaz .gt_column_spanner {
   border-bottom-style: solid;
   border-bottom-width: 2px;
   border-bottom-color: #D3D3D3;
@@ -2371,11 +2371,11 @@ globalThis.qwebrCreateMonacoEditorInstance = function (cellData) {
   width: 100%;
 }
 
-#yevmhjogse .gt_spanner_row {
+#wfioqlgfaz .gt_spanner_row {
   border-bottom-style: hidden;
 }
 
-#yevmhjogse .gt_group_heading {
+#wfioqlgfaz .gt_group_heading {
   padding-top: 8px;
   padding-bottom: 8px;
   padding-left: 5px;
@@ -2401,7 +2401,7 @@ globalThis.qwebrCreateMonacoEditorInstance = function (cellData) {
   text-align: left;
 }
 
-#yevmhjogse .gt_empty_group_heading {
+#wfioqlgfaz .gt_empty_group_heading {
   padding: 0.5px;
   color: #333333;
   background-color: #FFFFFF;
@@ -2416,15 +2416,15 @@ globalThis.qwebrCreateMonacoEditorInstance = function (cellData) {
   vertical-align: middle;
 }
 
-#yevmhjogse .gt_from_md > :first-child {
+#wfioqlgfaz .gt_from_md > :first-child {
   margin-top: 0;
 }
 
-#yevmhjogse .gt_from_md > :last-child {
+#wfioqlgfaz .gt_from_md > :last-child {
   margin-bottom: 0;
 }
 
-#yevmhjogse .gt_row {
+#wfioqlgfaz .gt_row {
   padding-top: 8px;
   padding-bottom: 8px;
   padding-left: 5px;
@@ -2443,7 +2443,7 @@ globalThis.qwebrCreateMonacoEditorInstance = function (cellData) {
   overflow-x: hidden;
 }
 
-#yevmhjogse .gt_stub {
+#wfioqlgfaz .gt_stub {
   color: #333333;
   background-color: #FFFFFF;
   font-size: 100%;
@@ -2456,7 +2456,7 @@ globalThis.qwebrCreateMonacoEditorInstance = function (cellData) {
   padding-right: 5px;
 }
 
-#yevmhjogse .gt_stub_row_group {
+#wfioqlgfaz .gt_stub_row_group {
   color: #333333;
   background-color: #FFFFFF;
   font-size: 100%;
@@ -2470,15 +2470,15 @@ globalThis.qwebrCreateMonacoEditorInstance = function (cellData) {
   vertical-align: top;
 }
 
-#yevmhjogse .gt_row_group_first td {
+#wfioqlgfaz .gt_row_group_first td {
   border-top-width: 2px;
 }
 
-#yevmhjogse .gt_row_group_first th {
+#wfioqlgfaz .gt_row_group_first th {
   border-top-width: 2px;
 }
 
-#yevmhjogse .gt_summary_row {
+#wfioqlgfaz .gt_summary_row {
   color: #333333;
   background-color: #FFFFFF;
   text-transform: inherit;
@@ -2488,16 +2488,16 @@ globalThis.qwebrCreateMonacoEditorInstance = function (cellData) {
   padding-right: 5px;
 }
 
-#yevmhjogse .gt_first_summary_row {
+#wfioqlgfaz .gt_first_summary_row {
   border-top-style: solid;
   border-top-color: #D3D3D3;
 }
 
-#yevmhjogse .gt_first_summary_row.thick {
+#wfioqlgfaz .gt_first_summary_row.thick {
   border-top-width: 2px;
 }
 
-#yevmhjogse .gt_last_summary_row {
+#wfioqlgfaz .gt_last_summary_row {
   padding-top: 8px;
   padding-bottom: 8px;
   padding-left: 5px;
@@ -2507,7 +2507,7 @@ globalThis.qwebrCreateMonacoEditorInstance = function (cellData) {
   border-bottom-color: #D3D3D3;
 }
 
-#yevmhjogse .gt_grand_summary_row {
+#wfioqlgfaz .gt_grand_summary_row {
   color: #333333;
   background-color: #FFFFFF;
   text-transform: inherit;
@@ -2517,7 +2517,7 @@ globalThis.qwebrCreateMonacoEditorInstance = function (cellData) {
   padding-right: 5px;
 }
 
-#yevmhjogse .gt_first_grand_summary_row {
+#wfioqlgfaz .gt_first_grand_summary_row {
   padding-top: 8px;
   padding-bottom: 8px;
   padding-left: 5px;
@@ -2527,7 +2527,7 @@ globalThis.qwebrCreateMonacoEditorInstance = function (cellData) {
   border-top-color: #D3D3D3;
 }
 
-#yevmhjogse .gt_last_grand_summary_row_top {
+#wfioqlgfaz .gt_last_grand_summary_row_top {
   padding-top: 8px;
   padding-bottom: 8px;
   padding-left: 5px;
@@ -2537,11 +2537,11 @@ globalThis.qwebrCreateMonacoEditorInstance = function (cellData) {
   border-bottom-color: #D3D3D3;
 }
 
-#yevmhjogse .gt_striped {
+#wfioqlgfaz .gt_striped {
   background-color: rgba(128, 128, 128, 0.05);
 }
 
-#yevmhjogse .gt_table_body {
+#wfioqlgfaz .gt_table_body {
   border-top-style: solid;
   border-top-width: 2px;
   border-top-color: #D3D3D3;
@@ -2550,7 +2550,7 @@ globalThis.qwebrCreateMonacoEditorInstance = function (cellData) {
   border-bottom-color: #D3D3D3;
 }
 
-#yevmhjogse .gt_footnotes {
+#wfioqlgfaz .gt_footnotes {
   color: #333333;
   background-color: #FFFFFF;
   border-bottom-style: none;
@@ -2564,7 +2564,7 @@ globalThis.qwebrCreateMonacoEditorInstance = function (cellData) {
   border-right-color: #D3D3D3;
 }
 
-#yevmhjogse .gt_footnote {
+#wfioqlgfaz .gt_footnote {
   margin: 0px;
   font-size: 90%;
   padding-top: 4px;
@@ -2573,7 +2573,7 @@ globalThis.qwebrCreateMonacoEditorInstance = function (cellData) {
   padding-right: 5px;
 }
 
-#yevmhjogse .gt_sourcenotes {
+#wfioqlgfaz .gt_sourcenotes {
   color: #333333;
   background-color: #FFFFFF;
   border-bottom-style: none;
@@ -2587,7 +2587,7 @@ globalThis.qwebrCreateMonacoEditorInstance = function (cellData) {
   border-right-color: #D3D3D3;
 }
 
-#yevmhjogse .gt_sourcenote {
+#wfioqlgfaz .gt_sourcenote {
   font-size: 90%;
   padding-top: 4px;
   padding-bottom: 4px;
@@ -2595,64 +2595,73 @@ globalThis.qwebrCreateMonacoEditorInstance = function (cellData) {
   padding-right: 5px;
 }
 
-#yevmhjogse .gt_left {
+#wfioqlgfaz .gt_left {
   text-align: left;
 }
 
-#yevmhjogse .gt_center {
+#wfioqlgfaz .gt_center {
   text-align: center;
 }
 
-#yevmhjogse .gt_right {
+#wfioqlgfaz .gt_right {
   text-align: right;
   font-variant-numeric: tabular-nums;
 }
 
-#yevmhjogse .gt_font_normal {
+#wfioqlgfaz .gt_font_normal {
   font-weight: normal;
 }
 
-#yevmhjogse .gt_font_bold {
+#wfioqlgfaz .gt_font_bold {
   font-weight: bold;
 }
 
-#yevmhjogse .gt_font_italic {
+#wfioqlgfaz .gt_font_italic {
   font-style: italic;
 }
 
-#yevmhjogse .gt_super {
+#wfioqlgfaz .gt_super {
   font-size: 65%;
 }
 
-#yevmhjogse .gt_footnote_marks {
+#wfioqlgfaz .gt_footnote_marks {
   font-size: 75%;
   vertical-align: 0.4em;
   position: initial;
 }
 
-#yevmhjogse .gt_asterisk {
+#wfioqlgfaz .gt_asterisk {
   font-size: 100%;
   vertical-align: 0;
 }
 
-#yevmhjogse .gt_indent_1 {
+#wfioqlgfaz .gt_indent_1 {
   text-indent: 5px;
 }
 
-#yevmhjogse .gt_indent_2 {
+#wfioqlgfaz .gt_indent_2 {
   text-indent: 10px;
 }
 
-#yevmhjogse .gt_indent_3 {
+#wfioqlgfaz .gt_indent_3 {
   text-indent: 15px;
 }
 
-#yevmhjogse .gt_indent_4 {
+#wfioqlgfaz .gt_indent_4 {
   text-indent: 20px;
 }
 
-#yevmhjogse .gt_indent_5 {
+#wfioqlgfaz .gt_indent_5 {
   text-indent: 25px;
+}
+
+#wfioqlgfaz .katex-display {
+  display: inline-flex !important;
+  margin-bottom: 0.75em !important;
+}
+
+#wfioqlgfaz div.Reactable > div.rt-table > div.rt-thead > div.rt-tr.rt-tr-group-header > div.rt-th-group:after {
+  height: 0px !important;
 }
 </style>
 
@@ -2737,23 +2746,23 @@ Answer
 <noscript>Please enable JavaScript to experience the dynamic code cell content on this page.</noscript>
 <div class="cell">
 <div class="cell-output-display">
-<div id="oqtevpiljb" style="padding-left:0px;padding-right:0px;padding-top:10px;padding-bottom:10px;overflow-x:auto;overflow-y:auto;width:auto;height:auto;">
-<style>#oqtevpiljb table {
+<div id="msmighgvli" style="padding-left:0px;padding-right:0px;padding-top:10px;padding-bottom:10px;overflow-x:auto;overflow-y:auto;width:auto;height:auto;">
+<style>#msmighgvli table {
   font-family: system-ui, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol', 'Noto Color Emoji';
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
 
-#oqtevpiljb thead, #oqtevpiljb tbody, #oqtevpiljb tfoot, #oqtevpiljb tr, #oqtevpiljb td, #oqtevpiljb th {
+#msmighgvli thead, #msmighgvli tbody, #msmighgvli tfoot, #msmighgvli tr, #msmighgvli td, #msmighgvli th {
   border-style: none;
 }
 
-#oqtevpiljb p {
+#msmighgvli p {
   margin: 0;
   padding: 0;
 }
 
-#oqtevpiljb .gt_table {
+#msmighgvli .gt_table {
   display: table;
   border-collapse: collapse;
   line-height: normal;
@@ -2779,12 +2788,12 @@ Answer
   border-left-color: #D3D3D3;
 }
 
-#oqtevpiljb .gt_caption {
+#msmighgvli .gt_caption {
   padding-top: 4px;
   padding-bottom: 4px;
 }
 
-#oqtevpiljb .gt_title {
+#msmighgvli .gt_title {
   color: #333333;
   font-size: 125%;
   font-weight: initial;
@@ -2796,7 +2805,7 @@ Answer
   border-bottom-width: 0;
 }
 
-#oqtevpiljb .gt_subtitle {
+#msmighgvli .gt_subtitle {
   color: #333333;
   font-size: 85%;
   font-weight: initial;
@@ -2808,7 +2817,7 @@ Answer
   border-top-width: 0;
 }
 
-#oqtevpiljb .gt_heading {
+#msmighgvli .gt_heading {
   background-color: #FFFFFF;
   text-align: center;
   border-bottom-color: #FFFFFF;
@@ -2820,13 +2829,13 @@ Answer
   border-right-color: #D3D3D3;
 }
 
-#oqtevpiljb .gt_bottom_border {
+#msmighgvli .gt_bottom_border {
   border-bottom-style: solid;
   border-bottom-width: 2px;
   border-bottom-color: #D3D3D3;
 }
 
-#oqtevpiljb .gt_col_headings {
+#msmighgvli .gt_col_headings {
   border-top-style: solid;
   border-top-width: 2px;
   border-top-color: #D3D3D3;
@@ -2841,7 +2850,7 @@ Answer
   border-right-color: #D3D3D3;
 }
 
-#oqtevpiljb .gt_col_heading {
+#msmighgvli .gt_col_heading {
   color: #333333;
   background-color: #FFFFFF;
   font-size: 100%;
@@ -2861,7 +2870,7 @@ Answer
   overflow-x: hidden;
 }
 
-#oqtevpiljb .gt_column_spanner_outer {
+#msmighgvli .gt_column_spanner_outer {
   color: #333333;
   background-color: #FFFFFF;
   font-size: 100%;
@@ -2873,15 +2882,15 @@ Answer
   padding-right: 4px;
 }
 
-#oqtevpiljb .gt_column_spanner_outer:first-child {
+#msmighgvli .gt_column_spanner_outer:first-child {
   padding-left: 0;
 }
 
-#oqtevpiljb .gt_column_spanner_outer:last-child {
+#msmighgvli .gt_column_spanner_outer:last-child {
   padding-right: 0;
 }
 
-#oqtevpiljb .gt_column_spanner {
+#msmighgvli .gt_column_spanner {
   border-bottom-style: solid;
   border-bottom-width: 2px;
   border-bottom-color: #D3D3D3;
@@ -2893,11 +2902,11 @@ Answer
   width: 100%;
 }
 
-#oqtevpiljb .gt_spanner_row {
+#msmighgvli .gt_spanner_row {
   border-bottom-style: hidden;
 }
 
-#oqtevpiljb .gt_group_heading {
+#msmighgvli .gt_group_heading {
   padding-top: 8px;
   padding-bottom: 8px;
   padding-left: 5px;
@@ -2923,7 +2932,7 @@ Answer
   text-align: left;
 }
 
-#oqtevpiljb .gt_empty_group_heading {
+#msmighgvli .gt_empty_group_heading {
   padding: 0.5px;
   color: #333333;
   background-color: #FFFFFF;
@@ -2938,15 +2947,15 @@ Answer
   vertical-align: middle;
 }
 
-#oqtevpiljb .gt_from_md > :first-child {
+#msmighgvli .gt_from_md > :first-child {
   margin-top: 0;
 }
 
-#oqtevpiljb .gt_from_md > :last-child {
+#msmighgvli .gt_from_md > :last-child {
   margin-bottom: 0;
 }
 
-#oqtevpiljb .gt_row {
+#msmighgvli .gt_row {
   padding-top: 8px;
   padding-bottom: 8px;
   padding-left: 5px;
@@ -2965,7 +2974,7 @@ Answer
   overflow-x: hidden;
 }
 
-#oqtevpiljb .gt_stub {
+#msmighgvli .gt_stub {
   color: #333333;
   background-color: #FFFFFF;
   font-size: 100%;
@@ -2978,7 +2987,7 @@ Answer
   padding-right: 5px;
 }
 
-#oqtevpiljb .gt_stub_row_group {
+#msmighgvli .gt_stub_row_group {
   color: #333333;
   background-color: #FFFFFF;
   font-size: 100%;
@@ -2992,15 +3001,15 @@ Answer
   vertical-align: top;
 }
 
-#oqtevpiljb .gt_row_group_first td {
+#msmighgvli .gt_row_group_first td {
   border-top-width: 2px;
 }
 
-#oqtevpiljb .gt_row_group_first th {
+#msmighgvli .gt_row_group_first th {
   border-top-width: 2px;
 }
 
-#oqtevpiljb .gt_summary_row {
+#msmighgvli .gt_summary_row {
   color: #333333;
   background-color: #FFFFFF;
   text-transform: inherit;
@@ -3010,16 +3019,16 @@ Answer
   padding-right: 5px;
 }
 
-#oqtevpiljb .gt_first_summary_row {
+#msmighgvli .gt_first_summary_row {
   border-top-style: solid;
   border-top-color: #D3D3D3;
 }
 
-#oqtevpiljb .gt_first_summary_row.thick {
+#msmighgvli .gt_first_summary_row.thick {
   border-top-width: 2px;
 }
 
-#oqtevpiljb .gt_last_summary_row {
+#msmighgvli .gt_last_summary_row {
   padding-top: 8px;
   padding-bottom: 8px;
   padding-left: 5px;
@@ -3029,7 +3038,7 @@ Answer
   border-bottom-color: #D3D3D3;
 }
 
-#oqtevpiljb .gt_grand_summary_row {
+#msmighgvli .gt_grand_summary_row {
   color: #333333;
   background-color: #FFFFFF;
   text-transform: inherit;
@@ -3039,7 +3048,7 @@ Answer
   padding-right: 5px;
 }
 
-#oqtevpiljb .gt_first_grand_summary_row {
+#msmighgvli .gt_first_grand_summary_row {
   padding-top: 8px;
   padding-bottom: 8px;
   padding-left: 5px;
@@ -3049,7 +3058,7 @@ Answer
   border-top-color: #D3D3D3;
 }
 
-#oqtevpiljb .gt_last_grand_summary_row_top {
+#msmighgvli .gt_last_grand_summary_row_top {
   padding-top: 8px;
   padding-bottom: 8px;
   padding-left: 5px;
@@ -3059,11 +3068,11 @@ Answer
   border-bottom-color: #D3D3D3;
 }
 
-#oqtevpiljb .gt_striped {
+#msmighgvli .gt_striped {
   background-color: rgba(128, 128, 128, 0.05);
 }
 
-#oqtevpiljb .gt_table_body {
+#msmighgvli .gt_table_body {
   border-top-style: solid;
   border-top-width: 2px;
   border-top-color: #D3D3D3;
@@ -3072,7 +3081,7 @@ Answer
   border-bottom-color: #D3D3D3;
 }
 
-#oqtevpiljb .gt_footnotes {
+#msmighgvli .gt_footnotes {
   color: #333333;
   background-color: #FFFFFF;
   border-bottom-style: none;
@@ -3086,7 +3095,7 @@ Answer
   border-right-color: #D3D3D3;
 }
 
-#oqtevpiljb .gt_footnote {
+#msmighgvli .gt_footnote {
   margin: 0px;
   font-size: 90%;
   padding-top: 4px;
@@ -3095,7 +3104,7 @@ Answer
   padding-right: 5px;
 }
 
-#oqtevpiljb .gt_sourcenotes {
+#msmighgvli .gt_sourcenotes {
   color: #333333;
   background-color: #FFFFFF;
   border-bottom-style: none;
@@ -3109,7 +3118,7 @@ Answer
   border-right-color: #D3D3D3;
 }
 
-#oqtevpiljb .gt_sourcenote {
+#msmighgvli .gt_sourcenote {
   font-size: 90%;
   padding-top: 4px;
   padding-bottom: 4px;
@@ -3117,64 +3126,73 @@ Answer
   padding-right: 5px;
 }
 
-#oqtevpiljb .gt_left {
+#msmighgvli .gt_left {
   text-align: left;
 }
 
-#oqtevpiljb .gt_center {
+#msmighgvli .gt_center {
   text-align: center;
 }
 
-#oqtevpiljb .gt_right {
+#msmighgvli .gt_right {
   text-align: right;
   font-variant-numeric: tabular-nums;
 }
 
-#oqtevpiljb .gt_font_normal {
+#msmighgvli .gt_font_normal {
   font-weight: normal;
 }
 
-#oqtevpiljb .gt_font_bold {
+#msmighgvli .gt_font_bold {
   font-weight: bold;
 }
 
-#oqtevpiljb .gt_font_italic {
+#msmighgvli .gt_font_italic {
   font-style: italic;
 }
 
-#oqtevpiljb .gt_super {
+#msmighgvli .gt_super {
   font-size: 65%;
 }
 
-#oqtevpiljb .gt_footnote_marks {
+#msmighgvli .gt_footnote_marks {
   font-size: 75%;
   vertical-align: 0.4em;
   position: initial;
 }
 
-#oqtevpiljb .gt_asterisk {
+#msmighgvli .gt_asterisk {
   font-size: 100%;
   vertical-align: 0;
 }
 
-#oqtevpiljb .gt_indent_1 {
+#msmighgvli .gt_indent_1 {
   text-indent: 5px;
 }
 
-#oqtevpiljb .gt_indent_2 {
+#msmighgvli .gt_indent_2 {
   text-indent: 10px;
 }
 
-#oqtevpiljb .gt_indent_3 {
+#msmighgvli .gt_indent_3 {
   text-indent: 15px;
 }
 
-#oqtevpiljb .gt_indent_4 {
+#msmighgvli .gt_indent_4 {
   text-indent: 20px;
 }
 
-#oqtevpiljb .gt_indent_5 {
+#msmighgvli .gt_indent_5 {
   text-indent: 25px;
+}
+
+#msmighgvli .katex-display {
+  display: inline-flex !important;
+  margin-bottom: 0.75em !important;
+}
+
+#msmighgvli div.Reactable > div.rt-table > div.rt-thead > div.rt-tr.rt-tr-group-header > div.rt-th-group:after {
+  height: 0px !important;
 }
 </style>
 
@@ -3225,7 +3243,7 @@ Answer
 </div>
 <p><br></p>
 <p><strong>Key</strong></p>
-<p>Massage quality was hidden (omitted) affecting .red[both] price and massages per capita.</p>
+<p>Massage quality was hidden (omitted) affecting <span style="color: blue;">both</span> price and massages per capita.</p>
 <p><br></p>
 <p><strong>Problem</strong></p>
 <p>Massage quality is not observable, and thus cannot be controlled for.</p>
@@ -3249,23 +3267,23 @@ Answer
 <noscript>Please enable JavaScript to experience the dynamic code cell content on this page.</noscript>
 <div class="cell">
 <div class="cell-output-display">
-<div id="eisxekmuqc" style="padding-left:0px;padding-right:0px;padding-top:10px;padding-bottom:10px;overflow-x:auto;overflow-y:auto;width:auto;height:auto;">
-<style>#eisxekmuqc table {
+<div id="oppknkrraa" style="padding-left:0px;padding-right:0px;padding-top:10px;padding-bottom:10px;overflow-x:auto;overflow-y:auto;width:auto;height:auto;">
+<style>#oppknkrraa table {
   font-family: system-ui, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol', 'Noto Color Emoji';
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
 
-#eisxekmuqc thead, #eisxekmuqc tbody, #eisxekmuqc tfoot, #eisxekmuqc tr, #eisxekmuqc td, #eisxekmuqc th {
+#oppknkrraa thead, #oppknkrraa tbody, #oppknkrraa tfoot, #oppknkrraa tr, #oppknkrraa td, #oppknkrraa th {
   border-style: none;
 }
 
-#eisxekmuqc p {
+#oppknkrraa p {
   margin: 0;
   padding: 0;
 }
 
-#eisxekmuqc .gt_table {
+#oppknkrraa .gt_table {
   display: table;
   border-collapse: collapse;
   line-height: normal;
@@ -3291,12 +3309,12 @@ Answer
   border-left-color: #D3D3D3;
 }
 
-#eisxekmuqc .gt_caption {
+#oppknkrraa .gt_caption {
   padding-top: 4px;
   padding-bottom: 4px;
 }
 
-#eisxekmuqc .gt_title {
+#oppknkrraa .gt_title {
   color: #333333;
   font-size: 125%;
   font-weight: initial;
@@ -3308,7 +3326,7 @@ Answer
   border-bottom-width: 0;
 }
 
-#eisxekmuqc .gt_subtitle {
+#oppknkrraa .gt_subtitle {
   color: #333333;
   font-size: 85%;
   font-weight: initial;
@@ -3320,7 +3338,7 @@ Answer
   border-top-width: 0;
 }
 
-#eisxekmuqc .gt_heading {
+#oppknkrraa .gt_heading {
   background-color: #FFFFFF;
   text-align: center;
   border-bottom-color: #FFFFFF;
@@ -3332,13 +3350,13 @@ Answer
   border-right-color: #D3D3D3;
 }
 
-#eisxekmuqc .gt_bottom_border {
+#oppknkrraa .gt_bottom_border {
   border-bottom-style: solid;
   border-bottom-width: 2px;
   border-bottom-color: #D3D3D3;
 }
 
-#eisxekmuqc .gt_col_headings {
+#oppknkrraa .gt_col_headings {
   border-top-style: solid;
   border-top-width: 2px;
   border-top-color: #D3D3D3;
@@ -3353,7 +3371,7 @@ Answer
   border-right-color: #D3D3D3;
 }
 
-#eisxekmuqc .gt_col_heading {
+#oppknkrraa .gt_col_heading {
   color: #333333;
   background-color: #FFFFFF;
   font-size: 100%;
@@ -3373,7 +3391,7 @@ Answer
   overflow-x: hidden;
 }
 
-#eisxekmuqc .gt_column_spanner_outer {
+#oppknkrraa .gt_column_spanner_outer {
   color: #333333;
   background-color: #FFFFFF;
   font-size: 100%;
@@ -3385,15 +3403,15 @@ Answer
   padding-right: 4px;
 }
 
-#eisxekmuqc .gt_column_spanner_outer:first-child {
+#oppknkrraa .gt_column_spanner_outer:first-child {
   padding-left: 0;
 }
 
-#eisxekmuqc .gt_column_spanner_outer:last-child {
+#oppknkrraa .gt_column_spanner_outer:last-child {
   padding-right: 0;
 }
 
-#eisxekmuqc .gt_column_spanner {
+#oppknkrraa .gt_column_spanner {
   border-bottom-style: solid;
   border-bottom-width: 2px;
   border-bottom-color: #D3D3D3;
@@ -3405,11 +3423,11 @@ Answer
   width: 100%;
 }
 
-#eisxekmuqc .gt_spanner_row {
+#oppknkrraa .gt_spanner_row {
   border-bottom-style: hidden;
 }
 
-#eisxekmuqc .gt_group_heading {
+#oppknkrraa .gt_group_heading {
   padding-top: 8px;
   padding-bottom: 8px;
   padding-left: 5px;
@@ -3435,7 +3453,7 @@ Answer
   text-align: left;
 }
 
-#eisxekmuqc .gt_empty_group_heading {
+#oppknkrraa .gt_empty_group_heading {
   padding: 0.5px;
   color: #333333;
   background-color: #FFFFFF;
@@ -3450,15 +3468,15 @@ Answer
   vertical-align: middle;
 }
 
-#eisxekmuqc .gt_from_md > :first-child {
+#oppknkrraa .gt_from_md > :first-child {
   margin-top: 0;
 }
 
-#eisxekmuqc .gt_from_md > :last-child {
+#oppknkrraa .gt_from_md > :last-child {
   margin-bottom: 0;
 }
 
-#eisxekmuqc .gt_row {
+#oppknkrraa .gt_row {
   padding-top: 8px;
   padding-bottom: 8px;
   padding-left: 5px;
@@ -3477,7 +3495,7 @@ Answer
   overflow-x: hidden;
 }
 
-#eisxekmuqc .gt_stub {
+#oppknkrraa .gt_stub {
   color: #333333;
   background-color: #FFFFFF;
   font-size: 100%;
@@ -3490,7 +3508,7 @@ Answer
   padding-right: 5px;
 }
 
-#eisxekmuqc .gt_stub_row_group {
+#oppknkrraa .gt_stub_row_group {
   color: #333333;
   background-color: #FFFFFF;
   font-size: 100%;
@@ -3504,15 +3522,15 @@ Answer
   vertical-align: top;
 }
 
-#eisxekmuqc .gt_row_group_first td {
+#oppknkrraa .gt_row_group_first td {
   border-top-width: 2px;
 }
 
-#eisxekmuqc .gt_row_group_first th {
+#oppknkrraa .gt_row_group_first th {
   border-top-width: 2px;
 }
 
-#eisxekmuqc .gt_summary_row {
+#oppknkrraa .gt_summary_row {
   color: #333333;
   background-color: #FFFFFF;
   text-transform: inherit;
@@ -3522,16 +3540,16 @@ Answer
   padding-right: 5px;
 }
 
-#eisxekmuqc .gt_first_summary_row {
+#oppknkrraa .gt_first_summary_row {
   border-top-style: solid;
   border-top-color: #D3D3D3;
 }
 
-#eisxekmuqc .gt_first_summary_row.thick {
+#oppknkrraa .gt_first_summary_row.thick {
   border-top-width: 2px;
 }
 
-#eisxekmuqc .gt_last_summary_row {
+#oppknkrraa .gt_last_summary_row {
   padding-top: 8px;
   padding-bottom: 8px;
   padding-left: 5px;
@@ -3541,7 +3559,7 @@ Answer
   border-bottom-color: #D3D3D3;
 }
 
-#eisxekmuqc .gt_grand_summary_row {
+#oppknkrraa .gt_grand_summary_row {
   color: #333333;
   background-color: #FFFFFF;
   text-transform: inherit;
@@ -3551,7 +3569,7 @@ Answer
   padding-right: 5px;
 }
 
-#eisxekmuqc .gt_first_grand_summary_row {
+#oppknkrraa .gt_first_grand_summary_row {
   padding-top: 8px;
   padding-bottom: 8px;
   padding-left: 5px;
@@ -3561,7 +3579,7 @@ Answer
   border-top-color: #D3D3D3;
 }
 
-#eisxekmuqc .gt_last_grand_summary_row_top {
+#oppknkrraa .gt_last_grand_summary_row_top {
   padding-top: 8px;
   padding-bottom: 8px;
   padding-left: 5px;
@@ -3571,11 +3589,11 @@ Answer
   border-bottom-color: #D3D3D3;
 }
 
-#eisxekmuqc .gt_striped {
+#oppknkrraa .gt_striped {
   background-color: rgba(128, 128, 128, 0.05);
 }
 
-#eisxekmuqc .gt_table_body {
+#oppknkrraa .gt_table_body {
   border-top-style: solid;
   border-top-width: 2px;
   border-top-color: #D3D3D3;
@@ -3584,7 +3602,7 @@ Answer
   border-bottom-color: #D3D3D3;
 }
 
-#eisxekmuqc .gt_footnotes {
+#oppknkrraa .gt_footnotes {
   color: #333333;
   background-color: #FFFFFF;
   border-bottom-style: none;
@@ -3598,7 +3616,7 @@ Answer
   border-right-color: #D3D3D3;
 }
 
-#eisxekmuqc .gt_footnote {
+#oppknkrraa .gt_footnote {
   margin: 0px;
   font-size: 90%;
   padding-top: 4px;
@@ -3607,7 +3625,7 @@ Answer
   padding-right: 5px;
 }
 
-#eisxekmuqc .gt_sourcenotes {
+#oppknkrraa .gt_sourcenotes {
   color: #333333;
   background-color: #FFFFFF;
   border-bottom-style: none;
@@ -3621,7 +3639,7 @@ Answer
   border-right-color: #D3D3D3;
 }
 
-#eisxekmuqc .gt_sourcenote {
+#oppknkrraa .gt_sourcenote {
   font-size: 90%;
   padding-top: 4px;
   padding-bottom: 4px;
@@ -3629,64 +3647,73 @@ Answer
   padding-right: 5px;
 }
 
-#eisxekmuqc .gt_left {
+#oppknkrraa .gt_left {
   text-align: left;
 }
 
-#eisxekmuqc .gt_center {
+#oppknkrraa .gt_center {
   text-align: center;
 }
 
-#eisxekmuqc .gt_right {
+#oppknkrraa .gt_right {
   text-align: right;
   font-variant-numeric: tabular-nums;
 }
 
-#eisxekmuqc .gt_font_normal {
+#oppknkrraa .gt_font_normal {
   font-weight: normal;
 }
 
-#eisxekmuqc .gt_font_bold {
+#oppknkrraa .gt_font_bold {
   font-weight: bold;
 }
 
-#eisxekmuqc .gt_font_italic {
+#oppknkrraa .gt_font_italic {
   font-style: italic;
 }
 
-#eisxekmuqc .gt_super {
+#oppknkrraa .gt_super {
   font-size: 65%;
 }
 
-#eisxekmuqc .gt_footnote_marks {
+#oppknkrraa .gt_footnote_marks {
   font-size: 75%;
   vertical-align: 0.4em;
   position: initial;
 }
 
-#eisxekmuqc .gt_asterisk {
+#oppknkrraa .gt_asterisk {
   font-size: 100%;
   vertical-align: 0;
 }
 
-#eisxekmuqc .gt_indent_1 {
+#oppknkrraa .gt_indent_1 {
   text-indent: 5px;
 }
 
-#eisxekmuqc .gt_indent_2 {
+#oppknkrraa .gt_indent_2 {
   text-indent: 10px;
 }
 
-#eisxekmuqc .gt_indent_3 {
+#oppknkrraa .gt_indent_3 {
   text-indent: 15px;
 }
 
-#eisxekmuqc .gt_indent_4 {
+#oppknkrraa .gt_indent_4 {
   text-indent: 20px;
 }
 
-#eisxekmuqc .gt_indent_5 {
+#oppknkrraa .gt_indent_5 {
   text-indent: 25px;
+}
+
+#oppknkrraa .katex-display {
+  display: inline-flex !important;
+  margin-bottom: 0.75em !important;
+}
+
+#oppknkrraa div.Reactable > div.rt-table > div.rt-thead > div.rt-tr.rt-tr-group-header > div.rt-th-group:after {
+  height: 0px !important;
 }
 </style>
 
@@ -3791,7 +3818,7 @@ Price and quantity are <span style="color: red;"> negatively </span> correlated!
 <summary>
 Answer
 </summary>
-The omitted variable, massage quality, did not change over time within city, which means it is controlled for as long as you look only at the intra-city variations (you do not compare .red[across] cities).
+The omitted variable, massage quality, did not change over time within city, which means it is controlled for as long as you look only at the intra-city variations (you do not compare <span style="color: blue;">across</span> cities).
 </details>
 </div>
 </div>
@@ -3821,23 +3848,23 @@ The omitted variable, massage quality, did not change over time within city, whi
 <noscript>Please enable JavaScript to experience the dynamic code cell content on this page.</noscript>
 <div class="cell">
 <div class="cell-output-display">
-<div id="wduuulqxeh" style="padding-left:0px;padding-right:0px;padding-top:10px;padding-bottom:10px;overflow-x:auto;overflow-y:auto;width:auto;height:auto;">
-<style>#wduuulqxeh table {
+<div id="wkxgwaqyoa" style="padding-left:0px;padding-right:0px;padding-top:10px;padding-bottom:10px;overflow-x:auto;overflow-y:auto;width:auto;height:auto;">
+<style>#wkxgwaqyoa table {
   font-family: system-ui, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol', 'Noto Color Emoji';
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
 
-#wduuulqxeh thead, #wduuulqxeh tbody, #wduuulqxeh tfoot, #wduuulqxeh tr, #wduuulqxeh td, #wduuulqxeh th {
+#wkxgwaqyoa thead, #wkxgwaqyoa tbody, #wkxgwaqyoa tfoot, #wkxgwaqyoa tr, #wkxgwaqyoa td, #wkxgwaqyoa th {
   border-style: none;
 }
 
-#wduuulqxeh p {
+#wkxgwaqyoa p {
   margin: 0;
   padding: 0;
 }
 
-#wduuulqxeh .gt_table {
+#wkxgwaqyoa .gt_table {
   display: table;
   border-collapse: collapse;
   line-height: normal;
@@ -3863,12 +3890,12 @@ The omitted variable, massage quality, did not change over time within city, whi
   border-left-color: #D3D3D3;
 }
 
-#wduuulqxeh .gt_caption {
+#wkxgwaqyoa .gt_caption {
   padding-top: 4px;
   padding-bottom: 4px;
 }
 
-#wduuulqxeh .gt_title {
+#wkxgwaqyoa .gt_title {
   color: #333333;
   font-size: 125%;
   font-weight: initial;
@@ -3880,7 +3907,7 @@ The omitted variable, massage quality, did not change over time within city, whi
   border-bottom-width: 0;
 }
 
-#wduuulqxeh .gt_subtitle {
+#wkxgwaqyoa .gt_subtitle {
   color: #333333;
   font-size: 85%;
   font-weight: initial;
@@ -3892,7 +3919,7 @@ The omitted variable, massage quality, did not change over time within city, whi
   border-top-width: 0;
 }
 
-#wduuulqxeh .gt_heading {
+#wkxgwaqyoa .gt_heading {
   background-color: #FFFFFF;
   text-align: center;
   border-bottom-color: #FFFFFF;
@@ -3904,13 +3931,13 @@ The omitted variable, massage quality, did not change over time within city, whi
   border-right-color: #D3D3D3;
 }
 
-#wduuulqxeh .gt_bottom_border {
+#wkxgwaqyoa .gt_bottom_border {
   border-bottom-style: solid;
   border-bottom-width: 2px;
   border-bottom-color: #D3D3D3;
 }
 
-#wduuulqxeh .gt_col_headings {
+#wkxgwaqyoa .gt_col_headings {
   border-top-style: solid;
   border-top-width: 2px;
   border-top-color: #D3D3D3;
@@ -3925,7 +3952,7 @@ The omitted variable, massage quality, did not change over time within city, whi
   border-right-color: #D3D3D3;
 }
 
-#wduuulqxeh .gt_col_heading {
+#wkxgwaqyoa .gt_col_heading {
   color: #333333;
   background-color: #FFFFFF;
   font-size: 100%;
@@ -3945,7 +3972,7 @@ The omitted variable, massage quality, did not change over time within city, whi
   overflow-x: hidden;
 }
 
-#wduuulqxeh .gt_column_spanner_outer {
+#wkxgwaqyoa .gt_column_spanner_outer {
   color: #333333;
   background-color: #FFFFFF;
   font-size: 100%;
@@ -3957,15 +3984,15 @@ The omitted variable, massage quality, did not change over time within city, whi
   padding-right: 4px;
 }
 
-#wduuulqxeh .gt_column_spanner_outer:first-child {
+#wkxgwaqyoa .gt_column_spanner_outer:first-child {
   padding-left: 0;
 }
 
-#wduuulqxeh .gt_column_spanner_outer:last-child {
+#wkxgwaqyoa .gt_column_spanner_outer:last-child {
   padding-right: 0;
 }
 
-#wduuulqxeh .gt_column_spanner {
+#wkxgwaqyoa .gt_column_spanner {
   border-bottom-style: solid;
   border-bottom-width: 2px;
   border-bottom-color: #D3D3D3;
@@ -3977,11 +4004,11 @@ The omitted variable, massage quality, did not change over time within city, whi
   width: 100%;
 }
 
-#wduuulqxeh .gt_spanner_row {
+#wkxgwaqyoa .gt_spanner_row {
   border-bottom-style: hidden;
 }
 
-#wduuulqxeh .gt_group_heading {
+#wkxgwaqyoa .gt_group_heading {
   padding-top: 8px;
   padding-bottom: 8px;
   padding-left: 5px;
@@ -4007,7 +4034,7 @@ The omitted variable, massage quality, did not change over time within city, whi
   text-align: left;
 }
 
-#wduuulqxeh .gt_empty_group_heading {
+#wkxgwaqyoa .gt_empty_group_heading {
   padding: 0.5px;
   color: #333333;
   background-color: #FFFFFF;
@@ -4022,15 +4049,15 @@ The omitted variable, massage quality, did not change over time within city, whi
   vertical-align: middle;
 }
 
-#wduuulqxeh .gt_from_md > :first-child {
+#wkxgwaqyoa .gt_from_md > :first-child {
   margin-top: 0;
 }
 
-#wduuulqxeh .gt_from_md > :last-child {
+#wkxgwaqyoa .gt_from_md > :last-child {
   margin-bottom: 0;
 }
 
-#wduuulqxeh .gt_row {
+#wkxgwaqyoa .gt_row {
   padding-top: 8px;
   padding-bottom: 8px;
   padding-left: 5px;
@@ -4049,7 +4076,7 @@ The omitted variable, massage quality, did not change over time within city, whi
   overflow-x: hidden;
 }
 
-#wduuulqxeh .gt_stub {
+#wkxgwaqyoa .gt_stub {
   color: #333333;
   background-color: #FFFFFF;
   font-size: 100%;
@@ -4062,7 +4089,7 @@ The omitted variable, massage quality, did not change over time within city, whi
   padding-right: 5px;
 }
 
-#wduuulqxeh .gt_stub_row_group {
+#wkxgwaqyoa .gt_stub_row_group {
   color: #333333;
   background-color: #FFFFFF;
   font-size: 100%;
@@ -4076,15 +4103,15 @@ The omitted variable, massage quality, did not change over time within city, whi
   vertical-align: top;
 }
 
-#wduuulqxeh .gt_row_group_first td {
+#wkxgwaqyoa .gt_row_group_first td {
   border-top-width: 2px;
 }
 
-#wduuulqxeh .gt_row_group_first th {
+#wkxgwaqyoa .gt_row_group_first th {
   border-top-width: 2px;
 }
 
-#wduuulqxeh .gt_summary_row {
+#wkxgwaqyoa .gt_summary_row {
   color: #333333;
   background-color: #FFFFFF;
   text-transform: inherit;
@@ -4094,16 +4121,16 @@ The omitted variable, massage quality, did not change over time within city, whi
   padding-right: 5px;
 }
 
-#wduuulqxeh .gt_first_summary_row {
+#wkxgwaqyoa .gt_first_summary_row {
   border-top-style: solid;
   border-top-color: #D3D3D3;
 }
 
-#wduuulqxeh .gt_first_summary_row.thick {
+#wkxgwaqyoa .gt_first_summary_row.thick {
   border-top-width: 2px;
 }
 
-#wduuulqxeh .gt_last_summary_row {
+#wkxgwaqyoa .gt_last_summary_row {
   padding-top: 8px;
   padding-bottom: 8px;
   padding-left: 5px;
@@ -4113,7 +4140,7 @@ The omitted variable, massage quality, did not change over time within city, whi
   border-bottom-color: #D3D3D3;
 }
 
-#wduuulqxeh .gt_grand_summary_row {
+#wkxgwaqyoa .gt_grand_summary_row {
   color: #333333;
   background-color: #FFFFFF;
   text-transform: inherit;
@@ -4123,7 +4150,7 @@ The omitted variable, massage quality, did not change over time within city, whi
   padding-right: 5px;
 }
 
-#wduuulqxeh .gt_first_grand_summary_row {
+#wkxgwaqyoa .gt_first_grand_summary_row {
   padding-top: 8px;
   padding-bottom: 8px;
   padding-left: 5px;
@@ -4133,7 +4160,7 @@ The omitted variable, massage quality, did not change over time within city, whi
   border-top-color: #D3D3D3;
 }
 
-#wduuulqxeh .gt_last_grand_summary_row_top {
+#wkxgwaqyoa .gt_last_grand_summary_row_top {
   padding-top: 8px;
   padding-bottom: 8px;
   padding-left: 5px;
@@ -4143,11 +4170,11 @@ The omitted variable, massage quality, did not change over time within city, whi
   border-bottom-color: #D3D3D3;
 }
 
-#wduuulqxeh .gt_striped {
+#wkxgwaqyoa .gt_striped {
   background-color: rgba(128, 128, 128, 0.05);
 }
 
-#wduuulqxeh .gt_table_body {
+#wkxgwaqyoa .gt_table_body {
   border-top-style: solid;
   border-top-width: 2px;
   border-top-color: #D3D3D3;
@@ -4156,7 +4183,7 @@ The omitted variable, massage quality, did not change over time within city, whi
   border-bottom-color: #D3D3D3;
 }
 
-#wduuulqxeh .gt_footnotes {
+#wkxgwaqyoa .gt_footnotes {
   color: #333333;
   background-color: #FFFFFF;
   border-bottom-style: none;
@@ -4170,7 +4197,7 @@ The omitted variable, massage quality, did not change over time within city, whi
   border-right-color: #D3D3D3;
 }
 
-#wduuulqxeh .gt_footnote {
+#wkxgwaqyoa .gt_footnote {
   margin: 0px;
   font-size: 90%;
   padding-top: 4px;
@@ -4179,7 +4206,7 @@ The omitted variable, massage quality, did not change over time within city, whi
   padding-right: 5px;
 }
 
-#wduuulqxeh .gt_sourcenotes {
+#wkxgwaqyoa .gt_sourcenotes {
   color: #333333;
   background-color: #FFFFFF;
   border-bottom-style: none;
@@ -4193,7 +4220,7 @@ The omitted variable, massage quality, did not change over time within city, whi
   border-right-color: #D3D3D3;
 }
 
-#wduuulqxeh .gt_sourcenote {
+#wkxgwaqyoa .gt_sourcenote {
   font-size: 90%;
   padding-top: 4px;
   padding-bottom: 4px;
@@ -4201,64 +4228,73 @@ The omitted variable, massage quality, did not change over time within city, whi
   padding-right: 5px;
 }
 
-#wduuulqxeh .gt_left {
+#wkxgwaqyoa .gt_left {
   text-align: left;
 }
 
-#wduuulqxeh .gt_center {
+#wkxgwaqyoa .gt_center {
   text-align: center;
 }
 
-#wduuulqxeh .gt_right {
+#wkxgwaqyoa .gt_right {
   text-align: right;
   font-variant-numeric: tabular-nums;
 }
 
-#wduuulqxeh .gt_font_normal {
+#wkxgwaqyoa .gt_font_normal {
   font-weight: normal;
 }
 
-#wduuulqxeh .gt_font_bold {
+#wkxgwaqyoa .gt_font_bold {
   font-weight: bold;
 }
 
-#wduuulqxeh .gt_font_italic {
+#wkxgwaqyoa .gt_font_italic {
   font-style: italic;
 }
 
-#wduuulqxeh .gt_super {
+#wkxgwaqyoa .gt_super {
   font-size: 65%;
 }
 
-#wduuulqxeh .gt_footnote_marks {
+#wkxgwaqyoa .gt_footnote_marks {
   font-size: 75%;
   vertical-align: 0.4em;
   position: initial;
 }
 
-#wduuulqxeh .gt_asterisk {
+#wkxgwaqyoa .gt_asterisk {
   font-size: 100%;
   vertical-align: 0;
 }
 
-#wduuulqxeh .gt_indent_1 {
+#wkxgwaqyoa .gt_indent_1 {
   text-indent: 5px;
 }
 
-#wduuulqxeh .gt_indent_2 {
+#wkxgwaqyoa .gt_indent_2 {
   text-indent: 10px;
 }
 
-#wduuulqxeh .gt_indent_3 {
+#wkxgwaqyoa .gt_indent_3 {
   text-indent: 15px;
 }
 
-#wduuulqxeh .gt_indent_4 {
+#wkxgwaqyoa .gt_indent_4 {
   text-indent: 20px;
 }
 
-#wduuulqxeh .gt_indent_5 {
+#wkxgwaqyoa .gt_indent_5 {
   text-indent: 25px;
+}
+
+#wkxgwaqyoa .katex-display {
+  display: inline-flex !important;
+  margin-bottom: 0.75em !important;
+}
+
+#wkxgwaqyoa div.Reactable > div.rt-table > div.rt-thead > div.rt-tr.rt-tr-group-header > div.rt-th-group:after {
+  height: 0px !important;
 }
 </style>
 
@@ -4432,23 +4468,23 @@ The omitted variable, massage quality, did not change over time within city, whi
 <noscript>Please enable JavaScript to experience the dynamic code cell content on this page.</noscript>
 <div class="cell">
 <div class="cell-output-display">
-<div id="ggdpjrjnff" style="padding-left:0px;padding-right:0px;padding-top:10px;padding-bottom:10px;overflow-x:auto;overflow-y:auto;width:auto;height:auto;">
-<style>#ggdpjrjnff table {
+<div id="ppluuyzqnu" style="padding-left:0px;padding-right:0px;padding-top:10px;padding-bottom:10px;overflow-x:auto;overflow-y:auto;width:auto;height:auto;">
+<style>#ppluuyzqnu table {
   font-family: system-ui, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol', 'Noto Color Emoji';
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
 
-#ggdpjrjnff thead, #ggdpjrjnff tbody, #ggdpjrjnff tfoot, #ggdpjrjnff tr, #ggdpjrjnff td, #ggdpjrjnff th {
+#ppluuyzqnu thead, #ppluuyzqnu tbody, #ppluuyzqnu tfoot, #ppluuyzqnu tr, #ppluuyzqnu td, #ppluuyzqnu th {
   border-style: none;
 }
 
-#ggdpjrjnff p {
+#ppluuyzqnu p {
   margin: 0;
   padding: 0;
 }
 
-#ggdpjrjnff .gt_table {
+#ppluuyzqnu .gt_table {
   display: table;
   border-collapse: collapse;
   line-height: normal;
@@ -4474,12 +4510,12 @@ The omitted variable, massage quality, did not change over time within city, whi
   border-left-color: #D3D3D3;
 }
 
-#ggdpjrjnff .gt_caption {
+#ppluuyzqnu .gt_caption {
   padding-top: 4px;
   padding-bottom: 4px;
 }
 
-#ggdpjrjnff .gt_title {
+#ppluuyzqnu .gt_title {
   color: #333333;
   font-size: 125%;
   font-weight: initial;
@@ -4491,7 +4527,7 @@ The omitted variable, massage quality, did not change over time within city, whi
   border-bottom-width: 0;
 }
 
-#ggdpjrjnff .gt_subtitle {
+#ppluuyzqnu .gt_subtitle {
   color: #333333;
   font-size: 85%;
   font-weight: initial;
@@ -4503,7 +4539,7 @@ The omitted variable, massage quality, did not change over time within city, whi
   border-top-width: 0;
 }
 
-#ggdpjrjnff .gt_heading {
+#ppluuyzqnu .gt_heading {
   background-color: #FFFFFF;
   text-align: center;
   border-bottom-color: #FFFFFF;
@@ -4515,13 +4551,13 @@ The omitted variable, massage quality, did not change over time within city, whi
   border-right-color: #D3D3D3;
 }
 
-#ggdpjrjnff .gt_bottom_border {
+#ppluuyzqnu .gt_bottom_border {
   border-bottom-style: solid;
   border-bottom-width: 2px;
   border-bottom-color: #D3D3D3;
 }
 
-#ggdpjrjnff .gt_col_headings {
+#ppluuyzqnu .gt_col_headings {
   border-top-style: solid;
   border-top-width: 2px;
   border-top-color: #D3D3D3;
@@ -4536,7 +4572,7 @@ The omitted variable, massage quality, did not change over time within city, whi
   border-right-color: #D3D3D3;
 }
 
-#ggdpjrjnff .gt_col_heading {
+#ppluuyzqnu .gt_col_heading {
   color: #333333;
   background-color: #FFFFFF;
   font-size: 100%;
@@ -4556,7 +4592,7 @@ The omitted variable, massage quality, did not change over time within city, whi
   overflow-x: hidden;
 }
 
-#ggdpjrjnff .gt_column_spanner_outer {
+#ppluuyzqnu .gt_column_spanner_outer {
   color: #333333;
   background-color: #FFFFFF;
   font-size: 100%;
@@ -4568,15 +4604,15 @@ The omitted variable, massage quality, did not change over time within city, whi
   padding-right: 4px;
 }
 
-#ggdpjrjnff .gt_column_spanner_outer:first-child {
+#ppluuyzqnu .gt_column_spanner_outer:first-child {
   padding-left: 0;
 }
 
-#ggdpjrjnff .gt_column_spanner_outer:last-child {
+#ppluuyzqnu .gt_column_spanner_outer:last-child {
   padding-right: 0;
 }
 
-#ggdpjrjnff .gt_column_spanner {
+#ppluuyzqnu .gt_column_spanner {
   border-bottom-style: solid;
   border-bottom-width: 2px;
   border-bottom-color: #D3D3D3;
@@ -4588,11 +4624,11 @@ The omitted variable, massage quality, did not change over time within city, whi
   width: 100%;
 }
 
-#ggdpjrjnff .gt_spanner_row {
+#ppluuyzqnu .gt_spanner_row {
   border-bottom-style: hidden;
 }
 
-#ggdpjrjnff .gt_group_heading {
+#ppluuyzqnu .gt_group_heading {
   padding-top: 8px;
   padding-bottom: 8px;
   padding-left: 5px;
@@ -4618,7 +4654,7 @@ The omitted variable, massage quality, did not change over time within city, whi
   text-align: left;
 }
 
-#ggdpjrjnff .gt_empty_group_heading {
+#ppluuyzqnu .gt_empty_group_heading {
   padding: 0.5px;
   color: #333333;
   background-color: #FFFFFF;
@@ -4633,15 +4669,15 @@ The omitted variable, massage quality, did not change over time within city, whi
   vertical-align: middle;
 }
 
-#ggdpjrjnff .gt_from_md > :first-child {
+#ppluuyzqnu .gt_from_md > :first-child {
   margin-top: 0;
 }
 
-#ggdpjrjnff .gt_from_md > :last-child {
+#ppluuyzqnu .gt_from_md > :last-child {
   margin-bottom: 0;
 }
 
-#ggdpjrjnff .gt_row {
+#ppluuyzqnu .gt_row {
   padding-top: 8px;
   padding-bottom: 8px;
   padding-left: 5px;
@@ -4660,7 +4696,7 @@ The omitted variable, massage quality, did not change over time within city, whi
   overflow-x: hidden;
 }
 
-#ggdpjrjnff .gt_stub {
+#ppluuyzqnu .gt_stub {
   color: #333333;
   background-color: #FFFFFF;
   font-size: 100%;
@@ -4673,7 +4709,7 @@ The omitted variable, massage quality, did not change over time within city, whi
   padding-right: 5px;
 }
 
-#ggdpjrjnff .gt_stub_row_group {
+#ppluuyzqnu .gt_stub_row_group {
   color: #333333;
   background-color: #FFFFFF;
   font-size: 100%;
@@ -4687,15 +4723,15 @@ The omitted variable, massage quality, did not change over time within city, whi
   vertical-align: top;
 }
 
-#ggdpjrjnff .gt_row_group_first td {
+#ppluuyzqnu .gt_row_group_first td {
   border-top-width: 2px;
 }
 
-#ggdpjrjnff .gt_row_group_first th {
+#ppluuyzqnu .gt_row_group_first th {
   border-top-width: 2px;
 }
 
-#ggdpjrjnff .gt_summary_row {
+#ppluuyzqnu .gt_summary_row {
   color: #333333;
   background-color: #FFFFFF;
   text-transform: inherit;
@@ -4705,16 +4741,16 @@ The omitted variable, massage quality, did not change over time within city, whi
   padding-right: 5px;
 }
 
-#ggdpjrjnff .gt_first_summary_row {
+#ppluuyzqnu .gt_first_summary_row {
   border-top-style: solid;
   border-top-color: #D3D3D3;
 }
 
-#ggdpjrjnff .gt_first_summary_row.thick {
+#ppluuyzqnu .gt_first_summary_row.thick {
   border-top-width: 2px;
 }
 
-#ggdpjrjnff .gt_last_summary_row {
+#ppluuyzqnu .gt_last_summary_row {
   padding-top: 8px;
   padding-bottom: 8px;
   padding-left: 5px;
@@ -4724,7 +4760,7 @@ The omitted variable, massage quality, did not change over time within city, whi
   border-bottom-color: #D3D3D3;
 }
 
-#ggdpjrjnff .gt_grand_summary_row {
+#ppluuyzqnu .gt_grand_summary_row {
   color: #333333;
   background-color: #FFFFFF;
   text-transform: inherit;
@@ -4734,7 +4770,7 @@ The omitted variable, massage quality, did not change over time within city, whi
   padding-right: 5px;
 }
 
-#ggdpjrjnff .gt_first_grand_summary_row {
+#ppluuyzqnu .gt_first_grand_summary_row {
   padding-top: 8px;
   padding-bottom: 8px;
   padding-left: 5px;
@@ -4744,7 +4780,7 @@ The omitted variable, massage quality, did not change over time within city, whi
   border-top-color: #D3D3D3;
 }
 
-#ggdpjrjnff .gt_last_grand_summary_row_top {
+#ppluuyzqnu .gt_last_grand_summary_row_top {
   padding-top: 8px;
   padding-bottom: 8px;
   padding-left: 5px;
@@ -4754,11 +4790,11 @@ The omitted variable, massage quality, did not change over time within city, whi
   border-bottom-color: #D3D3D3;
 }
 
-#ggdpjrjnff .gt_striped {
+#ppluuyzqnu .gt_striped {
   background-color: rgba(128, 128, 128, 0.05);
 }
 
-#ggdpjrjnff .gt_table_body {
+#ppluuyzqnu .gt_table_body {
   border-top-style: solid;
   border-top-width: 2px;
   border-top-color: #D3D3D3;
@@ -4767,7 +4803,7 @@ The omitted variable, massage quality, did not change over time within city, whi
   border-bottom-color: #D3D3D3;
 }
 
-#ggdpjrjnff .gt_footnotes {
+#ppluuyzqnu .gt_footnotes {
   color: #333333;
   background-color: #FFFFFF;
   border-bottom-style: none;
@@ -4781,7 +4817,7 @@ The omitted variable, massage quality, did not change over time within city, whi
   border-right-color: #D3D3D3;
 }
 
-#ggdpjrjnff .gt_footnote {
+#ppluuyzqnu .gt_footnote {
   margin: 0px;
   font-size: 90%;
   padding-top: 4px;
@@ -4790,7 +4826,7 @@ The omitted variable, massage quality, did not change over time within city, whi
   padding-right: 5px;
 }
 
-#ggdpjrjnff .gt_sourcenotes {
+#ppluuyzqnu .gt_sourcenotes {
   color: #333333;
   background-color: #FFFFFF;
   border-bottom-style: none;
@@ -4804,7 +4840,7 @@ The omitted variable, massage quality, did not change over time within city, whi
   border-right-color: #D3D3D3;
 }
 
-#ggdpjrjnff .gt_sourcenote {
+#ppluuyzqnu .gt_sourcenote {
   font-size: 90%;
   padding-top: 4px;
   padding-bottom: 4px;
@@ -4812,64 +4848,73 @@ The omitted variable, massage quality, did not change over time within city, whi
   padding-right: 5px;
 }
 
-#ggdpjrjnff .gt_left {
+#ppluuyzqnu .gt_left {
   text-align: left;
 }
 
-#ggdpjrjnff .gt_center {
+#ppluuyzqnu .gt_center {
   text-align: center;
 }
 
-#ggdpjrjnff .gt_right {
+#ppluuyzqnu .gt_right {
   text-align: right;
   font-variant-numeric: tabular-nums;
 }
 
-#ggdpjrjnff .gt_font_normal {
+#ppluuyzqnu .gt_font_normal {
   font-weight: normal;
 }
 
-#ggdpjrjnff .gt_font_bold {
+#ppluuyzqnu .gt_font_bold {
   font-weight: bold;
 }
 
-#ggdpjrjnff .gt_font_italic {
+#ppluuyzqnu .gt_font_italic {
   font-style: italic;
 }
 
-#ggdpjrjnff .gt_super {
+#ppluuyzqnu .gt_super {
   font-size: 65%;
 }
 
-#ggdpjrjnff .gt_footnote_marks {
+#ppluuyzqnu .gt_footnote_marks {
   font-size: 75%;
   vertical-align: 0.4em;
   position: initial;
 }
 
-#ggdpjrjnff .gt_asterisk {
+#ppluuyzqnu .gt_asterisk {
   font-size: 100%;
   vertical-align: 0;
 }
 
-#ggdpjrjnff .gt_indent_1 {
+#ppluuyzqnu .gt_indent_1 {
   text-indent: 5px;
 }
 
-#ggdpjrjnff .gt_indent_2 {
+#ppluuyzqnu .gt_indent_2 {
   text-indent: 10px;
 }
 
-#ggdpjrjnff .gt_indent_3 {
+#ppluuyzqnu .gt_indent_3 {
   text-indent: 15px;
 }
 
-#ggdpjrjnff .gt_indent_4 {
+#ppluuyzqnu .gt_indent_4 {
   text-indent: 20px;
 }
 
-#ggdpjrjnff .gt_indent_5 {
+#ppluuyzqnu .gt_indent_5 {
   text-indent: 25px;
+}
+
+#ppluuyzqnu .katex-display {
+  display: inline-flex !important;
+  margin-bottom: 0.75em !important;
+}
+
+#ppluuyzqnu div.Reactable > div.rt-table > div.rt-thead > div.rt-tr.rt-tr-group-header > div.rt-th-group:after {
+  height: 0px !important;
 }
 </style>
 
@@ -5049,7 +5094,7 @@ The omitted variable, massage quality, did not change over time within city, whi
 <p>Consider the following general model</p>
 <p><span class="math inline">\(y_{i,t}=\beta_1 x_{i,t} + \alpha_i + u_{i,t}\)</span></p>
 <ul>
-<li><span class="math inline">\(\alpha_i\)</span>: the impact of time-invariant <span style="color: blue;"> unobserved </span> factor that is specific to <span class="math inline">\(i\)</span> (also termed .blue[individual fixed effect])</li>
+<li><span class="math inline">\(\alpha_i\)</span>: the impact of time-invariant <span style="color: blue;"> unobserved </span> factor that is specific to <span class="math inline">\(i\)</span> (also termed <span style="color: blue;">individual fixed effect</span>)</li>
 <li><span class="math inline">\(\alpha_i\)</span> is thought to be correlated with <span class="math inline">\(x_{i,t}\)</span></li>
 </ul>
 <div class="panel-tabset">
@@ -5379,8 +5424,8 @@ Answer
 <p><br></p>
 <p><strong>Why?</strong></p>
 <ul>
-<li><p>Remember year FEs capture .blue[anything] that happened to all the individuals for a specific year relative to the base year</p></li>
-<li><p>In other words, .blue[all the unobserved factors] that are common to all the individuals in a specific year is .blue[controlled for (taken out of the error term)]</p></li>
+<li><p>Remember year FEs capture <span style="color: blue;">anything</span> that happened to all the individuals for a specific year relative to the base year</p></li>
+<li><p>In other words, <span style="color: blue;">all the unobserved factors</span> that are common to all the individuals in a specific year is <span style="color: blue;">controlled for (taken out of the error term)</span></p></li>
 </ul>
 <p><br></p>
 <p><strong>Example</strong></p>
@@ -5405,7 +5450,7 @@ Answer
 <div class="callout-content">
 <ul>
 <li><p>Year FEs would be perfectly collinear with variables that change only across time, but not across individuals.</p></li>
-<li><p>If your variable of interest is such a variable, you cannot include year FEs, which would then make your estimation subject to omitted variable bias due to .red[other] unobserved yearly-changing factors.</p></li>
+<li><p>If your variable of interest is such a variable, you cannot include year FEs, which would then make your estimation subject to omitted variable bias due to <span style="color: blue;">other</span> unobserved yearly-changing factors.</p></li>
 </ul>
 </div>
 </div>
@@ -5426,7 +5471,7 @@ Answer
 <p>Just like we saw for OLS using cross-sectional data, heteroskedasticity leads to biased estimation of the standard error of the coefficient estimators if not taken into account</p>
 <p><br></p>
 <p><strong>Serial Correlation</strong></p>
-<p>Correlation of errors over time, which we call .blue[serial correlation]</p>
+<p>Correlation of errors over time, which we call <span style="color: blue;">serial correlation</span></p>
 </div>
 <div id="tabset-16-2">
 <ul>

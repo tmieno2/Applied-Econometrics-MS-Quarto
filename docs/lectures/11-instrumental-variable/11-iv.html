@@ -8,7 +8,7 @@
 <link href="../../site_libs/quarto-html/light-border.css" rel="stylesheet">
 <link href="../../site_libs/quarto-html/quarto-html.min.css" rel="stylesheet" data-mode="light">
 <link href="../../site_libs/quarto-html/quarto-syntax-highlighting.css" rel="stylesheet" id="quarto-text-highlighting-styles"><meta charset="utf-8">
-  <meta name="generator" content="quarto-1.5.56">
+  <meta name="generator" content="quarto-1.5.57">
 
   <title>Applied Econometrics (AECN 896-004) – 11: Dealing with Endogeneity: Instrumental Variable</title>
   <meta name="apple-mobile-web-app-capable" content="yes">
@@ -675,7 +675,7 @@
   };
 
   // Store cell data
-  globalThis.qwebrCellDetails = [{"options":{"editor-max-height":"","autorun":"true","editor-quick-suggestions":"false","editor-font-scale":"0.8","context":"interactive","dpi":72,"read-only":"false","label":"unnamed-chunk-1","fig-height":5,"out-width":"700px","fig-width":7,"comment":"","output":"true","warning":"true","message":"true","results":"markup","fig-cap":"","editor-word-wrap":"true","classes":"","out-height":""},"id":1,"code":"data(\"wage2\", package = \"wooldridge\")\n\n#* regress educ on exper, IQ, and sibs\nfirst_reg <- fixest::feols(educ ~ exper + IQ + sibs, data = wage2)\n\n#* predict educ as a function of exper, IQ, and sibs\nwage2 <- dplyr::mutate(wage2, educ_hat = first_reg$fitted.values)\n\n#* seed the predicted values\nwage2 %>%\n  dplyr::relocate(educ_hat) %>%\n  head()"},{"options":{"editor-max-height":"","autorun":"true","editor-quick-suggestions":"false","editor-font-scale":"0.8","context":"interactive","dpi":72,"read-only":"false","label":"unnamed-chunk-2","fig-height":5,"out-width":"700px","fig-width":7,"comment":"","output":"true","warning":"true","message":"true","results":"markup","fig-cap":"","editor-word-wrap":"true","classes":"","out-height":""},"id":2,"code":"#* regression with educ_hat in place of educ\nsecond_reg <- fixest::feols(wage ~ educ_hat + exper, data = wage2)\n\n#* see the results\nsecond_reg"},{"options":{"editor-max-height":"","autorun":"true","editor-quick-suggestions":"false","editor-font-scale":"0.8","context":"interactive","dpi":72,"read-only":"false","label":"unnamed-chunk-3","fig-height":5,"out-width":"700px","fig-width":7,"comment":"","output":"true","warning":"true","message":"true","results":"markup","fig-cap":"","editor-word-wrap":"true","classes":"","out-height":""},"id":3,"code":"#--- take a look at the data ---#\nwage2 %>%\n  select(wage, educ, sibs, feduc) %>%\n  head()"},{"options":{"editor-max-height":"","autorun":"true","editor-quick-suggestions":"false","editor-font-scale":"0.8","context":"interactive","dpi":72,"read-only":"false","label":"unnamed-chunk-4","fig-height":5,"out-width":"700px","fig-width":7,"comment":"","output":"true","warning":"true","message":"true","results":"markup","fig-cap":"","editor-word-wrap":"true","classes":"","out-height":""},"id":4,"code":"iv_res <- fixest::feols(log(wage) ~ exper | educ ~ sibs + feduc, data = wage2)"},{"options":{"editor-max-height":"","autorun":"true","editor-quick-suggestions":"false","editor-font-scale":"0.8","context":"interactive","dpi":72,"read-only":"false","label":"unnamed-chunk-5","fig-height":5,"out-width":"700px","fig-width":7,"comment":"","output":"true","warning":"true","message":"true","results":"markup","fig-cap":"","editor-word-wrap":"true","classes":"","out-height":""},"id":5,"code":"iv_res"},{"options":{"editor-max-height":"","autorun":"true","editor-quick-suggestions":"false","editor-font-scale":"0.8","context":"interactive","dpi":72,"read-only":"false","label":"unnamed-chunk-6","fig-height":5,"out-width":"700px","fig-width":7,"comment":"","output":"true","warning":"true","message":"true","results":"markup","fig-cap":"","editor-word-wrap":"true","classes":"","out-height":""},"id":6,"code":"iv_res"},{"options":{"editor-max-height":"","autorun":"true","editor-quick-suggestions":"false","editor-font-scale":"0.8","context":"interactive","dpi":72,"read-only":"false","label":"unnamed-chunk-7","fig-height":5,"out-width":"700px","fig-width":7,"comment":"","output":"true","warning":"true","message":"true","results":"markup","fig-cap":"","editor-word-wrap":"true","classes":"","out-height":""},"id":7,"code":"iv_res$iv_first_stage"},{"options":{"editor-max-height":"","autorun":"false","editor-quick-suggestions":"false","editor-font-scale":"0.8","context":"interactive","dpi":72,"read-only":"false","label":"unnamed-chunk-8","fig-height":5,"out-width":"700px","fig-width":7,"comment":"","output":"true","warning":"true","message":"true","results":"markup","fig-cap":"","editor-word-wrap":"true","classes":"","out-height":""},"id":8,"code":"set.seed(73289)\nN <- 500 # number of observations\n\nu_common <- runif(N) # the term shared by the endogenous variable and the error term\nz_common <- runif(N) # the term shared by the endogenous variable and instruments\nx_end <- u_common + z_common + runif(N) # the endogenous variable\nz_strong <- z_common + runif(N) # strong instrument\nz_weak <- 0.01 * z_common + 0.99995 * runif(N) # weak instrument\nu <- u_common + runif(N) # error term\ny <- x_end + u # dependent variable\n\ndata <- data.frame(y, x_end, z_strong, z_weak)"},{"options":{"editor-max-height":"","autorun":"false","editor-quick-suggestions":"false","editor-font-scale":"0.8","context":"interactive","dpi":72,"read-only":"false","label":"unnamed-chunk-9","fig-height":5,"out-width":"700px","fig-width":7,"comment":"","output":"true","warning":"true","message":"true","results":"markup","fig-cap":"","editor-word-wrap":"true","classes":"","out-height":""},"id":9,"code":"cor(data)"},{"options":{"editor-max-height":"","autorun":"false","editor-quick-suggestions":"false","editor-font-scale":"0.8","context":"interactive","dpi":72,"read-only":"false","label":"unnamed-chunk-10","fig-height":5,"out-width":"700px","fig-width":7,"comment":"","output":"true","warning":"true","message":"true","results":"markup","fig-cap":"","editor-word-wrap":"true","classes":"","out-height":""},"id":10,"code":"#--- IV estimation (strong) ---#\niv_strong <- fixest::feols(y ~ 1 | x_end ~ z_strong, data = data)\n\n#--- coefs (strong) ---#\ntidy(iv_strong)"},{"options":{"editor-max-height":"","autorun":"false","editor-quick-suggestions":"false","editor-font-scale":"0.8","context":"interactive","dpi":72,"read-only":"false","label":"unnamed-chunk-11","fig-height":5,"out-width":"700px","fig-width":7,"comment":"","output":"true","warning":"true","message":"true","results":"markup","fig-cap":"","editor-word-wrap":"true","classes":"","out-height":""},"id":11,"code":"#--- IV estimation (weak) ---#\niv_weak <- fixest::feols(y ~ 1 | x_end ~ z_weak, data = data)\n\n#--- coefs (weak) ---#\ntidy(iv_weak)"},{"options":{"editor-max-height":"","autorun":"false","editor-quick-suggestions":"false","editor-font-scale":"0.8","context":"interactive","dpi":72,"read-only":"false","label":"unnamed-chunk-12","fig-height":5,"out-width":"700px","fig-width":7,"comment":"","output":"true","warning":"true","message":"true","results":"markup","fig-cap":"","editor-word-wrap":"true","classes":"","out-height":""},"id":12,"code":"iv_strong$iv_first_stage"},{"options":{"editor-max-height":"","autorun":"false","editor-quick-suggestions":"false","editor-font-scale":"0.8","context":"interactive","dpi":72,"read-only":"false","label":"unnamed-chunk-13","fig-height":5,"out-width":"700px","fig-width":7,"comment":"","output":"true","warning":"true","message":"true","results":"markup","fig-cap":"","editor-word-wrap":"true","classes":"","out-height":""},"id":13,"code":"iv_weak$iv_first_stage"}];
+  globalThis.qwebrCellDetails = [{"id":1,"code":"data(\"wage2\", package = \"wooldridge\")\n\n#* regress educ on exper, IQ, and sibs\nfirst_reg <- fixest::feols(educ ~ exper + IQ + sibs, data = wage2)\n\n#* predict educ as a function of exper, IQ, and sibs\nwage2 <- dplyr::mutate(wage2, educ_hat = first_reg$fitted.values)\n\n#* seed the predicted values\nwage2 %>%\n  dplyr::relocate(educ_hat) %>%\n  head()","options":{"warning":"true","message":"true","editor-font-scale":"0.8","comment":"","autorun":"true","fig-width":7,"editor-quick-suggestions":"false","editor-max-height":"","results":"markup","editor-word-wrap":"true","context":"interactive","classes":"","fig-height":5,"fig-cap":"","output":"true","read-only":"false","out-height":"","dpi":72,"label":"unnamed-chunk-1","out-width":"700px"}},{"id":2,"code":"#* regression with educ_hat in place of educ\nsecond_reg <- fixest::feols(wage ~ educ_hat + exper, data = wage2)\n\n#* see the results\nsecond_reg","options":{"warning":"true","message":"true","editor-font-scale":"0.8","comment":"","autorun":"true","fig-width":7,"editor-quick-suggestions":"false","editor-max-height":"","results":"markup","editor-word-wrap":"true","context":"interactive","classes":"","fig-height":5,"fig-cap":"","output":"true","read-only":"false","out-height":"","dpi":72,"label":"unnamed-chunk-2","out-width":"700px"}},{"id":3,"code":"#--- take a look at the data ---#\nwage2 %>%\n  select(wage, educ, sibs, feduc) %>%\n  head()","options":{"warning":"true","message":"true","editor-font-scale":"0.8","comment":"","autorun":"true","fig-width":7,"editor-quick-suggestions":"false","editor-max-height":"","results":"markup","editor-word-wrap":"true","context":"interactive","classes":"","fig-height":5,"fig-cap":"","output":"true","read-only":"false","out-height":"","dpi":72,"label":"unnamed-chunk-3","out-width":"700px"}},{"id":4,"code":"iv_res <- fixest::feols(log(wage) ~ exper | educ ~ sibs + feduc, data = wage2)","options":{"warning":"true","message":"true","editor-font-scale":"0.8","comment":"","autorun":"true","fig-width":7,"editor-quick-suggestions":"false","editor-max-height":"","results":"markup","editor-word-wrap":"true","context":"interactive","classes":"","fig-height":5,"fig-cap":"","output":"true","read-only":"false","out-height":"","dpi":72,"label":"unnamed-chunk-4","out-width":"700px"}},{"id":5,"code":"iv_res","options":{"warning":"true","message":"true","editor-font-scale":"0.8","comment":"","autorun":"true","fig-width":7,"editor-quick-suggestions":"false","editor-max-height":"","results":"markup","editor-word-wrap":"true","context":"interactive","classes":"","fig-height":5,"fig-cap":"","output":"true","read-only":"false","out-height":"","dpi":72,"label":"unnamed-chunk-5","out-width":"700px"}},{"id":6,"code":"iv_res","options":{"warning":"true","message":"true","editor-font-scale":"0.8","comment":"","autorun":"true","fig-width":7,"editor-quick-suggestions":"false","editor-max-height":"","results":"markup","editor-word-wrap":"true","context":"interactive","classes":"","fig-height":5,"fig-cap":"","output":"true","read-only":"false","out-height":"","dpi":72,"label":"unnamed-chunk-6","out-width":"700px"}},{"id":7,"code":"iv_res$iv_first_stage","options":{"warning":"true","message":"true","editor-font-scale":"0.8","comment":"","autorun":"true","fig-width":7,"editor-quick-suggestions":"false","editor-max-height":"","results":"markup","editor-word-wrap":"true","context":"interactive","classes":"","fig-height":5,"fig-cap":"","output":"true","read-only":"false","out-height":"","dpi":72,"label":"unnamed-chunk-7","out-width":"700px"}},{"id":8,"code":"set.seed(73289)\nN <- 500 # number of observations\n\nu_common <- runif(N) # the term shared by the endogenous variable and the error term\nz_common <- runif(N) # the term shared by the endogenous variable and instruments\nx_end <- u_common + z_common + runif(N) # the endogenous variable\nz_strong <- z_common + runif(N) # strong instrument\nz_weak <- 0.01 * z_common + 0.99995 * runif(N) # weak instrument\nu <- u_common + runif(N) # error term\ny <- x_end + u # dependent variable\n\ndata <- data.frame(y, x_end, z_strong, z_weak)","options":{"warning":"true","message":"true","editor-font-scale":"0.8","comment":"","autorun":"false","fig-width":7,"editor-quick-suggestions":"false","editor-max-height":"","results":"markup","editor-word-wrap":"true","context":"interactive","classes":"","fig-height":5,"fig-cap":"","output":"true","read-only":"false","out-height":"","dpi":72,"label":"unnamed-chunk-8","out-width":"700px"}},{"id":9,"code":"cor(data)","options":{"warning":"true","message":"true","editor-font-scale":"0.8","comment":"","autorun":"false","fig-width":7,"editor-quick-suggestions":"false","editor-max-height":"","results":"markup","editor-word-wrap":"true","context":"interactive","classes":"","fig-height":5,"fig-cap":"","output":"true","read-only":"false","out-height":"","dpi":72,"label":"unnamed-chunk-9","out-width":"700px"}},{"id":10,"code":"#--- IV estimation (strong) ---#\niv_strong <- fixest::feols(y ~ 1 | x_end ~ z_strong, data = data)\n\n#--- coefs (strong) ---#\ntidy(iv_strong)","options":{"warning":"true","message":"true","editor-font-scale":"0.8","comment":"","autorun":"false","fig-width":7,"editor-quick-suggestions":"false","editor-max-height":"","results":"markup","editor-word-wrap":"true","context":"interactive","classes":"","fig-height":5,"fig-cap":"","output":"true","read-only":"false","out-height":"","dpi":72,"label":"unnamed-chunk-10","out-width":"700px"}},{"id":11,"code":"#--- IV estimation (weak) ---#\niv_weak <- fixest::feols(y ~ 1 | x_end ~ z_weak, data = data)\n\n#--- coefs (weak) ---#\ntidy(iv_weak)","options":{"warning":"true","message":"true","editor-font-scale":"0.8","comment":"","autorun":"false","fig-width":7,"editor-quick-suggestions":"false","editor-max-height":"","results":"markup","editor-word-wrap":"true","context":"interactive","classes":"","fig-height":5,"fig-cap":"","output":"true","read-only":"false","out-height":"","dpi":72,"label":"unnamed-chunk-11","out-width":"700px"}},{"id":12,"code":"iv_strong$iv_first_stage","options":{"warning":"true","message":"true","editor-font-scale":"0.8","comment":"","autorun":"false","fig-width":7,"editor-quick-suggestions":"false","editor-max-height":"","results":"markup","editor-word-wrap":"true","context":"interactive","classes":"","fig-height":5,"fig-cap":"","output":"true","read-only":"false","out-height":"","dpi":72,"label":"unnamed-chunk-12","out-width":"700px"}},{"id":13,"code":"iv_weak$iv_first_stage","options":{"warning":"true","message":"true","editor-font-scale":"0.8","comment":"","autorun":"false","fig-width":7,"editor-quick-suggestions":"false","editor-max-height":"","results":"markup","editor-word-wrap":"true","context":"interactive","classes":"","fig-height":5,"fig-cap":"","output":"true","read-only":"false","out-height":"","dpi":72,"label":"unnamed-chunk-13","out-width":"700px"}}];
 
   </script>
   <script type="module">
@@ -2190,7 +2190,7 @@ globalThis.qwebrCreateMonacoEditorInstance = function (cellData) {
 <p><span class="math inline">\(E[u|x_k] \ne 0\)</span> (the error term is not correlated with any of the independent variables)</p>
 <p><br></p>
 <p><strong>Endogenous independent variable</strong></p>
-<p>If the error term is, .red[for whatever reason], correlated with the independent variable <span class="math inline">\(x_k\)</span>, then we say that <span class="math inline">\(x_k\)</span> is an endogenous independent variable.</p>
+<p>If the error term is, <span style="color: red;">for whatever reason</span>, correlated with the independent variable <span class="math inline">\(x_k\)</span>, then we say that <span class="math inline">\(x_k\)</span> is an endogenous independent variable.</p>
 <ul>
 <li>Omitted variable</li>
 <li>Selection</li>
@@ -2249,7 +2249,7 @@ globalThis.qwebrCreateMonacoEditorInstance = function (cellData) {
 <p><strong>Idea (very loosely put)</strong></p>
 <p>Bring in variable(s) (<span style="color: blue;"> Instrumental variable(s) </span>) that does <span style="color: red;"> NOT </span> belong to the model, but <span style="color: red;"> IS </span> related with the endogenous variable,</p>
 <ul>
-<li><p>Using the instrumental variable(s) (which we denote by <span class="math inline">\(Z\)</span>), make the endogenous variable exogenous, which we call .blue[instrumented] variable(s)</p></li>
+<li><p>Using the instrumental variable(s) (which we denote by <span class="math inline">\(Z\)</span>), make the endogenous variable exogenous, which we call <span style="color: blue;">instrumented</span> variable(s)</p></li>
 <li><p>Use the variation in the instrumented variable instead of the original endogenous variable to estimate the impact of the original variable</p></li>
 </ul>
 </div>
@@ -2372,7 +2372,7 @@ Answer
 <li><span class="math inline">\(\widehat{\beta}_1?\)</span></li>
 </ul>
 <p>That is, <span class="math inline">\(\widehat{x}_1\)</span> has no information beyond the information <span class="math inline">\(x_2\)</span> possesses.</p>
-The instrument(s) <span class="math inline">\(Z\)</span> have jointly significant explanatory power on the endogenous variable <span class="math inline">\(x_1\)</span> .red[after] you control for all the other exogenous variables (here <span class="math inline">\(x_2\)</span>)
+The instrument(s) <span class="math inline">\(Z\)</span> have jointly significant explanatory power on the endogenous variable <span class="math inline">\(x_1\)</span> <span style="color: red;">after</span> you control for all the other exogenous variables (here <span class="math inline">\(x_2\)</span>)
 </details>
 </div>
 <div id="tabset-6-3">
@@ -2535,7 +2535,7 @@ No, because we never observe the error term.
 Answer
 </summary>
 <ul>
-<li><p><span class="math inline">\(z\)</span> has explanatory power on <span class="math inline">\(educ\)</span> .blue[after] you control for the impact of <span class="math inline">\(epxer\)</span> on <span class="math inline">\(educ\)</span></p></li>
+<li><p><span class="math inline">\(z\)</span> has explanatory power on <span class="math inline">\(educ\)</span> <span style="color: blue;">after</span> you control for the impact of <span class="math inline">\(epxer\)</span> on <span class="math inline">\(educ\)</span></p></li>
 <li><p><span class="math inline">\(z\)</span> is uncorrelated with <span class="math inline">\(v\)</span> (<span class="math inline">\(ability\)</span> and all the other important unobservables)</p></li>
 </ul>
 </details>
@@ -2550,7 +2550,7 @@ Answer
 <p><strong>Question</strong></p>
 <ul>
 <li><p>Is it uncorrelated with <span class="math inline">\(v\)</span> (<span class="math inline">\(ability\)</span> and all the other important unobservables)?</p></li>
-<li><p>does it have explanatory power on <span class="math inline">\(educ\)</span> .blue[after] you control for the impact of <span class="math inline">\(epxer\)</span> on <span class="math inline">\(educ\)</span>?</p></li>
+<li><p>does it have explanatory power on <span class="math inline">\(educ\)</span> <span style="color: blue;">after</span> you control for the impact of <span class="math inline">\(epxer\)</span> on <span class="math inline">\(educ\)</span>?</p></li>
 </ul>
 </div>
 <div id="tabset-7-3">
@@ -2563,7 +2563,7 @@ Answer
 <p><strong>Question</strong></p>
 <ul>
 <li><p>Is it uncorrelated with <span class="math inline">\(v\)</span> (<span class="math inline">\(ability\)</span> and all the other important unobservables)?</p></li>
-<li><p>does it have explanatory power on <span class="math inline">\(educ\)</span> .blue[after] you control for the impact of <span class="math inline">\(epxer\)</span> on <span class="math inline">\(educ\)</span>?</p></li>
+<li><p>does it have explanatory power on <span class="math inline">\(educ\)</span> <span style="color: blue;">after</span> you control for the impact of <span class="math inline">\(epxer\)</span> on <span class="math inline">\(educ\)</span>?</p></li>
 </ul>
 </div>
 <div id="tabset-7-4">
@@ -2576,7 +2576,7 @@ Answer
 <p><strong>Question</strong></p>
 <ul>
 <li><p>Is it uncorrelated with <span class="math inline">\(v\)</span> (<span class="math inline">\(ability\)</span> and all the other important unobservables)?</p></li>
-<li><p>does it have explanatory power on <span class="math inline">\(educ\)</span> .blue[after] you control for the impact of <span class="math inline">\(epxer\)</span> on <span class="math inline">\(educ\)</span>?</p></li>
+<li><p>does it have explanatory power on <span class="math inline">\(educ\)</span> <span style="color: blue;">after</span> you control for the impact of <span class="math inline">\(epxer\)</span> on <span class="math inline">\(educ\)</span>?</p></li>
 </ul>
 </div>
 <div id="tabset-7-5">
@@ -2588,7 +2588,7 @@ Answer
 <p><strong>Question</strong></p>
 <ul>
 <li><p>Is it uncorrelated with <span class="math inline">\(v\)</span> (<span class="math inline">\(ability\)</span> and all the other important unobservables)?</p></li>
-<li><p>does it have explanatory power on <span class="math inline">\(educ\)</span> .blue[after] you control for the impact of <span class="math inline">\(epxer\)</span> on <span class="math inline">\(educ\)</span>?</p></li>
+<li><p>does it have explanatory power on <span class="math inline">\(educ\)</span> <span style="color: blue;">after</span> you control for the impact of <span class="math inline">\(epxer\)</span> on <span class="math inline">\(educ\)</span>?</p></li>
 </ul>
 </div>
 </div>
@@ -2612,9 +2612,9 @@ Answer
 <p><br></p>
 <p><strong>Terminology</strong></p>
 <ul>
-<li><p>exogenous variable included in the model (here, <span class="math inline">\(exper\)</span>) is also called .blue[included instruments]</p></li>
-<li><p>instruments that do not belong to the main model (here, <span class="math inline">\(sibs\)</span> and <span class="math inline">\(feduc\)</span>) are also called .blue[excluded instruments]</p></li>
-<li><p>we refer to the collection of included and excluded instruments as .blue[instruments]</p></li>
+<li><p>exogenous variable included in the model (here, <span class="math inline">\(exper\)</span>) is also called <span style="color: blue;">included instruments</span></p></li>
+<li><p>instruments that do not belong to the main model (here, <span class="math inline">\(sibs\)</span> and <span class="math inline">\(feduc\)</span>) are also called <span style="color: blue;">excluded instruments</span></p></li>
+<li><p>we refer to the collection of included and excluded instruments as <span style="color: blue;">instruments</span></p></li>
 </ul>
 </div>
 <div id="tabset-8-2">
@@ -2674,13 +2674,13 @@ Answer
   
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>tinytable_o4egsj4xcmci2z0m2f69</title>
+    <title>tinytable_a4e9wn5mt2nhk0ygboje</title>
     <style>
-.table td.tinytable_css_1jubpuy0u9vhiw2zmq4a, .table th.tinytable_css_1jubpuy0u9vhiw2zmq4a {    border-bottom: solid 0.1em #d3d8dc; }
-.table td.tinytable_css_1dm0esjzendd0pkum7v3, .table th.tinytable_css_1dm0esjzendd0pkum7v3 {    text-align: left; }
-.table td.tinytable_css_fai97a76d9pdo638sczg, .table th.tinytable_css_fai97a76d9pdo638sczg {    text-align: center; }
-.table td.tinytable_css_k3levab3gh5lsxl9g3a4, .table th.tinytable_css_k3levab3gh5lsxl9g3a4 {    text-align: center; }
-.table td.tinytable_css_xp91tsnl2a6xxgiolxow, .table th.tinytable_css_xp91tsnl2a6xxgiolxow {    border-bottom: solid 0.05em black; }
+.table td.tinytable_css_c99rmzsuixjzmx7jvy0p, .table th.tinytable_css_c99rmzsuixjzmx7jvy0p {    border-bottom: solid 0.1em #d3d8dc; }
+.table td.tinytable_css_lvftqinukzw2bib5h5av, .table th.tinytable_css_lvftqinukzw2bib5h5av {    text-align: left; }
+.table td.tinytable_css_cl83wkvbdp3c0ifz7fxv, .table th.tinytable_css_cl83wkvbdp3c0ifz7fxv {    text-align: center; }
+.table td.tinytable_css_2gijivgb6804v7whtgmc, .table th.tinytable_css_2gijivgb6804v7whtgmc {    text-align: center; }
+.table td.tinytable_css_7rcsd8e3pwx0l2bw4p53, .table th.tinytable_css_7rcsd8e3pwx0l2bw4p53 {    border-bottom: solid 0.05em black; }
     </style>
     <script src="https://polyfill.io/v3/polyfill.min.js?features=es6"></script>
     <script id="MathJax-script" async="" src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
@@ -2698,7 +2698,7 @@ Answer
 
   
     <div class="container">
-      <table class="table table-borderless" id="tinytable_o4egsj4xcmci2z0m2f69" style="width: auto; margin-left: auto; margin-right: auto;" data-quarto-disable-processing="true">
+      <table class="table table-borderless" id="tinytable_a4e9wn5mt2nhk0ygboje" style="width: auto; margin-left: auto; margin-right: auto;" data-quarto-disable-processing="true">
         <thead>
         
               <tr>
@@ -2774,12 +2774,12 @@ Answer
     </div>
 
     <script>
-      function styleCell_tinytable_63v4q6llgt0botvuvgzz(i, j, css_id) {
-        var table = document.getElementById("tinytable_o4egsj4xcmci2z0m2f69");
+      function styleCell_tinytable_0u5hj29h8784z8ai66ru(i, j, css_id) {
+        var table = document.getElementById("tinytable_a4e9wn5mt2nhk0ygboje");
         table.rows[i].cells[j].classList.add(css_id);
       }
       function insertSpanRow(i, colspan, content) {
-        var table = document.getElementById('tinytable_o4egsj4xcmci2z0m2f69');
+        var table = document.getElementById('tinytable_a4e9wn5mt2nhk0ygboje');
         var newRow = table.insertRow(i);
         var newCell = newRow.insertCell(0);
         newCell.setAttribute("colspan", colspan);
@@ -2787,8 +2787,8 @@ Answer
         // this may be unsafe, but innerText does not interpret <br>
         newCell.innerHTML = content;
       }
-      function spanCell_tinytable_63v4q6llgt0botvuvgzz(i, j, rowspan, colspan) {
-        var table = document.getElementById("tinytable_o4egsj4xcmci2z0m2f69");
+      function spanCell_tinytable_0u5hj29h8784z8ai66ru(i, j, rowspan, colspan) {
+        var table = document.getElementById("tinytable_a4e9wn5mt2nhk0ygboje");
         const targetRow = table.rows[i];
         const targetCell = targetRow.cells[j];
         for (let r = 0; r < rowspan; r++) {
@@ -2815,51 +2815,51 @@ Answer
         targetCell.colSpan = colspan;
       }
 
-window.addEventListener('load', function () { styleCell_tinytable_63v4q6llgt0botvuvgzz(0, 0, 'tinytable_css_1jubpuy0u9vhiw2zmq4a') })
-window.addEventListener('load', function () { styleCell_tinytable_63v4q6llgt0botvuvgzz(0, 1, 'tinytable_css_1jubpuy0u9vhiw2zmq4a') })
-window.addEventListener('load', function () { styleCell_tinytable_63v4q6llgt0botvuvgzz(0, 2, 'tinytable_css_1jubpuy0u9vhiw2zmq4a') })
-window.addEventListener('load', function () { styleCell_tinytable_63v4q6llgt0botvuvgzz(0, 0, 'tinytable_css_1dm0esjzendd0pkum7v3') })
-window.addEventListener('load', function () { styleCell_tinytable_63v4q6llgt0botvuvgzz(1, 0, 'tinytable_css_1dm0esjzendd0pkum7v3') })
-window.addEventListener('load', function () { styleCell_tinytable_63v4q6llgt0botvuvgzz(2, 0, 'tinytable_css_1dm0esjzendd0pkum7v3') })
-window.addEventListener('load', function () { styleCell_tinytable_63v4q6llgt0botvuvgzz(3, 0, 'tinytable_css_1dm0esjzendd0pkum7v3') })
-window.addEventListener('load', function () { styleCell_tinytable_63v4q6llgt0botvuvgzz(4, 0, 'tinytable_css_1dm0esjzendd0pkum7v3') })
-window.addEventListener('load', function () { styleCell_tinytable_63v4q6llgt0botvuvgzz(5, 0, 'tinytable_css_1dm0esjzendd0pkum7v3') })
-window.addEventListener('load', function () { styleCell_tinytable_63v4q6llgt0botvuvgzz(6, 0, 'tinytable_css_1dm0esjzendd0pkum7v3') })
-window.addEventListener('load', function () { styleCell_tinytable_63v4q6llgt0botvuvgzz(7, 0, 'tinytable_css_1dm0esjzendd0pkum7v3') })
-window.addEventListener('load', function () { styleCell_tinytable_63v4q6llgt0botvuvgzz(8, 0, 'tinytable_css_1dm0esjzendd0pkum7v3') })
-window.addEventListener('load', function () { styleCell_tinytable_63v4q6llgt0botvuvgzz(9, 0, 'tinytable_css_1dm0esjzendd0pkum7v3') })
-window.addEventListener('load', function () { styleCell_tinytable_63v4q6llgt0botvuvgzz(10, 0, 'tinytable_css_1dm0esjzendd0pkum7v3') })
-window.addEventListener('load', function () { styleCell_tinytable_63v4q6llgt0botvuvgzz(11, 0, 'tinytable_css_1dm0esjzendd0pkum7v3') })
-window.addEventListener('load', function () { styleCell_tinytable_63v4q6llgt0botvuvgzz(12, 0, 'tinytable_css_1dm0esjzendd0pkum7v3') })
-window.addEventListener('load', function () { styleCell_tinytable_63v4q6llgt0botvuvgzz(0, 1, 'tinytable_css_fai97a76d9pdo638sczg') })
-window.addEventListener('load', function () { styleCell_tinytable_63v4q6llgt0botvuvgzz(1, 1, 'tinytable_css_fai97a76d9pdo638sczg') })
-window.addEventListener('load', function () { styleCell_tinytable_63v4q6llgt0botvuvgzz(2, 1, 'tinytable_css_fai97a76d9pdo638sczg') })
-window.addEventListener('load', function () { styleCell_tinytable_63v4q6llgt0botvuvgzz(3, 1, 'tinytable_css_fai97a76d9pdo638sczg') })
-window.addEventListener('load', function () { styleCell_tinytable_63v4q6llgt0botvuvgzz(4, 1, 'tinytable_css_fai97a76d9pdo638sczg') })
-window.addEventListener('load', function () { styleCell_tinytable_63v4q6llgt0botvuvgzz(5, 1, 'tinytable_css_fai97a76d9pdo638sczg') })
-window.addEventListener('load', function () { styleCell_tinytable_63v4q6llgt0botvuvgzz(6, 1, 'tinytable_css_fai97a76d9pdo638sczg') })
-window.addEventListener('load', function () { styleCell_tinytable_63v4q6llgt0botvuvgzz(7, 1, 'tinytable_css_fai97a76d9pdo638sczg') })
-window.addEventListener('load', function () { styleCell_tinytable_63v4q6llgt0botvuvgzz(8, 1, 'tinytable_css_fai97a76d9pdo638sczg') })
-window.addEventListener('load', function () { styleCell_tinytable_63v4q6llgt0botvuvgzz(9, 1, 'tinytable_css_fai97a76d9pdo638sczg') })
-window.addEventListener('load', function () { styleCell_tinytable_63v4q6llgt0botvuvgzz(10, 1, 'tinytable_css_fai97a76d9pdo638sczg') })
-window.addEventListener('load', function () { styleCell_tinytable_63v4q6llgt0botvuvgzz(11, 1, 'tinytable_css_fai97a76d9pdo638sczg') })
-window.addEventListener('load', function () { styleCell_tinytable_63v4q6llgt0botvuvgzz(12, 1, 'tinytable_css_fai97a76d9pdo638sczg') })
-window.addEventListener('load', function () { styleCell_tinytable_63v4q6llgt0botvuvgzz(0, 2, 'tinytable_css_k3levab3gh5lsxl9g3a4') })
-window.addEventListener('load', function () { styleCell_tinytable_63v4q6llgt0botvuvgzz(1, 2, 'tinytable_css_k3levab3gh5lsxl9g3a4') })
-window.addEventListener('load', function () { styleCell_tinytable_63v4q6llgt0botvuvgzz(2, 2, 'tinytable_css_k3levab3gh5lsxl9g3a4') })
-window.addEventListener('load', function () { styleCell_tinytable_63v4q6llgt0botvuvgzz(3, 2, 'tinytable_css_k3levab3gh5lsxl9g3a4') })
-window.addEventListener('load', function () { styleCell_tinytable_63v4q6llgt0botvuvgzz(4, 2, 'tinytable_css_k3levab3gh5lsxl9g3a4') })
-window.addEventListener('load', function () { styleCell_tinytable_63v4q6llgt0botvuvgzz(5, 2, 'tinytable_css_k3levab3gh5lsxl9g3a4') })
-window.addEventListener('load', function () { styleCell_tinytable_63v4q6llgt0botvuvgzz(6, 2, 'tinytable_css_k3levab3gh5lsxl9g3a4') })
-window.addEventListener('load', function () { styleCell_tinytable_63v4q6llgt0botvuvgzz(7, 2, 'tinytable_css_k3levab3gh5lsxl9g3a4') })
-window.addEventListener('load', function () { styleCell_tinytable_63v4q6llgt0botvuvgzz(8, 2, 'tinytable_css_k3levab3gh5lsxl9g3a4') })
-window.addEventListener('load', function () { styleCell_tinytable_63v4q6llgt0botvuvgzz(9, 2, 'tinytable_css_k3levab3gh5lsxl9g3a4') })
-window.addEventListener('load', function () { styleCell_tinytable_63v4q6llgt0botvuvgzz(10, 2, 'tinytable_css_k3levab3gh5lsxl9g3a4') })
-window.addEventListener('load', function () { styleCell_tinytable_63v4q6llgt0botvuvgzz(11, 2, 'tinytable_css_k3levab3gh5lsxl9g3a4') })
-window.addEventListener('load', function () { styleCell_tinytable_63v4q6llgt0botvuvgzz(12, 2, 'tinytable_css_k3levab3gh5lsxl9g3a4') })
-window.addEventListener('load', function () { styleCell_tinytable_63v4q6llgt0botvuvgzz(8, 0, 'tinytable_css_xp91tsnl2a6xxgiolxow') })
-window.addEventListener('load', function () { styleCell_tinytable_63v4q6llgt0botvuvgzz(8, 1, 'tinytable_css_xp91tsnl2a6xxgiolxow') })
-window.addEventListener('load', function () { styleCell_tinytable_63v4q6llgt0botvuvgzz(8, 2, 'tinytable_css_xp91tsnl2a6xxgiolxow') })
+window.addEventListener('load', function () { styleCell_tinytable_0u5hj29h8784z8ai66ru(0, 0, 'tinytable_css_c99rmzsuixjzmx7jvy0p') })
+window.addEventListener('load', function () { styleCell_tinytable_0u5hj29h8784z8ai66ru(0, 1, 'tinytable_css_c99rmzsuixjzmx7jvy0p') })
+window.addEventListener('load', function () { styleCell_tinytable_0u5hj29h8784z8ai66ru(0, 2, 'tinytable_css_c99rmzsuixjzmx7jvy0p') })
+window.addEventListener('load', function () { styleCell_tinytable_0u5hj29h8784z8ai66ru(0, 0, 'tinytable_css_lvftqinukzw2bib5h5av') })
+window.addEventListener('load', function () { styleCell_tinytable_0u5hj29h8784z8ai66ru(1, 0, 'tinytable_css_lvftqinukzw2bib5h5av') })
+window.addEventListener('load', function () { styleCell_tinytable_0u5hj29h8784z8ai66ru(2, 0, 'tinytable_css_lvftqinukzw2bib5h5av') })
+window.addEventListener('load', function () { styleCell_tinytable_0u5hj29h8784z8ai66ru(3, 0, 'tinytable_css_lvftqinukzw2bib5h5av') })
+window.addEventListener('load', function () { styleCell_tinytable_0u5hj29h8784z8ai66ru(4, 0, 'tinytable_css_lvftqinukzw2bib5h5av') })
+window.addEventListener('load', function () { styleCell_tinytable_0u5hj29h8784z8ai66ru(5, 0, 'tinytable_css_lvftqinukzw2bib5h5av') })
+window.addEventListener('load', function () { styleCell_tinytable_0u5hj29h8784z8ai66ru(6, 0, 'tinytable_css_lvftqinukzw2bib5h5av') })
+window.addEventListener('load', function () { styleCell_tinytable_0u5hj29h8784z8ai66ru(7, 0, 'tinytable_css_lvftqinukzw2bib5h5av') })
+window.addEventListener('load', function () { styleCell_tinytable_0u5hj29h8784z8ai66ru(8, 0, 'tinytable_css_lvftqinukzw2bib5h5av') })
+window.addEventListener('load', function () { styleCell_tinytable_0u5hj29h8784z8ai66ru(9, 0, 'tinytable_css_lvftqinukzw2bib5h5av') })
+window.addEventListener('load', function () { styleCell_tinytable_0u5hj29h8784z8ai66ru(10, 0, 'tinytable_css_lvftqinukzw2bib5h5av') })
+window.addEventListener('load', function () { styleCell_tinytable_0u5hj29h8784z8ai66ru(11, 0, 'tinytable_css_lvftqinukzw2bib5h5av') })
+window.addEventListener('load', function () { styleCell_tinytable_0u5hj29h8784z8ai66ru(12, 0, 'tinytable_css_lvftqinukzw2bib5h5av') })
+window.addEventListener('load', function () { styleCell_tinytable_0u5hj29h8784z8ai66ru(0, 1, 'tinytable_css_cl83wkvbdp3c0ifz7fxv') })
+window.addEventListener('load', function () { styleCell_tinytable_0u5hj29h8784z8ai66ru(1, 1, 'tinytable_css_cl83wkvbdp3c0ifz7fxv') })
+window.addEventListener('load', function () { styleCell_tinytable_0u5hj29h8784z8ai66ru(2, 1, 'tinytable_css_cl83wkvbdp3c0ifz7fxv') })
+window.addEventListener('load', function () { styleCell_tinytable_0u5hj29h8784z8ai66ru(3, 1, 'tinytable_css_cl83wkvbdp3c0ifz7fxv') })
+window.addEventListener('load', function () { styleCell_tinytable_0u5hj29h8784z8ai66ru(4, 1, 'tinytable_css_cl83wkvbdp3c0ifz7fxv') })
+window.addEventListener('load', function () { styleCell_tinytable_0u5hj29h8784z8ai66ru(5, 1, 'tinytable_css_cl83wkvbdp3c0ifz7fxv') })
+window.addEventListener('load', function () { styleCell_tinytable_0u5hj29h8784z8ai66ru(6, 1, 'tinytable_css_cl83wkvbdp3c0ifz7fxv') })
+window.addEventListener('load', function () { styleCell_tinytable_0u5hj29h8784z8ai66ru(7, 1, 'tinytable_css_cl83wkvbdp3c0ifz7fxv') })
+window.addEventListener('load', function () { styleCell_tinytable_0u5hj29h8784z8ai66ru(8, 1, 'tinytable_css_cl83wkvbdp3c0ifz7fxv') })
+window.addEventListener('load', function () { styleCell_tinytable_0u5hj29h8784z8ai66ru(9, 1, 'tinytable_css_cl83wkvbdp3c0ifz7fxv') })
+window.addEventListener('load', function () { styleCell_tinytable_0u5hj29h8784z8ai66ru(10, 1, 'tinytable_css_cl83wkvbdp3c0ifz7fxv') })
+window.addEventListener('load', function () { styleCell_tinytable_0u5hj29h8784z8ai66ru(11, 1, 'tinytable_css_cl83wkvbdp3c0ifz7fxv') })
+window.addEventListener('load', function () { styleCell_tinytable_0u5hj29h8784z8ai66ru(12, 1, 'tinytable_css_cl83wkvbdp3c0ifz7fxv') })
+window.addEventListener('load', function () { styleCell_tinytable_0u5hj29h8784z8ai66ru(0, 2, 'tinytable_css_2gijivgb6804v7whtgmc') })
+window.addEventListener('load', function () { styleCell_tinytable_0u5hj29h8784z8ai66ru(1, 2, 'tinytable_css_2gijivgb6804v7whtgmc') })
+window.addEventListener('load', function () { styleCell_tinytable_0u5hj29h8784z8ai66ru(2, 2, 'tinytable_css_2gijivgb6804v7whtgmc') })
+window.addEventListener('load', function () { styleCell_tinytable_0u5hj29h8784z8ai66ru(3, 2, 'tinytable_css_2gijivgb6804v7whtgmc') })
+window.addEventListener('load', function () { styleCell_tinytable_0u5hj29h8784z8ai66ru(4, 2, 'tinytable_css_2gijivgb6804v7whtgmc') })
+window.addEventListener('load', function () { styleCell_tinytable_0u5hj29h8784z8ai66ru(5, 2, 'tinytable_css_2gijivgb6804v7whtgmc') })
+window.addEventListener('load', function () { styleCell_tinytable_0u5hj29h8784z8ai66ru(6, 2, 'tinytable_css_2gijivgb6804v7whtgmc') })
+window.addEventListener('load', function () { styleCell_tinytable_0u5hj29h8784z8ai66ru(7, 2, 'tinytable_css_2gijivgb6804v7whtgmc') })
+window.addEventListener('load', function () { styleCell_tinytable_0u5hj29h8784z8ai66ru(8, 2, 'tinytable_css_2gijivgb6804v7whtgmc') })
+window.addEventListener('load', function () { styleCell_tinytable_0u5hj29h8784z8ai66ru(9, 2, 'tinytable_css_2gijivgb6804v7whtgmc') })
+window.addEventListener('load', function () { styleCell_tinytable_0u5hj29h8784z8ai66ru(10, 2, 'tinytable_css_2gijivgb6804v7whtgmc') })
+window.addEventListener('load', function () { styleCell_tinytable_0u5hj29h8784z8ai66ru(11, 2, 'tinytable_css_2gijivgb6804v7whtgmc') })
+window.addEventListener('load', function () { styleCell_tinytable_0u5hj29h8784z8ai66ru(12, 2, 'tinytable_css_2gijivgb6804v7whtgmc') })
+window.addEventListener('load', function () { styleCell_tinytable_0u5hj29h8784z8ai66ru(8, 0, 'tinytable_css_7rcsd8e3pwx0l2bw4p53') })
+window.addEventListener('load', function () { styleCell_tinytable_0u5hj29h8784z8ai66ru(8, 1, 'tinytable_css_7rcsd8e3pwx0l2bw4p53') })
+window.addEventListener('load', function () { styleCell_tinytable_0u5hj29h8784z8ai66ru(8, 2, 'tinytable_css_7rcsd8e3pwx0l2bw4p53') })
     </script>
 
   
@@ -2890,9 +2890,11 @@ window.addEventListener('load', function () { styleCell_tinytable_63v4q6llgt0bot
 <div class="cell">
 <div class="sourceCode cell-code" id="cb4"><pre class="sourceCode numberSource r number-lines code-with-copy"><code class="sourceCode r"><span id="cb4-1"><a></a>fixest<span class="sc">::</span><span class="fu">feols</span>(<span class="fu">log</span>(wage) <span class="sc">~</span> exper <span class="sc">|</span> married <span class="sc">+</span> south <span class="sc">|</span> educ <span class="sc">~</span> feduc <span class="sc">+</span> sibs, <span class="at">data =</span> wage2)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <div class="cell-output cell-output-stdout">
-<pre><code>TSLS estimation, Dep. Var.: log(wage), Endo.: educ, Instr.: feduc, sibs
+<pre><code>TSLS estimation - Dep. Var.: log(wage)
+                  Endo.    : educ
+                  Instr.   : feduc, sibs
 Second stage: Dep. Var.: log(wage)
-Observations: 741 
+Observations: 741
 Fixed-effects: married: 2,  south: 2
 Standard-errors: Clustered (married) 
          Estimate Std. Error t value Pr(&gt;|t|)    
@@ -2913,9 +2915,11 @@ F-test (1st stage), educ: stat = 62.0     , p &lt; 2.2e-16 , on 2 and 736 DoF.
 <div class="cell">
 <div class="sourceCode cell-code" id="cb6"><pre class="sourceCode numberSource r number-lines code-with-copy"><code class="sourceCode r"><span id="cb6-1"><a></a>fixest<span class="sc">::</span><span class="fu">feols</span>(<span class="fu">log</span>(wage) <span class="sc">~</span> exper <span class="sc">|</span> married <span class="sc">+</span> south <span class="sc">|</span> educ <span class="sc">~</span> feduc <span class="sc">+</span> sibs, <span class="at">cluster =</span> <span class="sc">~</span>black, <span class="at">data =</span> wage2)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <div class="cell-output cell-output-stdout">
-<pre><code>TSLS estimation, Dep. Var.: log(wage), Endo.: educ, Instr.: feduc, sibs
+<pre><code>TSLS estimation - Dep. Var.: log(wage)
+                  Endo.    : educ
+                  Instr.   : feduc, sibs
 Second stage: Dep. Var.: log(wage)
-Observations: 741 
+Observations: 741
 Fixed-effects: married: 2,  south: 2
 Standard-errors: Clustered (black) 
          Estimate Std. Error t value Pr(&gt;|t|)    
@@ -3161,7 +3165,7 @@ The coefficient estimate on <span class="math inline">\(x\_end\)</span> is far a
 <li><p>Identify endogenous variable(s) and included instrument(s)</p></li>
 <li><p>Identify potential excluded instrument(s)</p></li>
 <li><p><span style="color: blue;"> Argue </span> why the excluded instrument(s) you pick is uncorrelated with the error term (<strong>condition 2</strong>)</p></li>
-<li><p>Once you decide what variable(s) to use as excluded instruments, .red[test] whether the excluded instrument(s) is weak or not ( <strong>condition 1</strong>)</p></li>
+<li><p>Once you decide what variable(s) to use as excluded instruments, <span style="color: red;">test</span> whether the excluded instrument(s) is weak or not ( <strong>condition 1</strong>)</p></li>
 <li><p>Implement IV estimation and report the results</p></li>
 </ol>
 </div>
