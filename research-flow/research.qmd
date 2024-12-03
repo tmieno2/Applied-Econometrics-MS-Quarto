@@ -1,0 +1,102 @@
+
+# Preparation
+
+## packages
+
+```{r}
+library(dplyr)
+library(ggplot2) 
+```
+
+## data
+Load the dataset:
+
+```{r}
+data <-
+  readRDS("research-flow/data_CO_as1.rds") %>%
+  rename(well_yield = WellCap) %>%
+  rename(pumping = pumpingAF)
+
+names(data)
+```
+
+```{r}
+nobs_data <-
+  data %>%
+  group_by(wdid) %>%
+  summarise(nobs = n())
+
+  hist(nobs_data$nobs)
+```
+
+# Visualize the data
+
+```{r}
+summary(data)
+```
+
+
+## 
+
+```{r}
+mean_pumping <- 
+  data %>%
+  group_by(year) %>%
+  summarise(pumping = mean(pumping))
+
+ggplot(mean_pumping) +
+  geom_line(aes(x = year, y = pumping))
+```
+
+```{r}
+ggplot(data = data) +
+  geom_histogram(aes(x = pumping), bins = 100) + 
+  facet_grid(year ~ .) 
+```
+
+```{r}
+ggplot(data = data) +
+  geom_point(aes(x = well_yield, y = pumping)) +
+  geom_smooth(aes(x = well_yield, y = pumping)) +
+  facet_wrap(. ~ year)
+```
+
+## 
+
+```{r}
+library(lubridate)
+
+gs_weather <-
+  readRDS("research-flow/daymet_raw_as1.rds") %>%
+  as_tibble() %>%
+  dplyr::mutate(date = yday + ymd(paste0(year, "-01-01")) - 1) %>%
+  dplyr::mutate(month = month(date)) %>%
+  relocate(date, month) %>%
+  filter(month %in% 4:9)
+
+gs_weather_by_wdid <-
+  gs_weather %>%
+  group_by(wdid, year) %>%
+  summarize(
+    prcp = sum(prcp..mm.day.),
+    tmax = mean(tmax..deg.c.)
+  )
+
+```
+
+
+```{r}
+combined <- 
+left_join(data, gs_weather_by_wdid, by = c("wdid", "year"))
+
+```
+
+## Regression
+
+```{r}
+fixest::feols(pumping ~ well_yield + prcp + tmax, data = combined) 
+
+fixest::feols(pumping ~ well_yield + prcp + tmax | wdid, data = combined) 
+
+fixest::feols(pumping ~ well_yield, data = combined) 
+```
