@@ -8,7 +8,7 @@
 <link href="../../site_libs/quarto-html/light-border.css" rel="stylesheet">
 <link href="../../site_libs/quarto-html/quarto-html.min.css" rel="stylesheet" data-mode="light">
 <link href="../../site_libs/quarto-html/quarto-syntax-highlighting.css" rel="stylesheet" id="quarto-text-highlighting-styles"><meta charset="utf-8">
-  <meta name="generator" content="quarto-1.5.57">
+  <meta name="generator" content="quarto-1.5.56">
 
   <title>Applied Econometrics (AECN 896-004) – 11: Dealing with Endogeneity: Instrumental Variable</title>
   <meta name="apple-mobile-web-app-capable" content="yes">
@@ -675,7 +675,7 @@
   };
 
   // Store cell data
-  globalThis.qwebrCellDetails = [{"id":1,"code":"data(\"wage2\", package = \"wooldridge\")\n\n#* regress educ on exper, IQ, and sibs\nfirst_reg <- fixest::feols(educ ~ exper + IQ + sibs, data = wage2)\n\n#* predict educ as a function of exper, IQ, and sibs\nwage2 <- dplyr::mutate(wage2, educ_hat = first_reg$fitted.values)\n\n#* seed the predicted values\nwage2 %>%\n  dplyr::relocate(educ_hat) %>%\n  head()","options":{"warning":"true","message":"true","editor-font-scale":"0.8","comment":"","autorun":"true","fig-width":7,"editor-quick-suggestions":"false","editor-max-height":"","results":"markup","editor-word-wrap":"true","context":"interactive","classes":"","fig-height":5,"fig-cap":"","output":"true","read-only":"false","out-height":"","dpi":72,"label":"unnamed-chunk-1","out-width":"700px"}},{"id":2,"code":"#* regression with educ_hat in place of educ\nsecond_reg <- fixest::feols(wage ~ educ_hat + exper, data = wage2)\n\n#* see the results\nsecond_reg","options":{"warning":"true","message":"true","editor-font-scale":"0.8","comment":"","autorun":"true","fig-width":7,"editor-quick-suggestions":"false","editor-max-height":"","results":"markup","editor-word-wrap":"true","context":"interactive","classes":"","fig-height":5,"fig-cap":"","output":"true","read-only":"false","out-height":"","dpi":72,"label":"unnamed-chunk-2","out-width":"700px"}},{"id":3,"code":"#--- take a look at the data ---#\nwage2 %>%\n  select(wage, educ, sibs, feduc) %>%\n  head()","options":{"warning":"true","message":"true","editor-font-scale":"0.8","comment":"","autorun":"true","fig-width":7,"editor-quick-suggestions":"false","editor-max-height":"","results":"markup","editor-word-wrap":"true","context":"interactive","classes":"","fig-height":5,"fig-cap":"","output":"true","read-only":"false","out-height":"","dpi":72,"label":"unnamed-chunk-3","out-width":"700px"}},{"id":4,"code":"iv_res <- fixest::feols(log(wage) ~ exper | educ ~ sibs + feduc, data = wage2)","options":{"warning":"true","message":"true","editor-font-scale":"0.8","comment":"","autorun":"true","fig-width":7,"editor-quick-suggestions":"false","editor-max-height":"","results":"markup","editor-word-wrap":"true","context":"interactive","classes":"","fig-height":5,"fig-cap":"","output":"true","read-only":"false","out-height":"","dpi":72,"label":"unnamed-chunk-4","out-width":"700px"}},{"id":5,"code":"iv_res","options":{"warning":"true","message":"true","editor-font-scale":"0.8","comment":"","autorun":"true","fig-width":7,"editor-quick-suggestions":"false","editor-max-height":"","results":"markup","editor-word-wrap":"true","context":"interactive","classes":"","fig-height":5,"fig-cap":"","output":"true","read-only":"false","out-height":"","dpi":72,"label":"unnamed-chunk-5","out-width":"700px"}},{"id":6,"code":"iv_res","options":{"warning":"true","message":"true","editor-font-scale":"0.8","comment":"","autorun":"true","fig-width":7,"editor-quick-suggestions":"false","editor-max-height":"","results":"markup","editor-word-wrap":"true","context":"interactive","classes":"","fig-height":5,"fig-cap":"","output":"true","read-only":"false","out-height":"","dpi":72,"label":"unnamed-chunk-6","out-width":"700px"}},{"id":7,"code":"iv_res$iv_first_stage","options":{"warning":"true","message":"true","editor-font-scale":"0.8","comment":"","autorun":"true","fig-width":7,"editor-quick-suggestions":"false","editor-max-height":"","results":"markup","editor-word-wrap":"true","context":"interactive","classes":"","fig-height":5,"fig-cap":"","output":"true","read-only":"false","out-height":"","dpi":72,"label":"unnamed-chunk-7","out-width":"700px"}},{"id":8,"code":"set.seed(73289)\nN <- 500 # number of observations\n\nu_common <- runif(N) # the term shared by the endogenous variable and the error term\nz_common <- runif(N) # the term shared by the endogenous variable and instruments\nx_end <- u_common + z_common + runif(N) # the endogenous variable\nz_strong <- z_common + runif(N) # strong instrument\nz_weak <- 0.01 * z_common + 0.99995 * runif(N) # weak instrument\nu <- u_common + runif(N) # error term\ny <- x_end + u # dependent variable\n\ndata <- data.frame(y, x_end, z_strong, z_weak)","options":{"warning":"true","message":"true","editor-font-scale":"0.8","comment":"","autorun":"false","fig-width":7,"editor-quick-suggestions":"false","editor-max-height":"","results":"markup","editor-word-wrap":"true","context":"interactive","classes":"","fig-height":5,"fig-cap":"","output":"true","read-only":"false","out-height":"","dpi":72,"label":"unnamed-chunk-8","out-width":"700px"}},{"id":9,"code":"cor(data)","options":{"warning":"true","message":"true","editor-font-scale":"0.8","comment":"","autorun":"false","fig-width":7,"editor-quick-suggestions":"false","editor-max-height":"","results":"markup","editor-word-wrap":"true","context":"interactive","classes":"","fig-height":5,"fig-cap":"","output":"true","read-only":"false","out-height":"","dpi":72,"label":"unnamed-chunk-9","out-width":"700px"}},{"id":10,"code":"#--- IV estimation (strong) ---#\niv_strong <- fixest::feols(y ~ 1 | x_end ~ z_strong, data = data)\n\n#--- coefs (strong) ---#\ntidy(iv_strong)","options":{"warning":"true","message":"true","editor-font-scale":"0.8","comment":"","autorun":"false","fig-width":7,"editor-quick-suggestions":"false","editor-max-height":"","results":"markup","editor-word-wrap":"true","context":"interactive","classes":"","fig-height":5,"fig-cap":"","output":"true","read-only":"false","out-height":"","dpi":72,"label":"unnamed-chunk-10","out-width":"700px"}},{"id":11,"code":"#--- IV estimation (weak) ---#\niv_weak <- fixest::feols(y ~ 1 | x_end ~ z_weak, data = data)\n\n#--- coefs (weak) ---#\ntidy(iv_weak)","options":{"warning":"true","message":"true","editor-font-scale":"0.8","comment":"","autorun":"false","fig-width":7,"editor-quick-suggestions":"false","editor-max-height":"","results":"markup","editor-word-wrap":"true","context":"interactive","classes":"","fig-height":5,"fig-cap":"","output":"true","read-only":"false","out-height":"","dpi":72,"label":"unnamed-chunk-11","out-width":"700px"}},{"id":12,"code":"iv_strong$iv_first_stage","options":{"warning":"true","message":"true","editor-font-scale":"0.8","comment":"","autorun":"false","fig-width":7,"editor-quick-suggestions":"false","editor-max-height":"","results":"markup","editor-word-wrap":"true","context":"interactive","classes":"","fig-height":5,"fig-cap":"","output":"true","read-only":"false","out-height":"","dpi":72,"label":"unnamed-chunk-12","out-width":"700px"}},{"id":13,"code":"iv_weak$iv_first_stage","options":{"warning":"true","message":"true","editor-font-scale":"0.8","comment":"","autorun":"false","fig-width":7,"editor-quick-suggestions":"false","editor-max-height":"","results":"markup","editor-word-wrap":"true","context":"interactive","classes":"","fig-height":5,"fig-cap":"","output":"true","read-only":"false","out-height":"","dpi":72,"label":"unnamed-chunk-13","out-width":"700px"}}];
+  globalThis.qwebrCellDetails = [{"id":1,"options":{"editor-font-scale":"0.8","message":"true","fig-width":7,"results":"markup","comment":"","warning":"true","context":"interactive","out-width":"700px","autorun":"true","read-only":"false","editor-max-height":"","dpi":72,"output":"true","editor-word-wrap":"true","label":"unnamed-chunk-1","fig-cap":"","fig-height":5,"out-height":"","classes":"","editor-quick-suggestions":"false"},"code":"data(\"wage2\", package = \"wooldridge\")\n\n#* regress educ on exper, IQ, and sibs\nfirst_reg <- fixest::feols(educ ~ exper + IQ + sibs, data = wage2)\n\n#* predict educ as a function of exper, IQ, and sibs\nwage2 <- dplyr::mutate(wage2, educ_hat = first_reg$fitted.values)\n\n#* seed the predicted values\nwage2 %>%\n  dplyr::relocate(educ_hat) %>%\n  head()"},{"id":2,"options":{"editor-font-scale":"0.8","message":"true","fig-width":7,"results":"markup","comment":"","warning":"true","context":"interactive","out-width":"700px","autorun":"true","read-only":"false","editor-max-height":"","dpi":72,"output":"true","editor-word-wrap":"true","label":"unnamed-chunk-2","fig-cap":"","fig-height":5,"out-height":"","classes":"","editor-quick-suggestions":"false"},"code":"#* regression with educ_hat in place of educ\nsecond_reg <- fixest::feols(wage ~ educ_hat + exper, data = wage2)\n\n#* see the results\nsecond_reg"},{"id":3,"options":{"editor-font-scale":"0.8","message":"true","fig-width":7,"results":"markup","comment":"","warning":"true","context":"interactive","out-width":"700px","autorun":"true","read-only":"false","editor-max-height":"","dpi":72,"output":"true","editor-word-wrap":"true","label":"unnamed-chunk-3","fig-cap":"","fig-height":5,"out-height":"","classes":"","editor-quick-suggestions":"false"},"code":"#--- take a look at the data ---#\nwage2 %>%\n  select(wage, educ, sibs, feduc) %>%\n  head()"},{"id":4,"options":{"editor-font-scale":"0.8","message":"true","fig-width":7,"results":"markup","comment":"","warning":"true","context":"interactive","out-width":"700px","autorun":"true","read-only":"false","editor-max-height":"","dpi":72,"output":"true","editor-word-wrap":"true","label":"unnamed-chunk-4","fig-cap":"","fig-height":5,"out-height":"","classes":"","editor-quick-suggestions":"false"},"code":"iv_res <- fixest::feols(log(wage) ~ exper | educ ~ sibs + feduc, data = wage2)"},{"id":5,"options":{"editor-font-scale":"0.8","message":"true","fig-width":7,"results":"markup","comment":"","warning":"true","context":"interactive","out-width":"700px","autorun":"true","read-only":"false","editor-max-height":"","dpi":72,"output":"true","editor-word-wrap":"true","label":"unnamed-chunk-5","fig-cap":"","fig-height":5,"out-height":"","classes":"","editor-quick-suggestions":"false"},"code":"iv_res"},{"id":6,"options":{"editor-font-scale":"0.8","message":"true","fig-width":7,"results":"markup","comment":"","warning":"true","context":"interactive","out-width":"700px","autorun":"true","read-only":"false","editor-max-height":"","dpi":72,"output":"true","editor-word-wrap":"true","label":"unnamed-chunk-6","fig-cap":"","fig-height":5,"out-height":"","classes":"","editor-quick-suggestions":"false"},"code":"iv_res"},{"id":7,"options":{"editor-font-scale":"0.8","message":"true","fig-width":7,"results":"markup","comment":"","warning":"true","context":"interactive","out-width":"700px","autorun":"true","read-only":"false","editor-max-height":"","dpi":72,"output":"true","editor-word-wrap":"true","label":"unnamed-chunk-7","fig-cap":"","fig-height":5,"out-height":"","classes":"","editor-quick-suggestions":"false"},"code":"iv_res$iv_first_stage"},{"id":8,"options":{"editor-font-scale":"0.8","message":"true","fig-width":7,"results":"markup","comment":"","warning":"true","context":"interactive","out-width":"700px","autorun":"false","read-only":"false","editor-max-height":"","dpi":72,"output":"true","editor-word-wrap":"true","label":"unnamed-chunk-8","fig-cap":"","fig-height":5,"out-height":"","classes":"","editor-quick-suggestions":"false"},"code":"set.seed(73289)\nN <- 500 # number of observations\n\nu_common <- runif(N) # the term shared by the endogenous variable and the error term\nz_common <- runif(N) # the term shared by the endogenous variable and instruments\nx_end <- u_common + z_common + runif(N) # the endogenous variable\nz_strong <- z_common + runif(N) # strong instrument\nz_weak <- 0.01 * z_common + 0.99995 * runif(N) # weak instrument\nu <- u_common + runif(N) # error term\ny <- x_end + u # dependent variable\n\ndata <- data.frame(y, x_end, z_strong, z_weak)"},{"id":9,"options":{"editor-font-scale":"0.8","message":"true","fig-width":7,"results":"markup","comment":"","warning":"true","context":"interactive","out-width":"700px","autorun":"false","read-only":"false","editor-max-height":"","dpi":72,"output":"true","editor-word-wrap":"true","label":"unnamed-chunk-9","fig-cap":"","fig-height":5,"out-height":"","classes":"","editor-quick-suggestions":"false"},"code":"cor(data)"},{"id":10,"options":{"editor-font-scale":"0.8","message":"true","fig-width":7,"results":"markup","comment":"","warning":"true","context":"interactive","out-width":"700px","autorun":"false","read-only":"false","editor-max-height":"","dpi":72,"output":"true","editor-word-wrap":"true","label":"unnamed-chunk-10","fig-cap":"","fig-height":5,"out-height":"","classes":"","editor-quick-suggestions":"false"},"code":"#--- IV estimation (strong) ---#\niv_strong <- fixest::feols(y ~ 1 | x_end ~ z_strong, data = data)\n\n#--- coefs (strong) ---#\ntidy(iv_strong)"},{"id":11,"options":{"editor-font-scale":"0.8","message":"true","fig-width":7,"results":"markup","comment":"","warning":"true","context":"interactive","out-width":"700px","autorun":"false","read-only":"false","editor-max-height":"","dpi":72,"output":"true","editor-word-wrap":"true","label":"unnamed-chunk-11","fig-cap":"","fig-height":5,"out-height":"","classes":"","editor-quick-suggestions":"false"},"code":"#--- IV estimation (weak) ---#\niv_weak <- fixest::feols(y ~ 1 | x_end ~ z_weak, data = data)\n\n#--- coefs (weak) ---#\ntidy(iv_weak)"},{"id":12,"options":{"editor-font-scale":"0.8","message":"true","fig-width":7,"results":"markup","comment":"","warning":"true","context":"interactive","out-width":"700px","autorun":"false","read-only":"false","editor-max-height":"","dpi":72,"output":"true","editor-word-wrap":"true","label":"unnamed-chunk-12","fig-cap":"","fig-height":5,"out-height":"","classes":"","editor-quick-suggestions":"false"},"code":"iv_strong$iv_first_stage"},{"id":13,"options":{"editor-font-scale":"0.8","message":"true","fig-width":7,"results":"markup","comment":"","warning":"true","context":"interactive","out-width":"700px","autorun":"false","read-only":"false","editor-max-height":"","dpi":72,"output":"true","editor-word-wrap":"true","label":"unnamed-chunk-13","fig-cap":"","fig-height":5,"out-height":"","classes":"","editor-quick-suggestions":"false"},"code":"iv_weak$iv_first_stage"}];
 
   </script>
   <script type="module">
@@ -2674,13 +2674,13 @@ Answer
   
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>tinytable_a4e9wn5mt2nhk0ygboje</title>
+    <title>tinytable_hpaju05ipsig5mqe4qz4</title>
     <style>
-.table td.tinytable_css_c99rmzsuixjzmx7jvy0p, .table th.tinytable_css_c99rmzsuixjzmx7jvy0p {    border-bottom: solid 0.1em #d3d8dc; }
-.table td.tinytable_css_lvftqinukzw2bib5h5av, .table th.tinytable_css_lvftqinukzw2bib5h5av {    text-align: left; }
-.table td.tinytable_css_cl83wkvbdp3c0ifz7fxv, .table th.tinytable_css_cl83wkvbdp3c0ifz7fxv {    text-align: center; }
-.table td.tinytable_css_2gijivgb6804v7whtgmc, .table th.tinytable_css_2gijivgb6804v7whtgmc {    text-align: center; }
-.table td.tinytable_css_7rcsd8e3pwx0l2bw4p53, .table th.tinytable_css_7rcsd8e3pwx0l2bw4p53 {    border-bottom: solid 0.05em black; }
+.table td.tinytable_css_usiz4p7b2mi460fpztj0, .table th.tinytable_css_usiz4p7b2mi460fpztj0 {    border-bottom: solid 0.1em #d3d8dc; }
+.table td.tinytable_css_64li93xppetih6kdv2oe, .table th.tinytable_css_64li93xppetih6kdv2oe {    text-align: left; }
+.table td.tinytable_css_mh1021sdge2k20odpb0c, .table th.tinytable_css_mh1021sdge2k20odpb0c {    text-align: center; }
+.table td.tinytable_css_mo8mobdwrsf7r06t3cin, .table th.tinytable_css_mo8mobdwrsf7r06t3cin {    text-align: center; }
+.table td.tinytable_css_bnyayixpj1vat9d8jq7y, .table th.tinytable_css_bnyayixpj1vat9d8jq7y {    border-bottom: solid 0.05em black; }
     </style>
     <script src="https://polyfill.io/v3/polyfill.min.js?features=es6"></script>
     <script id="MathJax-script" async="" src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
@@ -2698,7 +2698,7 @@ Answer
 
   
     <div class="container">
-      <table class="table table-borderless" id="tinytable_a4e9wn5mt2nhk0ygboje" style="width: auto; margin-left: auto; margin-right: auto;" data-quarto-disable-processing="true">
+      <table class="table table-borderless" id="tinytable_hpaju05ipsig5mqe4qz4" style="width: auto; margin-left: auto; margin-right: auto;" data-quarto-disable-processing="true">
         <thead>
         
               <tr>
@@ -2774,12 +2774,12 @@ Answer
     </div>
 
     <script>
-      function styleCell_tinytable_0u5hj29h8784z8ai66ru(i, j, css_id) {
-        var table = document.getElementById("tinytable_a4e9wn5mt2nhk0ygboje");
+      function styleCell_tinytable_jnbsjhnz4xc677xtcby1(i, j, css_id) {
+        var table = document.getElementById("tinytable_hpaju05ipsig5mqe4qz4");
         table.rows[i].cells[j].classList.add(css_id);
       }
       function insertSpanRow(i, colspan, content) {
-        var table = document.getElementById('tinytable_a4e9wn5mt2nhk0ygboje');
+        var table = document.getElementById('tinytable_hpaju05ipsig5mqe4qz4');
         var newRow = table.insertRow(i);
         var newCell = newRow.insertCell(0);
         newCell.setAttribute("colspan", colspan);
@@ -2787,8 +2787,8 @@ Answer
         // this may be unsafe, but innerText does not interpret <br>
         newCell.innerHTML = content;
       }
-      function spanCell_tinytable_0u5hj29h8784z8ai66ru(i, j, rowspan, colspan) {
-        var table = document.getElementById("tinytable_a4e9wn5mt2nhk0ygboje");
+      function spanCell_tinytable_jnbsjhnz4xc677xtcby1(i, j, rowspan, colspan) {
+        var table = document.getElementById("tinytable_hpaju05ipsig5mqe4qz4");
         const targetRow = table.rows[i];
         const targetCell = targetRow.cells[j];
         for (let r = 0; r < rowspan; r++) {
@@ -2815,51 +2815,51 @@ Answer
         targetCell.colSpan = colspan;
       }
 
-window.addEventListener('load', function () { styleCell_tinytable_0u5hj29h8784z8ai66ru(0, 0, 'tinytable_css_c99rmzsuixjzmx7jvy0p') })
-window.addEventListener('load', function () { styleCell_tinytable_0u5hj29h8784z8ai66ru(0, 1, 'tinytable_css_c99rmzsuixjzmx7jvy0p') })
-window.addEventListener('load', function () { styleCell_tinytable_0u5hj29h8784z8ai66ru(0, 2, 'tinytable_css_c99rmzsuixjzmx7jvy0p') })
-window.addEventListener('load', function () { styleCell_tinytable_0u5hj29h8784z8ai66ru(0, 0, 'tinytable_css_lvftqinukzw2bib5h5av') })
-window.addEventListener('load', function () { styleCell_tinytable_0u5hj29h8784z8ai66ru(1, 0, 'tinytable_css_lvftqinukzw2bib5h5av') })
-window.addEventListener('load', function () { styleCell_tinytable_0u5hj29h8784z8ai66ru(2, 0, 'tinytable_css_lvftqinukzw2bib5h5av') })
-window.addEventListener('load', function () { styleCell_tinytable_0u5hj29h8784z8ai66ru(3, 0, 'tinytable_css_lvftqinukzw2bib5h5av') })
-window.addEventListener('load', function () { styleCell_tinytable_0u5hj29h8784z8ai66ru(4, 0, 'tinytable_css_lvftqinukzw2bib5h5av') })
-window.addEventListener('load', function () { styleCell_tinytable_0u5hj29h8784z8ai66ru(5, 0, 'tinytable_css_lvftqinukzw2bib5h5av') })
-window.addEventListener('load', function () { styleCell_tinytable_0u5hj29h8784z8ai66ru(6, 0, 'tinytable_css_lvftqinukzw2bib5h5av') })
-window.addEventListener('load', function () { styleCell_tinytable_0u5hj29h8784z8ai66ru(7, 0, 'tinytable_css_lvftqinukzw2bib5h5av') })
-window.addEventListener('load', function () { styleCell_tinytable_0u5hj29h8784z8ai66ru(8, 0, 'tinytable_css_lvftqinukzw2bib5h5av') })
-window.addEventListener('load', function () { styleCell_tinytable_0u5hj29h8784z8ai66ru(9, 0, 'tinytable_css_lvftqinukzw2bib5h5av') })
-window.addEventListener('load', function () { styleCell_tinytable_0u5hj29h8784z8ai66ru(10, 0, 'tinytable_css_lvftqinukzw2bib5h5av') })
-window.addEventListener('load', function () { styleCell_tinytable_0u5hj29h8784z8ai66ru(11, 0, 'tinytable_css_lvftqinukzw2bib5h5av') })
-window.addEventListener('load', function () { styleCell_tinytable_0u5hj29h8784z8ai66ru(12, 0, 'tinytable_css_lvftqinukzw2bib5h5av') })
-window.addEventListener('load', function () { styleCell_tinytable_0u5hj29h8784z8ai66ru(0, 1, 'tinytable_css_cl83wkvbdp3c0ifz7fxv') })
-window.addEventListener('load', function () { styleCell_tinytable_0u5hj29h8784z8ai66ru(1, 1, 'tinytable_css_cl83wkvbdp3c0ifz7fxv') })
-window.addEventListener('load', function () { styleCell_tinytable_0u5hj29h8784z8ai66ru(2, 1, 'tinytable_css_cl83wkvbdp3c0ifz7fxv') })
-window.addEventListener('load', function () { styleCell_tinytable_0u5hj29h8784z8ai66ru(3, 1, 'tinytable_css_cl83wkvbdp3c0ifz7fxv') })
-window.addEventListener('load', function () { styleCell_tinytable_0u5hj29h8784z8ai66ru(4, 1, 'tinytable_css_cl83wkvbdp3c0ifz7fxv') })
-window.addEventListener('load', function () { styleCell_tinytable_0u5hj29h8784z8ai66ru(5, 1, 'tinytable_css_cl83wkvbdp3c0ifz7fxv') })
-window.addEventListener('load', function () { styleCell_tinytable_0u5hj29h8784z8ai66ru(6, 1, 'tinytable_css_cl83wkvbdp3c0ifz7fxv') })
-window.addEventListener('load', function () { styleCell_tinytable_0u5hj29h8784z8ai66ru(7, 1, 'tinytable_css_cl83wkvbdp3c0ifz7fxv') })
-window.addEventListener('load', function () { styleCell_tinytable_0u5hj29h8784z8ai66ru(8, 1, 'tinytable_css_cl83wkvbdp3c0ifz7fxv') })
-window.addEventListener('load', function () { styleCell_tinytable_0u5hj29h8784z8ai66ru(9, 1, 'tinytable_css_cl83wkvbdp3c0ifz7fxv') })
-window.addEventListener('load', function () { styleCell_tinytable_0u5hj29h8784z8ai66ru(10, 1, 'tinytable_css_cl83wkvbdp3c0ifz7fxv') })
-window.addEventListener('load', function () { styleCell_tinytable_0u5hj29h8784z8ai66ru(11, 1, 'tinytable_css_cl83wkvbdp3c0ifz7fxv') })
-window.addEventListener('load', function () { styleCell_tinytable_0u5hj29h8784z8ai66ru(12, 1, 'tinytable_css_cl83wkvbdp3c0ifz7fxv') })
-window.addEventListener('load', function () { styleCell_tinytable_0u5hj29h8784z8ai66ru(0, 2, 'tinytable_css_2gijivgb6804v7whtgmc') })
-window.addEventListener('load', function () { styleCell_tinytable_0u5hj29h8784z8ai66ru(1, 2, 'tinytable_css_2gijivgb6804v7whtgmc') })
-window.addEventListener('load', function () { styleCell_tinytable_0u5hj29h8784z8ai66ru(2, 2, 'tinytable_css_2gijivgb6804v7whtgmc') })
-window.addEventListener('load', function () { styleCell_tinytable_0u5hj29h8784z8ai66ru(3, 2, 'tinytable_css_2gijivgb6804v7whtgmc') })
-window.addEventListener('load', function () { styleCell_tinytable_0u5hj29h8784z8ai66ru(4, 2, 'tinytable_css_2gijivgb6804v7whtgmc') })
-window.addEventListener('load', function () { styleCell_tinytable_0u5hj29h8784z8ai66ru(5, 2, 'tinytable_css_2gijivgb6804v7whtgmc') })
-window.addEventListener('load', function () { styleCell_tinytable_0u5hj29h8784z8ai66ru(6, 2, 'tinytable_css_2gijivgb6804v7whtgmc') })
-window.addEventListener('load', function () { styleCell_tinytable_0u5hj29h8784z8ai66ru(7, 2, 'tinytable_css_2gijivgb6804v7whtgmc') })
-window.addEventListener('load', function () { styleCell_tinytable_0u5hj29h8784z8ai66ru(8, 2, 'tinytable_css_2gijivgb6804v7whtgmc') })
-window.addEventListener('load', function () { styleCell_tinytable_0u5hj29h8784z8ai66ru(9, 2, 'tinytable_css_2gijivgb6804v7whtgmc') })
-window.addEventListener('load', function () { styleCell_tinytable_0u5hj29h8784z8ai66ru(10, 2, 'tinytable_css_2gijivgb6804v7whtgmc') })
-window.addEventListener('load', function () { styleCell_tinytable_0u5hj29h8784z8ai66ru(11, 2, 'tinytable_css_2gijivgb6804v7whtgmc') })
-window.addEventListener('load', function () { styleCell_tinytable_0u5hj29h8784z8ai66ru(12, 2, 'tinytable_css_2gijivgb6804v7whtgmc') })
-window.addEventListener('load', function () { styleCell_tinytable_0u5hj29h8784z8ai66ru(8, 0, 'tinytable_css_7rcsd8e3pwx0l2bw4p53') })
-window.addEventListener('load', function () { styleCell_tinytable_0u5hj29h8784z8ai66ru(8, 1, 'tinytable_css_7rcsd8e3pwx0l2bw4p53') })
-window.addEventListener('load', function () { styleCell_tinytable_0u5hj29h8784z8ai66ru(8, 2, 'tinytable_css_7rcsd8e3pwx0l2bw4p53') })
+window.addEventListener('load', function () { styleCell_tinytable_jnbsjhnz4xc677xtcby1(0, 0, 'tinytable_css_usiz4p7b2mi460fpztj0') })
+window.addEventListener('load', function () { styleCell_tinytable_jnbsjhnz4xc677xtcby1(0, 1, 'tinytable_css_usiz4p7b2mi460fpztj0') })
+window.addEventListener('load', function () { styleCell_tinytable_jnbsjhnz4xc677xtcby1(0, 2, 'tinytable_css_usiz4p7b2mi460fpztj0') })
+window.addEventListener('load', function () { styleCell_tinytable_jnbsjhnz4xc677xtcby1(0, 0, 'tinytable_css_64li93xppetih6kdv2oe') })
+window.addEventListener('load', function () { styleCell_tinytable_jnbsjhnz4xc677xtcby1(1, 0, 'tinytable_css_64li93xppetih6kdv2oe') })
+window.addEventListener('load', function () { styleCell_tinytable_jnbsjhnz4xc677xtcby1(2, 0, 'tinytable_css_64li93xppetih6kdv2oe') })
+window.addEventListener('load', function () { styleCell_tinytable_jnbsjhnz4xc677xtcby1(3, 0, 'tinytable_css_64li93xppetih6kdv2oe') })
+window.addEventListener('load', function () { styleCell_tinytable_jnbsjhnz4xc677xtcby1(4, 0, 'tinytable_css_64li93xppetih6kdv2oe') })
+window.addEventListener('load', function () { styleCell_tinytable_jnbsjhnz4xc677xtcby1(5, 0, 'tinytable_css_64li93xppetih6kdv2oe') })
+window.addEventListener('load', function () { styleCell_tinytable_jnbsjhnz4xc677xtcby1(6, 0, 'tinytable_css_64li93xppetih6kdv2oe') })
+window.addEventListener('load', function () { styleCell_tinytable_jnbsjhnz4xc677xtcby1(7, 0, 'tinytable_css_64li93xppetih6kdv2oe') })
+window.addEventListener('load', function () { styleCell_tinytable_jnbsjhnz4xc677xtcby1(8, 0, 'tinytable_css_64li93xppetih6kdv2oe') })
+window.addEventListener('load', function () { styleCell_tinytable_jnbsjhnz4xc677xtcby1(9, 0, 'tinytable_css_64li93xppetih6kdv2oe') })
+window.addEventListener('load', function () { styleCell_tinytable_jnbsjhnz4xc677xtcby1(10, 0, 'tinytable_css_64li93xppetih6kdv2oe') })
+window.addEventListener('load', function () { styleCell_tinytable_jnbsjhnz4xc677xtcby1(11, 0, 'tinytable_css_64li93xppetih6kdv2oe') })
+window.addEventListener('load', function () { styleCell_tinytable_jnbsjhnz4xc677xtcby1(12, 0, 'tinytable_css_64li93xppetih6kdv2oe') })
+window.addEventListener('load', function () { styleCell_tinytable_jnbsjhnz4xc677xtcby1(0, 1, 'tinytable_css_mh1021sdge2k20odpb0c') })
+window.addEventListener('load', function () { styleCell_tinytable_jnbsjhnz4xc677xtcby1(1, 1, 'tinytable_css_mh1021sdge2k20odpb0c') })
+window.addEventListener('load', function () { styleCell_tinytable_jnbsjhnz4xc677xtcby1(2, 1, 'tinytable_css_mh1021sdge2k20odpb0c') })
+window.addEventListener('load', function () { styleCell_tinytable_jnbsjhnz4xc677xtcby1(3, 1, 'tinytable_css_mh1021sdge2k20odpb0c') })
+window.addEventListener('load', function () { styleCell_tinytable_jnbsjhnz4xc677xtcby1(4, 1, 'tinytable_css_mh1021sdge2k20odpb0c') })
+window.addEventListener('load', function () { styleCell_tinytable_jnbsjhnz4xc677xtcby1(5, 1, 'tinytable_css_mh1021sdge2k20odpb0c') })
+window.addEventListener('load', function () { styleCell_tinytable_jnbsjhnz4xc677xtcby1(6, 1, 'tinytable_css_mh1021sdge2k20odpb0c') })
+window.addEventListener('load', function () { styleCell_tinytable_jnbsjhnz4xc677xtcby1(7, 1, 'tinytable_css_mh1021sdge2k20odpb0c') })
+window.addEventListener('load', function () { styleCell_tinytable_jnbsjhnz4xc677xtcby1(8, 1, 'tinytable_css_mh1021sdge2k20odpb0c') })
+window.addEventListener('load', function () { styleCell_tinytable_jnbsjhnz4xc677xtcby1(9, 1, 'tinytable_css_mh1021sdge2k20odpb0c') })
+window.addEventListener('load', function () { styleCell_tinytable_jnbsjhnz4xc677xtcby1(10, 1, 'tinytable_css_mh1021sdge2k20odpb0c') })
+window.addEventListener('load', function () { styleCell_tinytable_jnbsjhnz4xc677xtcby1(11, 1, 'tinytable_css_mh1021sdge2k20odpb0c') })
+window.addEventListener('load', function () { styleCell_tinytable_jnbsjhnz4xc677xtcby1(12, 1, 'tinytable_css_mh1021sdge2k20odpb0c') })
+window.addEventListener('load', function () { styleCell_tinytable_jnbsjhnz4xc677xtcby1(0, 2, 'tinytable_css_mo8mobdwrsf7r06t3cin') })
+window.addEventListener('load', function () { styleCell_tinytable_jnbsjhnz4xc677xtcby1(1, 2, 'tinytable_css_mo8mobdwrsf7r06t3cin') })
+window.addEventListener('load', function () { styleCell_tinytable_jnbsjhnz4xc677xtcby1(2, 2, 'tinytable_css_mo8mobdwrsf7r06t3cin') })
+window.addEventListener('load', function () { styleCell_tinytable_jnbsjhnz4xc677xtcby1(3, 2, 'tinytable_css_mo8mobdwrsf7r06t3cin') })
+window.addEventListener('load', function () { styleCell_tinytable_jnbsjhnz4xc677xtcby1(4, 2, 'tinytable_css_mo8mobdwrsf7r06t3cin') })
+window.addEventListener('load', function () { styleCell_tinytable_jnbsjhnz4xc677xtcby1(5, 2, 'tinytable_css_mo8mobdwrsf7r06t3cin') })
+window.addEventListener('load', function () { styleCell_tinytable_jnbsjhnz4xc677xtcby1(6, 2, 'tinytable_css_mo8mobdwrsf7r06t3cin') })
+window.addEventListener('load', function () { styleCell_tinytable_jnbsjhnz4xc677xtcby1(7, 2, 'tinytable_css_mo8mobdwrsf7r06t3cin') })
+window.addEventListener('load', function () { styleCell_tinytable_jnbsjhnz4xc677xtcby1(8, 2, 'tinytable_css_mo8mobdwrsf7r06t3cin') })
+window.addEventListener('load', function () { styleCell_tinytable_jnbsjhnz4xc677xtcby1(9, 2, 'tinytable_css_mo8mobdwrsf7r06t3cin') })
+window.addEventListener('load', function () { styleCell_tinytable_jnbsjhnz4xc677xtcby1(10, 2, 'tinytable_css_mo8mobdwrsf7r06t3cin') })
+window.addEventListener('load', function () { styleCell_tinytable_jnbsjhnz4xc677xtcby1(11, 2, 'tinytable_css_mo8mobdwrsf7r06t3cin') })
+window.addEventListener('load', function () { styleCell_tinytable_jnbsjhnz4xc677xtcby1(12, 2, 'tinytable_css_mo8mobdwrsf7r06t3cin') })
+window.addEventListener('load', function () { styleCell_tinytable_jnbsjhnz4xc677xtcby1(8, 0, 'tinytable_css_bnyayixpj1vat9d8jq7y') })
+window.addEventListener('load', function () { styleCell_tinytable_jnbsjhnz4xc677xtcby1(8, 1, 'tinytable_css_bnyayixpj1vat9d8jq7y') })
+window.addEventListener('load', function () { styleCell_tinytable_jnbsjhnz4xc677xtcby1(8, 2, 'tinytable_css_bnyayixpj1vat9d8jq7y') })
     </script>
 
   
@@ -2890,11 +2890,9 @@ window.addEventListener('load', function () { styleCell_tinytable_0u5hj29h8784z8
 <div class="cell">
 <div class="sourceCode cell-code" id="cb4"><pre class="sourceCode numberSource r number-lines code-with-copy"><code class="sourceCode r"><span id="cb4-1"><a></a>fixest<span class="sc">::</span><span class="fu">feols</span>(<span class="fu">log</span>(wage) <span class="sc">~</span> exper <span class="sc">|</span> married <span class="sc">+</span> south <span class="sc">|</span> educ <span class="sc">~</span> feduc <span class="sc">+</span> sibs, <span class="at">data =</span> wage2)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <div class="cell-output cell-output-stdout">
-<pre><code>TSLS estimation - Dep. Var.: log(wage)
-                  Endo.    : educ
-                  Instr.   : feduc, sibs
+<pre><code>TSLS estimation, Dep. Var.: log(wage), Endo.: educ, Instr.: feduc, sibs
 Second stage: Dep. Var.: log(wage)
-Observations: 741
+Observations: 741 
 Fixed-effects: married: 2,  south: 2
 Standard-errors: Clustered (married) 
          Estimate Std. Error t value Pr(&gt;|t|)    
@@ -2915,11 +2913,9 @@ F-test (1st stage), educ: stat = 62.0     , p &lt; 2.2e-16 , on 2 and 736 DoF.
 <div class="cell">
 <div class="sourceCode cell-code" id="cb6"><pre class="sourceCode numberSource r number-lines code-with-copy"><code class="sourceCode r"><span id="cb6-1"><a></a>fixest<span class="sc">::</span><span class="fu">feols</span>(<span class="fu">log</span>(wage) <span class="sc">~</span> exper <span class="sc">|</span> married <span class="sc">+</span> south <span class="sc">|</span> educ <span class="sc">~</span> feduc <span class="sc">+</span> sibs, <span class="at">cluster =</span> <span class="sc">~</span>black, <span class="at">data =</span> wage2)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <div class="cell-output cell-output-stdout">
-<pre><code>TSLS estimation - Dep. Var.: log(wage)
-                  Endo.    : educ
-                  Instr.   : feduc, sibs
+<pre><code>TSLS estimation, Dep. Var.: log(wage), Endo.: educ, Instr.: feduc, sibs
 Second stage: Dep. Var.: log(wage)
-Observations: 741
+Observations: 741 
 Fixed-effects: married: 2,  south: 2
 Standard-errors: Clustered (black) 
          Estimate Std. Error t value Pr(&gt;|t|)    
