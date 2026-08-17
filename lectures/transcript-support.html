@@ -1,0 +1,175 @@
+<!--
+  Support for collapsible "Lecturer transcript" panels in revealjs decks.
+
+  Include it from a deck's YAML header, with the path relative to the qmd:
+
+      format:
+        revealjs:
+          include-in-header: ../transcript-support.html
+
+  Then add a transcript anywhere inside a slide (or inside a single tab of a
+  tabset, which is the usual case):
+
+      <details class="transcript">
+      <summary>Lecturer transcript</summary>
+
+      What the lecturer says about this tab.
+
+      </details>
+
+  On a tab whose figure fills the whole slide there is no free rectangle to
+  overlay, so add "inline" and the panel joins the flow when opened, pushing the
+  figure down instead of covering it:
+
+      <details class="transcript inline">
+
+  Use it only where it is needed. Measure rather than guess: an open panel must
+  not overlap a ".cell-output-display". The collapsed pill still costs 0px in
+  both variants, which is the property the whole design exists to preserve.
+
+  It must live in the header rather than the body of a qmd: raw HTML placed
+  above the first "##" heading becomes its own untitled slide.
+
+  <details> is a native HTML element, so the collapse/expand works with no
+  JavaScript at all, including in a self-contained (embed-resources) file. The
+  script at the bottom adds one behaviour on top: collapsing an open panel when
+  the reader moves on. Without it everything still works, panels just keep their
+  open state.
+
+  Audience: students reviewing after class. These are not presenter notes -
+  reveal's own ".notes" blocks are the presenter-only mechanism.
+-->
+<style>
+/* The panel is positioned against the slide rather than sitting in its normal
+   flow. That is the whole point: collapsed it costs the slide no vertical
+   space, and opened it overlays the content instead of pushing it off the
+   bottom edge. Each panel lives inside its own tab, and hidden tabs do not
+   render, so only the visible tab's transcript is ever shown. */
+.reveal details.transcript {
+  position: absolute;
+  top: 0;
+  right: 0;
+  z-index: 20;
+  width: auto;
+  font-size: 0.55em;
+  line-height: 1.45;
+  text-align: left;
+  border-radius: 6px;
+  /* custom.scss styles every bare <details> as an "answer box" (grey border
+     plus padding) for Quarto's folded-code blocks. Opt out of both here so the
+     collapsed pill is not sitting inside a grey rectangle. */
+  border: none;
+  padding: 0;
+}
+
+/* Collapsed: a small pill that hugs the top-right corner. */
+.reveal details.transcript > summary {
+  display: inline-block;
+  cursor: pointer;
+  list-style: none;
+  outline: none;
+  /* custom.scss pulls every bare <summary> with a negative margin; undo it. */
+  margin: 0;
+  padding: 0.15em 0.7em;
+  border: 1px solid #06a666;
+  border-radius: 999px;
+  background: #ffffff;
+  color: #06a666;
+  font-weight: 600;
+  white-space: nowrap;
+  -webkit-user-select: none;
+  user-select: none;
+}
+.reveal details.transcript > summary::-webkit-details-marker { display: none; }
+.reveal details.transcript > summary::before { content: "\25B8\00A0"; }
+.reveal details.transcript[open] > summary::before { content: "\25BE\00A0"; }
+
+/* Opened: a tall, narrow panel down the right-hand side, where slide content
+   rarely reaches. It starts below the tab bar so tab names stay clickable
+   while a transcript is open, and runs down to just above the footer.
+
+   Measured as a share of the 700px logical slide. A top-level tab bar ends at
+   12.4-13%, so 21% clears it everywhere.
+
+   A tab bar that sits lower on the slide is cleared HORIZONTALLY instead: the
+   panel occupies x 62-100%, and no tab row measured so far reaches past x 66%.
+   Cases seen, all fine:
+     00-1  nested tabset          18.9%, names reach x 15%
+     00-1  tabset below prose     40.8%, names reach x 59%
+     01-2  nested tabset          29.6%, names reach x 46%
+   So the rule to preserve is not "top clears every tab bar" but "no tab NAME
+   overlaps the panel's rectangle". Re-check that if a deck grows a long tab row
+   sitting low on the slide. */
+.reveal details.transcript[open] {
+  top: 21%;
+  width: 36%;
+  max-height: 75%;
+  overflow-y: auto;
+  padding: 0.55em 0.85em 0.7em;
+  background: #f4fbf8;
+  border: 1px solid #06a666;
+  box-shadow: 0 6px 22px rgba(0, 0, 0, 0.16);
+}
+.reveal details.transcript[open] > summary {
+  display: block;
+  padding: 0 0 0.4em 0;
+  border: none;
+  border-radius: 0;
+  background: transparent;
+}
+.reveal details.transcript p { margin: 0.35em 0; }
+
+/* Opt-out, applied per tab as class="transcript inline".
+   Some figures are rendered at out-width 80% and span x 1.4-98.6% of the slide,
+   running from just under the tab bar down to y ~95%. There is no rectangle
+   left to overlay, so on those tabs the panel joins the normal flow when opened
+   and pushes the figure down; the slide is "scrollable: true", so the figure
+   stays reachable. Note this rule only touches [open]: collapsed, the pill is
+   still absolutely positioned at the top-right corner and still costs 0px. */
+.reveal details.transcript.inline[open] {
+  position: static;
+  width: auto;
+  max-height: none;
+  overflow-y: visible;
+  margin: 0 0 0.9em 0;
+}
+
+/* No .slide-logo rule here: no deck in this course sets a "logo:" in its YAML,
+   so the bottom-right corner the panel would collide with is already free. If
+   a logo is ever added, move it out of the way with
+   .reveal .slide-logo { right: auto !important; left: 56px !important; }
+   where 56px clears reveal's menu button at x 8-43px. */
+</style>
+
+<script>
+// Collapse any open transcript when the reader moves to another slide or
+// another tab, so a panel left open never reappears over unrelated content.
+(function () {
+  function closeAll() {
+    document.querySelectorAll("details.transcript[open]")
+      .forEach(function (d) { d.open = false; });
+  }
+
+  // Slide changes come from reveal, which is not ready when this runs.
+  function hookReveal() {
+    if (window.Reveal && typeof Reveal.on === "function") {
+      Reveal.on("slidechanged", closeAll);
+      Reveal.on("overviewshown", closeAll);
+      return true;
+    }
+    return false;
+  }
+  if (!hookReveal()) {
+    var tries = 0;
+    var timer = setInterval(function () {
+      if (hookReveal() || ++tries > 100) clearInterval(timer);
+    }, 100);
+  }
+
+  // Tab changes are plain clicks; capture so this runs before the tab switches.
+  document.addEventListener("click", function (e) {
+    var el = e.target;
+    if (el && el.closest && el.closest('.panel-tabset [role="tab"]')) closeAll();
+  }, true);
+})();
+</script>

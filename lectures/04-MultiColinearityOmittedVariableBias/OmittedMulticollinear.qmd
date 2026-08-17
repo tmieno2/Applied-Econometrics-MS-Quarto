@@ -2,12 +2,13 @@
 title: "04: Omitted Variable Bias and Multicollinearity"
 format: 
   revealjs: 
-    theme: [default, ../custom.scss]
+    theme: [default, ../custom.scss, ../notebook.scss]
     fontsize: 1.2em
     callout-icon: false
     scrollable: true
     echo: true
     fig-dpi: 400
+    include-in-header: ../transcript-support.html
     footer: "[back to course website with lecture slides](https://tmieno2.github.io/Applied-Econometrics-MS-Quarto/lectures/)"
 execute:
   echo: true
@@ -29,6 +30,13 @@ library(ggplot2)
 
 ## What variables to include or not
 
+<details class="transcript">
+<summary>Lecturer transcript</summary>
+
+Two questions in red on this slide, and they are the two you will face on every project you ever run. The first is a decision: you have a variable available, should you put it in the model? The second is a consequence: there is a variable you know matters and you simply cannot measure it, so what does that do to you? Notice these are not the same question. One is about a choice, the other about a constraint. The two concepts underneath, multicollinearity and omitted variable bias, are the answers, and this whole lecture is about telling them apart.
+
+</details>
+
 You often
 
 + face the decision of whether you should be including a particular variable or not: <span style="color:red"> how do you make a right decision? </span>
@@ -46,6 +54,13 @@ Two important concepts you need to be aware of:
 
 ### Definition
 
+<details class="transcript">
+<summary>Lecturer transcript</summary>
+
+Two definitions to have in front of you, and the contrast matters. Multicollinearity is about relationships among your independent variables: two or more of them are highly correlated with each other. Note that the definition says nothing about y at all. Omitted variable bias is about something missing: an important variable is not in the model. Read the word in blue in each box, because those are the words we will be pressing on. What counts as a consequence of multicollinearity, and what makes an omitted variable important, are precisely what the four cases work out.
+
+</details>
+
 :::{.callout-note title="Definition: Multicollinearity"}
 A phenomenon where two or more variables are highly correlated (negatively or positively) with each other (<span style="color:blue"> consequences? </span>)
 :::
@@ -57,6 +72,13 @@ Bias caused by not including (omitting) <span style="color:blue"> important </sp
 :::
 
 ### Objective
+
+<details class="transcript">
+<summary>Lecturer transcript</summary>
+
+The simplest possible setting in which the question can even be asked: y depends on two variables, x-one and x-two, plus an error. Your interest is entirely in x-one. That is the coefficient in your paper, the one your policy conclusion rests on. X-two is the variable you are deciding about. So read the objective box carefully. We are not asking whether x-two is estimated well. We are asking what happens to beta-one-hat depending on whether x-two is in the model or out of it. Two variables is enough to see everything; more would only add algebra.
+
+</details>
 
 Consider the following model,
 
@@ -71,6 +93,13 @@ Using this simple model, we investigate what happens to the coefficient estimate
 :::
 
 ### Cases we look at
+
+<details class="transcript">
+<summary>Lecturer transcript</summary>
+
+Four cases, and look at how they are constructed, because the structure is the whole design of the lecture. Two things can be true or false. Either beta-two is zero or it is not, meaning x-two either matters for y or it does not. And either x-two is correlated with x-one or it is not. Two binary conditions give four combinations, and those are exactly the four cases listed. Nothing else varies. So when you see a difference in the results, you know precisely which of the two conditions caused it, because only one thing changed.
+
+</details>
 
 The model: $$y_i = \beta_0 + \beta_1 x_{1,i} + \beta_2 x_{2,i} + u_i$$
 
@@ -90,11 +119,28 @@ What happens if $\beta_2\ne 0$, but <span style="color:blue">omit</span> $x_2$ t
 
 What happens if $\beta_2\ne 0$, but <span style="color:blue">omit</span> $x_2$ that is <span style="color:blue">highly</span> correlated with $x_1$?
 
-### Key consequences of interest 
+### Key consequences of interest
+
+<details class="transcript">
+<summary>Lecturer transcript</summary>
+
+Two things we track in every case: is beta-one-hat unbiased, and how large is its variance. And then the formula, which you already have from lecture 02. Read the three bullets under it, because they are the map for the entire lecture. Omitting a relevant variable pushes that variable into the error term, which changes the numerator. Including a correlated variable raises R-squared-j, which shrinks the denominator. The four cases are just the four combinations of those two effects being present or absent. Everything that follows is bookkeeping on this one expression.
+
+</details>
 
 + Is $\widehat{\beta}_1$ unbiased, that is $E[\widehat{\beta}_1]=\beta_1$?
 
 + $Var(\widehat{\beta}_1)$? (how accurate the estimation of $\widehat{\beta}_1$ is)
+
+<br>
+
+Everything in this lecture comes out of one formula you already have, from lecture 02:
+
+$$Var(\widehat{\beta}_j)= \frac{\sigma^2}{SST_j(1-R^2_j)}$$
+
++ omitting a relevant variable changes the <span style="color:blue">numerator</span>, because that variable goes into the error term
++ including a correlated variable changes the <span style="color:red">denominator</span>, through $R^2_j$
++ the four cases below are just the four combinations of those two things happening or not
 
 :::
 <!--end of panel-->
@@ -105,6 +151,13 @@ What happens if $\beta_2\ne 0$, but <span style="color:blue">omit</span> $x_2$ t
 
 ### Setup
 
+<details class="transcript">
+<summary>Lecturer transcript</summary>
+
+Case one, and it is the easy corner. Read the three conditions. X-one and x-two are uncorrelated, beta-two is zero, and the error is well behaved. So x-two is doing nothing at all: it does not affect y, and it carries no information about x-one either. The example makes that concrete. A farmer's height genuinely has no effect on corn yield, and taller farmers do not apply more nitrogen. Ask yourself before we run anything: if you throw a variable like that into your regression, what could possibly go wrong? Case one is the sanity check.
+
+</details>
+
 **True Model**
 
 $y_i=\beta_0 + \beta_1 x_{1,i} + \beta_2 x_{2,i} + u_i$
@@ -114,10 +167,19 @@ $y_i=\beta_0 + \beta_1 x_{1,i} + \beta_2 x_{2,i} + u_i$
 + $E[u_i|x_{1,i},x_{2,i}]=0$
 
 :::{.callout-note title="Example"}
-$\mbox{corn yield} = \beta_0 + \beta_1 \times N + \beta_2 \mbox{farmers' height} + u$
+$\mbox{corn yield} = \beta_0 + \beta_1 \times N + \beta_2 \times \mbox{farmer's height} + u$
+
++ a farmer's height does not affect yield ($\beta_2 = 0$), and it is not related to how much nitrogen they apply ($cor(x_1,x_2)=0$)
 :::
 
 ### Question
+
+<details class="transcript">
+<summary>Lecturer transcript</summary>
+
+This same tab appears in all four cases, and I want you to actually answer it before clicking to the results. Three questions. Is beta-one-hat unbiased in the model that leaves x-two out. Is it unbiased in the model that puts x-two in. And how do the two variances compare. Commit to an answer, even a guess, before you see the simulation. The reason is that all four cases produce a picture, and if you have not predicted it you will simply look at the picture and think it was obvious. Predicting first is what makes the surprise in case four land.
+
+</details>
 
 We will estimate the following models:
 
@@ -136,26 +198,25 @@ What do you think is gonna happen? Any guess?
 
 + $E[\widehat{\beta}_1]=\beta_1$ in $EE_1$? (bias?)
 + $E[\widehat{\beta}_1]=\beta_1$ in $EE_2$? (bias?)
-+ $Var(\widehat{\beta}_1)$ in $EE_2$ $\gtreqqless$ $Var(\widehat{\beta}_1)$ in $EE_2$?
++ $Var(\widehat{\beta}_1)$ in $EE_1$ $\gtreqqless$ $Var(\widehat{\beta}_1)$ in $EE_2$?
 :::
 
 ### MC Simulation
 
-::: {.columns}
+<details class="transcript">
+<summary>Lecturer transcript</summary>
 
-::: {.column width="90%"}
+Three cells, and they follow exactly the recipe from lecture 03. The first sets the sample size, the number of iterations, and a storage matrix with two columns, one per estimating equation. The second is the loop. Read the data generation lines: x-one and x-two are drawn independently, and y is built with a zero coefficient on x-two, so the setup conditions are enforced by the code rather than assumed. Then both regressions run on the same data, which is important, and both coefficients get stored. The third cell builds the density plot with the true value marked in blue.
+
+</details>
 
 Set up simulations:
 
 ```{webr-r}
-#--------------------------
-# Monte Carlo Simulation
-#--------------------------
-set.seed(37834)
-
+#| autorun: true
 N <- 100 # sample size
 B <- 1000 # the number of iterations
-estiamtes_strage <- matrix(0, B, 2)
+estimates_storage <- matrix(0, B, 2)
 ```
 
 <br>
@@ -163,6 +224,8 @@ estiamtes_strage <- matrix(0, B, 2)
 Run MC simulations:
 
 ```{webr-r}
+set.seed(37834)
+
 for (i in 1:B) { # iterate the same process B times
 
   #--- data generation ---#
@@ -177,8 +240,8 @@ for (i in 1:B) { # iterate the same process B times
   beta_ee2 <- feols(y ~ x1 + x2, data = data)$coefficient["x1"] # OLS with EE2
 
   #--- store estimates ---#
-  estiamtes_strage[i, 1] <- beta_ee1
-  estiamtes_strage[i, 2] <- beta_ee2
+  estimates_storage[i, 1] <- beta_ee1
+  estimates_storage[i, 2] <- beta_ee2
 }
 ```
 
@@ -188,12 +251,12 @@ Visualize the results:
 
 ```{webr-r}
 b_ee1 <- data.table(
-  bhat = estiamtes_strage[, 1],
+  bhat = estimates_storage[, 1],
   type = "EE 1"
 )
 
 b_ee2 <- data.table(
-  bhat = estiamtes_strage[, 2],
+  bhat = estimates_storage[, 2],
   type = "EE 2"
 )
 
@@ -202,19 +265,20 @@ plot_data <- rbind(b_ee1, b_ee2)
 g_case_1 <- ggplot(data = plot_data) +
   geom_density(aes(x = bhat, fill = type), alpha = 0.5) +
   scale_fill_discrete(name = "Estimating Equation") +
+  geom_vline(xintercept = 1, color = "blue", linewidth = 1) + # the true beta_1
+  xlab("Estimate of beta_1") +
   theme(legend.position = "bottom")
 ```
-:::
-<!--end of the 2nd column-->
-::: {.column width="10%"}
-
-:::
-<!--end of the 1st column-->
-:::
-<!--end of the columns-->
 
 
 ### MC Results
+
+<details class="transcript">
+<summary>Lecturer transcript</summary>
+
+Two densities, and the blue line is the true beta-one of one. Look at three things. Both densities are centered on the blue line, so both estimating equations are unbiased, which is what you would hope. Their widths are essentially identical, so including x-two cost you nothing in precision. And they overlap almost perfectly. That is case one in a picture: an irrelevant, uncorrelated variable is simply harmless. Keep this image in mind, because in the next three cases one or both of those observations will fail, and you will be able to see exactly which.
+
+</details>
 
 ```{webr-r}
 g_case_1
@@ -225,6 +289,13 @@ g_case_1
 ::: {.panel-tabset}
 
 #### $EE_1$
+
+<details class="transcript">
+<summary>Lecturer transcript</summary>
+
+Now let's explain the picture rather than just look at it. On the left, the truth; on the right, the model we actually estimated, which pushes x-two into a composite error term v. The question is whether the zero conditional mean condition holds for that composite error. Work it out before opening the answer. V contains beta-two times x-two plus u. Beta-two is zero, so the first piece vanishes entirely, and u was assumed uncorrelated with x-one. So the condition holds and there is no bias. Notice we needed only one of the two conditions here.
+
+</details>
 
 ::: {.columns}
 
@@ -249,8 +320,8 @@ $EE_1$: $y_i = \beta_0 + \beta_1 x_{1,i} + v_{i} \;\; (v_i = \beta_2 x_{2,i} + u
 
 <br>
 
-::: {.panel-tabset}
-##### Question
+**Question**
+
 
 $E[v_i|x_{1,i}]=0?$
 
@@ -262,10 +333,15 @@ Yes, because $x_1$ is not correlated with either of $x_2$ and $u$. So, **no** bi
 </details>
 
 
-:::
-<!--end of panel-->
 
 #### $EE_2$
+
+<details class="transcript">
+<summary>Lecturer transcript</summary>
+
+The other estimating equation, and this one is almost trivial. We estimated exactly the model that generated the data, error term and all. So the question is just whether the original zero conditional mean condition holds, and we assumed it does in the setup. No bias. The reason this tab is worth a moment anyway is the contrast with the previous one. Both give unbiased estimates, but for different reasons: this one because the model is correct, that one because the thing it left out happened to be harmless. Only one of those is robust.
+
+</details>
 
 ::: {.columns}
 
@@ -290,8 +366,8 @@ $EE_2$: $y_i = \beta_0 + \beta_1 x_{1,i} + \beta_2 x_{2,i} + u_{i}$
 
 <br>
 
-::: {.panel-tabset}
-##### Question
+**Question**
+
 
 $E[u_i|x_{1,i},x_{2,i}]=0$?
 
@@ -301,8 +377,6 @@ $E[u_i|x_{1,i},x_{2,i}]=0$?
 Yes, because $x_1$ and $x_2$ are not correlated with $u$ (by assumption). So, **no** bias.
 </details>
 
-:::
-<!--end of panel-->
 
 :::
 <!--end of panel-->
@@ -312,6 +386,13 @@ Yes, because $x_1$ and $x_2$ are not correlated with $u$ (by assumption). So, **
 ::: {.panel-tabset}
 
 #### $EE_1$
+
+<details class="transcript">
+<summary>Lecturer transcript</summary>
+
+Now variance, and we walk the formula term by term. The two questions below are the two moving parts. R-squared-j is the R-squared from regressing x-one on all the other covariates, and in this model there are no other covariates, so it is zero and the denominator is untouched. And the error variance: v is beta-two times x-two plus u, but beta-two is zero, so v is just u, and its variance is sigma-u squared. Both parts unchanged. That is why we get the answer we get on the comparison tab.
+
+</details>
 
 ::: {.columns}
 
@@ -359,13 +440,13 @@ $R_j^2$?
 
 ##### Question (variance of the error term)
 
-$Var(v_i) = Var(\beta_2 x_i + u_i)$?
+$Var(v_i) = Var(\beta_2 x_{2,i} + u_i)$?
 
 <br>
 <details>
   <summary>Answer</summary>
 $$
-Var(u_i) = Var(\beta_2 x_i + u_i) = \sigma_u^2
+Var(v_i) = Var(\beta_2 x_{2,i} + u_i) = \sigma_u^2
 $$
 because $\beta_2 = 0$.
 
@@ -375,6 +456,13 @@ because $\beta_2 = 0$.
 <!--end of panel-->
 
 #### $EE_2$
+
+<details class="transcript">
+<summary>Lecturer transcript</summary>
+
+Same two questions for the model that includes x-two. R-squared-j is now the R-squared from regressing x-one on x-two, and since those two are uncorrelated by construction, it is zero on average. Note the words on average: in any single sample the correlation is not exactly zero, so R-squared-j is a small positive number. But it does not systematically inflate anything. And the error variance is sigma-u squared, since we estimated the true model. So again both parts unchanged, and for a different reason than before.
+
+</details>
 
 ::: {.columns}
 
@@ -438,6 +526,13 @@ $$
 
 #### $EE_1$ v.s. $EE_2$
 
+<details class="transcript">
+<summary>Lecturer transcript</summary>
+
+Here is the comparison laid out. Read the three columns. Both models have R-squared-j equal to zero and both have error variance sigma-u squared, and the formula in the third column takes only those two inputs plus the sum of squares of x-one, which does not depend on which model you run. Every ingredient is identical, so the variances are identical. That is the answer, and it is worth saying what it means practically: adding a useless, uncorrelated control variable is free. It does not help, but it costs you nothing either.
+
+</details>
+
 :::{.callout-note title="Question"}
 $Var(\widehat{\beta}_1)$ in $EE_1$ $\gtreqqless$ $Var(\widehat{\beta}_1)$ in $EE_2$?
 :::
@@ -482,9 +577,16 @@ They are the same because all the components are the same.
 
 ### Summary 
 
+<details class="transcript">
+<summary>Lecturer transcript</summary>
+
+The two takeaways from case one, and both are permission rather than warning. Including a variable that has no explanatory power and is uncorrelated with x-one leaves your variance exactly where it was. And omitting such a variable leaves you unbiased. So in this corner of the world it genuinely does not matter what you do. Remember that this is the only case where that is true. Three more cases follow, and each one breaks exactly one of the two conditions we imposed here, so you will be able to attribute every difference to the thing that changed.
+
+</details>
+
 + If you include an irrelevant variable that has no explanatory power beyond $x_1$ and is not correlated with $x_1$ ($EE_2$), then the variance of the OLS estimator on $x_1$ will be the same as when you do not include $x_2$ as a covariate ($EE_1$)
 
-+ If you omit an irrelevant variable that has no explanatory power beyond $x_1$ ($EE_1$) and is not correlated with $x_1$, then the the OLS estimator on $x_1$ is still unbiased
++ If you omit an irrelevant variable that has no explanatory power beyond $x_1$ ($EE_1$) and is not correlated with $x_1$, then the OLS estimator on $x_1$ is still unbiased
 
 :::
 <!--end of panel-->
@@ -495,6 +597,13 @@ They are the same because all the components are the same.
 
 ### Setup
 
+<details class="transcript">
+<summary>Lecturer transcript</summary>
+
+Case two, and exactly one thing has changed from case one: x-one and x-two are now correlated. Beta-two is still zero, so x-two is still genuinely irrelevant to y. Read the example, because it is the shape this takes in practice. Fertilizer expenditure is almost entirely determined by how much nitrogen you applied, so the two are tightly related. But once you already know the nitrogen rate, the dollar figure tells you nothing further about yield. An irrelevant variable that happens to move with the one you care about. This is what multicollinearity means.
+
+</details>
+
 **True Model**
 
 $y_i=\beta_0 + \beta_1 x_{1,i} + \beta_2 x_{2,i} + u_i$
@@ -504,10 +613,19 @@ $y_i=\beta_0 + \beta_1 x_{1,i} + \beta_2 x_{2,i} + u_i$
 + $E[u_i|x_{1,i},x_{2,i}]=0$
 
 :::{.callout-note title="Example"}
-$\mbox{corn yield} = \beta_0 + \beta_1 \times N + \beta_2 \mbox{farmers' height} + u$
+$\mbox{corn yield} = \beta_0 + \beta_1 \times N + \beta_2 \times \mbox{fertilizer expenditure} + u$
+
++ fertilizer expenditure is almost entirely determined by how much nitrogen is applied ($cor(x_1,x_2)\ne 0$), but once you know $N$ it tells you nothing more about yield ($\beta_2 = 0$)
 :::
 
 ### Question
+
+<details class="transcript">
+<summary>Lecturer transcript</summary>
+
+Same three questions, and now they are worth more thought than in case one. X-two still does not belong in the model in any meaningful sense, since beta-two is zero. So your instinct might be that including it is still harmless. Predict all three answers before moving on. In particular, think hard about the third one. If x-two carries no information about y, can putting it in the regression really cost you anything? Write down yes or no. The whole point of case two is that the answer is not what most people expect.
+
+</details>
 
 We will estimate the following models:
 
@@ -526,14 +644,17 @@ What do you think is gonna happen? Any guess?
 
 + $E[\widehat{\beta}_1]=\beta_1$ in $EE_1$? (bias?)
 + $E[\widehat{\beta}_1]=\beta_1$ in $EE_2$? (bias?)
-+ $Var(\widehat{\beta}_1)$ in $EE_2$ $\gtreqqless$ $Var(\widehat{\beta}_1)$ in $EE_2$?
++ $Var(\widehat{\beta}_1)$ in $EE_1$ $\gtreqqless$ $Var(\widehat{\beta}_1)$ in $EE_2$?
 :::
 
 ### MC Simulation
 
-::: {.columns}
+<details class="transcript">
+<summary>Lecturer transcript</summary>
 
-::: {.column width="90%"}
+The code is identical to case one except for two lines, and they are the ones to read. A common term mu is drawn, and then both x-one and x-two are built as nine parts mu plus one part their own noise. That makes them correlated by construction, and very strongly so. Everything else is untouched, including the zero coefficient on x-two in the line that builds y. One condition changed, everything else fixed, which is the controlled experiment we set up at the start of the lecture.
+
+</details>
 
 Set up simulations:
 
@@ -541,7 +662,7 @@ Set up simulations:
 #| autorun: true
 N <- 100 # sample size
 B <- 1000 # the number of iterations
-estiamtes_strage <- matrix(0, B, 2)
+estimates_storage <- matrix(0, B, 2)
 ```
 
 <br>
@@ -566,8 +687,8 @@ for (i in 1:B) { # iterate the same process B times
   beta_ee2 <- feols(y ~ x1 + x2, data = data)$coefficient["x1"] # OLS with EE2
 
   #--- store estimates ---#
-  estiamtes_strage[i, 1] <- beta_ee1
-  estiamtes_strage[i, 2] <- beta_ee2
+  estimates_storage[i, 1] <- beta_ee1
+  estimates_storage[i, 2] <- beta_ee2
 }
 ```
 
@@ -577,12 +698,12 @@ Visualize the results:
 
 ```{webr-r}
 b_ee1 <- data.table(
-  bhat = estiamtes_strage[, 1],
+  bhat = estimates_storage[, 1],
   type = "EE 1"
 )
 
 b_ee2 <- data.table(
-  bhat = estiamtes_strage[, 2],
+  bhat = estimates_storage[, 2],
   type = "EE 2"
 )
 
@@ -592,18 +713,19 @@ g_case_2 <-
   ggplot(data = plot_data) +
   geom_density(aes(x = bhat, fill = type), alpha = 0.5) +
   scale_fill_discrete(name = "Estimating Equation") +
+  geom_vline(xintercept = 1, color = "blue", linewidth = 1) + # the true beta_1
+  xlab("Estimate of beta_1") +
   theme(legend.position = "bottom")
 ```
-:::
-<!--end of the 1st column-->
-::: {.column width="10%"}
-
-:::
-<!--end of the 2nd column-->
-:::
-<!--end of the columns-->
 
 ### MC Results
+
+<details class="transcript">
+<summary>Lecturer transcript</summary>
+
+Now look at the difference from case one. Both densities are still centered on the blue line, so both are still unbiased, and that is genuinely reassuring. But they are no longer the same shape. The one for the model including x-two is visibly wider, sometimes dramatically so. You have paid a real price in precision for including a variable that contributes nothing. That is the consequence of multicollinearity, and notice what it is not: it is not bias. Your estimator is still right on average. It is just less reliable in any one sample.
+
+</details>
 
 ```{webr-r}
 g_case_2
@@ -614,6 +736,13 @@ g_case_2
 ::: {.panel-tabset}
 
 #### $EE_1$
+
+<details class="transcript">
+<summary>Lecturer transcript</summary>
+
+Why is leaving x-two out still unbiased here, when x-two is now correlated with x-one? Read the answer carefully, because the logic matters. The composite error v is beta-two times x-two plus u. X-one is indeed correlated with x-two, which sounds alarming. But beta-two is zero, so that whole term is zero, and correlation with something multiplied by zero is harmless. What is left is u, uncorrelated with x-one by assumption. So no bias. Correlation alone is not enough to hurt you. Hold on to that; it is half of what case four needs.
+
+</details>
 
 ::: {.columns}
 
@@ -638,8 +767,8 @@ $EE_1$: $y_i = \beta_0 + \beta_1 x_{1,i} + v_{i} \;\; (v_i = \beta_2 x_{2,i} + u
 
 <br>
 
-::: {.panel-tabset}
-##### Question
+**Question**
+
 
 $E[v_i|x_{1,i}]=0?$
 
@@ -654,10 +783,15 @@ Yes, because
 So, **no** bias.
 </details>
 
-:::
-<!--end of panel-->
 
 #### $EE_2$
+
+<details class="transcript">
+<summary>Lecturer transcript</summary>
+
+And the model that includes x-two is unbiased for the same trivial reason as in case one: it is the model that generated the data. Nothing about correlation between regressors threatens unbiasedness. That is worth stating plainly, because multicollinearity has a bad reputation and people sometimes think it biases coefficients. It does not. Correlated regressors are entirely consistent with all four of the conditions we listed in lecture 02. The damage multicollinearity does is on the variance side only, which is the next tab.
+
+</details>
 
 ::: {.columns}
 
@@ -682,8 +816,8 @@ $EE_2$: $y_i = \beta_0 + \beta_1 x_{1,i} + \beta_2 x_{2,i} + u_{i}$
 
 <br>
 
-::: {.panel-tabset}
-##### Question
+**Question**
+
 
 $E[u_i|x_{1,i},x_{2,i}]=0$?
 
@@ -693,8 +827,6 @@ $E[u_i|x_{1,i},x_{2,i}]=0$?
 Yes, because $x_1$ and $x_2$ are not correlated with $u$ (by assumption). So, **no** bias.
 </details> 
 
-:::
-<!--end of panel-->
 
 :::
 <!--end of panel-->
@@ -704,6 +836,13 @@ Yes, because $x_1$ and $x_2$ are not correlated with $u$ (by assumption). So, **
 ::: {.panel-tabset}
 
 #### $EE_1$
+
+<details class="transcript">
+<summary>Lecturer transcript</summary>
+
+The variance terms for the model that omits x-two, and the answers are the same as in case one. R-squared-j is zero, because with only one regressor there is nothing to regress it on. And the error variance is sigma-u squared, because beta-two is zero, so v collapses to u again. Neither term feels the correlation between x-one and x-two, because x-two is not in this model at all. That is the key: this estimating equation is completely insulated from what x-two is doing. The next tab is where it bites.
+
+</details>
 
 ::: {.columns}
 
@@ -751,13 +890,13 @@ $R_j^2$?
 
 ##### Question (variance of the error term)
 
-$Var(v_i) = Var(\beta_2 x_i + u_i)$?
+$Var(v_i) = Var(\beta_2 x_{2,i} + u_i)$?
 
 <br>
 <details>
   <summary>Answer</summary>
 $$
-Var(u_i) = Var(\beta_2 x_i + u_i) = \sigma_u^2
+Var(v_i) = Var(\beta_2 x_{2,i} + u_i) = \sigma_u^2
 $$
 because $\beta_2 = 0$.
 
@@ -767,6 +906,13 @@ because $\beta_2 = 0$.
 <!--end of panel-->
 
 #### $EE_2$
+
+<details class="transcript">
+<summary>Lecturer transcript</summary>
+
+Here is where the two cases diverge. R-squared-j is the R-squared from regressing x-one on x-two, and now those two are strongly correlated, so it is large. Run the cell to see it: with this data generating process it comes out around zero point nine seven. Now put that in the denominator. One minus zero point nine seven is about zero point zero two four, so the denominator is shrunk by a factor of roughly forty. The error variance is unchanged. One term moved, in the direction that hurts.
+
+</details>
 
 ::: {.columns}
 
@@ -812,6 +958,8 @@ $R_j^2$?
 $R_j^2$ is non-zero because $x_1$ and $x_2$ are correlated. If you regress $x_1$ on $x_2$, then its $R^2$ is non-zero.
 
 ```{webr-r}
+N <- 100
+mu <- rnorm(N) # common term shared by x1 and x2
 x1 <- 0.1 * rnorm(N) + 0.9 * mu # independent variable
 x2 <- 0.1 * rnorm(N) + 0.9 * mu # independent variable
 (
@@ -837,6 +985,13 @@ $$
 <!--end of panel-->
 
 #### $EE_1$ v.s. $EE_2$
+
+<details class="transcript">
+<summary>Lecturer transcript</summary>
+
+Compare the columns. The error variances are identical, sigma-u squared in both. The only difference is R-squared-j: zero for the model that omits x-two, positive and large for the model that includes it. Same numerator, smaller denominator, so a larger variance. That is the answer, and it is the precise statement of what multicollinearity costs you. Not bias, not a wrong answer on average, but a wider sampling distribution, which in practice means larger standard errors and a coefficient you cannot distinguish from zero.
+
+</details>
 
 :::{.callout-note title="Question"}
 $Var(\widehat{\beta}_1)$ in $EE_1$ $\gtreqqless$ $Var(\widehat{\beta}_1)$ in $EE_2$?
@@ -882,9 +1037,16 @@ So, $Var(\widehat{\beta}_1)$ in $EE_1$ $<$ $Var(\widehat{\beta}_1)$ in $EE_2$
 
 ### Summary 
 
+<details class="transcript">
+<summary>Lecturer transcript</summary>
+
+Case two in two lines. Including an irrelevant but highly correlated variable inflates the variance of the coefficient you care about. And omitting it leaves you unbiased. So here, unlike case one, the choice matters, and it points clearly toward leaving x-two out. Now notice what makes this case safe to reason about: because beta-two is zero, there is no bias on either side, so variance is the only consideration. In case four that will no longer be true, and the decision will get genuinely hard.
+
+</details>
+
 + If you include an irrelevant variable that has no explanatory power beyond $x_1$, but is highly correlated with $x_1$ ($EE_2$), then the variance of the OLS estimator on $x_1$ is larger compared to when you do not include $x_2$ ($EE_1$)
 
-+ If you omit an irrelevant variable that has no explanatory power beyond $x_1$ ($EE_1$), but is highly correlated with $x_1$, then the the OLS estimator on $x_1$ is still unbiased
++ If you omit an irrelevant variable that has no explanatory power beyond $x_1$ ($EE_1$), but is highly correlated with $x_1$, then the OLS estimator on $x_1$ is still unbiased
 
 :::
 <!--end of panel-->
@@ -895,6 +1057,13 @@ So, $Var(\widehat{\beta}_1)$ in $EE_1$ $<$ $Var(\widehat{\beta}_1)$ in $EE_2$
 
 ### Setup
 
+<details class="transcript">
+<summary>Lecturer transcript</summary>
+
+Case three, and we have flipped the other switch. Now beta-two is not zero, so x-two genuinely affects y, but x-one and x-two are back to being uncorrelated. Read the example, because the reasoning behind it is what you would need to argue in a paper. Growing season rainfall obviously affects corn yield. But a farmer picks their nitrogen rate before the season begins, so the rate they chose cannot depend on rain that has not fallen yet. A variable that matters for y but is unrelated to your variable of interest.
+
+</details>
+
 **True Model**
 
 $y_i=\beta_0 + \beta_1 x_{1,i} + \beta_2 x_{2,i} + u_i$
@@ -904,10 +1073,19 @@ $y_i=\beta_0 + \beta_1 x_{1,i} + \beta_2 x_{2,i} + u_i$
 + $E[u_i|x_{1,i},x_{2,i}]=0$
 
 :::{.callout-note title="Example"}
-$\mbox{corn yield} = \beta_0 + \beta_1 \times N + \beta_2 \mbox{farmers' height} + u$
+$\mbox{corn yield} = \beta_0 + \beta_1 \times N + \beta_2 \times \mbox{growing season rainfall} + u$
+
++ rainfall clearly affects yield ($\beta_2 \ne 0$), but a farmer chooses their nitrogen rate before the season starts, so it is unrelated to the rain they end up getting ($cor(x_1,x_2) = 0$)
 :::
 
 ### Question
+
+<details class="transcript">
+<summary>Lecturer transcript</summary>
+
+The three questions again, and this is the case where I most often see the wrong guess. X-two now matters for y, and we are considering leaving it out. That sounds like the definition of omitting an important variable, so the natural prediction is bias. Commit to your answer. Then think about the phrase we used in the definition tab at the start: an important variable. Case three is going to force us to be much more precise about what important means, because the obvious reading of it turns out to be wrong.
+
+</details>
 
 We will estimate the following models:
 
@@ -926,14 +1104,17 @@ What do you think is gonna happen? Any guess?
 
 + $E[\widehat{\beta}_1]=\beta_1$ in $EE_1$? (bias?)
 + $E[\widehat{\beta}_1]=\beta_1$ in $EE_2$? (bias?)
-+ $Var(\widehat{\beta}_1)$ in $EE_2$ $\gtreqqless$ $Var(\widehat{\beta}_1)$ in $EE_2$?
++ $Var(\widehat{\beta}_1)$ in $EE_1$ $\gtreqqless$ $Var(\widehat{\beta}_1)$ in $EE_2$?
 :::
 
 ### MC Simulation
 
-::: {.columns}
+<details class="transcript">
+<summary>Lecturer transcript</summary>
 
-::: {.column width="90%"}
+Read the data generation block and compare it against case one. X-one and x-two are drawn independently again, exactly as in case one. The single change is in the line that builds y: the coefficient on x-two is now one rather than zero. So x-two genuinely affects the outcome. Everything else in the loop, both regressions, the storage, is untouched. One line different from case one, and it is the line that decides whether x-two is a real determinant of y or a passenger.
+
+</details>
 
 Set up simulations:
 
@@ -941,7 +1122,7 @@ Set up simulations:
 #| autorun: true
 N <- 100 # sample size
 B <- 1000 # the number of iterations
-estiamtes_strage <- matrix(0, B, 2)
+estimates_storage <- matrix(0, B, 2)
 ```
 
 <br>
@@ -965,8 +1146,8 @@ for (i in 1:B) { # iterate the same process B times
   beta_ee2 <- feols(y ~ x1 + x2, data = data)$coefficient["x1"] # OLS with EE2
 
   #--- store estimates ---#
-  estiamtes_strage[i, 1] <- beta_ee1
-  estiamtes_strage[i, 2] <- beta_ee2
+  estimates_storage[i, 1] <- beta_ee1
+  estimates_storage[i, 2] <- beta_ee2
 }
 ```
 
@@ -976,12 +1157,12 @@ Visualize the results:
 
 ```{webr-r}
 b_ee1 <- data.table(
-  bhat = estiamtes_strage[, 1],
+  bhat = estimates_storage[, 1],
   type = "EE 1"
 )
 
 b_ee2 <- data.table(
-  bhat = estiamtes_strage[, 2],
+  bhat = estimates_storage[, 2],
   type = "EE 2"
 )
 
@@ -991,18 +1172,19 @@ g_case_3 <-
   ggplot(data = plot_data) +
   geom_density(aes(x = bhat, fill = type), alpha = 0.5) +
   scale_fill_discrete(name = "Estimating Equation") +
+  geom_vline(xintercept = 1, color = "blue", linewidth = 1) + # the true beta_1
+  xlab("Estimate of beta_1") +
   theme(legend.position = "bottom")
 ```
-:::
-<!--end of the 1st column-->
-::: {.column width="10%"}
-
-:::
-<!--end of the 2nd column-->
-:::
-<!--end of the columns-->
 
 ### MC Results
+
+<details class="transcript">
+<summary>Lecturer transcript</summary>
+
+And here is the surprise, if you predicted bias. Both densities are still centered on the blue line. Omitting a variable that genuinely affects y did not bias anything, because it was uncorrelated with x-one. But look at the widths, and note that the ranking has reversed from case two. Now it is the model that omits x-two which is wider. Including a relevant variable bought you precision. So the two cases point in opposite directions, and that is not a contradiction; it is two different terms of the same formula moving.
+
+</details>
 
 ```{webr-r}
 g_case_3
@@ -1013,6 +1195,13 @@ g_case_3
 ::: {.panel-tabset}
 
 #### $EE_1$
+
+<details class="transcript">
+<summary>Lecturer transcript</summary>
+
+Why is omitting a genuinely relevant variable still unbiased? The composite error v is beta-two times x-two plus u, and now beta-two is not zero, so x-two really is sitting in the error term. But the condition we need is that v is uncorrelated with x-one, and x-two is uncorrelated with x-one by construction. So the error term is inflated but not tilted. That distinction is the whole of case three: a variable in your error term is only dangerous if it is correlated with your regressor. Otherwise it is just noise.
+
+</details>
 
 ::: {.columns}
 
@@ -1037,8 +1226,8 @@ $EE_1$: $y_i = \beta_0 + \beta_1 x_{1,i} + v_{i} \;\; (v_i = \beta_2 x_{2,i} + u
 
 <br>
 
-::: {.panel-tabset}
-##### Question
+**Question**
+
 
 $E[v_i|x_{1,i}]=0?$
 
@@ -1050,10 +1239,15 @@ Yes, because $x_1$ is not correlated with either $x_2$ or $u$.
 So, **no** bias.
 </details>
 
-:::
-<!--end of panel-->
 
 #### $EE_2$
+
+<details class="transcript">
+<summary>Lecturer transcript</summary>
+
+The model that includes x-two is unbiased, for the same reason as always: it is the true model and the zero conditional mean condition was assumed. Nothing new here. But there is something worth noticing across the three cases so far. This estimating equation has been unbiased in every single one, because it always estimates the model that generated the data. All the interesting variation has been on the other side, in what happens when you leave something out. Case four is the first time that stops being enough.
+
+</details>
 
 ::: {.columns}
 
@@ -1078,8 +1272,8 @@ $EE_2$: $y_i = \beta_0 + \beta_1 x_{1,i} + \beta_2 x_{2,i} + u_{i}$
 
 <br>
 
-::: {.panel-tabset}
-##### Question
+**Question**
+
 
 $E[u_i|x_{1,i},x_{2,i}]=0$?
 
@@ -1089,8 +1283,6 @@ $E[u_i|x_{1,i},x_{2,i}]=0$?
 Yes, because $x_1$ and $x_2$ are not correlated with $u$ (by assumption). So, **no** bias.
 </details> 
 
-:::
-<!--end of panel-->
 
 :::
 <!--end of panel-->
@@ -1100,6 +1292,13 @@ Yes, because $x_1$ and $x_2$ are not correlated with $u$ (by assumption). So, **
 ::: {.panel-tabset}
 
 #### $EE_1$
+
+<details class="transcript">
+<summary>Lecturer transcript</summary>
+
+Now the variance, and this is the tab where case three finally differs from the earlier ones. R-squared-j is still zero, since there are no other regressors. But look at the error variance. V is beta-two times x-two plus u, and beta-two is no longer zero, so the algebra in the answer does not collapse. You get beta-two squared times the variance of x-two, plus sigma-u squared. The error variance has genuinely grown. That is the price of leaving a relevant variable in the error term.
+
+</details>
 
 ::: {.columns}
 
@@ -1147,7 +1346,7 @@ $R_j^2$?
 
 ##### Question (variance of the error term)
 
-$Var(v_i) = Var(\beta_2 x_i + u_i)$?
+$Var(v_i) = Var(\beta_2 x_{2,i} + u_i)$?
 
 <br>
 <details>
@@ -1156,8 +1355,8 @@ $Var(v_i) = Var(\beta_2 x_i + u_i)$?
 ```{=tex}
 \begin{align}
 Var(error) & = Var(v_i) \\
-  & = Var(\beta_2 x_i + u_i) \\
-  & = \beta_2^2\cdot Var(x_i) + \sigma_u^2
+  & = Var(\beta_2 x_{2,i} + u_i) \\
+  & = \beta_2^2\cdot Var(x_{2,i}) + \sigma_u^2
 \end{align}
 ```
 
@@ -1167,6 +1366,13 @@ Var(error) & = Var(v_i) \\
 <!--end of panel-->
 
 #### $EE_2$
+
+<details class="transcript">
+<summary>Lecturer transcript</summary>
+
+And for the model that includes x-two, both terms are back to their smallest values. R-squared-j is zero on average, since x-one and x-two are uncorrelated, so the denominator is untouched. And the error variance is just sigma-u squared, because x-two is properly accounted for rather than dumped into the error. Run the cell if you want to see R-squared-j come out near zero. So this model has the smaller numerator and the same denominator, which settles the comparison before we even get to the next tab.
+
+</details>
 
 ::: {.columns}
 
@@ -1212,6 +1418,7 @@ $R_j^2$?
 $R_j^2$ is (on average) zero because $x_1$ and $x_2$ are not correlated. If you regress $x_1$ on $x_2$, then its $R^2$ is zero (on average).
 
 ```{webr-r}
+N <- 100
 x1 <- rnorm(N) # independent variable
 x2 <- rnorm(N) # independent variable
 (
@@ -1238,6 +1445,13 @@ $$
 
 #### $EE_1$ v.s. $EE_2$
 
+<details class="transcript">
+<summary>Lecturer transcript</summary>
+
+The comparison, and now it runs the other way. Both have R-squared-j equal to zero, so the denominators match. But the numerators differ: the model omitting x-two carries beta-two squared times the variance of x-two on top of sigma-u squared, while the model including it carries only sigma-u squared. Bigger numerator, same denominator, bigger variance. So including x-two is strictly better here. Compare this against case two, where including it was strictly worse. Same formula, opposite conclusion, because a different term moved.
+
+</details>
+
 :::{.callout-note title="Question"}
 $Var(\widehat{\beta}_1)$ in $EE_1$ $\gtreqqless$ $Var(\widehat{\beta}_1)$ in $EE_2$?
 :::
@@ -1250,7 +1464,7 @@ $Var(\widehat{\beta}_1)$ in $EE_1$ $\gtreqqless$ $Var(\widehat{\beta}_1)$ in $EE
 **$EE_1$**
 
 + $R_j^2 = 0$
-+ $Var(error) = Var(v_i) = \beta_2^2\cdot Var(x_i) + \sigma_u^2$
++ $Var(error) = Var(v_i) = \beta_2^2\cdot Var(x_{2,i}) + \sigma_u^2$
 :::
 <!--end of the 1st column-->
 ::: {.column width="33%"}
@@ -1282,9 +1496,16 @@ So, $Var(\widehat{\beta}_1)$ in $EE_1$ $>$ $Var(\widehat{\beta}_1)$ in $EE_2$
 
 ### Summary 
 
+<details class="transcript">
+<summary>Lecturer transcript</summary>
+
+Case three summarised, and note that both statements favour including x-two. Including a relevant but uncorrelated variable reduces your variance, because it takes explanatory power out of the error term. And omitting it leaves you unbiased, so nothing catastrophic happens if you cannot get it. That last point is genuinely useful in practice: if you can argue a missing variable is uncorrelated with your treatment, you can argue it costs you precision but not credibility. That argument is the backbone of a randomised experiment.
+
+</details>
+
 + If you include a variable that has some explanatory power beyond $x_1$, but is not correlated with $x_1$ ($EE_2$), then the variance of the OLS estimator on $x_1$ is smaller compared to when you do not include $x_2$ ($EE_1$)
 
-+ If you omit an variable that has some explanatory power beyond $x_1$ ($EE_1$), but is not correlated with $x_1$, then the the OLS estimator on $x_1$ is still unbiased
++ If you omit a variable that has some explanatory power beyond $x_1$ ($EE_1$), but is not correlated with $x_1$, then the OLS estimator on $x_1$ is still unbiased
 :::
 <!--end of panel-->
 
@@ -1293,6 +1514,13 @@ So, $Var(\widehat{\beta}_1)$ in $EE_1$ $>$ $Var(\widehat{\beta}_1)$ in $EE_2$
 ::: {.panel-tabset}
 
 ### Setup
+
+<details class="transcript">
+<summary>Lecturer transcript</summary>
+
+Case four, both switches flipped. X-two matters for y, and it is correlated with x-one. Read the example and the note under it. Better soil raises yield, and farmers do not apply the same nitrogen rate on good ground as on poor ground, so soil quality is related to the nitrogen decision. Now read the second bullet, which is the honest one. This is the case that actually happens. Case one is a curiosity, cases two and three are instructive, and case four is what you will face on essentially every project with observational data.
+
+</details>
 
 **True Model**
 
@@ -1303,10 +1531,20 @@ $y_i=\beta_0 + \beta_1 x_{1,i} + \beta_2 x_{2,i} + u_i$
 + $E[u_i|x_{1,i},x_{2,i}]=0$
 
 :::{.callout-note title="Example"}
-$\mbox{corn yield} = \beta_0 + \beta_1 \times N + \beta_2 \mbox{farmers' height} + u$
+$\mbox{corn yield} = \beta_0 + \beta_1 \times N + \beta_2 \times \mbox{soil quality} + u$
+
++ better soil raises yield ($\beta_2 \ne 0$), and farmers apply nitrogen differently on good and poor ground ($cor(x_1,x_2) \ne 0$)
++ this is the case that actually happens in practice, and the one you have to worry about
 :::
 
 ### Question
+
+<details class="transcript">
+<summary>Lecturer transcript</summary>
+
+Three questions once more, and by now you have the tools to predict all three. Case two taught you that correlation alone does not bias anything. Case three taught you that relevance alone does not bias anything either. So what happens when both are present at once? Commit to an answer. And a fourth question I want you to hold in mind while you predict: if there is bias, can you say anything about its size and direction, or is it simply unknown? That question is where the second half of the lecture goes.
+
+</details>
 
 We will estimate the following models:
 
@@ -1325,14 +1563,17 @@ What do you think is gonna happen? Any guess?
 
 + $E[\widehat{\beta}_1]=\beta_1$ in $EE_1$? (bias?)
 + $E[\widehat{\beta}_1]=\beta_1$ in $EE_2$? (bias?)
-+ $Var(\widehat{\beta}_1)$ in $EE_2$ $\gtreqqless$ $Var(\widehat{\beta}_1)$ in $EE_2$?
++ $Var(\widehat{\beta}_1)$ in $EE_1$ $\gtreqqless$ $Var(\widehat{\beta}_1)$ in $EE_2$?
 :::
 
 ### MC Simulation
 
-::: {.columns}
+<details class="transcript">
+<summary>Lecturer transcript</summary>
 
-::: {.column width="90%"}
+Read the loop and notice that it combines the two changes we made separately before. X-one and x-two share the common term mu, as in case two, so they are correlated. And the coefficient on x-two in the line that builds y is one rather than zero, as in case three, so x-two matters. Both conditions hold at once for the first time. Everything else, sample size, iterations, both regressions, is identical to the three previous cases, so any difference in the output is attributable to those two lines together.
+
+</details>
 
 Set up simulations:
 
@@ -1340,7 +1581,7 @@ Set up simulations:
 #| autorun: true
 N <- 100 # sample size
 B <- 1000 # the number of iterations
-estiamtes_strage <- matrix(0, B, 2)
+estimates_storage <- matrix(0, B, 2)
 ```
 
 <br>
@@ -1365,8 +1606,8 @@ for (i in 1:B) { # iterate the same process B times
   beta_ee2 <- feols(y ~ x1 + x2, data = data)$coefficient["x1"] # OLS with EE2
 
   #--- store estimates ---#
-  estiamtes_strage[i, 1] <- beta_ee1
-  estiamtes_strage[i, 2] <- beta_ee2
+  estimates_storage[i, 1] <- beta_ee1
+  estimates_storage[i, 2] <- beta_ee2
 }
 ```
 
@@ -1376,12 +1617,12 @@ Visualize the results:
 
 ```{webr-r}
 b_ee1 <- data.table(
-  bhat = estiamtes_strage[, 1],
+  bhat = estimates_storage[, 1],
   type = "EE 1"
 )
 
 b_ee2 <- data.table(
-  bhat = estiamtes_strage[, 2],
+  bhat = estimates_storage[, 2],
   type = "EE 2"
 )
 
@@ -1391,28 +1632,65 @@ g_case_4 <-
   ggplot(data = plot_data) +
   geom_density(aes(x = bhat, fill = type), alpha = 0.5) +
   scale_fill_discrete(name = "Estimating Equation") +
+  geom_vline(xintercept = 1, color = "blue", linewidth = 1) + # the true beta_1
+  geom_vline(xintercept = 1.988, color = "red", linetype = 2, linewidth = 1) + # predicted plim of EE1
+  xlab("Estimate of beta_1") +
   theme(legend.position = "bottom")
 ```
-:::
-<!--end of the 1st column-->
-::: {.column width="10%"}
-
-:::
-<!--end of the 2nd column-->
-:::
-<!--end of the columns-->
 
 ### MC Results
+
+<details class="transcript">
+<summary>Lecturer transcript</summary>
+
+And there it is. The two densities are no longer on top of each other, and one of them is nowhere near the blue line. The model that omits x-two has moved bodily to the right, centered near the red dashed line at about two, when the truth is one. It is not less precise; it is answering a different question. That is bias, and it is the first time we have seen it in this lecture. The model including x-two remains centered on the truth, exactly as it has in all four cases.
+
+</details>
 
 ```{webr-r}
 g_case_4
 ```
+
++ the <span style="color:blue"> blue </span> line is the true $\beta_1 = 1$; the <span style="color:red"> red dashed </span> line is where $EE_1$ is predicted to land, and we work out that number on the `Predicted bias` tab
+
+### Predicted bias
+
+<details class="transcript">
+<summary>Lecturer transcript</summary>
+
+And the bias is not merely present, it is predictable to three digits. Work through the two numbers. The covariance of x-one and x-two is zero point eight one, because they share nine tenths of a common term whose variance is one. And the variance of x-one is zero point eight two. Their ratio is delta-one, about zero point nine eight eight. Multiply by beta-two, which is one, and add to the true beta-one. You get one point nine eight eight. Run the cell and compare against your own simulation. It matches.
+
+</details>
+
+This is the one case with bias, and it is <span style="color:blue"> exactly </span> predictable. From the data generating process:
+
++ $Cov(x_1, x_2) = Var(\mu) \times 0.9^2 = 0.81$ and $Var(x_1) = 0.1^2 + 0.9^2 = 0.82$
++ so $\delta_1 = \frac{Cov(x_1,x_2)}{Var(x_1)} = \frac{0.81}{0.82} \approx 0.988$
++ and therefore $E[\tilde{\beta}_1] = \beta_1 + \beta_2 \cdot \delta_1 = 1 + 1 \times 0.988 = \mathbf{1.988}$
+
+Check it against your own simulation:
+
+```{webr-r}
+mean(estimates_storage[, 1]) # EE1: should be close to 1.988
+mean(estimates_storage[, 2]) # EE2: should be close to 1
+```
+
+:::{.callout-important title="Note"}
+We have not derived that formula yet &mdash; it is on the `Omitted Variable Bias (Theory)` slide, two slides from here. Notice that the simulation confirmed it before we proved it, which is exactly the use of Monte Carlo simulation we described in lecture 03.
+:::
 
 ### Insights: Bias
 
 ::: {.panel-tabset}
 
 #### $EE_1$
+
+<details class="transcript">
+<summary>Lecturer transcript</summary>
+
+Now the explanation. The composite error v contains beta-two times x-two plus u. In case two, beta-two was zero so that term vanished. In case three, x-two was uncorrelated with x-one so the term was harmless. Here neither escape is available. X-two is in the error term with a non-zero coefficient, and it is correlated with x-one. So the error term is correlated with the regressor, the zero conditional mean condition fails, and beta-one-hat is biased. Both conditions were necessary, and both are now present.
+
+</details>
 
 ::: {.columns}
 
@@ -1437,8 +1715,8 @@ $EE_1$: $y_i = \beta_0 + \beta_1 x_{1,i} + v_{i} \;\; (v_i = \beta_2 x_{2,i} + u
 
 <br>
 
-::: {.panel-tabset}
-##### Question
+**Question**
+
 
 $E[v_i|x_{1,i}]=0?$
 
@@ -1450,10 +1728,15 @@ No, because $x_1$ is correlated with $x_2$ and $\beta_2 \ne 0$.
 So, there will be bias.
 </details>
 
-:::
-<!--end of panel-->
 
 #### $EE_2$
+
+<details class="transcript">
+<summary>Lecturer transcript</summary>
+
+The model that includes x-two is still unbiased, and this is the point of the whole lecture in one tab. Bias came not from the world being complicated, but from us leaving something out. Put x-two back in and the problem disappears entirely. That is why economists reach for controls. The catch, which the variance tabs cover next, is that x-two is highly correlated with x-one here, so including it is not free. This is the only case where you actually have to weigh one thing against the other.
+
+</details>
 
 ::: {.columns}
 
@@ -1478,8 +1761,8 @@ $EE_2$: $y_i = \beta_0 + \beta_1 x_{1,i} + \beta_2 x_{2,i} + u_{i}$
 
 <br>
 
-::: {.panel-tabset}
-##### Question
+**Question**
+
 
 $E[u_i|x_{1,i},x_{2,i}]=0$?
 
@@ -1489,8 +1772,6 @@ $E[u_i|x_{1,i},x_{2,i}]=0$?
 Yes, because $x_1$ and $x_2$ are not correlated with $u$ (by assumption). So, **no** bias.
 </details> 
 
-:::
-<!--end of panel-->
 
 :::
 <!--end of panel-->
@@ -1500,6 +1781,13 @@ Yes, because $x_1$ and $x_2$ are not correlated with $u$ (by assumption). So, **
 ::: {.panel-tabset}
 
 #### $EE_1$
+
+<details class="transcript">
+<summary>Lecturer transcript</summary>
+
+The variance terms for the model that omits x-two, and both moving parts are now active. R-squared-j is zero, as always in a one-regressor model. But the error variance has grown, exactly as in case three: beta-two squared times the variance of x-two, plus sigma-u squared. With the numbers here that is about one point eight two rather than one. So the numerator is inflated. Remember though that this estimator is also biased, so a small variance would be no comfort. Precision around the wrong number is worse than useless.
+
+</details>
 
 ::: {.columns}
 
@@ -1547,7 +1835,7 @@ $R_j^2$?
 
 ##### Question (variance of the error term)
 
-$Var(v_i) = Var(\beta_2 x_i + u_i)$?
+$Var(v_i) = Var(\beta_2 x_{2,i} + u_i)$?
 
 <br>
 <details>
@@ -1556,8 +1844,8 @@ $Var(v_i) = Var(\beta_2 x_i + u_i)$?
 ```{=tex}
 \begin{align}
 Var(error) & = Var(v_i) \\
-  & = Var(\beta_2 x_i + u_i) \\
-  & = \beta_2^2\cdot Var(x_i) + \sigma_u^2
+  & = Var(\beta_2 x_{2,i} + u_i) \\
+  & = \beta_2^2\cdot Var(x_{2,i}) + \sigma_u^2
 \end{align}
 ```
 
@@ -1567,6 +1855,13 @@ Var(error) & = Var(v_i) \\
 <!--end of panel-->
 
 #### $EE_2$
+
+<details class="transcript">
+<summary>Lecturer transcript</summary>
+
+And for the model that includes x-two, the error variance is back down to sigma-u squared, but R-squared-j is now large, because x-one and x-two are strongly correlated. Run the cell to see it come out around zero point nine seven. So this estimating equation has the better numerator and the much worse denominator, while the other one has the reverse. For the first time the two terms of the formula point in opposite directions, and which one wins is a question of magnitudes rather than principle.
+
+</details>
 
 ::: {.columns}
 
@@ -1612,6 +1907,8 @@ $R_j^2$?
 $R_j^2$ is non-zero because $x_1$ and $x_2$ are correlated. If you regress $x_1$ on $x_2$, then its $R^2$ is non-zero.
 
 ```{webr-r}
+N <- 100
+mu <- rnorm(N) # common term shared by x1 and x2
 x1 <- 0.1 * rnorm(N) + 0.9 * mu # independent variable
 x2 <- 0.1 * rnorm(N) + 0.9 * mu # independent variable
 (
@@ -1638,6 +1935,13 @@ $$
 
 #### $EE_1$ v.s. $EE_2$
 
+<details class="transcript">
+<summary>Lecturer transcript</summary>
+
+Look at the columns and you will see why the answer is, honestly, it depends. The model omitting x-two has the larger numerator but an untouched denominator. The model including it has the smaller numerator but a denominator shrunk by R-squared-j. Neither dominates. Which one has the smaller variance depends on the actual numbers: how strong the correlation is, how large beta-two is, how spread out x-two is. The next two tabs work through one setting of those numbers and then deliberately reverse them.
+
+</details>
+
 :::{.callout-note title="Question"}
 $Var(\widehat{\beta}_1)$ in $EE_1$ $\gtreqqless$ $Var(\widehat{\beta}_1)$ in $EE_2$?
 :::
@@ -1650,7 +1954,7 @@ $Var(\widehat{\beta}_1)$ in $EE_1$ $\gtreqqless$ $Var(\widehat{\beta}_1)$ in $EE
 **$EE_1$**
 
 + $R_j^2 = 0$
-+ $Var(error) = Var(v_i) = \beta_2^2\cdot Var(x_i) + \sigma_u^2$
++ $Var(error) = Var(v_i) = \beta_2^2\cdot Var(x_{2,i}) + \sigma_u^2$
 :::
 <!--end of the 1st column-->
 ::: {.column width="33%"}
@@ -1677,62 +1981,104 @@ $Var(\widehat{\beta}_j) = \frac{Var(error)}{SST_j(1-R^2_j)}$
 It depends.
 </details>
 
-#### $Var(\widehat{\beta}_1)$ in $EE_1$ $<$ $Var(\widehat{\beta}_1)$ in $EE_2$
+#### Why $EE_1$ won here
 
-In the MC simulations we saw, 
+<details class="transcript">
+<summary>Lecturer transcript</summary>
 
+Let's put numbers on it for the simulation we just ran. Run the cell: R-squared-j is about zero point nine seven six, so one minus it is about zero point zero two four, and the denominator for the including model is shrunk by a factor of roughly forty. Meanwhile the omitting model's numerator rose only from one to about one point eight two, so its penalty is a near-doubling. A factor of two against a factor of forty is no contest. That is why the omitting model came out with the lower variance here.
 
-+ $x_1$ and $x_2$ are highly correlated, so $R_j^2$ is very high for $EE_2$
+</details>
 
-```{r}
-#| eval: false
-x1 <- 0.1 * rnorm(N) + 0.9 * mu # independent variable
-x2 <- 0.1 * rnorm(N) + 0.9 * mu # independent variable
+Both terms in the variance formula moved, and they moved in opposite directions. Which one wins is a matter of magnitudes:
+
++ $x_1$ and $x_2$ are highly correlated, so $R_j^2$ is very high for $EE_2$ &mdash; this <span style="color:red"> inflates </span> $Var(\widehat{\beta}_1)$ in $EE_2$
+
+```{webr-r}
+mu <- rnorm(10000)
+x1 <- 0.1 * rnorm(10000) + 0.9 * mu
+x2 <- 0.1 * rnorm(10000) + 0.9 * mu
+cor(x1, x2)^2 # this is R^2_j for EE2
 ```
 
 <br>
 
-+ The impact of $x_2$ ($\beta_2 = 1$) and the variance of $x_2$ is small (approximately 1). 
-
-```{r}
-#| eval: false
-y <- 1 + x1 + 1 * x2 + u
-```
++ but $\beta_2 = 1$ and $Var(x_2) \approx 0.82$ are both small, so folding $x_2$ into the error term only raises the numerator from $\sigma_u^2 = 1$ to about $1.82$ &mdash; a mild <span style="color:blue"> penalty </span> for $EE_1$
 
 <br>
 
-These conditions led to lower $Var(\widehat{\beta}_1)$ in $EE_1$ compared to $Var(\widehat{\beta}_1)$ in $EE_2$.
+A near-doubling of the numerator is no match for a denominator shrunk by a factor of about 40. That is why $Var(\widehat{\beta}_1)$ in $EE_1$ came out <span style="color:blue"> lower </span> than in $EE_2$.
 
-#### $Var(\widehat{\beta}_1)$ in $EE_1$ $>$ $Var(\widehat{\beta}_1)$ in $EE_2$
+#### When $EE_2$ wins instead
 
-Now, let's reverse the current conditions. We now have:
+<details class="transcript">
+<summary>Lecturer transcript</summary>
 
+Now let's deliberately reverse the magnitudes and watch the ranking flip. X-one and x-two now share almost nothing, so R-squared-j is tiny and the denominator is barely touched. But beta-two is five and the variance of x-two is about five, so omitting x-two inflates the numerator enormously. Run both cells. The variances come out around one point eight against zero point zero one three, the reverse of before. Same formula, same four conditions, opposite answer, purely because the numbers changed. Nothing here is a rule of thumb.
+
+</details>
+
+Now let's reverse the conditions:
 
 + $x_1$ and $x_2$ are **NOT** highly correlated, so $R_j^2$ is small for $EE_2$
-+ The impact of $x_2$ ($\beta_2 = 5$) and the variance of $x_2$ is large (approximately 5). 
++ $\beta_2 = 5$ and $Var(x_2) \approx 5$, so omitting $x_2$ inflates the error variance enormously
 
-```{r}
-#| eval: false
-x1 <- 0.9 * rnorm(N) + 0.1 * mu # independent variable
-x2 <- 2.23 * rnorm(N) + 0.1 * mu # independent variable
-cor(x1, x2)
+Run it and compare against the picture on the `MC Results` tab:
+
+```{webr-r}
+#| autorun: false
+set.seed(37834)
+
+N <- 100
+B <- 1000
+storage_rev <- matrix(0, B, 2)
+
+for (i in 1:B) {
+  mu <- rnorm(N)
+  x1 <- 0.9 * rnorm(N) + 0.1 * mu # now mostly its own variation
+  x2 <- 2.23 * rnorm(N) + 0.1 * mu # large variance, barely related to x1
+  u <- rnorm(N)
+  y <- 1 + x1 + 5 * x2 + u # x2 now matters a lot
+  data <- data.frame(y = y, x1 = x1, x2 = x2)
+
+  storage_rev[i, 1] <- feols(y ~ x1, data = data)$coefficient["x1"]
+  storage_rev[i, 2] <- feols(y ~ x1 + x2, data = data)$coefficient["x1"]
+}
+
+#--- variance of the estimates under each estimating equation ---#
+c(EE1 = var(storage_rev[, 1]), EE2 = var(storage_rev[, 2]))
 ```
 
 <br>
 
-```{r}
-#| eval: false
-y <- 1 + x1 + 5 * x2 + u
+```{webr-r}
+plot_data_rev <- rbind(
+  data.table(bhat = storage_rev[, 1], type = "EE 1"),
+  data.table(bhat = storage_rev[, 2], type = "EE 2")
+)
+
+ggplot(data = plot_data_rev) +
+  geom_density(aes(x = bhat, fill = type), alpha = 0.5) +
+  scale_fill_discrete(name = "Estimating Equation") +
+  geom_vline(xintercept = 1, color = "blue", linewidth = 1) +
+  xlab("Estimate of beta_1") +
+  theme(legend.position = "bottom")
 ```
 
-<br>
-
-Let's rerun MC simulations with this updated data generating process.
++ $EE_1$ is now the <span style="color:red"> wide </span> one ($Var \approx 1.8$ against $0.013$ for $EE_2$): the ranking has flipped
++ $x_1$ and $x_2$ still share a little of $\mu$, so $EE_1$ keeps a small bias of $\beta_2\cdot\delta_1 \approx 5 \times \frac{0.01}{0.82} \approx 0.06$ &mdash; tiny next to a standard deviation of $1.34$, which is exactly why it is invisible in the plot
 
 :::
 <!--end of panel-->
 
 ### Summary 
+
+<details class="transcript">
+<summary>Lecturer transcript</summary>
+
+Case four in two lines. There is a genuine bias-variance trade-off when a variable both matters and is correlated with your variable of interest. And economists tend to opt for unbiasedness. That second line is a professional norm rather than a theorem, so it is worth saying why. A biased estimate with tight standard errors will confidently tell you the wrong number, and no amount of extra data fixes it. A noisy but unbiased estimate at least tells you the truth eventually, and honestly reports how uncertain it is.
+
+</details>
 
 + There exists bias-variance trade-off when independent variables are both important (their coefficients are non-zero) and they are correlated
 
@@ -1741,11 +2087,41 @@ Let's rerun MC simulations with this updated data generating process.
 
 <!--end of panel-->
 
+## All four cases at once
+
+<details class="transcript">
+<summary>Lecturer transcript</summary>
+
+Here is the whole lecture on one slide. Two conditions, four cells. Read across the top row: with beta-two equal to zero, x-two is irrelevant, and the only question is whether including it costs you variance, which it does when the two are correlated. Read the bottom row: x-two matters, and now omitting it either costs variance or costs you bias. Then read the two bullets. Bias appears in exactly one cell, and it needs both conditions at once. Either one on its own, as cases two and three showed, leaves you unbiased.
+
+</details>
+
+The question is always the same: <span style="color:blue"> should $x_2$ be in the model? </span> The answer depends on only two things.
+
+| | $cor(x_1,x_2) = 0$ | $cor(x_1,x_2) \ne 0$ |
+|---|---|---|
+| **$\beta_2 = 0$** | **Case 1**: both unbiased, same variance. Including $x_2$ costs you nothing. | **Case 2**: both unbiased, but including $x_2$ <span style="color:red"> inflates </span> the variance. This is multicollinearity. |
+| **$\beta_2 \ne 0$** | **Case 3**: both unbiased, but <span style="color:blue"> omitting </span> $x_2$ inflates the variance. Include it. | **Case 4**: omitting $x_2$ gives you <span style="color:red">bias</span>. Including it may inflate the variance. A genuine trade-off. |
+
+<br>
+
+Two things to carry away:
+
++ <span style="color:red"> bias </span> appears in exactly one cell, and it needs <span style="color:red"> both </span> conditions: $x_2$ must matter <span style="color:red"> and </span> be correlated with $x_1$. Either one alone is harmless for unbiasedness.
++ in the three cells with no bias, including $x_2$ is never worse than a variance question. Case 4 is the only one where you have to choose, and economists almost always choose unbiasedness.
+
 ## Omitted Variable Bias (Theory)
 
 ::: {.panel-tabset}
 
 ### Setup
+
+<details class="transcript">
+<summary>Lecturer transcript</summary>
+
+Now the algebra behind what case four showed us. Notice the two different symbols: beta-one-tilde for the estimator from the model that omits x-two, beta-one-hat for the one that includes it. Then the auxiliary regression, and read the direction carefully because this is where people go wrong. You regress the omitted variable on the included one, not the reverse. Delta-one is that slope, the covariance over the variance of x-one. The boxed result says the bias is beta-two times delta-one, and case four's number came from exactly this.
+
+</details>
 
 **True model**
 
@@ -1771,17 +2147,28 @@ Let $\widehat{\beta}_1$ and $\widehat{\beta}_2$ denote the estimator of $\beta_1
 
 **Relationship between $x_1$ and $x_2$**
 
-$x_{1,i} = \sigma_0 + \sigma_1 x_{2,i} + \mu_{i}$
+Regress the <span style="color:red"> omitted </span> variable on the <span style="color:blue"> included </span> one:
+
+$x_{2,i} = \delta_0 + \delta_1 x_{1,i} + e_{i}$, so that $\delta_1 = \frac{Cov(x_1,x_2)}{Var(x_1)}$
 
 <br>
 
 :::{.callout-important}
-Then, $E[\tilde{\beta}_1] = \beta_1 + \beta_2 \cdot \sigma_1$, where $\beta_2 \cdot \sigma_1$ is the bias.
+Then, $E[\tilde{\beta}_1] = \beta_1 + \beta_2 \cdot \delta_1$, where $\beta_2 \cdot \delta_1$ is the bias.
 :::
 
-That is, if you omit $x_2$ and regress $y$ only on $x_1$, then the bias is going to be the multiple of the impact of $x_2$ on $y$ ($\beta_2$) and the impact of $x_2$ on $x_1$ ($\sigma_1$).
+That is, if you omit $x_2$ and regress $y$ only on $x_1$, then the bias is the product of the impact of $x_2$ on $y$ ($\beta_2$) and the slope you would get from regressing $x_2$ on $x_1$ ($\delta_1$).
+
++ note the <span style="color:red"> direction </span> of that auxiliary regression: omitted on included, not the other way around
 
 ### Magnitude and direction of bias
+
+<details class="transcript">
+<summary>Lecturer transcript</summary>
+
+The four sign combinations, and they follow directly from the formula. Bias is beta-two times delta-one, and delta-one has the same sign as the correlation, so the sign of the bias is just the product of two signs. Work through the first line to convince yourself and the rest will follow. Then read the magnitude bullets and the note. The bias grows with the correlation and with the size of beta-two. It does not depend on beta-one at all. The coefficient you care about could be huge or zero; the bias is the same either way.
+
+</details>
 
 **Direction of bias**
 
@@ -1794,9 +2181,13 @@ That is, if you omit $x_2$ and regress $y$ only on $x_1$, then the bias is going
 
 **Magnitude of bias**
 
-+ The greater the correlation between $x_1$ and $x_2$, the greater the bias 
++ The greater the correlation between $x_1$ and $x_2$, the greater the bias
 
-+ The greater $\beta_1$ is, the greater the bias 
++ The greater $|\beta_2|$ is, the greater the bias
+
+:::{.callout-note title="Note"}
+$\beta_1$ &mdash; the coefficient you actually care about &mdash; plays <span style="color:red"> no role </span> in the bias. Omitting $x_2$ shifts $\widehat{\beta}_1$ by $\beta_2\cdot\delta_1$ regardless of how large or small the true effect of $x_1$ is.
+:::
 
 
 ### Examples
@@ -1804,6 +2195,13 @@ That is, if you omit $x_2$ and regress $y$ only on $x_1$, then the bias is going
 ::: {.panel-tabset}
 
 #### Example 1
+
+<details class="transcript">
+<summary>Lecturer transcript</summary>
+
+Work this one out yourself before I say anything. Nitrogen is your variable of interest, soil erodibility is omitted and sits in the error term. Two facts on screen. Farmers apply more nitrogen to more erodible ground to compensate for nutrient loss, so the correlation is positive. And erodibility hurts yield, so gamma is negative. Positive correlation times negative gamma gives a negative bias. So your estimate of nitrogen's effect on yield comes out too low. You would understate the value of fertiliser, possibly badly.
+
+</details>
 
 $$
 \begin{aligned}
@@ -1818,6 +2216,13 @@ What is the direction of bias on $\hat{\beta}$?
 
 #### Example 2
 
+<details class="transcript">
+<summary>Lecturer transcript</summary>
+
+This is the classic housing example, and it is worth knowing because it appears in Wooldridge and in real policy debates. You want the effect of distance to an incinerator on house prices. But planners put incinerators on the edge of town, so distance to the incinerator is negatively related to distance from the city center, and distance from the center lowers prices. Negative correlation times negative gamma gives a positive bias. So you would overstate how much being near an incinerator hurts a house's value.
+
+</details>
+
 $$
 \begin{aligned}
 \mbox{house price} = \alpha + \beta \cdot \mbox{dist to incinerators} + (\gamma \cdot \mbox{dist to city center}  + \mu)
@@ -1830,6 +2235,13 @@ $$
 What is the direction of bias on $\hat{\beta}$?
 
 #### Example 3
+
+<details class="transcript">
+<summary>Lecturer transcript</summary>
+
+One from my own field. You are estimating the effect of precipitation on groundwater use, and irrigation technology is omitted. Farmers in drier places adopt center pivot more, so precipitation is negatively correlated with center pivot adoption. And center pivot applies water more efficiently, so gamma is negative. Negative times negative gives a positive bias. Now notice something useful: you would expect the true effect of precipitation on groundwater use to be negative, and the bias pushes upward, against your expectation. The next tab is about why that is good news.
+
+</details>
 
 $$
 \begin{aligned}
@@ -1850,11 +2262,18 @@ What is the direction of bias on $\hat{\beta}$?
 
 ### How does this help?
 
-When the direction of the bias is the <span style = "color: red;"> opposite </span> of the expected coefficient on the variable of interest, you can claim that <span style = "color: blue;"> even after </span> suffering from the bias, you are still seeing the impact of the variable interest. So, it is a strong evidence that you would have had an even stronger estimated impact. 
+When the direction of the bias is the <span style = "color: red;"> opposite </span> of the expected coefficient on the variable of interest, you can claim that <span style = "color: blue;"> even after </span> suffering from the bias, you are still seeing the impact of the variable interest. So, it is strong evidence that you would have had an even stronger estimated impact. 
 
 ::: {.panel-tabset}
 
 #### Example 1
+
+<details class="transcript">
+<summary>Lecturer transcript</summary>
+
+Here is why signing the bias is worth the effort. The true effect is minus ten, the bias is plus five, so what you actually estimate is minus five. You never see the first two numbers, only the last. But if you can argue the bias is positive, then your estimate of minus five is a conservative one: the truth must be even more negative. So you can say, with a straight face, that the effect is at least this large. The bias worked against you and the result survived anyway.
+
+</details>
 
 $$
 \begin{aligned}
@@ -1869,6 +2288,13 @@ $$
 You believe the direction of bias is positive (you need provide reasoning behind your belief), and yet, the estimated coefficient is still negative. So, you can be quite confident that the sign of the impact of precipitation is negative. You can say your estimate is a conservative estimate of the impact of precipitation on groundwater use.
 
 #### Example 2
+
+<details class="transcript">
+<summary>Lecturer transcript</summary>
+
+And here is the case where the same reasoning gives you nothing. True effect minus ten, bias minus five, estimate minus fifteen. Again you see only the last number. But now the bias points the same direction as your finding, so it could be doing all the work. A large enough negative bias could produce a negative estimate even if the truth were positive. Read the last sentence: there is nothing you can do. The direction of the bias determines whether this argument is available to you, and you do not get to choose it.
+
+</details>
 
 $$
 \begin{aligned}

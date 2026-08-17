@@ -2,12 +2,13 @@
 title: "02: Multivariate Regression"
 format: 
   revealjs: 
-    theme: [default, ../custom.scss]
+    theme: [default, ../custom.scss, ../notebook.scss]
     fontsize: 1.2em
     callout-icon: false
     scrollable: true
     echo: true
     fig-dpi: 400
+    include-in-header: ../transcript-support.html
     footer: "[back to course website with lecture slides](https://tmieno2.github.io/Applied-Econometrics-MS-Quarto/lectures/)"
 webr:
   packages: ['fixest', 'dplyr', 'data.table', 'ggplot2', 'modelsummary', 'gt']
@@ -24,11 +25,28 @@ filters:
 #| include: false
 library(fixest)
 library(modelsummary)
+
+# R-side copy of the data the "Implementation (R)" webr cell simulates, so the
+# regression table on the "Present results" tab reports that same regression.
+# The seed matches the one in the webr cell.
+set.seed(2024)
+N <- 100
+x1 <- rnorm(N)
+x2 <- rnorm(N)
+u <- rnorm(N)
+y <- 1 + x1 + x2 + u
+data_sim <- data.frame(y = y, x1 = x1, x2 = x2)
+reg <- feols(y ~ x1 + x2, data = data_sim)
 ```
+
+<html><div style='float:left'></div><hr color='#EB811B' size=1px width=1000px></html>
+
+## Univariate vs Multivariate Regression Models
 
 ```{webr-r}
 #| context: setup
-
+# NOTE: a webr setup cell draws a loading widget wherever it sits, so keep it
+# inside a content slide rather than on a section divider.
 theme_lecture <-
   theme_bw() +
   theme(
@@ -40,26 +58,36 @@ theme_lecture <-
   )
 ```
 
-<html><div style='float:left'></div><hr color='#EB811B' size=1px width=1000px></html>
-
-## Univariate vs Multivariate Regression Models
-
 ::: {.panel-tabset}
 
 
 ### Bi-variate vs. Uni-variate
 
+<details class="transcript">
+<summary>Lecturer transcript</summary>
+
+Let's start with why we are doing this at all. In the univariate world the zero conditional mean condition is almost certainly violated, and the reason is structural: every variable you did not include is sitting in the error term, and any one of them can be correlated with your x. So the fix suggests itself. Move some of those variables out of the error term and into the model. Each one you include is one fewer thing that can bias you. But read the word in blue carefully. Less severe, not solved. That qualifier is the honest part of the sentence, and we come back to it.
+
+</details>
+
 **Univariate**
 
-The most important assumption $E[u|x] = 0$ (zero conditional mean) is almost always violated (unless you data comes from randomized experiments) because all the other variables are sitting in the error term, which can be correlated with $x$.
+The most important assumption $E[u|x] = 0$ (zero conditional mean) is almost always violated (unless your data comes from randomized experiments) because all the other variables are sitting in the error term, which can be correlated with $x$.
 
 <br>
 
 **Multivariate**
 
-More independent variables mean less factors left in the error term, which makes the endogeneity problem <span style = "color: blue;"> less </span>severe
+More independent variables mean fewer factors left in the error term, which makes the endogeneity problem <span style = "color: blue;"> less </span>severe
 
 ### Example
+
+<details class="transcript">
+<summary>Lecturer transcript</summary>
+
+Here is the move written out. On top, the univariate model, where the error term u-one contains experience; look at the parenthesis, u-one equals u-two plus beta-two times experience. Underneath, the bivariate model, where experience has been pulled out and given its own coefficient. Now read the two bullets. In the first model beta-one-hat is biased unless experience happens to be uncorrelated with education, which it certainly is not. In the second you can measure the effect of education holding experience fixed. That is what the phrase in red means: we say experience has been controlled for.
+
+</details>
 
 **Uni-variate vs. bi-variate**
 
@@ -81,6 +109,13 @@ More independent variables mean less factors left in the error term, which makes
 
 ### Example
 
+<details class="transcript">
+<summary>Lecturer transcript</summary>
+
+Same structure, a different question, and this one is worth carrying around because you will meet it in real policy debates. Does spending more per student raise test scores? Regress score on spending alone and average family income sits in the error term. But richer districts both spend more and have students who score higher for reasons that have nothing to do with the spending. So the naive regression credits the money with what the income did. Put average income into the model and you have controlled for it. Same shape as the wage example, same shape as the firefighters in lecture zero.
+
+</details>
+
 The impact of per student spending (`expend`) on standardized test score (`avgscore`) at the high school level
 
 ```{=tex}
@@ -91,6 +126,13 @@ avgscore= & \beta_0+\beta_1 expend +\beta_2 avginc + u_2 \notag
 ```
 
 ### Model (general)
+
+<details class="transcript">
+<summary>Lecturer transcript</summary>
+
+Now the general version, and I mostly want you to read the two bullets defining the betas, because six words there are doing a great deal of work. Beta-one is the change in y with respect to x-one, holding other factors fixed. Holding other factors fixed. In the univariate model we simply had to hope for that. Here it is delivered by the estimation itself, because x-two is in the model. That phrase is what people mean when they call a coefficient a partial effect, and the last section of this lecture makes precise what the machinery is actually doing.
+
+</details>
 
 More generally,
 
@@ -113,6 +155,13 @@ More generally,
 
 ### Uni-variate v.s. Bi-variate
 
+<details class="transcript">
+<summary>Lecturer transcript</summary>
+
+The condition for unbiasedness generalises in the way you would guess. In the univariate case it was the expected value of u given x equals zero. Now it is the expected value of u given x-one and x-two equals zero. Read the verbal version, because it is a stronger statement than it looks: for any combination of values of x-one and x-two, the unobservables average to zero. Not for each variable separately, but for every pairing of them. Adding regressors moves things out of u, which helps. It also makes the condition you need slightly more demanding to state.
+
+</details>
+
 **Uni-variate**
 
 $y = \beta_0 + \beta_1x + u$, 
@@ -129,6 +178,13 @@ $y = \beta_0 + \beta_1 x_1 + \beta_2 x_2 + u$,
 + Verbally: for any values of $x_1$ and $x_2$, the expected value of the unobservables is zero
 
 ### Mean independence condition: example 
+
+<details class="transcript">
+<summary>Lecturer transcript</summary>
+
+Here it is for the wage model. The condition is that the expected value of u given education and experience is zero, and the verbal version tells you what that requires: innate ability must be, on average, unrelated to both schooling and experience. Say that out loud and ask whether you believe it. More able people tend to stay in school longer, so no. Now read the callout, which is the honest summary of this whole lecture. Adding experience took experience out of the error term. Nothing takes ability out, because you never measured it. Regression shrinks the error term; it does not empty it.
+
+</details>
 
 In the following wage model,
 
@@ -148,7 +204,11 @@ Mean independence condition is
 
 **Verbally**:
 
-This condition would be satisfied if innate ability of students is on average unrelated to education level and experience. 
+This condition would be satisfied if innate ability of students is on average unrelated to education level and experience.
+
+:::{.callout-important title="The limit of controlling for things"}
+Notice what just happened. Adding $exper$ to the model moved experience <span style = "color: blue;"> out </span> of the error term, so it can no longer bias us. But ability is still in there, and no amount of extra regressors will move it out, because <span style = "color: red;"> you cannot control for something you do not observe </span>. Multivariate regression shrinks the error term. It does not empty it.
+:::
 
 :::
 <!--end of panel-->
@@ -158,6 +218,13 @@ This condition would be satisfied if innate ability of students is on average un
 ::: {.panel-tabset}
 
 ### General model
+
+<details class="transcript">
+<summary>Lecturer transcript</summary>
+
+The extension to k variables involves no new ideas, only longer expressions. The model is y equals beta-zero plus beta-one x-one, out to beta-k x-k, plus u. And the condition for unbiasedness is that the expected value of u given all k of your regressors equals zero. The verbal version is the one to remember, because it is the one you will actually reason with: the error term must be uncorrelated with every single independent variable. Every one. A single bad regressor is enough to contaminate the whole estimate, including the coefficients you did care about.
+
+</details>
 
 **Model**
 
@@ -179,9 +246,16 @@ $\beta_{OLS}$ (OLS estimators of $\beta$s) is unbiased if,
 \end{align}
 ```
 
-**Verbally**: this condition would be satisfied if the error term is uncorrelated wtih any of the independent variables, $x_1,x_2,\dots,x_k$. 
+**Verbally**: this condition would be satisfied if the error term is uncorrelated with any of the independent variables, $x_1,x_2,\dots,x_k$. 
 
 ### Implementation (R)
+
+<details class="transcript">
+<summary>Lecturer transcript</summary>
+
+Here it is in code, and notice how little changes. You write feols, then y tilde x-one plus x-two, and you have gone from univariate to multivariate by typing four characters. That is the entire syntactic difference. But look at what the simulation does: I built the data myself, so I know the truth. The intercept is one and both slopes are one. So when you run this you are not just reading output, you are checking it. Compare the estimates against the true values and see how close OLS gets with a hundred observations.
+
+</details>
 
 ```{webr-r}
 #| autorun: true
@@ -190,21 +264,31 @@ $\beta_{OLS}$ (OLS estimators of $\beta$s) is unbiased if,
 library(fixest)
 
 #--- generate data ---#
+set.seed(2024) # so everyone sees the same numbers
 N <- 100 # sample size
 x1 <- rnorm(N) # independent variable
 x2 <- rnorm(N) # independent variable
 u <- rnorm(N) # error
 y <- 1 + x1 + x2 + u # dependent variable
-data <- data.frame(y = y, x1 = x1, x2 = x2)
+data_sim <- data.frame(y = y, x1 = x1, x2 = x2)
 
 #--- OLS ---#
-reg <- feols(y ~ x1 + x2, data = data)
+reg <- feols(y ~ x1 + x2, data = data_sim)
 
 #* print the results
 reg
 ```
 
+Note the true values: the intercept is $1$, and both slopes are $1$. Compare them with what OLS returns.
+
 ### Present results
+
+<details class="transcript inline">
+<summary>Lecturer transcript</summary>
+
+A practical tab. When you hand in an assignment or write your paper, do not paste raw R output. Use msummary from the modelsummary package. On the left is the code, on the right is what it produces: a proper regression table, coefficients with standard errors underneath in parentheses, and stars for significance. Keep the two options as they are; gof-omit is just suppressing goodness-of-fit rows we do not need. And notice the table is showing the regression from the previous tab, so you are seeing the same numbers presented the way a journal would want them.
+
+</details>
 
 When you are asked to present regression results in assignments or your final paper, use the `msummary()` function from the `modelsummary` package.
 
@@ -218,12 +302,12 @@ When you are asked to present regression results in assignments or your final pa
 #| eval: false
 library(modelsummary)
 
-#* run regression
-reg_results <- feols(speed ~ dist, data = cars)
+#* the regression from the previous tab
+reg <- feols(y ~ x1 + x2, data = data_sim)
 
 #* report regression table
 msummary(
-  reg_results,
+  reg,
   # keep these options as they are
   stars = TRUE,
   gof_omit = "IC|Log|Adj|F|Pseudo|Within"
@@ -234,15 +318,8 @@ msummary(
 ::: {.column width="50%"}
 ```{r}
 #| echo: false
-library(modelsummary)
-
-#* run regression
-reg_results <- feols(speed ~ dist, data = cars)
-
-#* report regression table
 msummary(
-  reg_results,
-  # keep these options as they are
+  reg,
   stars = TRUE,
   gof_omit = "IC|Log|Adj|F|Pseudo|Within"
 )
@@ -254,6 +331,17 @@ msummary(
 
 
 ### (Math: derive OLS estimator)
+
+::: {.panel-tabset}
+
+#### The problem
+
+<details class="transcript">
+<summary>Lecturer transcript</summary>
+
+The derivation is the same story as lecture 01-2, just with more unknowns, so this should feel familiar rather than new. We are choosing the whole collection of beta-hats, which I am calling theta-hat to save writing, to minimize the sum of squared residuals. That is the identical criterion. The only change is that the thing inside the bracket now has k terms in it instead of two. If you followed the univariate version you have already followed this one, and the next tab just turns the handle.
+
+</details>
 
 **OLS**
 
@@ -267,23 +355,43 @@ Denoting the collection of $\widehat{\beta}$s as $\widehat{\theta} (=\{\widehat{
 
 ```{=tex}
 \begin{align}
-    Min_{\theta} \sum_{i=1}^n \Big[ y_i-(\widehat{\beta}_0+\widehat{\beta}_1 x_{1,i} + \widehat{\beta}_2 x_{2,i} + \dots + \widehat{\beta}_k x_{k,i}) \Big]^2
+    Min_{\widehat{\theta}} \sum_{i=1}^n \Big[ y_i-(\widehat{\beta}_0+\widehat{\beta}_1 x_{1,i} + \widehat{\beta}_2 x_{2,i} + \dots + \widehat{\beta}_k x_{k,i}) \Big]^2
 \end{align}
 ```
 
-Find the FOCs by partially differentiating the objective function (sum of squared residuals) wrt each of $\widehat{\theta} (=\{\widehat{\beta}_0,\widehat{\beta}_1,\dots,\widehat{\beta}_k\})$,
+Exactly the univariate problem from lecture 01-2, with $k$ unknowns instead of two.
+
+#### The FOCs
+
+<details class="transcript">
+<summary>Lecturer transcript</summary>
+
+Turn the handle: differentiate with respect to each of the k plus one unknowns, set every derivative to zero, and divide out the minus two. What you get is k plus one equations. Look at their shape. The first is the sum of the residuals. The second is the sum of x-one times the residuals. And so on down to x-k. Every regressor gets its own equation, and every equation says the same thing, that this regressor must be uncorrelated with what is left over. Which is the sample version of the assumption we just made about the population.
+
+</details>
+
+Partially differentiate the objective function (sum of squared residuals) with respect to each of $\widehat{\theta} (=\{\widehat{\beta}_0,\widehat{\beta}_1,\dots,\widehat{\beta}_k\})$ and set each to zero. Dividing each by $-2$ leaves $k+1$ equations:
 
 ```{=tex}
 \begin{align}
-  \sum_{i=1}^n(y_i-(\widehat{\beta}_0+\widehat{\beta}_1 x_{1,i} + \widehat{\beta}_2 x_{2,i} + \dots + \beta_k x_{k,i}) = & 0 \;\; (\widehat{\beta}_0) \\
-  \sum_{i=1}^n x_{i,1}\Big[ y_i-(\widehat{\beta}_0+\widehat{\beta}_1 x_{1,i} + \widehat{\beta}_2 x_{2,i} + \dots + \beta_k x_{k,i}) \Big]= & 0  \;\; (\widehat{\beta}_1) \\
-  \sum_{i=1}^n x_{i,2}\Big[ y_i-(\widehat{\beta}_0+\widehat{\beta}_1 x_{1,i} + \widehat{\beta}_2 x_{2,i} + \dots + \beta_k x_{k,i}) \Big]= & 0  \;\; (\widehat{\beta}_2) \\
+  \sum_{i=1}^n \Big[ y_i-(\widehat{\beta}_0+\widehat{\beta}_1 x_{1,i} + \widehat{\beta}_2 x_{2,i} + \dots + \widehat{\beta}_k x_{k,i}) \Big] = & 0 \;\; (\widehat{\beta}_0) \\
+  \sum_{i=1}^n x_{i,1}\Big[ y_i-(\widehat{\beta}_0+\widehat{\beta}_1 x_{1,i} + \widehat{\beta}_2 x_{2,i} + \dots + \widehat{\beta}_k x_{k,i}) \Big]= & 0  \;\; (\widehat{\beta}_1) \\
+  \sum_{i=1}^n x_{i,2}\Big[ y_i-(\widehat{\beta}_0+\widehat{\beta}_1 x_{1,i} + \widehat{\beta}_2 x_{2,i} + \dots + \widehat{\beta}_k x_{k,i}) \Big]= & 0  \;\; (\widehat{\beta}_2) \\
   \vdots \\
-  \sum_{i=1}^n x_{i,k}\Big[ y_i-(\widehat{\beta}_0+\widehat{\beta}_1 x_{1,i} + \widehat{\beta}_2 x_{2,i} + \dots + \beta_k x_{k,i}) \Big]= & 0  \;\; (\widehat{\beta}_k) \\
+  \sum_{i=1}^n x_{i,k}\Big[ y_i-(\widehat{\beta}_0+\widehat{\beta}_1 x_{1,i} + \widehat{\beta}_2 x_{2,i} + \dots + \widehat{\beta}_k x_{k,i}) \Big]= & 0  \;\; (\widehat{\beta}_k)
 \end{align}
 ```
 
-Or more succinctly,
+#### More succinctly
+
+<details class="transcript">
+<summary>Lecturer transcript</summary>
+
+And here is the compact form, which is worth committing to memory because it recurs constantly. The residuals sum to zero, and each x times the residuals sums to zero. That is k plus one equations in k plus one unknowns, which is why the system has a unique solution. Read the last line too, because it is not decoration. Each of those equations spends one degree of freedom. That is exactly where the n minus k minus one comes from when we estimate sigma squared, two tabs from now.
+
+</details>
+
+Every bracket above is just the residual $\widehat{u}_i$, so the whole system is:
 
 ```{=tex}
 \begin{align}
@@ -291,9 +399,14 @@ Or more succinctly,
   \sum_{i=1}^n x_{i,1}\widehat{u}_i = & 0  \;\; (\widehat{\beta}_1) \\
   \sum_{i=1}^n x_{i,2}\widehat{u}_i = & 0  \;\; (\widehat{\beta}_2) \\
   \vdots \\
-  \sum_{i=1}^n x_{i,k}\widehat{u}_i = & 0  \;\; (\widehat{\beta}_k) \\
+  \sum_{i=1}^n x_{i,k}\widehat{u}_i = & 0  \;\; (\widehat{\beta}_k)
 \end{align}
 ```
+
+$k+1$ equations in $k+1$ unknowns. That count is what costs you $k+1$ degrees of freedom later.
+
+:::
+<!--end of panel-->
 
 :::
 <!--end of panel-->
@@ -307,6 +420,13 @@ Or more succinctly,
 ::: {.panel-tabset}
 
 ### Conditions (four)
+
+<details class="transcript">
+<summary>Lecturer transcript</summary>
+
+Four conditions for unbiasedness, and they are the same four you met in lecture 01-3, relabelled MLR for multiple regression. Your model is correct. Your sample is random. No perfect collinearity, which is the new one, replacing the old requirement that x actually varies. And zero conditional mean, which is again the one that matters. Three of these are cheap. The fourth you will spend a career arguing about, and notice that adding regressors changes what it demands of you, because now it has to hold given all of them at once.
+
+</details>
 
 :::{.callout-important}
 OLS estimators of multivariate models are unbiased if the following conditions are satisfied.
@@ -343,13 +463,21 @@ No perfect collinearity (Assumption $MLR.3$)
 **Condition 4**
 
 Zero Conditional Mean (Assumption $MLR.4$)
-$E[u|x_1,x_2,\dots,x_k]=0 \;\;\mbox{(Assumption MLR.4)}$
+
+$E[u|x_1,x_2,\dots,x_k]=0$
 :::
 <!--end of the 2nd column-->
 :::
 <!--end of the columns-->
 
 ### Perfect Collinearity
+
+<details class="transcript">
+<summary>Lecturer transcript</summary>
+
+The genuinely new condition. No independent variable may be an exact linear function of the others. The example is deliberately silly: you put education in the model, and then you also put in three times education. There is no way to separate those two effects, because whenever one moves the other moves in lockstep, perfectly predictably. The data simply contains no information about which of the two is responsible. R will not throw an error either; it will quietly drop one and tell you. Where this actually bites is dummy variables, which is a later lecture.
+
+</details>
 
 **No Perfect Collinearity ($MLR.3$)**
 
@@ -369,6 +497,13 @@ Any variable cannot be a linear function of the other variables
 
 ### Endogeneity (Definition)
 
+<details class="transcript">
+<summary>Lecturer transcript</summary>
+
+Here is endogeneity written formally at last, though we have been circling it since lecture zero. The expected value of u given your regressors is some function of them, rather than zero. Now look at the list of what causes it. Functional form misspecification: if the truth is logarithmic and you fit a straight line, the mismatch goes into the error term, and it is a function of x by construction. Omitted variables you already know about. And more sources are coming. The point of the list is that endogeneity is a family of problems, not a single mistake.
+
+</details>
+
 :::{.callout-important title="Endogeneity: Definition"}
 $$
 E[u|x_1,x_2,\dots,x_k] = f(x_1,x_2,\dots,x_k) \ne 0
@@ -383,11 +518,11 @@ $$
 ```{=tex}
 \begin{align}
   wage = & \beta_0 + \beta_1 log(x_1) + \beta_2 x_2 + u_1 \;\;\mbox{(true)}\\
-  wage = & \beta_0 + \beta_1 x_1 + \beta_2 x_2 + u_2 (=log(x_1)-x_1) \;\; \mbox{(yours)}
+  wage = & \beta_0 + \beta_1 x_1 + \beta_2 x_2 + u_2 \;\; \mbox{(yours)},\;\; \mbox{where } u_2 = u_1 + \beta_1[log(x_1)-x_1]
 \end{align}
 ```
 + omission of variables that are correlated with any of $x_1,x_2,\dots,x_k$ (<span style = "color: blue;"> more on this soon </span>)
-+ <span style = "color: blue;"> other sources of enfogeneity later </span>
++ <span style = "color: blue;"> other sources of endogeneity later </span>
 
 :::
 <!--end of panel-->
@@ -398,9 +533,16 @@ $$
 
 ### Homoskedasticity and Variance of $\widehat{\beta}_{OLS}$
 
+<details class="transcript">
+<summary>Lecturer transcript</summary>
+
+Condition five, homoskedasticity, and the variance formula it buys us. Compare this against the univariate formula. The numerator is unchanged, sigma squared, and the denominator has picked up a new factor: it is now SST-j times one minus R-squared-j. Read the callout below, because that new factor is not a technicality. R-squared-j measures how much of x-j the other regressors already explain. As it approaches one the denominator collapses and the variance explodes. That is multicollinearity, and it is the whole of lecture four.
+
+</details>
+
 **Condition 5** 
 
-Error term is homoeskedastic (Assumption $MLR.5$)
+Error term is homoskedastic (Assumption $MLR.5$)
 
 ```{=tex}
 \begin{align}
@@ -422,10 +564,21 @@ Under conditions $MLR.1$ through $MLR.5$, conditional on the sample values of th
 
 where 
 
-+ $SST_j= \sum_{i=1}^n (x_{ji}-\bar{x_j})^2$ 
++ $SST_j= \sum_{i=1}^n (x_{ji}-\bar{x}_j)^2$ 
 + $R_j^2$ is the R-squared from regressing $x_j$ on all other independent variables including an intercept. (<span style = "color: blue;"> We will revisit this equation</span>)
 
+:::{.callout-note title="Why $R_j^2$ is in there"}
+$R_j^2$ measures how much of $x_j$ the <span style = "color: blue;"> other </span> regressors already explain. As it approaches $1$, the term $1-R_j^2$ approaches $0$ and the variance <span style = "color: red;"> explodes </span>. Intuitively: once the others account for nearly all of $x_j$'s movement, there is almost no independent variation left to identify $\beta_j$ from. That is multicollinearity, and it is the whole of lecture 04.
+:::
+
 ### Estimating $\sigma^2$
+
+<details class="transcript">
+<summary>Lecturer transcript</summary>
+
+The same problem as before: the variance formula contains sigma squared, and you do not know it. The same solution too, average the squared residuals. The only thing that changes is the divisor. In the univariate case you divided by n minus two, because two equations were used up on the intercept and the one slope. Here you have k plus one coefficients, so you divide by n minus k minus one. That is the sentence at the bottom of the slide, and it is the degrees-of-freedom count we derived on the FOC tab. Every parameter you estimate costs you one.
+
+</details>
 
 Just like uni-variate regression, you need to estimate $\sigma^2$ if you want to estimate the variance (and standard deviation) of the OLS estimators.
 
@@ -433,7 +586,7 @@ Just like uni-variate regression, you need to estimate $\sigma^2$ if you want to
 
 ```{=tex}
 \begin{align}
-  \widehat{\sigma}^2=\sum_{i=1}^N \frac{\widehat{u}_i^2}{n-2}
+  \widehat{\sigma}^2=\sum_{i=1}^n \frac{\widehat{u}_i^2}{n-2}
 \end{align}
 ```
 
@@ -443,20 +596,27 @@ A model with $k$ independent variables with intercept.
 
 ```{=tex}
 \begin{align}
-  \widehat{\sigma}^2=\sum_{i=1}^N \frac{\widehat{u}_i^2}{n-(k+1)}
+  \widehat{\sigma}^2=\sum_{i=1}^n \frac{\widehat{u}_i^2}{n-(k+1)}
 \end{align}
 ```
 
 You solved $k+1$ simultaneous equations to get $\widehat{\beta}_j$ $(j=0,\dots,k)$. So, once you know the value of $n-k-1$ of the residuals, you know the rest.
 
-### Estimator of $Var{\widehat{\beta}_j}$
+### Estimator of $Var(\widehat{\beta}_j)$
+
+<details class="transcript">
+<summary>Lecturer transcript</summary>
+
+Putting the pieces together gives the estimated variance of a coefficient. Substitute sigma-hat squared for the sigma squared you cannot know, and everything on the right-hand side is computable from your data. The square root of this is the standard error printed beside each coefficient in every table you will ever produce. Notice how many things had to go right to get here: four conditions for unbiasedness, homoskedasticity for the formula itself, and a degrees-of-freedom correction so that the estimate of sigma squared is unbiased in its own right.
+
+</details>
 
 Using the estimator of $\sigma^2$ in place of $\sigma^2$, we have the <span style = "color: red;"> estimator </span> of the variance of the OLS estimator.
 
 :::{.callout-important title="Estimator of the variance of the OLS estimator"}
 ```{=tex}
 \begin{align}
-\widehat{Var{\widehat{\beta}_j}} = \frac{\widehat{\sigma}^2}{SST_j(1-R^2_j)} = \left(\sum_{i=1}^N \frac{\widehat{u}_i^2}{n-k-1}\right) \cdot \frac{1}{SST_j(1-R^2_j)}
+\widehat{Var(\widehat{\beta}_j)} = \frac{\widehat{\sigma}^2}{SST_j(1-R^2_j)} = \left(\sum_{i=1}^n \frac{\widehat{u}_i^2}{n-k-1}\right) \cdot \frac{1}{SST_j(1-R^2_j)}
 \end{align}
 ```
 :::
@@ -469,6 +629,13 @@ Using the estimator of $\sigma^2$ in place of $\sigma^2$, we have the <span styl
 <html><div style='float:left'></div><hr color='#EB811B' size=1px width=1000px></html>
 
 ## Frisch–Waugh–Lovell Theorem 
+
+<details class="transcript">
+<summary>Lecturer transcript</summary>
+
+This section is optional, but I would encourage you to follow it, because it explains what controlling for a variable actually does, mechanically. There are two ways to get the coefficient on x-one. Method one is what you already do: throw everything into a single regression. Method two takes three steps. Regress y on the other variables and keep the residuals. Regress x-one on the other variables and keep those residuals. Then regress the first set of residuals on the second. The theorem says the two routes give exactly the same number. Not approximately the same.
+
+</details>
 
 Consider the following simple model,
 
@@ -498,11 +665,57 @@ Regress $y$ on $x_1$, $x_2$, and $x_3$ with an intercept to estimate $\beta_0$, 
 
 **Frisch-Waugh–Lovell theorem**
 
-Methods 1 and 2 produces the same coefficient estimate on $x_1$
+Methods 1 and 2 produce the same coefficient estimate on $x_1$
 
 $$\widehat{\beta}_1 = \widehat{\alpha_1}$$
 
+## Frisch–Waugh–Lovell: see it happen
+
+<details class="transcript">
+<summary>Lecturer transcript</summary>
+
+Rather than assert it, run it. This cell simulates data where x-one is deliberately correlated with x-two and x-three, so that the partialling out has real work to do. Then it runs both methods and prints the two coefficients side by side. Look at them. They agree to every digit shown, and the actual difference is about four times ten to the minus sixteen, which is the smallest gap the computer can represent. These are not two procedures that happen to give similar answers. It is one procedure written two different ways.
+
+</details>
+
+Do not take it on faith. Run both methods on the same simulated data and compare.
+
+```{webr-r}
+#| autorun: true
+
+library(fixest)
+
+#--- simulate data where x1 is correlated with x2 and x3 ---#
+set.seed(4891)
+N <- 200
+x2 <- rnorm(N)
+x3 <- rnorm(N)
+x1 <- 0.5 * x2 - 0.3 * x3 + rnorm(N)
+y <- 1 + 2 * x1 + 3 * x2 - x3 + rnorm(N)
+d <- data.frame(y, x1, x2, x3)
+
+#--- Method 1: regress y on everything at once ---#
+m1 <- feols(y ~ x1 + x2 + x3, data = d)
+
+#--- Method 2: partial x2 and x3 out of both y and x1, then regress ---#
+d$u_y <- resid(feols(y ~ x2 + x3, data = d))
+d$u_x1 <- resid(feols(x1 ~ x2 + x3, data = d))
+m2 <- feols(u_y ~ u_x1, data = d)
+
+#--- compare ---#
+c(method_1 = coef(m1)["x1"], method_2 = coef(m2)["u_x1"])
+```
+
+Not merely close: identical to machine precision. The difference is about $-4\times 10^{-16}$, which is rounding, not disagreement.
+
 ## Partialing out Interpretation from Method 2
+
+<details class="transcript">
+<summary>Lecturer transcript</summary>
+
+Now let's read those three steps for meaning rather than mechanics. Step one gives you the part of y that x-two and x-three cannot explain, y with their influence stripped out. Step two does the same thing to x-one, leaving the part of x-one that is unrelated to the others. Step three regresses one leftover on the other. So the coefficient on x-one is computed only from variation in x-one that the other regressors could not account for. Everything they could account for has been removed from both sides before the comparison is made.
+
+</details>
 
 **Step 1**
 
@@ -518,11 +731,18 @@ Regress $x_1$ on $x_2$ and $x_3$ with an intercept and get residuals, which we c
 
 **Step 3**
 
-Regress $\widehat{u}_y$ on $\widehat{u}_{x_1}$, which produces an estimte of $\beta_1$ that is identical to that you can get from regressin $y$ on $x_1$, $x_2$, and $x_3$
+Regress $\widehat{u}_y$ on $\widehat{u}_{x_1}$, which produces an estimate of $\beta_1$ identical to the one you get from regressing $y$ on $x_1$, $x_2$, and $x_3$
 
 ## Interpretation
 
-+ Regressing $y$ on all explanatory variables $(x_1$, $x_2$, and $x_3)$ in a multivariate regression is as if you are looking at the impact of a single explanatory variable with the effects of all the other effects partiled out
+<details class="transcript">
+<summary>Lecturer transcript</summary>
+
+So here is what to take from the whole section. When you run a multivariate regression, the coefficient on your variable of interest comes from the variation that the other variables cannot explain. That is what controlling for something means, mechanically. Read the second bullet, which is the payoff: including a variable stops you confusing its effect with the effect you actually want. And now recall the caveat from earlier in the lecture. This works beautifully for the variables you include, and does nothing whatever for the ones you never measured.
+
+</details>
+
++ Regressing $y$ on all explanatory variables $(x_1$, $x_2$, and $x_3)$ in a multivariate regression is as if you are looking at the impact of a single explanatory variable with the effects of all the other variables partialled out
 
 + In other words, including variables beyond your variable of interest lets you <span style = "color: red;"> control for (remove the effect of) </span> other variables, avoiding confusing the impact of the variable of interest with the impact of other variables. 
 

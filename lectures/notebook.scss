@@ -1,0 +1,615 @@
+/*-- scss:rules --*/
+
+// ===========================================================================
+// Notebook — stage 1: the CSS-only layer.
+//
+// Layered AFTER custom.scss, which it does not modify. Remove this file from a
+// deck's `theme:` list and that deck is exactly as it was.
+//
+// Design source: .claude/design/lecture-deck-ui/ (Notebook, adopted).
+//
+// WHAT IS DELIBERATELY NOT HERE
+//
+//   Body type stays at 19.2px. The Notebook mockups run 22px, but that is paid
+//   for by the margin column's shorter measure, and the margin column needs
+//   per-slide markup. Bumping type here — where nothing pays for it — would push
+//   slides that already measure exactly 700px over the edge. It arrives in
+//   stage 2 with the margin.
+//
+//   Answer boxes are untouched. In the decks they are bare <details>, which is
+//   the same element Quarto uses for folded code, so they cannot be told apart
+//   from CSS. They need an opt-in class (`details.answer`) added per instance.
+//   custom.scss's `// Answer box` block therefore still governs them, as it must.
+// ===========================================================================
+
+$nb-paper:      #fbf9f3;
+$nb-ink:        #22201b;   // 14.9:1 on paper
+$nb-muted:      #5d574a;   //  6.6:1
+$nb-accent:     #1d4e89;   //  7.2:1  ink-blue
+$nb-accent-2:   #6d28d9;   //  7.2:1  inline code
+$nb-sienna:     #a8552b;   //  4.7:1  emphasis / warnings
+$nb-rule:       #e2dcd0;
+$nb-tint:       #eef2f8;
+$nb-tint-warm:  #f6efe6;
+// Shared height for the two header bars of a side-by-side WebR cell: the
+// extension's "Run Code" toolbar and the "Output" banner opposite it. 2.35rem is
+// 37.6px at the 16px root, which is the toolbar's rendered height. It is pinned
+// rather than derived because the toolbar overflows its own grid row (see the
+// note at the ::before rule), so no row-relative value can match it.
+$nb-bar-h:      2.35rem;
+
+// The extension's toolbar aesthetics, measured, so the Output banner can be its
+// twin rather than an approximation of it. Note the visible label is NOT styled
+// by the toolbar div: it sits inside a Bootstrap <button class="btn">, which
+// renders in Arial 14.4px/400 black. The toolbar div's own "Source Sans Pro"
+// 19.2px never reaches any glyph, so matching the div is matching nothing.
+$nb-bar-bg:     #eeeeee;              // toolbar background
+$nb-bar-fg:     #000000;              // button label colour
+$nb-bar-font:   Arial, Helvetica, sans-serif;
+$nb-bar-size:   14.4px;               // button font-size
+// Where the label's top-left corner actually lands inside the toolbar:
+//   top  = toolbar padding 3.2 + button border 1 + button padding 6  = 10.2px
+//   left = toolbar padding 8   + button border 1 + button padding 12 = 21px
+$nb-bar-pad-y:  10.2px;
+$nb-bar-pad-x:  21px;
+
+// Shared measure for code blocks. Pinned to the value custom.scss already gives
+// WebR cells (`.qwebr-interactive-area { width: 90% }`, custom.scss:217) so a
+// static {r} block and an interactive {webr-r} cell are the same length. If that
+// rule changes, change this with it.
+$nb-code-w:     90%;
+
+$nb-code-bg:    #f4f1e9;   // warm — "what you wrote"
+$nb-out-bg:     #e9eef5;   // blue tint — "what R said back"
+
+// Code and output are separated by temperature, not lightness. The previous
+// #efece3 sat 2% from the code block and the two could merge into one slab on a
+// projector. The blue tint is the accent family, so output is the one cool
+// surface in the deck; the accent's other jobs (active tab edge, try-it rule)
+// are rules rather than fills, so they stay distinguishable from it.
+
+// --------------------------------------------------------------- surface ---
+.reveal-viewport,
+.reveal .slides section {
+  background-color: $nb-paper;
+}
+.reveal { color: $nb-ink; }
+
+// -------------------------------------------------------------- headings ---
+// h2 was #f59219 on white: 2.13:1, below the 3:1 floor for large text, on the
+// single most important string on the slide. Ink on paper is 14.9:1. The rule
+// under it carries the structural job the colour was doing, and dropping
+// 35.2 -> 32px gives ~4px back on every content slide.
+.reveal h1 { color: $nb-ink; }
+.reveal h2 {
+  color: $nb-ink;
+  font-size: 2rem;
+  border-bottom: 1px solid $nb-rule;
+  padding-bottom: 0.25rem;
+  margin-bottom: 0.6rem;
+}
+.reveal h3 { color: $nb-ink; }
+
+// -------------------------------------------------------- inline emphasis ---
+// custom.scss sets p>strong to #d60da1 (4.05:1 — fails at body size).
+.reveal p > strong,
+.reveal li > strong { color: $nb-sienna; }
+
+.reveal code { color: $nb-accent-2; }
+
+hr { background-color: $nb-rule; }
+
+// ------------------------------------------------------------ code blocks ---
+code.sourceCode.r { background-color: $nb-code-bg !important; }
+
+// Static {r} blocks ran the full slide width while WebR cells stopped at 90%
+// (custom.scss:217, `.qwebr-interactive-area { width: 90% }`), so a slide mixing
+// the two had code blocks of two different lengths with no meaning attached to
+// the difference. Same measure for both.
+//
+// Output is included so a block and its result stay the same width — otherwise
+// fixing the code introduces a new mismatch directly under it.
+.reveal div.sourceCode,
+.reveal div.cell-output > pre { width: $nb-code-w; }
+
+// ...except inside .side-out, where these are grid items and must fill the
+// column the grid gave them. 90% of a column is not the point.
+.reveal .side-out div.sourceCode,
+.reveal .side-out div.cell-output > pre { width: auto; }
+
+// ---- R output, one look everywhere -----------------------------------------
+// Blue ground + a 3px accent edge means "this is what R printed", whether the
+// output sits under the code (knitr, WebR) or beside it (.side-out). The edge is
+// the same left-rule device the callouts use for role, so the deck stays one
+// system. The gutter caret is added only in .side-out, where there is a gutter.
+div.cell-output.cell-output-stdout > pre > code,
+div.cell-output.cell-output-stderr > pre > code { background-color: $nb-out-bg; }
+
+.reveal div.cell-output.cell-output-stdout > pre,
+.reveal div.cell-output.cell-output-stderr > pre {
+  background-color: $nb-out-bg;
+  border-left: 3px solid $nb-accent;
+  border-radius: 0 2px 2px 0;
+}
+
+// WebR. The runtime DOM (built client-side by qwebr-cell-elements.js) is
+//   .qwebr-interactive-area
+//     .qwebr-editor-toolbar
+//     .qwebr-console-area
+//       .qwebr-editor
+//       .qwebr-output-code-area  > pre > div > code.qwebr-output-code-stdout
+//     .qwebr-output-graph-area
+//
+// The styling goes on the `pre`, NOT on .qwebr-output-code-area, and that is
+// load-bearing: the extension creates that pre with `visibility: hidden` and
+// only reveals it once a cell has produced output. A hidden element paints
+// nothing, including its background — so an empty cell stays empty. Move these
+// declarations up to the container and every un-run cell on the slide shows an
+// empty blue box with an accent edge before the student has done anything.
+//
+// Beats the extension's own `.reveal div.qwebr-output-code-area pre` (0,3,2)
+// and custom.scss's `div.qwebr-output-code-area pre` (0,1,2).
+.reveal div.qwebr-output-code-area pre {
+  background-color: $nb-out-bg;
+  border-left: 3px solid $nb-accent;
+  border-radius: 0 2px 2px 0;
+}
+
+// Under the banner in a side-by-side cell the two must read as one object, so
+// the output box loses its top corner rounding and butts against the banner.
+.reveal .side-out .qwebr-interactive-area div.qwebr-output-code-area pre {
+  border-radius: 0 0 2px 0;
+  margin-top: 0;
+}
+
+// Plots get the same edge, but only once one exists — the graph area is present
+// and empty until a cell is run.
+.reveal div.qwebr-output-graph-area:not(:empty) {
+  border-left: 3px solid $nb-accent;
+  border-radius: 0 2px 2px 0;
+  padding-left: 6px;
+}
+
+.lines-content.monaco-editor-background,
+div.overflow-guard div.margin { background-color: $nb-code-bg; }
+
+// ------------------------------------------------------------------- tabs ---
+// Index cards. The active tab was white on #06a666 (2.71:1) while the inactive
+// ones sat at 6.4:1 — the state that matters most was the least readable. Here
+// every label is ink on a warm ground and the state is carried by edge,
+// elevation and weight, so it also survives a projector with poor colour.
+// The rule under the strip is no longer drawn by the tablist: it is the top edge
+// of the box around the panel (see .tab-content below), so that the strip and the
+// content it selects read as one object. The tablist is only as wide as its tabs
+// (width: max-content), so its own border could never span the panel.
+.reveal .panel-tabset [role="tablist"] {
+  border-bottom: none;
+  margin-bottom: 0;
+  display: flex;
+  align-items: flex-end;
+  gap: 2px;
+  width: max-content;
+  max-width: 100%;
+}
+
+// Padding is held at custom.scss's tight .15em/.55em rather than the roomier
+// .18em/.6em the mockup used. The card adds a 1px side border and a gap that the
+// old bare tabs did not have, and at .6em the longest row in this deck —
+// "Working directory … File not found", 7 tabs — measured 991px on a 1050px
+// slide, i.e. running past the normal content margin into the slide edge. A
+// wrapped row costs every slide in the deck ~26px it does not have.
+.reveal .panel-tabset [role="tab"] {
+  padding: 0.15em 0.5em;
+  font-size: 0.85em;
+  color: $nb-muted;
+  background-color: $nb-tint-warm;
+  border: 1px solid $nb-rule;
+  border-top: 3px solid transparent;
+  border-radius: 3px 3px 0 0;
+  // Every tab overlaps the panel box's top edge by exactly its own 1px bottom
+  // border, so the two coincide instead of stacking into a 2px line. An inactive
+  // tab draws that edge in rule grey (it is part of the box); the active one
+  // draws it in paper and so punches a hole through it.
+  margin-bottom: -1px;
+}
+
+.reveal .panel-tabset [role="tab"]:hover {
+  background-color: $nb-tint;
+  color: $nb-ink;
+}
+
+.reveal .panel-tabset [role="tab"][aria-selected="true"] {
+  background-color: $nb-paper;
+  border-color: $nb-rule;
+  border-top-color: $nb-accent;
+  border-bottom: 1px solid $nb-paper;
+  color: $nb-ink;
+  font-weight: 700;
+}
+
+// ----- the panel itself -----
+// The box that closes the card. Without it the active tab was a card with
+// nothing underneath, so the content floated free of the control that chose it.
+// Top-left corner stays square because the first tab sits on it.
+// Cost is ~10px of height (the bottom padding; the top padding replaces the
+// 0.7em the tablist used to hold), which is why the padding is this tight.
+.reveal .panel-tabset > .tab-content {
+  border: 1px solid $nb-rule;
+  border-radius: 0 3px 3px 3px;
+  padding: 0.5em 0.7em 0.45em;
+  background-color: $nb-paper;
+}
+
+// nested: drop the card, keep only the top edge, in sienna. Cards outside,
+// edges inside — the two levels never read as the same control at two
+// strengths, which is how the old pale #cfe9dd fill read as "disabled".
+.reveal .panel-tabset .panel-tabset [role="tablist"] {
+  border-bottom: 1px dotted $nb-rule;
+  margin-bottom: 0.5em;
+  margin-left: 14px;
+}
+.reveal .panel-tabset .panel-tabset [role="tab"] {
+  font-size: 0.78em;
+  background-color: transparent;
+  border: none;
+  border-top: 2px solid transparent;
+  margin-bottom: 0;
+}
+// no box inside a box: the nested panel keeps the outer one's frame
+.reveal .panel-tabset .panel-tabset > .tab-content {
+  border: none;
+  border-radius: 0;
+  padding: 0;
+  background-color: transparent;
+}
+.reveal .panel-tabset .panel-tabset [role="tab"][aria-selected="true"] {
+  background-color: transparent;
+  border-top-color: $nb-sienna;
+  color: $nb-ink;
+}
+
+// --------------------------------------------------------------- callouts ---
+// Icons are off in every deck, so type was carried by 3px of colour alone and a
+// "watch out" looked exactly like an aside. Roles are mapped to weight:
+//   note              -> aside, the quietest block on the slide
+//   important/warning -> watch out, the loudest: 5px sienna rule, warm ground
+//   tip               -> try it, ink-blue rule
+//
+// SPECIFICITY. Every selector below is shaped to beat a specific Quarto rule in
+// the compiled reveal theme. The plainer forms written first were all silently
+// losing — the callouts kept Quarto's blue/red borders and tinted title bars
+// even though the file loads last. What has to be out-ranked:
+//
+//   .reveal div.callout.callout-style-default                     (0,3,1)
+//       border-left:.3rem solid #acacac + 1px #bbb on other sides
+//   .reveal div.callout.callout-note                              (0,3,1)
+//       border-left-color:#0d6efd            (and -tip/-warning/-important)
+//   .reveal div.callout.callout-note.callout-style-default .callout-title
+//                                                                 (0,5,1)
+//       background-color: pale blue          (and the other three types)
+//
+// Class count is what decides it, not source order, so the per-type rules here
+// carry the type class too. This build also emits the OLDER callout DOM
+// (.callout-title / .callout-content inside .callout-body) rather than
+// .callout-header / .callout-title-container; both are listed so the layer
+// survives a Quarto upgrade.
+.reveal div.callout,
+.reveal div.callout.callout-style-default {
+  border: none;
+  border-left: 3px solid $nb-rule;
+  border-radius: 0;
+  background: transparent;
+  margin-top: 0.5rem;
+  margin-bottom: 0.7rem;
+}
+
+.reveal .callout.callout-style-default .callout-header,
+.reveal div.callout.callout-style-default div.callout-title {
+  background-color: transparent;
+  padding: 0.1em 0 0 0.7em;
+  font-size: 1.05rem;
+  font-weight: 700;
+  text-transform: none;
+  letter-spacing: normal;
+  color: $nb-muted;
+}
+.reveal .callout.callout-style-default .callout-title-container { font-size: inherit; }
+
+.reveal .callout.callout-style-default .callout-body-container,
+.reveal div.callout.callout-style-default div.callout-content {
+  padding: 0.1em 0 0.25em 0.7em;
+  font-size: 1.2rem;
+  color: $nb-ink;
+}
+
+// note -> aside
+.reveal div.callout.callout-style-default.callout-note { border-left-color: $nb-rule; }
+.reveal div.callout.callout-note.callout-style-default .callout-title {
+  background-color: transparent;
+  color: $nb-muted;
+}
+
+// important / warning / caution -> watch out
+.reveal div.callout.callout-style-default.callout-important,
+.reveal div.callout.callout-style-default.callout-warning,
+.reveal div.callout.callout-style-default.callout-caution {
+  border-left: 5px solid $nb-sienna;
+  background: $nb-tint-warm;
+  padding-right: 0.7em;
+}
+.reveal div.callout.callout-important.callout-style-default .callout-title,
+.reveal div.callout.callout-warning.callout-style-default .callout-title,
+.reveal div.callout.callout-caution.callout-style-default .callout-title {
+  background-color: transparent;
+  color: $nb-sienna;
+}
+
+// tip -> try it
+.reveal div.callout.callout-style-default.callout-tip { border-left-color: $nb-accent; }
+.reveal div.callout.callout-tip.callout-style-default .callout-title {
+  background-color: transparent;
+  color: $nb-accent;
+}
+
+// ------------------------------------- code left, printed output right ------
+// Opt in by wrapping a region in a div:
+//
+//     ::: {.side-out}
+//     ```{r}
+//     class(corn_yields_df)
+//     ```
+//     :::
+//
+// Not global, on purpose: it is right when output is narrow (a class(), a
+// dim(), a short vector) and wrong when output is a wide printed tibble, where
+// half a slide is not enough columns.
+//
+// custom.scss already does this for WebR cells (.qwebr-side-by-side), but that
+// rule cannot be reused — a WebR cell is .qwebr-interactive-area with an editor
+// and a graph area, while a knitr cell is:
+//
+//     .cell
+//       .sourceCode.cell-code          <- one per expression
+//       .cell-output.cell-output-stdout
+//       .sourceCode.cell-code          <- knitr interleaves them
+//       .cell-output.cell-output-stdout
+//
+// Pinning code to column 1 and every output to column 2 lets normal grid
+// auto-placement pair each expression with its own result on one row, however
+// many expressions the chunk holds.
+.reveal .side-out .cell {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  column-gap: 1rem;
+  row-gap: 0.4rem;
+  align-items: start;
+}
+
+.reveal .side-out .cell > .cell-code { grid-column: 1; min-width: 0; }
+
+.reveal .side-out .cell > .cell-output,
+.reveal .side-out .cell > .cell-output-display {
+  grid-column: 2;
+  min-width: 0;
+  position: relative;   // anchor for the caret below
+}
+
+// Saying "this box is what that code printed".
+// Side by side, the pairing is otherwise carried by alignment alone — same row,
+// same top edge — which reads only if you already know the convention. Two
+// marks, no vertical cost: an accent edge that makes the output a distinct KIND
+// of block (the same left-rule device the callouts use for role), and a small
+// caret sitting in the gutter that points from the code into it. Both repeat per
+// row, so a chunk with four expressions is marked four times.
+.reveal .side-out .cell > .cell-output pre,
+.reveal .side-out .cell > .cell-output-display {
+  border-left: 3px solid $nb-accent;
+  border-radius: 0 2px 2px 0;
+}
+
+.reveal .side-out .cell > .cell-output::before,
+.reveal .side-out .cell > .cell-output-display::before {
+  content: "\25B8";           // ▸
+  position: absolute;
+  left: -0.85rem;
+  top: 0.35em;
+  color: $nb-accent;
+  font-size: 0.6em;
+  line-height: 1;
+}
+
+// kill the stacked-layout margins so the two columns line up on their tops
+.reveal .side-out .cell > .cell-code,
+.reveal .side-out .cell > .cell-output,
+.reveal .side-out .cell > .cell-output-display { margin: 0; }
+
+.reveal .side-out .cell pre { margin: 0; overflow-x: auto; }
+.reveal .side-out .cell-output-display img { max-width: 100%; }
+
+// `.side-out.tight` — code hugs its longest line and output takes the rest.
+// Use it when the code is much narrower than the output, which is the common
+// case for a one-line call.
+.reveal .side-out.tight .cell {
+  grid-template-columns: max-content minmax(0, 1fr);
+}
+
+// ---- the same wrapper, for a WebR cell -------------------------------------
+// custom.scss already ships `.qwebr-side-by-side`, opted into per cell with
+//     #| classes: qwebr-side-by-side
+// It works, and no deck opts in by name — but the same rule block also carries
+// `:has(.qwebr-output-graph-area canvas)`, which applies it automatically to
+// every cell that draws a plot, and that selector out-ranks the `.side-out` one
+// below. custom.scss now excludes `.side-out *` from both, so the wrapper wins
+// inside it and the automatic layout still covers unwrapped plot cells.
+// Rather than leave two different opt-ins for the same idea, `.side-out` drives
+// both engines, so an author wraps a region once and does not have to remember
+// whether the cell inside is {r} or {webr-r}:
+//
+//     ::: {.side-out}
+//     ```{webr-r}
+//     seq(1, 99, by = 2) %>% mean()
+//     ```
+//     :::
+//
+// The per-cell `classes:` route still works — this does not touch it.
+//
+// `display: contents` on .qwebr-console-area is the trick that makes this
+// possible: the extension nests the editor and the TEXT output inside that
+// wrapper, but puts PLOTS outside it as a sibling. Flexing the console area
+// alone would send text output right and leave plots stranded below. Dissolving
+// it makes all four boxes items of one grid, so a plot can take the right-hand
+// column too — which is the common case in this course.
+.reveal .side-out .qwebr-interactive-area {
+  position: relative;   // anchor for the gutter caret (::after, below)
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  // The toolbar belongs to the EDITOR, not to the cell. Spanning it across both
+  // columns ("toolbar toolbar", which is what custom.scss's unused
+  // .qwebr-side-by-side does) puts a grey Run Code banner over the output half,
+  // where it labels something it does not control. So the right half of that row
+  // gets its own banner instead, and the two columns end up with the same
+  // structure: a header strip, then the content under it.
+  grid-template-areas:
+    "toolbar outbar"
+    "editor  output"
+    "editor  graph";
+  grid-template-rows: auto auto 1fr;
+  column-gap: 1rem;
+  align-items: start;
+
+  // The toolbar is left exactly as the extension renders it. Applying the same
+  // min-height to it pushed its rect to 40.6px — its rendered box always runs
+  // ~3px past its computed height, so pinning both to one value moves the target
+  // instead of hitting it. Only the banner is pinned, to the toolbar's NATURAL
+  // rendered height.
+  > .qwebr-editor-toolbar { grid-area: toolbar; }
+
+  // The output banner. A ::before on a grid container is itself a grid item, so
+  // it can occupy the empty cell beside the toolbar without the extension having
+  // to emit an element for it — which matters, because that DOM is built at
+  // runtime by qwebr-cell-elements.js and is not ours to change.
+  //
+  // `align-self: stretch` is the whole trick for "same height as the code
+  // banner": the row is sized by the toolbar, whose 37.6px comes from the Run /
+  // reset / copy buttons inside it rather than from its own padding. Hard-coding
+  // 37.6px would drift the moment a button or the font scale changes; stretching
+  // to the row means the two banners are the same height by construction.
+  //
+  // It also gives the un-run cell something to show. Before a run the output
+  // <pre> is visibility:hidden, so the right column was simply blank — which is
+  // what made this whole layout look like it was not working.
+  &::before {
+    content: "Output";
+    grid-area: outbar;
+    // Matching the toolbar's height is not a stretching problem, which is why
+    // both align-self:stretch and height:100% left it 2.8px short. Measured:
+    //   gridTemplateRows = 34.78px 0px 119px
+    //   toolbar computed height 34.78px, but rendered rect 37.56px
+    // The toolbar OVERFLOWS its own grid row — its buttons are 30.68px tall and
+    // push past the box the row sized for it. So the row is 34.78px and anything
+    // stretched to the row is 34.78px, while the toolbar paints 37.56px.
+    // Nothing derived from the row can match it. Both bars are therefore pinned
+    // to one shared token, so they cannot drift from each other.
+    min-height: $nb-bar-h;
+    box-sizing: border-box;
+    display: flex;
+    // flex-start, not center: the label is positioned to sit on the same
+    // baseline as "Run Code" opposite it, not merely centred in a bar of the
+    // same height. Centring lands it ~1.4px low.
+    align-items: flex-start;
+    padding: $nb-bar-pad-y $nb-bar-pad-x;
+    background: $nb-bar-bg;
+    border: none;
+    border-radius: 0;
+    color: $nb-bar-fg;
+    font-family: $nb-bar-font;
+    font-size: $nb-bar-size;
+    font-weight: 400;
+    line-height: $nb-bar-size;
+  }
+
+  // The same gutter caret the knitr .side-out cells use, saying "the right
+  // column is what the left column produced".
+  //
+  // It has to be ::after — ::before is already the banner — and it has to be
+  // absolutely positioned rather than a grid item, both so it can sit in the
+  // column gap (which is not a cell) and because an in-flow pseudo would claim a
+  // track. Absolute positioning takes it out of grid flow entirely.
+  //
+  // It cannot hang off the output box the way the knitr one does: the WebR
+  // output <pre> carries `overflow: scroll` from the extension, which clips
+  // anything positioned outside it. Anchoring to the interactive area instead
+  // side-steps that, and aligning it with the banner row means it points at the
+  // output column's header — so it reads correctly even before a cell is run,
+  // when there is no output box to point at yet.
+  &::after {
+    content: "\25B8";                 // ▸
+    position: absolute;
+    top: 0;
+    height: $nb-bar-h;
+    left: calc(50% - 3.5px);          // centre of the 1rem gap between columns
+    display: flex;
+    align-items: center;
+    color: $nb-accent;
+    font-size: 0.6em;
+    line-height: 1;
+  }
+
+  > .qwebr-console-area {
+    display: contents;
+
+    > .qwebr-editor { grid-area: editor; min-width: 0; }
+    > .qwebr-output-code-area { grid-area: output; min-width: 0; }
+  }
+
+  > .qwebr-output-graph-area {
+    grid-area: graph;
+    min-width: 0;
+
+    // The chapter 4 decks set `out-width: 70%` so that a stacked plot does not
+    // run the whole slide width. Side by side, the column is already half the
+    // slide, so 70% of it is ~320px — too small to read from the back of a room,
+    // and the point of putting the plot on the right is that it gets the room.
+    //
+    // !important is required, not lazy: qwebr-compute-engine.js:241 writes
+    // `canvas.style.width` directly from the out-width option, and an inline
+    // style beats any selector without it.
+    canvas,
+    img {
+      width: 100% !important;
+      max-width: 100%;
+      height: auto;
+    }
+  }
+}
+
+// Stack again if the slide is ever rendered narrow (print/PDF at small widths).
+@media (max-width: 800px) {
+  .reveal .side-out .cell,
+  .reveal .side-out.tight .cell { grid-template-columns: 1fr; }
+  .reveal .side-out .cell > .cell-code,
+  .reveal .side-out .cell > .cell-output,
+  .reveal .side-out .cell > .cell-output-display { grid-column: 1; }
+
+  .reveal .side-out .qwebr-interactive-area {
+    grid-template-columns: 1fr;
+    grid-template-areas: "toolbar" "editor" "output" "graph";
+  }
+}
+
+// ------------------------------------------------------- transcript panel ---
+// NOT RESTYLED HERE, on purpose.
+//
+// The transcript's CSS lives in an inline <style> inside transcript-support.html,
+// which Quarto injects via include-in-header — i.e. AFTER the theme stylesheet.
+// At equal specificity the inline block wins, so rules written here lose.
+//
+// A first attempt at restyling it from this file did real damage: the panel kept
+// transcript-support's `font-size: 0.55em` while picking up a `0.85em` summary
+// from here, which made the collapsed pill 9px — SMALLER than the 10.56px it was
+// meant to replace. Measured, not guessed.
+//
+// The transcript is therefore left exactly as it ships. Restyling it means
+// editing transcript-support.html, and that file is shared by 12 decks and 348
+// transcripts, so it cannot change while only one deck is being trialled. It
+// belongs to stage 2, together with the margin column that replaces the overlay.

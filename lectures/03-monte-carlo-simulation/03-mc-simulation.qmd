@@ -2,12 +2,13 @@
 title: "03: Monte Carlo Simulation"
 format: 
   revealjs: 
-    theme: [default, ../custom.scss]
+    theme: [default, ../custom.scss, ../notebook.scss]
     fontsize: 1.2em
     callout-icon: false
     scrollable: true
     echo: true
     fig-dpi: 400
+    include-in-header: ../transcript-support.html
     footer: "[back to course website with lecture slides](https://tmieno2.github.io/Applied-Econometrics-MS-Quarto/lectures/)"
 execute:
   echo: true
@@ -35,7 +36,14 @@ library(ggplot2)
 
 ::: {.panel-tabset}
 
-### What is ti?
+### What is it?
+
+<details class="transcript">
+<summary>Lecturer transcript</summary>
+
+Monte Carlo simulation is how we settle arguments in this course when the algebra gets hard to trust. The idea is simple: instead of proving something, you build a fake world where you already know the answer, then check whether the method recovers it. Read the three bullets. The first is confirming theory we already proved, which is what we do today. The second is the one I actually use in research, when I suspect a problem in my data and no theorem covers it. The third is why it is in this lecture: numbers are easier to believe than Greek letters.
+
+</details>
 
 It is a way to test econometric theories via simulation.
 
@@ -43,13 +51,20 @@ It is a way to test econometric theories via simulation.
 
 **How is it used in econometrics?**
 
-+ confirm ecoometric theory numerically
++ confirm econometric theory numerically
     - OLS estimators are unbiased if $E[u|x]=0$ along with other conditions (theory)
     - I know the above theory is right, but let's check if it is true numerically
 + You kind of sense that something in your data may cause problems, but there is no proven econometric theory about what's gonna happen (I used MC simulation for this purpose a lot)
 + assist students in understanding econometric theories by providing actual numbers instead of a series of Greek letters
 
 ### Question
+
+<details class="transcript">
+<summary>Lecturer transcript</summary>
+
+Here is the question that motivates everything. You want to know what happens to OLS when the zero conditional mean condition fails. Could you just take real data and check? Open the answer and read it, then think about why it is so damning. With real data you never see the error term, so you cannot tell whether it is correlated with x. And you never see the true beta, so even if you got an estimate you would have nothing to compare it against. Both halves of the comparison are invisible. That is precisely what simulation gives back to you.
+
+</details>
 
 Suppose you are interested in checking what happens to OLS estimators if $E[u|x]=0$ (the error term and $x$ are not correlated) is violated. 
 
@@ -68,6 +83,13 @@ No because you will never observe either error term or true value of $\beta$s.
 
 ### Key part of MC simulations
 
+<details class="transcript">
+<summary>Lecturer transcript</summary>
+
+Read the word in blue: you. You generate the data, and that single fact is what makes the whole method work. Two consequences, both on screen. First, you know the true parameter, because you typed it in. So when an estimate comes back you can measure how far off it is, which is impossible with real data. Second, you can change exactly one thing and hold everything else fixed. That is a controlled experiment on an econometric method. In the second example today we will break one condition on purpose and watch what happens, with nothing else moving.
+
+</details>
+
 <span style = "color: blue;"> You </span> generate data (you have control over how data are generated)
 
 + You know the true parameter unlike the real data generating process
@@ -81,6 +103,13 @@ No because you will never observe either error term or true value of $\beta$s.
 ::: {.panel-tabset}
 
 ### RNG
+
+<details class="transcript">
+<summary>Lecturer transcript</summary>
+
+Before we simulate anything we need to be able to generate data, which means random numbers. Note the word in blue: approximate. A computer cannot produce truly random numbers; it runs a deterministic algorithm whose output has the statistical properties of randomness. For our purposes that is entirely good enough. Run the first cell. Runif of 5 gives you five draws from a uniform distribution between zero and one, which is the default. Then run the second, which draws ten thousand and plots a histogram. Look at the shape: flat, because every value between zero and one is equally likely.
+
+</details>
 
 **Pseudo random number generators (Pseudo RNG)**
 
@@ -105,6 +134,13 @@ hist(x)
 
 ### Pseudo?
 
+<details class="transcript">
+<summary>Lecturer transcript</summary>
+
+Here is the practical consequence of pseudo rather than truly random. The numbers are predetermined, and you can decide which ones you get by setting a seed. Run the demonstration cell, note the five numbers, and run it again. Identical, every time. Now think about the question at the bottom. The benefit is reproducibility. Your simulation results become something I can reproduce exactly, and something you can reproduce next month when you have forgotten what you did. Any simulation that goes into a paper or an assignment should have a seed at the top. Yours and mine should match.
+
+</details>
+
 Numbers drawn using pseudo random number generators are not truly random
 
 + What numbers you will get are pre-determined
@@ -125,6 +161,13 @@ What benefits does setting a seed have?
 
 ### Normal Distribution
 
+<details class="transcript">
+<summary>Lecturer transcript</summary>
+
+The Normal distribution is the workhorse, and rnorm draws from it. On the left, no arguments beyond the sample size, so you get the standard Normal: mean zero, variance one. On the right, mean two and variance four. Watch the notation carefully, because this trips people up constantly. When I write N of two comma four, the second number is the variance. In the code the argument is sd, standard deviation, which is the square root, so sd equals two. The math notation and the R argument disagree, and forgetting that is a classic source of wrong simulations.
+
+</details>
+
 ::: {.columns}
 
 ::: {.column width="50%"}
@@ -138,9 +181,9 @@ hist(x)
 <!--end of the 1st column-->
 
 ::: {.column width="50%"}
-$x \sim N(2, 2)$
+$x \sim N(2, 4)$
 ```{webr-r}
-# mean = 2, sd = 2
+# N(mean, variance), so sd = sqrt(4) = 2
 x <- rnorm(10000, mean = 2, sd = 2)
 hist(x)
 ```
@@ -159,6 +202,13 @@ hist(x)
 ::: {.panel-tabset}
 
 ### Distribution types
+
+<details class="transcript">
+<summary>Lecturer transcript</summary>
+
+A reference tab, and worth remembering because the pattern generalises. On the left, the distributions R knows about, which is far more than you will ever need. On the right, the four things you can ask about any one of them, each a prefix. D for density, p for the probability of being below a value, q for the quantile, which reverses that question, and r for a random draw. Attach any prefix to any distribution name and it works: dbeta, punif, qchisq. Learn the four prefixes once and you have learned hundreds of functions. The next few tabs take each in turn.
+
+</details>
 
 ::: {.columns}
 
@@ -189,17 +239,19 @@ For each distribution, you have four different kinds of functions:
 
 ### `dnorm()`
 
+<details class="transcript">
+<summary>Lecturer transcript</summary>
+
+Dnorm gives you the height of the density curve at a point, and the figure shows exactly that. The red curve is the standard Normal density. The two blue dots are dnorm at minus one and dnorm at two, with dashed lines dropping to the axis so you can see where each is measured. Read the numbers: about zero point two four at minus one, and about zero point zero five at two, because two is further out in the tail. One warning that matters later. This height is not a probability. Probabilities are areas under the curve, which is the next tab.
+
+</details>
+
 `dnorm(x)` gives you the height of the density function at $x$.
 
 `dnorm(-1)` and `dnorm(2)`
 
 ```{webr-r}
 #| context: output
-
-x <- seq(-3, 3, length = 1000)
-
-pdf <- dnorm(x)
-plot_data <- data.table(y = pdf, x = x)
 
 x <- seq(-3, 3, length = 1000)
 pdf <- dnorm(x)
@@ -250,6 +302,13 @@ ggplot() +
 ::: {.panel-tabset}
 #### pnorm(-1)
 
+<details class="transcript">
+<summary>Lecturer transcript</summary>
+
+Now the p prefix, and here is the picture to keep in your head. Pnorm of minus one is the probability that a single draw comes out below minus one, and on the figure that is the shaded blue area to the left of minus one. Read the label: about zero point one six. So roughly sixteen percent of draws from a standard Normal fall below minus one. Compare this against the previous tab. Dnorm gave you the height of the curve at a point; pnorm gives you the area under it up to that point. Height versus area is the whole distinction.
+
+</details>
+
 ```{webr-r}
 #| context: output
 ggplot() +
@@ -265,10 +324,20 @@ ggplot() +
     label = paste0("pnorm(-1) = ", round(pnorm(-1), digits = 2)),
     y = 0.05, x = 0,
     size = 3
-  )
+  ) +
+  geom_hline(yintercept = 0) +
+  geom_vline(xintercept = 0) +
+  theme_bw()
 ```
 
 #### pnorm(2)
+
+<details class="transcript">
+<summary>Lecturer transcript</summary>
+
+Same function, a value on the other side. Pnorm of two shades everything to the left of two, which is almost the entire distribution, and the number is about zero point nine eight. So a draw below two happens about ninety eight percent of the time, which also tells you that a draw above two happens about two percent of the time. That subtraction is worth noticing now, because it is how you get right-tail probabilities out of a function that only reports left tails: one minus pnorm. You will be doing exactly that when we start computing p-values in the testing lecture.
+
+</details>
 
 ```{webr-r}
 #| context: output
@@ -285,10 +354,20 @@ ggplot() +
     label = paste0("pnorm(2) = ", round(pnorm(2), digits = 2)),
     y = 0.05, x = 0,
     size = 3
-  )
+  ) +
+  geom_hline(yintercept = 0) +
+  geom_vline(xintercept = 0) +
+  theme_bw()
 ```
 
 #### Exercise
+
+<details class="transcript">
+<summary>Lecturer transcript</summary>
+
+Your turn. The question asks for the probability that a draw from a Normal with mean one and standard deviation two falls below one. Type it in the work cell before you look, because there is something to notice here. The value you are asked about, one, is the mean of the distribution. And the Normal is symmetric around its mean, so exactly half the distribution sits below it. The answer is zero point five, and the standard deviation is irrelevant. Run the answer cell to confirm, then change the sd to anything you like and watch it stay at zero point five.
+
+</details>
 
 What is the probability that a single random draw from a Normal distribution with `mean = 1` and `sd = 2` is less than 1?
 
@@ -304,10 +383,11 @@ What is the probability that a single random draw from a Normal distribution wit
 
 **Answer**
 
-```{r}
-#| eval: false
-pnorm(1, mean = 1, sd = 2) 
+```{webr-r}
+pnorm(1, mean = 1, sd = 2)
 ```
+
++ 1 is the mean of this distribution, and the Normal distribution is symmetric around its mean, so the answer is 0.5 whatever the `sd` is
 
 :::
 <!--end of panel-->
@@ -318,11 +398,27 @@ pnorm(1, mean = 1, sd = 2)
 
 #### What is it?
 
-`qnorm(x)`, where $0 < x < 1$, gives you a number $\pi$, where the probability of observing a number from a single random draw is less than $\pi$ with probability of $x$. 
+<details class="transcript">
+<summary>Lecturer transcript</summary>
 
-We call the output of `qnorm(x)`, $x%$ quantile of the standard Normal distribution (because the default is `mean = 0` and `sd = 1` for `rnorm()`). 
+The q prefix reverses the question you have been asking. Pnorm took a value and returned a probability. Qnorm takes a probability and returns the value. Read the definition on screen: qnorm of x gives you the number q such that a draw falls below q with probability x. That is why the second bullet says it is the inverse of pnorm, and why running one inside the other gives you back what you started with. The default is again mean zero and standard deviation one, so unless you say otherwise you are getting quantiles of the standard Normal.
+
+</details>
+
+`qnorm(x)`, where $0 < x < 1$, gives you the number $q$ such that a single random draw is less than $q$ with probability $x$.
+
++ it is the <span style = "color: red;"> inverse </span> of `pnorm()`: `pnorm(qnorm(x))` $= x$
+
+We call the output of `qnorm(x)` the $100x\%$ quantile of the standard Normal distribution (because the default is `mean = 0` and `sd = 1` for `qnorm()`).
 
 #### qnorm(0.95)
+
+<details class="transcript">
+<summary>Lecturer transcript</summary>
+
+Here is the quantile you will meet most often in this course. Qnorm of zero point nine five is one point six four, and the figure shows what that means: shade ninety five percent of the area starting from the left, and the point where you stop is one point six four, marked on the axis. Remember this number. When we get to hypothesis testing, one point six four and its two-tailed cousin one point nine six are the critical values that decide whether you reject. They are not magic constants; they are just quantiles of the Normal distribution, computed exactly like this.
+
+</details>
 
 ```{webr-r}
 #| context: output
@@ -347,26 +443,38 @@ ggplot() +
     size = 3
   ) +
   geom_hline(yintercept = 0) +
-  geom_vline(xintercept = 0)
+  geom_vline(xintercept = 0) +
+  theme_bw()
 ```
 
 #### Exercise
 
+<details class="transcript">
+<summary>Lecturer transcript</summary>
+
+Your turn again, and this one has a shortcut worth seeing. You want the eighty-eight percent quantile of a Normal with mean zero and standard deviation nine. Do it directly first, in the work cell. Then read the note under the answer. The standard Normal quantile is about one point one seven, and scaling the standard deviation by nine scales the quantile by nine too, giving about ten point six. That is a general property: quantiles scale with the standard deviation. It is also why standardising a variable is such a common move, since it converts every distribution back to the one you have memorised.
+
+</details>
+
 What is the 88% quantile of Normal distribution with `mean = 0` and `sd = 9`?
 
-::: {.panel-tabset}
-### Work here
+<br>
+
+**Work here**
+
 ```{webr-r}
 
 ```
 
-### Answer
-```{r, eval = FALSE}
-#| code-fold: true
+<br>
+
+**Answer**
+
+```{webr-r}
 qnorm(0.88, mean = 0, sd = 9)
 ```
 
-:::
++ `qnorm(0.88)` is about 1.17 for the standard Normal, and scaling the standard deviation by 9 scales the quantile by 9 as well
 
 :::
 <!--end of panel-->
@@ -374,11 +482,18 @@ qnorm(0.88, mean = 0, sd = 9)
 :::
 <!--end of panel-->
 
-# Monte Carlo Simulation: Introduction
+# Monte Carlo Simulation: In Practice
 
 <html><div style='float:left'></div><hr color='#EB811B' size=1px width=1000px></html>
 
 ## Monte Carlo Simulation: Steps
+
+<details class="transcript">
+<summary>Lecturer transcript</summary>
+
+Here is the recipe, and every simulation in this course follows it. Specify the data generating process. Generate data from it. Get an estimate. Repeat many times. Compare your estimates against the true parameter you chose in step one. Now the question at the bottom, which is the important one. Why repeat? Because a single estimate from a single sample tells you nothing. Your estimator is a random variable, and one draw from a random variable cannot reveal its distribution. Repeating thousands of times is how you get to see the whole sampling distribution instead of one point from it.
+
+</details>
 
 + specify the data generating process
 + generate data based on the data generating process
@@ -396,15 +511,29 @@ Why do the steps $1-3$ many many times?
 
 ### Problem
 
+<details class="transcript">
+<summary>Lecturer transcript</summary>
+
+Let's start with something you already believe, so you can see the machinery work before we point it at something surprising. Is the sample mean an unbiased estimator of the expected value? The formal statement is on screen: the expected value of the sample average equals the expected value of x, where each observation is an independent draw from the same distribution. You have seen this proved. Today we check it numerically. If the method cannot confirm a result we are already sure about, we have no business trusting it on the harder question that comes in Example 2.
+
+</details>
+
 :::{.callout-note title="Question"}
 Is sample mean really an unbiased estimator of the expected value? 
 :::
 
 <br>
 
-That is, is $E[\frac{1}{n}\sum_{i=1}^n x_i] = E[x]$, where $x_i$ is an independent random draw from the same distribution,
+That is, is $E[\frac{1}{n}\sum_{i=1}^n x_i] = E[x]$, where $x_i$ is an independent random draw from the same distribution?
 
 ### Steps 1-3
+
+<details class="transcript">
+<summary>Lecturer transcript</summary>
+
+Steps one through three in six lines. Read the comment on the third line, because it is the whole point: x is drawn from runif, so the expected value of x is zero point five. That is the truth, and we know it because we chose it. Then we compute the sample mean and print it. Run the cell and look at the number. It is close to zero point five but not equal to it, and running it again gives you a different number. That variation is not a defect. It is the sampling distribution, and it is what we are here to look at.
+
+</details>
 
 ```{webr-r}
 #--- steps 1 and 2:  ---#
@@ -419,10 +548,24 @@ mean_x
 
 ### Sample Mean: Step 4
 
+<details class="transcript">
+<summary>Lecturer transcript</summary>
+
+Step four is where the method actually earns its keep. One estimate told us almost nothing, because we could not tell whether being off by a bit was bad luck or systematic bias. So we repeat, many times, and look at the whole collection. The word in blue is the tool: a loop. If you have never written one, the next tab walks through it slowly, because loops are the one piece of programming syntax this course genuinely requires. Everything else you will do in R is a single function call; simulation needs you to repeat things.
+
+</details>
+
 + repeat the above steps many times
 + We use a <span style = "color: blue;"> loop </span> to do the same (similar) thing over and over again
 
 ### Loop: for loop 
+
+<details class="transcript">
+<summary>Lecturer transcript</summary>
+
+A loop in isolation, doing nothing but printing. Read the R code first: B is a thousand, and then for i in one to B, print i. Now read the verbal translation underneath, which spells out what the machine does. I takes the value one, and prints one. Then i takes the value two, and prints two. And so on to a thousand. That is all a for loop is: take each value in the list in turn, and run the body with i set to it. Run the cell, watch the numbers scroll, and then we put something useful in the body.
+
+</details>
 
 **R code**
 
@@ -450,9 +593,13 @@ For each of $i$ in $1:B$ $(1, 2, \dots, 1000)$, do `print(i)`.
 
 ### Step 4
 
-::: {.columns}
+<details class="transcript">
+<summary>Lecturer transcript</summary>
 
-::: {.column width="80%"}
+Now the real loop, and notice that the body is exactly the code from the Steps one-to-three tab. Two things were added around it. Before the loop, we create a storage vector of a thousand zeros, because we need somewhere to put a thousand answers. Inside the loop, the last line writes this iteration's mean into position i of that vector. That indexing is the piece to understand: i is not just a counter, it is the address where this answer gets filed. Run it. Nothing prints, which is correct; a thousand estimates are sitting in memory waiting for the next tab.
+
+</details>
+
 ```{webr-r}
 #| autorun: true
  
@@ -474,24 +621,31 @@ for (i in 1:B) {
   estimate_storage_mean[i] <- mean_x
 }
 ```
-:::
-<!--end of the 1st column-->
-::: {.column width="20%"}
-
-:::
-<!--end of the 2nd column-->
-:::
-<!--end of the columns-->
 
 
 ### Step 5
 
+<details class="transcript">
+<summary>Lecturer transcript</summary>
+
+Step five, the comparison, and here is what a thousand estimates look like. The blue line is the truth, zero point five, which we chose. The red dashed line is the average of your estimates. They sit essentially on top of each other, which is the numerical confirmation that the sample mean is unbiased. Now read the second bullet, because it is the point students most often miss. Individual estimates are all over the place, from about zero point four to zero point six. Unbiasedness says nothing about any one of them. It is a statement about the center of this histogram.
+
+</details>
+
 Compare your estimates with the true parameter
+
++ the truth here is $E[x] = 0.5$, because $x$ is drawn from `runif()`
 
 ```{webr-r}
 mean(estimate_storage_mean)
-hist(estimate_storage_mean)
+
+hist(estimate_storage_mean, breaks = 30, main = "1000 sample means")
+abline(v = 0.5, col = "blue", lwd = 2) # the truth
+abline(v = mean(estimate_storage_mean), col = "red", lty = 2, lwd = 2) # average estimate
 ```
+
++ the blue line (the truth) and the red dashed line (the average of your estimates) sit essentially on top of each other
++ note that individual estimates are <span style = "color: red;"> not </span> 0.5 &mdash; unbiasedness is a statement about the <span style = "color: blue;"> center </span> of this histogram, not about any single estimate
 
 :::
 <!--end of panel-->
@@ -502,15 +656,26 @@ hist(estimate_storage_mean)
 
 ### Question
 
+<details class="transcript">
+<summary>Lecturer transcript</summary>
+
+Now the question we actually came for. What happens to beta-one-hat when the zero conditional mean condition fails? Note the hat carefully. The true beta-one does not change; it is a fixed feature of the world. What changes is the estimator, the thing we compute from data. This is the question we could not answer with real data, because we would need to see the error term to know the condition was violated, and see the true beta to know the estimate was wrong. In simulation we control both, so we can break the condition deliberately and watch the damage.
+
+</details>
+
 :::{.callout-note title="Question"}
-What happens to $\beta_1$ if $E[u|x]\ne 0$ when estimating $y=\beta_0+\beta_1 x + u$?
+What happens to $\hat{\beta}_1$ if $E[u|x]\ne 0$ when estimating $y=\beta_0+\beta_1 x + u$?
 :::
 
 ### R code
 
-::: {.columns}
+<details class="transcript">
+<summary>Lecturer transcript</summary>
 
-::: {.column width="80%"}
+Read lines two through four of the loop body, because that is where the violation is manufactured. We draw a variable called mu, and then mu goes into x, and the same mu also goes into u. So x and the error term share a common component by construction, which means they are correlated, which means the zero conditional mean condition fails. Everything else is untouched: the true intercept is one and the true slope is one, and we run ordinary OLS exactly as before. One thing broken, everything else fixed. That is the controlled experiment we promised at the start.
+
+</details>
+
 ```{webr-r}
 #--- Preparation ---#
 B <- 1000 # the number of iterations
@@ -531,21 +696,51 @@ for (i in 1:B) {
   estimate_storage[i] <- reg$coefficient["x"]
 }
 ```
-:::
-<!--end of the 1st column-->
-::: {.column width="20%"}
 
-:::
-<!--end of the 2nd column-->
-:::
-<!--end of the columns-->
 
+### What should we expect?
+
+<details class="transcript">
+<summary>Lecturer transcript</summary>
+
+Before running anything, let's predict the answer, because a simulation you cannot predict is a simulation you cannot learn from. Both x and u contain mu, so the covariance between them is the variance of mu, which is one. And the variance of x is the variance of mu plus one, so two. The bias formula on screen turns those two numbers into a prediction: the estimates should center on one plus one half, which is one point five, against a true value of one. Write that number down. The next tab is the test of whether we understood our own model.
+
+</details>
+
+Both $x$ and $u$ contain $\mu$, so they are correlated by construction:
+
++ $Cov(x, u) = Var(\mu) = 1$
++ $Var(x) = Var(\mu) + 1 = 2$
+
+<br>
+
+And the bias of $\hat{\beta}_1$ is governed by exactly that ratio:
+
+$$\hat{\beta}_1 \rightarrow \beta_1 + \frac{Cov(x, u)}{Var(x)} = 1 + \frac{1}{2} = 1.5$$
+
++ so the histogram should be centered at <span style = "color: red;">1.5</span>, not at the true value of 1
 
 ### Compare
 
+<details class="transcript">
+<summary>Lecturer transcript</summary>
+
+And there it is. The estimates pile up around the red line at one point five, exactly as predicted, and the blue line at the true value of one sits well outside the bulk of the distribution. Compare this against the same picture in lecture 01-3, where the condition held and the histogram was centered on the truth. Now read the last bullet, which is the one to take home. More data would not save you. A larger sample tightens this histogram around one point five, so all it buys you is more and more confidence in the wrong number.
+
+</details>
+
 ```{webr-r}
-hist(estimate_storage)
+mean(estimate_storage)
+
+hist(estimate_storage, breaks = 30, main = "1000 estimates of beta_1")
+abline(v = 1, col = "blue", lwd = 2) # the truth
+abline(v = 1.5, col = "red", lwd = 2) # where the estimates actually center
 ```
+
++ the estimates pile up around the red line, and the true value in blue sits well outside the bulk of the distribution
++ compare this against the same picture in lecture 01-3 (`Unbiasedness of OLS estimator` $\rightarrow$ `Seeing it`), where $E[u|x]=0$ held and the histogram <span style = "color: blue;"> was </span> centered on the truth
++ more data would <span style = "color: red;"> not </span> fix this: it would tighten the histogram around 1.5, which makes you more and more confident about the wrong number
+
 :::
 <!--end of panel-->
 
@@ -555,6 +750,13 @@ hist(estimate_storage)
 ::: {.panel-tabset}
 
 ### Question 
+
+<details class="transcript">
+<summary>Lecturer transcript</summary>
+
+This example is optional, but it answers a question you should be asking. We have checked that beta-hat is unbiased. But every regression table also reports a standard error, which comes from an estimated variance. Is that estimate any good? On screen, the true variance of beta-one-hat, sigma squared over the sum of squared deviations of x, and underneath it the estimator we actually compute, which replaces the unknown sigma squared with the average squared residual. The question at the bottom is whether that substitution is honest. Same method as before: build a world where we know the truth, and check.
+
+</details>
 
 **Model**
 
@@ -570,9 +772,9 @@ hist(estimate_storage)
 
 **Variance of the OLS estimator**
 
-True Variance of $\hat{\beta_1}$: $V(\hat{\beta_1}) = \frac{\sigma^2}{\sum_{i=1}^n (x_i-\bar{x})^2} = \frac{\sigma^2}{SST_X}$
+True Variance of $\hat{\beta}_1$: $V(\hat{\beta}_1) = \frac{\sigma^2}{\sum_{i=1}^n (x_i-\bar{x})^2} = \frac{\sigma^2}{SST_X}$
 
-Its estimator: $\widehat{V(\hat{\beta_1})} =\frac{\hat{\sigma}^2}{SST_X} = \frac{\sum_{i=1}^n \hat{u}_i^2}{n-2} \times \frac{1}{SST_X}$
+Its estimator: $\widehat{V(\hat{\beta}_1)} =\frac{\hat{\sigma}^2}{SST_X} = \frac{\sum_{i=1}^n \hat{u}_i^2}{n-2} \times \frac{1}{SST_X}$
 
 <br>
 
@@ -581,6 +783,13 @@ Its estimator: $\widehat{V(\hat{\beta_1})} =\frac{\hat{\sigma}^2}{SST_X} = \frac
 Does the estimator really work? (Is it unbiased?)
 
 ### R code
+
+<details class="transcript">
+<summary>Lecturer transcript</summary>
+
+One design choice here is worth pausing on. The x values are drawn once, before the loop, so they are identical in every iteration. Only the error term is redrawn. That is deliberate: the variance formula on the previous tab conditions on x, so to check it we must hold x fixed and let only u vary. Inside the loop we store two things per iteration, the coefficient and the estimated variance from vcov. Ten thousand iterations this time rather than a thousand, because we are estimating the center of a distribution that is quite skewed.
+
+</details>
 
 ```{r}
 #| include: false
@@ -597,9 +806,6 @@ x <- rnorm(N) # x values are the same for every iteration
 SST_X <- sum((x - mean(x))^2)
 ```
 
-::: {.columns}
-
-::: {.column width="80%"}
 ```{webr-r}
 set.seed(903478)
 
@@ -625,16 +831,15 @@ for (i in 1:B) {
   V_beta_storage[i] <- vcov(reg)["x", "x"]
 }
 ```
-:::
-<!--end of the 1st column-->
-::: {.column width="20%"}
-
-:::
-<!--end of the 2nd column-->
-:::
-<!--end of the columns-->
 
 ### Check
+
+<details class="transcript">
+<summary>Lecturer transcript</summary>
+
+Here is the comparison, and the true variance is computed for you at the top. Sigma squared is four, because the error was two times a standard Normal, and the sum of squared deviations of x is the number shown, so the true variance is that small number underneath. Now run the cell. It averages your ten thousand estimated variances. Compare the two numbers. They agree, which means the variance estimator is unbiased too. That matters more than it might seem: every standard error, every t-statistic, and every confidence interval you ever report rests on this being true.
+
+</details>
 
 **True Variance**
 
@@ -647,13 +852,20 @@ $$V(\hat{\beta}) = 4/`r round(SST_X, digits = 2)` = `r round(4/SST_X, digits = 4
 
 **Check**
 
-Your Estimates of Variance of $\hat{\beta_1}$?
+Your Estimates of Variance of $\hat{\beta}_1$?
 
 ```{webr-r}
 mean(V_beta_storage)
 ```
 
 ### Distribution
+
+<details class="transcript">
+<summary>Lecturer transcript</summary>
+
+One last look, because averages hide things. This plots the whole distribution of your ten thousand variance estimates, with a vertical line at the true value. Notice the shape. It is not symmetric; it has a long right tail, so individual estimates overshoot badly more often than the average suggests. The average still lands on the line, which is what unbiasedness promises. But look at how wide the spread is, and remember that in real work you get exactly one draw from this distribution. Unbiased does not mean accurate in any particular sample. It never has.
+
+</details>
 
 ```{webr-r}
 ggplot(data = data.frame(x = V_beta_storage)) +
@@ -670,6 +882,13 @@ ggplot(data = data.frame(x = V_beta_storage)) +
 
 ### Problem
 
+<details class="transcript">
+<summary>Lecturer transcript</summary>
+
+An exercise to run yourself, and it isolates something we have mentioned but not shown. How does variation in x affect OLS? Two models on screen, identical except for the independent variable. X-one is standard Normal, x-two has variance nine, so three times the standard deviation. The error is the same in both, and the zero conditional mean condition holds for both, so both estimators are unbiased. Nothing is broken here. The only thing that differs is how spread out the x values are. Predict what that does to the estimates before you open the solution.
+
+</details>
+
 Using MC simulations, find out how the variation in $x$ affects the OLS estimators
 
 <br>
@@ -683,15 +902,19 @@ Using MC simulations, find out how the variation in $x$ affects the OLS estimato
 \end{align}
 ```
 
-+ $x_1\sim N(0,1)$ and $x_2\sim N(0,9)$
++ $x_1\sim N(0,1)$ and $x_2\sim N(0,9)$ (so $x_2$ has three times the standard deviation of $x_1$)
 + $u\sim N(0,1)$
-+ $E[u_1|x]=0$ and $E[u_2|x]=0$
++ $E[u|x_1]=0$ and $E[u|x_2]=0$
 
 ### Solution
 
-::: {.columns}
+<details class="transcript">
+<summary>Lecturer transcript</summary>
 
-::: {.column width="80%"}
+The code runs both regressions inside one loop on the same simulated data, storing two coefficients per iteration in a matrix rather than a vector. Run it and read the four numbers at the bottom carefully. The two means are both close to one, confirming both estimators are unbiased, as they must be. Now compare the two standard deviations. The one for x-two is roughly a third of the one for x-one. That is the variance formula from lecture 01-3 in action: more variation in x means a bigger denominator, which means a smaller variance.
+
+</details>
+
 ```{webr-r}
 #--- Preparation ---#
 B <- 1000 # the number of iterations
@@ -728,17 +951,16 @@ mean(beta_2s)
 sd(beta_1s)
 sd(beta_2s)
 ```
-:::
-<!--end of the 1st column-->
-::: {.column width="20%"}
-
-:::
-<!--end of the 2nd column-->
-:::
-<!--end of the columns-->
 
 
 ### Results visualization
+
+<details class="transcript">
+<summary>Lecturer transcript</summary>
+
+And here it is as a picture, which is worth more than the four numbers. Two densities, both centered on the true value of one, so unbiasedness is not what separates them. But the distribution for equation two, with the more spread out x, is dramatically narrower. Same truth, same sample size, same conditions satisfied, and yet one estimator is far more precise. That is the practical lesson: variation in your independent variable is information, and an x that barely moves gives OLS almost nothing to work with, however many observations you collect.
+
+</details>
 
 ```{webr-r}
 
