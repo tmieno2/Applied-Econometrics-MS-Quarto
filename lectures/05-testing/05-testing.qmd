@@ -2,21 +2,28 @@
 title: "05: Hypothesis Testing"
 format: 
   revealjs: 
+    html-math-method: katex
     theme: [default, ../custom.scss, ../notebook.scss]
     fontsize: 1.2em
     callout-icon: false
     scrollable: true
     echo: true
     fig-dpi: 400
-    include-in-header: ../transcript-support.html
+    include-in-header:
+      - ../transcript-support.html
+      - ../webr-layout.html
     footer: "[back to course website with lecture slides](https://tmieno2.github.io/Applied-Econometrics-MS-Quarto/lectures/)"
 execute:
   echo: true
-  out-width: 80%
+  out-width: 55%
 webr:
   packages: ['fixest', 'dplyr', 'data.table', 'ggplot2', 'wooldridge', 'broom', 'car']
   cell-options:
     editor-font-scale: 0.8
+    dpi: 216
+    fig-width: 7
+    fig-height: 4.5
+    out-width: 55%
 filters:
   - webr
 ---
@@ -152,7 +159,7 @@ plot_data <- data.table(x = x, y = y)
 g_n <- 
   ggplot(data = plot_data) +
   geom_line(aes(x = x, y = y), color = "black") +
-  theme_bw()
+  theme_bw(base_size = 30)
 g_n
 ```
 :::
@@ -251,7 +258,7 @@ y <- dnorm(x, sd = 2 / 10)
 plot_data <- data.table(x = x, y = y)
 ggplot(data = plot_data) +
   geom_line(aes(x = x, y = y), color = "black") +
-  theme_bw()
+  theme_bw(base_size = 30)
 ```
 :::
 <!--end of the 2nd column-->
@@ -319,7 +326,7 @@ You have collected data on annual salary for those who graduated from University
 In reality,
 
 + we need to find out what the distribution of the test statistic is
-+ we need to formally define when we accept or not accept the null hypothesis
++ we need to formally define when we reject or fail to reject the null hypothesis
 :::
 
 #### Answer
@@ -327,7 +334,7 @@ In reality,
 <details class="transcript">
 <summary>Lecturer transcript</summary>
 
-Check yours against this. The null is alpha equals ten, and under it the sample mean has variance sixteen over four hundred, so standard deviation zero point two. Dividing by that means multiplying by root of four hundred over sixteen, which is five. Your observed difference is ten point two, so the statistic is five times zero point two, which is one. Run the cell: one minus pnorm of one is about sixteen percent. So a gap this size happens roughly one time in six when the null is true, which is not remotely unusual.
+Check yours against this. The null is alpha equals ten, and under it the sample mean has variance sixteen over four hundred, so standard deviation zero point two. Dividing by that means multiplying by root of four hundred over four, which is five. Your observed difference is ten point two, so the statistic is five times zero point two, which is one. Run the cell: one minus pnorm of one is about sixteen percent. So a gap this size happens roughly one time in six when the null is true, which is not remotely unusual.
 
 </details>
 
@@ -600,6 +607,7 @@ g_t <- ggplot() +
   geom_hline(yintercept = 0) +
   xlab("") +
   ylab("") +
+  theme_bw(base_size = 30) +
   theme(
     axis.text.y = element_blank(),
     axis.ticks.y = element_blank()
@@ -616,15 +624,15 @@ g_t_005_one <- g_t +
     fill = "red", alpha = 0.4
   ) +
   annotate("text",
-    x = c_rej, y = -0.02,
+    x = c_rej, y = -0.03,
     label = as.character(round(c_rej, digits = 2)),
-    size = 4,
+    size = 7,
     family = "Times"
   ) +
   annotate("text",
-    x = 2.7, y = 0.1,
+    x = 2.0, y = 0.30,
     label = paste("area  =  ", round(alpha, digits = 2), sep = ""),
-    size = 4,
+    size = 7,
     family = "Times"
   )
 
@@ -640,15 +648,15 @@ g_t_001_one <- g_t +
     fill = "red", alpha = 0.4
   ) +
   annotate("text",
-    x = c_rej, y = -0.02,
+    x = c_rej, y = -0.03,
     label = as.character(round(c_rej, digits = 2)),
-    size = 4,
+    size = 7,
     family = "Times"
   ) +
   annotate("text",
-    x = 2.7, y = 0.1,
+    x = 2.0, y = 0.30,
     label = paste("area  =  ", round(alpha, digits = 2), sep = ""),
-    size = 4,
+    size = 7,
     family = "Times"
   )
 ```
@@ -669,7 +677,7 @@ The significance level, and then the thing this slide previously left out. The d
 The probability of rejecting the null when the null is actually true (the probability that you wrongly claim that the null hypothesis is wrong even though it is true in reality: <span style = "color: red;">Type I error</span>)
 :::
 
-The lower the significance level, the more sure you are that the null is indeed wrong when you reject it.
+A lower significance level requires stronger evidence before rejecting the null and reduces the long-run probability of a Type I error. It does not tell us the probability that the null hypothesis is true.
 
 <br>
 
@@ -684,7 +692,7 @@ There are two ways to be wrong, and they trade off against each other:
 
 + the significance level is a choice about how much <span style = "color: red;"> Type I </span> error you will tolerate
 + pushing it down from 5% to 1% moves the critical value further out, so you reject less often &mdash; which means more <span style = "color: blue;"> Type II </span> error: real effects you fail to detect
-+ $1 - P(\mbox{Type II error})$ is called the <span style = "color: blue;"> power </span> of the test: the chance of detecting an effect that is genuinely there
++ $1 - P(\text{Type II error})$ is called the <span style = "color: blue;"> power </span> of the test: the chance of detecting an effect that is genuinely there
 + this is why "not statistically significant" does <span style = "color: red;"> not </span> mean "no effect". It may just mean your test had too little power to see it
 
 #### One-sided: 5% significance
@@ -706,7 +714,7 @@ Here it is as a picture. The curve is the distribution of the t-statistic assumi
 <!--end of the 1st column-->
 ::: {.column width="60%"}
 ```{r echo = F}
-g_t_005_one + theme_bw()
+g_t_005_one
 ```
 :::
 <!--end of the 2nd column-->
@@ -740,7 +748,7 @@ The same curve, a smaller red region. Demanding one percent rather than five pus
 <!--end of the 1st column-->
 ::: {.column width="60%"}
 ```{r echo = F}
-g_t_001_one + theme_bw()
+g_t_001_one
 ```
 :::
 <!--end of the 2nd column-->
@@ -788,15 +796,15 @@ g_t_005_two <- g_t +
     fill = "red", alpha = 0.4
   ) +
   annotate("text",
-    x = c_rej, y = -0.02,
+    x = c_rej, y = -0.03,
     label = as.character(round(c_rej, digits = 2)),
-    size = 4,
+    size = 7,
     family = "Times"
   ) +
   annotate("text",
     x = 0, y = 0.1,
     label = paste("area  = ", round(alpha / 2, digits = 3), sep = ""),
-    size = 4,
+    size = 7,
     family = "Times"
   )
 ```
@@ -813,7 +821,7 @@ g_t_005_two <- g_t +
 <!--end of the 1st column-->
 ::: {.column width="60%"}
 ```{r echo = F}
-g_t_005_two + theme_bw()
+g_t_005_two
 ```
 :::
 <!--end of the 2nd column-->
@@ -856,6 +864,7 @@ g_t <- ggplot() +
   geom_hline(yintercept = 0) +
   xlab("") +
   ylab("") +
+  theme_bw(base_size = 30) +
   theme(
     axis.text.y = element_blank(),
     axis.ticks.y = element_blank()
@@ -878,15 +887,15 @@ g_t_0031 <- g_t +
     fill = "red", alpha = 0.4
   ) +
   annotate("text",
-    x = c_rej, y = -0.02,
+    x = c_rej, y = -0.03,
     label = as.character(round(c_rej, digits = 2)),
-    size = 4,
+    size = 7,
     family = "Times"
   ) +
   annotate("text",
     x = 0, y = 0.1,
     label = paste("area  =  ", round(alpha, digits = 3), sep = ""),
-    size = 4,
+    size = 7,
     family = "Times"
   )
 ```
@@ -894,14 +903,14 @@ g_t_0031 <- g_t +
 ::: {.columns}
 
 ::: {.column width="50%"}
-+ Suppose the t-statistic you got is 2.16. Then, there's a 3.1% chance you reject the null when it is actually true, if you use it as the critical value.
++ Suppose the t-statistic you got is 2.16. If the null hypothesis is true, the probability of observing a test statistic at least this extreme is 3.1%.
 
-+ So, the lower significance level the null hypothesis is rejected is 3.1%, which is the definition of p-value.
++ Thus, 3.1% is the smallest significance level at which the null would be rejected, which is the definition of the p-value.
 :::
 <!--end of the 1st column-->
 ::: {.column width="50%"}
 ```{r echo = F}
-g_t_0031 + theme_bw()
+g_t_0031
 ```
 :::
 <!--end of the 2nd column-->
@@ -1184,6 +1193,7 @@ g_norm <- ggplot() +
   geom_hline(yintercept = 0) +
   xlab("") +
   ylab("") +
+  theme_bw(base_size = 30) +
   theme(
     axis.text.y = element_blank(),
     axis.ticks.y = element_blank()
@@ -1206,20 +1216,20 @@ g_norm_005 <- g_norm +
     fill = "red", alpha = 0.4
   ) +
   annotate("text",
-    x = c_rej, y = -0.02,
+    x = c_rej, y = -0.03,
     label = as.character(round(c_rej, digits = 2)),
-    size = 4,
+    size = 7,
     family = "Times"
   ) +
   annotate("text",
-    x = 2.5, y = 0.15,
+    x = 2.0, y = 0.30,
     label = paste("area = ", round(alpha / 2, digits = 3), sep = ""),
-    size = 4,
+    size = 7,
     family = "Times"
   )
 ```
 ```{r echo = F}
-g_norm_005 + theme_bw()
+g_norm_005
 ```
 :::
 <!--end of the 2nd column-->
@@ -1342,6 +1352,7 @@ g_t <- ggplot() +
   geom_hline(yintercept = 0) +
   xlab("") +
   ylab("") +
+  theme_bw(base_size = 30) +
   theme(
     axis.text.y = element_blank(),
     axis.ticks.y = element_blank()
@@ -1394,7 +1405,7 @@ Confirm these against the `In practice` tab, which asks `broom` for the same int
 The distribution of $t_{`r df_wage`}$:
 
 ```{r echo = F}
-g_t_005 + theme_bw()
+g_t_005
 ```
 :::
 <!--end of the 2nd column-->
@@ -1662,7 +1673,7 @@ t_stat
 <details class="transcript inline">
 <summary>Lecturer transcript</summary>
 
-And of course there is a function for it. `car::linearHypothesis` takes the fit and the hypothesis written as a string, and does all of that internally. Run it and read the output. Then read the note underneath, because the output is not a t-statistic: it reports a chi-squared value, which is the square of the t-statistic. Run the last cell to confirm they match. The callout is the thing to remember: squaring is a monotone transformation on the positive side, so the two tests always reach the same verdict.
+And of course there is a function for it. `car::linearHypothesis` takes the fit and the hypothesis written as a string, and does all of that internally. For this model it reports a Wald chi-squared statistic whose numerical value is the square of the t-statistic. The reference distributions are not identical in a finite sample: the exact classical one-restriction test uses F with one numerator degree of freedom, equivalently t squared, while the chi-squared reference is asymptotic. They become nearly indistinguishable with many residual degrees of freedom.
 
 </details>
 
@@ -1686,7 +1697,7 @@ car::linearHypothesis(reg_sc, "jc=univ")
 
 <br>
 
-Please note that it runs $\chi^2$ test. When t-statistic is squared, it follows a $\chi^2$ distribution. So, it calculates the square of the t-statistic and look up the $\chi^2$ distribution critical value to decide whether to reject the null or not. 
+Please note that this method reports a Wald $\chi^2$ test. Its statistic equals the squared t-statistic for one restriction, but the $\chi^2_1$ reference distribution is an asymptotic approximation. Under the classical finite-sample assumptions, the exact result is $t_{df}^2 \sim F_{1,df}$.
 
 Let's confirm this:
 
@@ -1755,7 +1766,7 @@ $H_1$: $H_0$ is not true
 <details class="transcript">
 <summary>Lecturer transcript</summary>
 
-Before we build new machinery, ask whether the old machinery would do. The obvious idea is to test each of the three coefficients separately with a t-test and combine the verdicts somehow. Think about why that is unsatisfying before moving on. Two reasons. First, running three tests at five percent each means your chance of at least one false rejection is well above five percent. Second, and more importantly for what follows, three individually weak pieces of evidence can add up to one strong piece, and separate tests will never see it.
+Before we build new machinery, ask whether the old machinery would do. The obvious idea is to test each of the three coefficients separately with a t-test and combine the verdicts somehow. Think about why that is unsatisfying before moving on. Two reasons. First, running several unadjusted tests can make the chance of at least one false rejection exceed five percent; the exact family-wise rate depends on dependence among the tests. Second, and more importantly for what follows, several individually weak pieces of evidence can add up to strong joint evidence, which separate verdicts can miss.
 
 </details>
   
@@ -1814,7 +1825,7 @@ What do you find?
 <details class="transcript">
 <summary>Lecturer transcript</summary>
 
-None of the three is significant, not even at the ten percent level. Taken at face value that says a player's batting average, home runs and runs batted in have nothing to do with his salary, which is absurd. Read the next lines carefully. If you concluded they have no joint effect you would be wrong, and the last line points at the fix: the sum of squared residuals, and equivalently R-squared, can answer the joint question even when the individual tests cannot. That is the F-test, and it is the rest of this section.
+None of the three is individually significant, not even at the ten percent level. That does **not** say the variables have no relationship with salary; it says each separate test fails to distinguish its partial coefficient from zero. If you converted those three failures to reject into a conclusion of no joint effect, you would be wrong. Comparing restricted and unrestricted sums of squared residuals—equivalently, their fit—answers the joint question. That is the F-test, and it is the rest of this section.
 
 </details>
 
@@ -2053,7 +2064,7 @@ ggplot(data = f_plot) +
   theme(
     legend.position = "bottom"
   ) +
-  theme_bw()
+  theme_bw(base_size = 30)
 ```
 :::
 <!--end of the 1st column-->
@@ -2355,7 +2366,7 @@ They are not so highly correlated with `bavg`.
 <details class="transcript">
 <summary>Lecturer transcript</summary>
 
-One last connection, and it ties the two halves of this lecture together. Testing a linear combination is just an F-test with one restriction. The fact underneath is exact: F with one numerator degree of freedom is the square of t on the same denominator degrees of freedom. Run the cell, which takes the square root of the chi-squared value, and compare against the t-statistic we computed by hand on the college slide. Same number. So there were never two procedures here, only one written two ways.
+One last connection, and it ties the two halves of this lecture together. Testing a linear combination is an F-test with one restriction. The exact finite-sample identity is that an F statistic with one numerator degree of freedom equals the corresponding t statistic squared. The Wald chi-squared statistic printed above has the same numerical value, although using a chi-squared rather than an F reference distribution is asymptotic. With this large sample the critical values are very close.
 
 </details>
 
@@ -2451,6 +2462,3 @@ An individually insignificant coefficient is <span style = "color: red;"> not </
 
 :::
 <!--end of panel-->
-
-
-

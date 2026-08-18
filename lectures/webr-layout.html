@@ -1,0 +1,145 @@
+<!-- Adaptive code/output layout for WebR cells in revealjs lecture decks. -->
+<script>
+(function () {
+  "use strict";
+
+  var MAX_CODE_LINES = 12;
+  var MAX_CODE_SHARE = 0.58;
+  var MIN_CODE_SHARE = 0.30;
+  var MAX_OUTPUT_SHARE = 0.70;
+
+  function detailsFor(area) {
+    var match = area.id && area.id.match(/qwebr-interactive-area-(\d+)/);
+    if (!match || !globalThis.qwebrCellDetails) return null;
+    return globalThis.qwebrCellDetails[Number(match[1]) - 1] || null;
+  }
+
+  function codeMetrics(code) {
+    var lines = String(code || "").split("\n");
+    var substantive = lines.filter(function (line) {
+      return line.trim() && !/^\s*#/.test(line);
+    });
+    return {
+      lines: substantive.length,
+      maxChars: lines.reduce(function (n, line) {
+        return Math.max(n, line.replace(/\t/g, "  ").length);
+      }, 0)
+    };
+  }
+
+  function setTracks(host, codeShare) {
+    codeShare = Math.max(MIN_CODE_SHARE, Math.min(MAX_CODE_SHARE, codeShare));
+    var outputShare = 1 - codeShare;
+    host.style.setProperty("--webr-code-track", codeShare + "fr");
+    host.style.setProperty("--webr-output-track", outputShare + "fr");
+    host.style.setProperty("--webr-code-share", (codeShare * 100) + "%");
+  }
+
+  function measureRenderedCode(area, host, code, attempt) {
+    if (host.dataset.webrLayout !== "side") return;
+    var sample = area.querySelector(".view-line, .monaco-editor");
+    if (!sample || !area.clientWidth) {
+      if (attempt < 20) setTimeout(function () {
+        measureRenderedCode(area, host, code, attempt + 1);
+      }, 100);
+      return;
+    }
+    var style = getComputedStyle(sample);
+    var canvas = document.createElement("canvas");
+    var context = canvas.getContext("2d");
+    context.font = [style.fontStyle, style.fontWeight, style.fontSize,
+      style.fontFamily].filter(Boolean).join(" ");
+    var widest = String(code || "").split("\n").reduce(function (width, line) {
+      return Math.max(width, context.measureText(line.replace(/\t/g, "  ")).width);
+    }, 0);
+    // Monaco's line-number gutter, padding, and scrollbar need about 76px in
+    // addition to the measured glyph width.
+    var available = Math.max(1, area.clientWidth - 16);
+    setTracks(host, (widest + 76) / available);
+  }
+
+  function stack(host) {
+    if (host.dataset.webrLayoutManual === "true") return;
+    host.classList.remove("side-out");
+    host.dataset.webrLayout = "stacked";
+  }
+
+  function assessOutput(area, host, metrics) {
+    if (host.dataset.webrLayout !== "side") return;
+    var graph = area.querySelector(".qwebr-output-graph-area canvas, .qwebr-output-graph-area img");
+    if (graph) return; // plots scale cleanly within their grid track
+
+    var pre = area.querySelector(".qwebr-output-code-area pre");
+    if (!pre || getComputedStyle(pre).visibility === "hidden") return;
+
+    var codeNeed = Math.max(MIN_CODE_SHARE,
+      Math.min(MAX_CODE_SHARE, (metrics.maxChars + 8) / 150));
+    var available = Math.max(1, area.clientWidth - 16);
+    var outputNeed = Math.min(MAX_OUTPUT_SHARE,
+      Math.max(0.42, (pre.scrollWidth + 24) / available));
+    var outputLines = (pre.innerText || "").split("\n").length;
+
+    // If both measured widths cannot coexist, or the console result is too
+    // tall to read as a right-hand panel, retain WebR's original vertical stack.
+    if (codeNeed + outputNeed > 1 || outputLines > 16 ||
+        pre.scrollHeight > area.ownerDocument.documentElement.clientHeight * 0.62) {
+      stack(host);
+      return;
+    }
+
+    setTracks(host, 1 - outputNeed);
+    requestAnimationFrame(function () {
+      if (pre.scrollWidth > pre.clientWidth * 1.08) stack(host);
+    });
+  }
+
+  function configure(area) {
+    if (area.dataset.webrLayoutChecked === "true") return;
+    area.dataset.webrLayoutChecked = "true";
+
+    var details = detailsFor(area);
+    if (!details || !details.options || details.options.context === "setup") return;
+    var metrics = codeMetrics(details.code);
+    if (!metrics.lines || metrics.lines > MAX_CODE_LINES || metrics.maxChars > 88) return;
+
+    var existingWrapper = area.closest(".side-out");
+    var host = existingWrapper || area.closest(".cell") || area.parentElement;
+    if (!host) return;
+
+    if (existingWrapper) {
+      host.dataset.webrLayoutManual = "true";
+    } else {
+      host.classList.add("side-out");
+    }
+    host.dataset.webrLayout = "side";
+
+    // Estimate an initial split from the longest source line. The output is
+    // intentionally favoured; actual output dimensions refine it after a run.
+    var initialCodeShare = (metrics.maxChars + 10) / 145;
+    setTracks(host, initialCodeShare);
+    measureRenderedCode(area, host, details.code, 0);
+
+    var observer = new MutationObserver(function () {
+      requestAnimationFrame(function () { assessOutput(area, host, metrics); });
+    });
+    observer.observe(area, { childList: true, subtree: true, characterData: true,
+      attributes: true, attributeFilter: ["style", "class"] });
+    requestAnimationFrame(function () { assessOutput(area, host, metrics); });
+  }
+
+  function scan() {
+    document.querySelectorAll(".qwebr-interactive-area").forEach(configure);
+  }
+
+  var pageObserver = new MutationObserver(scan);
+  function start() {
+    scan();
+    pageObserver.observe(document.body, { childList: true, subtree: true });
+  }
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", start, { once: true });
+  } else {
+    start();
+  }
+})();
+</script>

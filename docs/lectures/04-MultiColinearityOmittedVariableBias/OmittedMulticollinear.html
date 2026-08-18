@@ -28,7 +28,23 @@
       vertical-align: middle;
     }
   </style>
-  <link rel="stylesheet" href="../../site_libs/revealjs/dist/theme/quarto-efe7f97d24ea27507c65df08cab6e7d6.css">
+  <link rel="stylesheet" href="../../site_libs/revealjs/dist/theme/quarto-db62157d6cf4bc51d0b25352aea75d23.css">
+  <script>window.backupDefine = window.define; window.define = undefined;</script><script src="https://cdn.jsdelivr.net/npm/katex@latest/dist/katex.min.js"></script>
+  <script>document.addEventListener("DOMContentLoaded", function () {
+ var mathElements = document.getElementsByClassName("math");
+ var macros = [];
+ for (var i = 0; i < mathElements.length; i++) {
+  var texText = mathElements[i].firstChild;
+  if (mathElements[i].tagName == "SPAN") {
+   katex.render(texText.data, mathElements[i], {
+    displayMode: mathElements[i].classList.contains('display'),
+    throwOnError: false,
+    macros: macros,
+    fleqn: false
+   });
+}}});
+  </script>
+  <script>window.define = window.backupDefine; window.backupDefine = undefined;</script><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@latest/dist/katex.min.css">
   <link href="../../site_libs/revealjs/plugin/quarto-line-highlight/line-highlight.css" rel="stylesheet">
   <link href="../../site_libs/revealjs/plugin/reveal-menu/menu.css" rel="stylesheet">
   <link href="../../site_libs/revealjs/plugin/reveal-menu/quarto-menu.css" rel="stylesheet">
@@ -294,6 +310,151 @@
       var el = e.target;
       if (el && el.closest && el.closest('.panel-tabset [role="tab"]')) closeAll();
     }, true);
+  })();
+  </script>
+  <!-- Adaptive code/output layout for WebR cells in revealjs lecture decks. -->
+  <script>
+  (function () {
+    "use strict";
+
+    var MAX_CODE_LINES = 12;
+    var MAX_CODE_SHARE = 0.58;
+    var MIN_CODE_SHARE = 0.30;
+    var MAX_OUTPUT_SHARE = 0.70;
+
+    function detailsFor(area) {
+      var match = area.id && area.id.match(/qwebr-interactive-area-(\d+)/);
+      if (!match || !globalThis.qwebrCellDetails) return null;
+      return globalThis.qwebrCellDetails[Number(match[1]) - 1] || null;
+    }
+
+    function codeMetrics(code) {
+      var lines = String(code || "").split("\n");
+      var substantive = lines.filter(function (line) {
+        return line.trim() && !/^\s*#/.test(line);
+      });
+      return {
+        lines: substantive.length,
+        maxChars: lines.reduce(function (n, line) {
+          return Math.max(n, line.replace(/\t/g, "  ").length);
+        }, 0)
+      };
+    }
+
+    function setTracks(host, codeShare) {
+      codeShare = Math.max(MIN_CODE_SHARE, Math.min(MAX_CODE_SHARE, codeShare));
+      var outputShare = 1 - codeShare;
+      host.style.setProperty("--webr-code-track", codeShare + "fr");
+      host.style.setProperty("--webr-output-track", outputShare + "fr");
+      host.style.setProperty("--webr-code-share", (codeShare * 100) + "%");
+    }
+
+    function measureRenderedCode(area, host, code, attempt) {
+      if (host.dataset.webrLayout !== "side") return;
+      var sample = area.querySelector(".view-line, .monaco-editor");
+      if (!sample || !area.clientWidth) {
+        if (attempt < 20) setTimeout(function () {
+          measureRenderedCode(area, host, code, attempt + 1);
+        }, 100);
+        return;
+      }
+      var style = getComputedStyle(sample);
+      var canvas = document.createElement("canvas");
+      var context = canvas.getContext("2d");
+      context.font = [style.fontStyle, style.fontWeight, style.fontSize,
+        style.fontFamily].filter(Boolean).join(" ");
+      var widest = String(code || "").split("\n").reduce(function (width, line) {
+        return Math.max(width, context.measureText(line.replace(/\t/g, "  ")).width);
+      }, 0);
+      // Monaco's line-number gutter, padding, and scrollbar need about 76px in
+      // addition to the measured glyph width.
+      var available = Math.max(1, area.clientWidth - 16);
+      setTracks(host, (widest + 76) / available);
+    }
+
+    function stack(host) {
+      if (host.dataset.webrLayoutManual === "true") return;
+      host.classList.remove("side-out");
+      host.dataset.webrLayout = "stacked";
+    }
+
+    function assessOutput(area, host, metrics) {
+      if (host.dataset.webrLayout !== "side") return;
+      var graph = area.querySelector(".qwebr-output-graph-area canvas, .qwebr-output-graph-area img");
+      if (graph) return; // plots scale cleanly within their grid track
+
+      var pre = area.querySelector(".qwebr-output-code-area pre");
+      if (!pre || getComputedStyle(pre).visibility === "hidden") return;
+
+      var codeNeed = Math.max(MIN_CODE_SHARE,
+        Math.min(MAX_CODE_SHARE, (metrics.maxChars + 8) / 150));
+      var available = Math.max(1, area.clientWidth - 16);
+      var outputNeed = Math.min(MAX_OUTPUT_SHARE,
+        Math.max(0.42, (pre.scrollWidth + 24) / available));
+      var outputLines = (pre.innerText || "").split("\n").length;
+
+      // If both measured widths cannot coexist, or the console result is too
+      // tall to read as a right-hand panel, retain WebR's original vertical stack.
+      if (codeNeed + outputNeed > 1 || outputLines > 16 ||
+          pre.scrollHeight > area.ownerDocument.documentElement.clientHeight * 0.62) {
+        stack(host);
+        return;
+      }
+
+      setTracks(host, 1 - outputNeed);
+      requestAnimationFrame(function () {
+        if (pre.scrollWidth > pre.clientWidth * 1.08) stack(host);
+      });
+    }
+
+    function configure(area) {
+      if (area.dataset.webrLayoutChecked === "true") return;
+      area.dataset.webrLayoutChecked = "true";
+
+      var details = detailsFor(area);
+      if (!details || !details.options || details.options.context === "setup") return;
+      var metrics = codeMetrics(details.code);
+      if (!metrics.lines || metrics.lines > MAX_CODE_LINES || metrics.maxChars > 88) return;
+
+      var existingWrapper = area.closest(".side-out");
+      var host = existingWrapper || area.closest(".cell") || area.parentElement;
+      if (!host) return;
+
+      if (existingWrapper) {
+        host.dataset.webrLayoutManual = "true";
+      } else {
+        host.classList.add("side-out");
+      }
+      host.dataset.webrLayout = "side";
+
+      // Estimate an initial split from the longest source line. The output is
+      // intentionally favoured; actual output dimensions refine it after a run.
+      var initialCodeShare = (metrics.maxChars + 10) / 145;
+      setTracks(host, initialCodeShare);
+      measureRenderedCode(area, host, details.code, 0);
+
+      var observer = new MutationObserver(function () {
+        requestAnimationFrame(function () { assessOutput(area, host, metrics); });
+      });
+      observer.observe(area, { childList: true, subtree: true, characterData: true,
+        attributes: true, attributeFilter: ["style", "class"] });
+      requestAnimationFrame(function () { assessOutput(area, host, metrics); });
+    }
+
+    function scan() {
+      document.querySelectorAll(".qwebr-interactive-area").forEach(configure);
+    }
+
+    var pageObserver = new MutationObserver(scan);
+    function start() {
+      scan();
+      pageObserver.observe(document.body, { childList: true, subtree: true });
+    }
+    if (document.readyState === "loading") {
+      document.addEventListener("DOMContentLoaded", start, { once: true });
+    } else {
+      start();
+    }
   })();
   </script>
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/monaco-editor@0.47.0/min/vs/editor/editor.main.css">
@@ -586,7 +747,7 @@
   };
 
   // Store cell data
-  globalThis.qwebrCellDetails = [{"code":"N <- 100 # sample size\nB <- 1000 # the number of iterations\nestimates_storage <- matrix(0, B, 2)","id":1,"options":{"autorun":"true","classes":"","comment":"","context":"interactive","dpi":72,"editor-font-scale":"0.8","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":5,"fig-width":7,"label":"unnamed-chunk-1","message":"true","out-height":"","out-width":"700px","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"set.seed(37834)\n\nfor (i in 1:B) { # iterate the same process B times\n\n  #--- data generation ---#\n  x1 <- rnorm(N) # independent variable\n  x2 <- rnorm(N) # independent variable\n  u <- rnorm(N) # error\n  y <- 1 + x1 + 0 * x2 + u # dependent variable\n  data <- data.frame(y = y, x1 = x1, x2 = x2)\n\n  #--- OLS ---#\n  beta_ee1 <- feols(y ~ x1, data = data)$coefficient[\"x1\"] # OLS with EE1\n  beta_ee2 <- feols(y ~ x1 + x2, data = data)$coefficient[\"x1\"] # OLS with EE2\n\n  #--- store estimates ---#\n  estimates_storage[i, 1] <- beta_ee1\n  estimates_storage[i, 2] <- beta_ee2\n}","id":2,"options":{"autorun":"false","classes":"","comment":"","context":"interactive","dpi":72,"editor-font-scale":"0.8","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":5,"fig-width":7,"label":"unnamed-chunk-2","message":"true","out-height":"","out-width":"700px","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"b_ee1 <- data.table(\n  bhat = estimates_storage[, 1],\n  type = \"EE 1\"\n)\n\nb_ee2 <- data.table(\n  bhat = estimates_storage[, 2],\n  type = \"EE 2\"\n)\n\nplot_data <- rbind(b_ee1, b_ee2)\n\ng_case_1 <- ggplot(data = plot_data) +\n  geom_density(aes(x = bhat, fill = type), alpha = 0.5) +\n  scale_fill_discrete(name = \"Estimating Equation\") +\n  geom_vline(xintercept = 1, color = \"blue\", linewidth = 1) + # the true beta_1\n  xlab(\"Estimate of beta_1\") +\n  theme(legend.position = \"bottom\")","id":3,"options":{"autorun":"false","classes":"","comment":"","context":"interactive","dpi":72,"editor-font-scale":"0.8","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":5,"fig-width":7,"label":"unnamed-chunk-3","message":"true","out-height":"","out-width":"700px","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"g_case_1","id":4,"options":{"autorun":"false","classes":"","comment":"","context":"interactive","dpi":72,"editor-font-scale":"0.8","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":5,"fig-width":7,"label":"unnamed-chunk-4","message":"true","out-height":"","out-width":"700px","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"N <- 100 # sample size\nB <- 1000 # the number of iterations\nestimates_storage <- matrix(0, B, 2)","id":5,"options":{"autorun":"true","classes":"","comment":"","context":"interactive","dpi":72,"editor-font-scale":"0.8","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":5,"fig-width":7,"label":"unnamed-chunk-5","message":"true","out-height":"","out-width":"700px","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"set.seed(37834)\n\nfor (i in 1:B) { # iterate the same process B times\n\n  #--- data generation ---#\n  mu <- rnorm(N) # common term shared by x1 and x2\n  x1 <- 0.1 * rnorm(N) + 0.9 * mu # independent variable\n  x2 <- 0.1 * rnorm(N) + 0.9 * mu # independent variable\n  u <- rnorm(N) # error\n  y <- 1 + x1 + 0 * x2 + u # dependent variable\n  data <- data.frame(y = y, x1 = x1, x2 = x2)\n\n  #--- OLS ---#\n  beta_ee1 <- feols(y ~ x1, data = data)$coefficient[\"x1\"] # OLS with EE1\n  beta_ee2 <- feols(y ~ x1 + x2, data = data)$coefficient[\"x1\"] # OLS with EE2\n\n  #--- store estimates ---#\n  estimates_storage[i, 1] <- beta_ee1\n  estimates_storage[i, 2] <- beta_ee2\n}","id":6,"options":{"autorun":"false","classes":"","comment":"","context":"interactive","dpi":72,"editor-font-scale":"0.8","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":5,"fig-width":7,"label":"unnamed-chunk-6","message":"true","out-height":"","out-width":"700px","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"b_ee1 <- data.table(\n  bhat = estimates_storage[, 1],\n  type = \"EE 1\"\n)\n\nb_ee2 <- data.table(\n  bhat = estimates_storage[, 2],\n  type = \"EE 2\"\n)\n\nplot_data <- rbind(b_ee1, b_ee2)\n\ng_case_2 <- \n  ggplot(data = plot_data) +\n  geom_density(aes(x = bhat, fill = type), alpha = 0.5) +\n  scale_fill_discrete(name = \"Estimating Equation\") +\n  geom_vline(xintercept = 1, color = \"blue\", linewidth = 1) + # the true beta_1\n  xlab(\"Estimate of beta_1\") +\n  theme(legend.position = \"bottom\")","id":7,"options":{"autorun":"false","classes":"","comment":"","context":"interactive","dpi":72,"editor-font-scale":"0.8","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":5,"fig-width":7,"label":"unnamed-chunk-7","message":"true","out-height":"","out-width":"700px","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"g_case_2","id":8,"options":{"autorun":"false","classes":"","comment":"","context":"interactive","dpi":72,"editor-font-scale":"0.8","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":5,"fig-width":7,"label":"unnamed-chunk-8","message":"true","out-height":"","out-width":"700px","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"N <- 100\nmu <- rnorm(N) # common term shared by x1 and x2\nx1 <- 0.1 * rnorm(N) + 0.9 * mu # independent variable\nx2 <- 0.1 * rnorm(N) + 0.9 * mu # independent variable\n(\nols_res <- feols(x1 ~ x2, data = data.frame(x1 = x1, x2 = x2))\n)","id":9,"options":{"autorun":"false","classes":"","comment":"","context":"interactive","dpi":72,"editor-font-scale":"0.8","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":5,"fig-width":7,"label":"unnamed-chunk-9","message":"true","out-height":"","out-width":"700px","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"N <- 100 # sample size\nB <- 1000 # the number of iterations\nestimates_storage <- matrix(0, B, 2)","id":10,"options":{"autorun":"true","classes":"","comment":"","context":"interactive","dpi":72,"editor-font-scale":"0.8","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":5,"fig-width":7,"label":"unnamed-chunk-10","message":"true","out-height":"","out-width":"700px","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"set.seed(37834)\n\nfor (i in 1:B) { # iterate the same process B times\n\n  #--- data generation ---#\n  x1 <- rnorm(N) # independent variable\n  x2 <- rnorm(N) # independent variable\n  u <- rnorm(N) # error\n  y <- 1 + x1 + x2 + u # dependent variable\n  data <- data.frame(y = y, x1 = x1, x2 = x2)\n\n  #--- OLS ---#\n  beta_ee1 <- feols(y ~ x1, data = data)$coefficient[\"x1\"] # OLS with EE1\n  beta_ee2 <- feols(y ~ x1 + x2, data = data)$coefficient[\"x1\"] # OLS with EE2\n\n  #--- store estimates ---#\n  estimates_storage[i, 1] <- beta_ee1\n  estimates_storage[i, 2] <- beta_ee2\n}","id":11,"options":{"autorun":"false","classes":"","comment":"","context":"interactive","dpi":72,"editor-font-scale":"0.8","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":5,"fig-width":7,"label":"unnamed-chunk-11","message":"true","out-height":"","out-width":"700px","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"b_ee1 <- data.table(\n  bhat = estimates_storage[, 1],\n  type = \"EE 1\"\n)\n\nb_ee2 <- data.table(\n  bhat = estimates_storage[, 2],\n  type = \"EE 2\"\n)\n\nplot_data <- rbind(b_ee1, b_ee2)\n\ng_case_3 <- \n  ggplot(data = plot_data) +\n  geom_density(aes(x = bhat, fill = type), alpha = 0.5) +\n  scale_fill_discrete(name = \"Estimating Equation\") +\n  geom_vline(xintercept = 1, color = \"blue\", linewidth = 1) + # the true beta_1\n  xlab(\"Estimate of beta_1\") +\n  theme(legend.position = \"bottom\")","id":12,"options":{"autorun":"false","classes":"","comment":"","context":"interactive","dpi":72,"editor-font-scale":"0.8","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":5,"fig-width":7,"label":"unnamed-chunk-12","message":"true","out-height":"","out-width":"700px","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"g_case_3","id":13,"options":{"autorun":"false","classes":"","comment":"","context":"interactive","dpi":72,"editor-font-scale":"0.8","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":5,"fig-width":7,"label":"unnamed-chunk-13","message":"true","out-height":"","out-width":"700px","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"N <- 100\nx1 <- rnorm(N) # independent variable\nx2 <- rnorm(N) # independent variable\n(\nols_res <- feols(x1 ~ x2, data = data.frame(x1 = x1, x2 = x2))\n)","id":14,"options":{"autorun":"false","classes":"","comment":"","context":"interactive","dpi":72,"editor-font-scale":"0.8","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":5,"fig-width":7,"label":"unnamed-chunk-14","message":"true","out-height":"","out-width":"700px","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"N <- 100 # sample size\nB <- 1000 # the number of iterations\nestimates_storage <- matrix(0, B, 2)","id":15,"options":{"autorun":"true","classes":"","comment":"","context":"interactive","dpi":72,"editor-font-scale":"0.8","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":5,"fig-width":7,"label":"unnamed-chunk-15","message":"true","out-height":"","out-width":"700px","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"set.seed(37834)\n\nfor (i in 1:B) { # iterate the same process B times\n\n  #--- data generation ---#\n  mu <- rnorm(N) # common term shared by x1 and x2\n  x1 <- 0.1 * rnorm(N) + 0.9 * mu # independent variable\n  x2 <- 0.1 * rnorm(N) + 0.9 * mu # independent variable\n  u <- rnorm(N) # error\n  y <- 1 + x1 + 1 * x2 + u\n  data <- data.frame(y = y, x1 = x1, x2 = x2)\n\n  #--- OLS ---#\n  beta_ee1 <- feols(y ~ x1, data = data)$coefficient[\"x1\"] # OLS with EE1\n  beta_ee2 <- feols(y ~ x1 + x2, data = data)$coefficient[\"x1\"] # OLS with EE2\n\n  #--- store estimates ---#\n  estimates_storage[i, 1] <- beta_ee1\n  estimates_storage[i, 2] <- beta_ee2\n}","id":16,"options":{"autorun":"false","classes":"","comment":"","context":"interactive","dpi":72,"editor-font-scale":"0.8","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":5,"fig-width":7,"label":"unnamed-chunk-16","message":"true","out-height":"","out-width":"700px","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"b_ee1 <- data.table(\n  bhat = estimates_storage[, 1],\n  type = \"EE 1\"\n)\n\nb_ee2 <- data.table(\n  bhat = estimates_storage[, 2],\n  type = \"EE 2\"\n)\n\nplot_data <- rbind(b_ee1, b_ee2)\n\ng_case_4 <- \n  ggplot(data = plot_data) +\n  geom_density(aes(x = bhat, fill = type), alpha = 0.5) +\n  scale_fill_discrete(name = \"Estimating Equation\") +\n  geom_vline(xintercept = 1, color = \"blue\", linewidth = 1) + # the true beta_1\n  geom_vline(xintercept = 1.988, color = \"red\", linetype = 2, linewidth = 1) + # predicted plim of EE1\n  xlab(\"Estimate of beta_1\") +\n  theme(legend.position = \"bottom\")","id":17,"options":{"autorun":"false","classes":"","comment":"","context":"interactive","dpi":72,"editor-font-scale":"0.8","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":5,"fig-width":7,"label":"unnamed-chunk-17","message":"true","out-height":"","out-width":"700px","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"g_case_4","id":18,"options":{"autorun":"false","classes":"","comment":"","context":"interactive","dpi":72,"editor-font-scale":"0.8","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":5,"fig-width":7,"label":"unnamed-chunk-18","message":"true","out-height":"","out-width":"700px","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"mean(estimates_storage[, 1]) # EE1: should be close to 1.988\nmean(estimates_storage[, 2]) # EE2: should be close to 1","id":19,"options":{"autorun":"false","classes":"","comment":"","context":"interactive","dpi":72,"editor-font-scale":"0.8","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":5,"fig-width":7,"label":"unnamed-chunk-19","message":"true","out-height":"","out-width":"700px","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"N <- 100\nmu <- rnorm(N) # common term shared by x1 and x2\nx1 <- 0.1 * rnorm(N) + 0.9 * mu # independent variable\nx2 <- 0.1 * rnorm(N) + 0.9 * mu # independent variable\n(\nols_res <- feols(x1 ~ x2, data = data.frame(x1 = x1, x2 = x2))\n)","id":20,"options":{"autorun":"false","classes":"","comment":"","context":"interactive","dpi":72,"editor-font-scale":"0.8","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":5,"fig-width":7,"label":"unnamed-chunk-20","message":"true","out-height":"","out-width":"700px","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"mu <- rnorm(10000)\nx1 <- 0.1 * rnorm(10000) + 0.9 * mu\nx2 <- 0.1 * rnorm(10000) + 0.9 * mu\ncor(x1, x2)^2 # this is R^2_j for EE2","id":21,"options":{"autorun":"false","classes":"","comment":"","context":"interactive","dpi":72,"editor-font-scale":"0.8","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":5,"fig-width":7,"label":"unnamed-chunk-21","message":"true","out-height":"","out-width":"700px","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"set.seed(37834)\n\nN <- 100\nB <- 1000\nstorage_rev <- matrix(0, B, 2)\n\nfor (i in 1:B) {\n  mu <- rnorm(N)\n  x1 <- 0.9 * rnorm(N) + 0.1 * mu # now mostly its own variation\n  x2 <- 2.23 * rnorm(N) + 0.1 * mu # large variance, barely related to x1\n  u <- rnorm(N)\n  y <- 1 + x1 + 5 * x2 + u # x2 now matters a lot\n  data <- data.frame(y = y, x1 = x1, x2 = x2)\n\n  storage_rev[i, 1] <- feols(y ~ x1, data = data)$coefficient[\"x1\"]\n  storage_rev[i, 2] <- feols(y ~ x1 + x2, data = data)$coefficient[\"x1\"]\n}\n\n#--- variance of the estimates under each estimating equation ---#\nc(EE1 = var(storage_rev[, 1]), EE2 = var(storage_rev[, 2]))","id":22,"options":{"autorun":"false","classes":"","comment":"","context":"interactive","dpi":72,"editor-font-scale":"0.8","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":5,"fig-width":7,"label":"unnamed-chunk-22","message":"true","out-height":"","out-width":"700px","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"plot_data_rev <- rbind(\n  data.table(bhat = storage_rev[, 1], type = \"EE 1\"),\n  data.table(bhat = storage_rev[, 2], type = \"EE 2\")\n)\n\nggplot(data = plot_data_rev) +\n  geom_density(aes(x = bhat, fill = type), alpha = 0.5) +\n  scale_fill_discrete(name = \"Estimating Equation\") +\n  geom_vline(xintercept = 1, color = \"blue\", linewidth = 1) +\n  xlab(\"Estimate of beta_1\") +\n  theme(legend.position = \"bottom\")","id":23,"options":{"autorun":"false","classes":"","comment":"","context":"interactive","dpi":72,"editor-font-scale":"0.8","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":5,"fig-width":7,"label":"unnamed-chunk-23","message":"true","out-height":"","out-width":"700px","output":"true","read-only":"false","results":"markup","warning":"true"}}];
+  globalThis.qwebrCellDetails = [{"code":"N <- 100 # sample size\nB <- 1000 # the number of iterations\nestimates_storage <- matrix(0, B, 2)","id":1,"options":{"autorun":"true","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.8","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"4.5","fig-width":"7","label":"unnamed-chunk-1","message":"true","out-height":"","out-width":"55%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"set.seed(37834)\n\nfor (i in 1:B) { # iterate the same process B times\n\n  #--- data generation ---#\n  x1 <- rnorm(N) # independent variable\n  x2 <- rnorm(N) # independent variable\n  u <- rnorm(N) # error\n  y <- 1 + x1 + 0 * x2 + u # dependent variable\n  data <- data.frame(y = y, x1 = x1, x2 = x2)\n\n  #--- OLS ---#\n  beta_ee1 <- feols(y ~ x1, data = data)$coefficient[\"x1\"] # OLS with EE1\n  beta_ee2 <- feols(y ~ x1 + x2, data = data)$coefficient[\"x1\"] # OLS with EE2\n\n  #--- store estimates ---#\n  estimates_storage[i, 1] <- beta_ee1\n  estimates_storage[i, 2] <- beta_ee2\n}","id":2,"options":{"autorun":"false","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.8","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"4.5","fig-width":"7","label":"unnamed-chunk-2","message":"true","out-height":"","out-width":"55%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"b_ee1 <- data.table(\n  bhat = estimates_storage[, 1],\n  type = \"EE 1\"\n)\n\nb_ee2 <- data.table(\n  bhat = estimates_storage[, 2],\n  type = \"EE 2\"\n)\n\nplot_data <- rbind(b_ee1, b_ee2)\n\ng_case_1 <- ggplot(data = plot_data) +\n  geom_density(aes(x = bhat, fill = type), alpha = 0.5) +\n  scale_fill_discrete(name = \"Estimating Equation\") +\n  geom_vline(xintercept = 1, color = \"blue\", linewidth = 1) + # the true beta_1\n  xlab(\"Estimate of beta_1\") +\n  theme_bw(base_size = 30) +\n  theme(legend.position = \"bottom\")","id":3,"options":{"autorun":"false","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.8","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"4.5","fig-width":"7","label":"unnamed-chunk-3","message":"true","out-height":"","out-width":"55%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"g_case_1","id":4,"options":{"autorun":"false","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.8","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"6.5","fig-width":"9","label":"unnamed-chunk-4","message":"true","out-height":"","out-width":"55%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"N <- 100 # sample size\nB <- 1000 # the number of iterations\nestimates_storage <- matrix(0, B, 2)","id":5,"options":{"autorun":"true","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.8","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"4.5","fig-width":"7","label":"unnamed-chunk-5","message":"true","out-height":"","out-width":"55%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"set.seed(37834)\n\nfor (i in 1:B) { # iterate the same process B times\n\n  #--- data generation ---#\n  mu <- rnorm(N) # common term shared by x1 and x2\n  x1 <- 0.1 * rnorm(N) + 0.9 * mu # independent variable\n  x2 <- 0.1 * rnorm(N) + 0.9 * mu # independent variable\n  u <- rnorm(N) # error\n  y <- 1 + x1 + 0 * x2 + u # dependent variable\n  data <- data.frame(y = y, x1 = x1, x2 = x2)\n\n  #--- OLS ---#\n  beta_ee1 <- feols(y ~ x1, data = data)$coefficient[\"x1\"] # OLS with EE1\n  beta_ee2 <- feols(y ~ x1 + x2, data = data)$coefficient[\"x1\"] # OLS with EE2\n\n  #--- store estimates ---#\n  estimates_storage[i, 1] <- beta_ee1\n  estimates_storage[i, 2] <- beta_ee2\n}","id":6,"options":{"autorun":"false","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.8","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"4.5","fig-width":"7","label":"unnamed-chunk-6","message":"true","out-height":"","out-width":"55%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"b_ee1 <- data.table(\n  bhat = estimates_storage[, 1],\n  type = \"EE 1\"\n)\n\nb_ee2 <- data.table(\n  bhat = estimates_storage[, 2],\n  type = \"EE 2\"\n)\n\nplot_data <- rbind(b_ee1, b_ee2)\n\ng_case_2 <- \n  ggplot(data = plot_data) +\n  geom_density(aes(x = bhat, fill = type), alpha = 0.5) +\n  scale_fill_discrete(name = \"Estimating Equation\") +\n  geom_vline(xintercept = 1, color = \"blue\", linewidth = 1) + # the true beta_1\n  xlab(\"Estimate of beta_1\") +\n  theme_bw(base_size = 30) +\n  theme(legend.position = \"bottom\")","id":7,"options":{"autorun":"false","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.8","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"4.5","fig-width":"7","label":"unnamed-chunk-7","message":"true","out-height":"","out-width":"55%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"g_case_2","id":8,"options":{"autorun":"false","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.8","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"6.5","fig-width":"9","label":"unnamed-chunk-8","message":"true","out-height":"","out-width":"55%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"N <- 100\nmu <- rnorm(N) # common term shared by x1 and x2\nx1 <- 0.1 * rnorm(N) + 0.9 * mu # independent variable\nx2 <- 0.1 * rnorm(N) + 0.9 * mu # independent variable\n(\nols_res <- feols(x1 ~ x2, data = data.frame(x1 = x1, x2 = x2))\n)","id":9,"options":{"autorun":"false","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.8","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"4.5","fig-width":"7","label":"unnamed-chunk-9","message":"true","out-height":"","out-width":"55%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"N <- 100 # sample size\nB <- 1000 # the number of iterations\nestimates_storage <- matrix(0, B, 2)","id":10,"options":{"autorun":"true","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.8","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"4.5","fig-width":"7","label":"unnamed-chunk-10","message":"true","out-height":"","out-width":"55%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"set.seed(37834)\n\nfor (i in 1:B) { # iterate the same process B times\n\n  #--- data generation ---#\n  x1 <- rnorm(N) # independent variable\n  x2 <- rnorm(N) # independent variable\n  u <- rnorm(N) # error\n  y <- 1 + x1 + x2 + u # dependent variable\n  data <- data.frame(y = y, x1 = x1, x2 = x2)\n\n  #--- OLS ---#\n  beta_ee1 <- feols(y ~ x1, data = data)$coefficient[\"x1\"] # OLS with EE1\n  beta_ee2 <- feols(y ~ x1 + x2, data = data)$coefficient[\"x1\"] # OLS with EE2\n\n  #--- store estimates ---#\n  estimates_storage[i, 1] <- beta_ee1\n  estimates_storage[i, 2] <- beta_ee2\n}","id":11,"options":{"autorun":"false","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.8","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"4.5","fig-width":"7","label":"unnamed-chunk-11","message":"true","out-height":"","out-width":"55%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"b_ee1 <- data.table(\n  bhat = estimates_storage[, 1],\n  type = \"EE 1\"\n)\n\nb_ee2 <- data.table(\n  bhat = estimates_storage[, 2],\n  type = \"EE 2\"\n)\n\nplot_data <- rbind(b_ee1, b_ee2)\n\ng_case_3 <- \n  ggplot(data = plot_data) +\n  geom_density(aes(x = bhat, fill = type), alpha = 0.5) +\n  scale_fill_discrete(name = \"Estimating Equation\") +\n  geom_vline(xintercept = 1, color = \"blue\", linewidth = 1) + # the true beta_1\n  xlab(\"Estimate of beta_1\") +\n  theme_bw(base_size = 30) +\n  theme(legend.position = \"bottom\")","id":12,"options":{"autorun":"false","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.8","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"4.5","fig-width":"7","label":"unnamed-chunk-12","message":"true","out-height":"","out-width":"55%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"g_case_3","id":13,"options":{"autorun":"false","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.8","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"6.5","fig-width":"9","label":"unnamed-chunk-13","message":"true","out-height":"","out-width":"55%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"N <- 100\nx1 <- rnorm(N) # independent variable\nx2 <- rnorm(N) # independent variable\n(\nols_res <- feols(x1 ~ x2, data = data.frame(x1 = x1, x2 = x2))\n)","id":14,"options":{"autorun":"false","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.8","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"4.5","fig-width":"7","label":"unnamed-chunk-14","message":"true","out-height":"","out-width":"55%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"N <- 100 # sample size\nB <- 1000 # the number of iterations\nestimates_storage <- matrix(0, B, 2)","id":15,"options":{"autorun":"true","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.8","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"4.5","fig-width":"7","label":"unnamed-chunk-15","message":"true","out-height":"","out-width":"55%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"set.seed(37834)\n\nfor (i in 1:B) { # iterate the same process B times\n\n  #--- data generation ---#\n  mu <- rnorm(N) # common term shared by x1 and x2\n  x1 <- 0.1 * rnorm(N) + 0.9 * mu # independent variable\n  x2 <- 0.1 * rnorm(N) + 0.9 * mu # independent variable\n  u <- rnorm(N) # error\n  y <- 1 + x1 + 1 * x2 + u\n  data <- data.frame(y = y, x1 = x1, x2 = x2)\n\n  #--- OLS ---#\n  beta_ee1 <- feols(y ~ x1, data = data)$coefficient[\"x1\"] # OLS with EE1\n  beta_ee2 <- feols(y ~ x1 + x2, data = data)$coefficient[\"x1\"] # OLS with EE2\n\n  #--- store estimates ---#\n  estimates_storage[i, 1] <- beta_ee1\n  estimates_storage[i, 2] <- beta_ee2\n}","id":16,"options":{"autorun":"false","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.8","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"4.5","fig-width":"7","label":"unnamed-chunk-16","message":"true","out-height":"","out-width":"55%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"b_ee1 <- data.table(\n  bhat = estimates_storage[, 1],\n  type = \"EE 1\"\n)\n\nb_ee2 <- data.table(\n  bhat = estimates_storage[, 2],\n  type = \"EE 2\"\n)\n\nplot_data <- rbind(b_ee1, b_ee2)\n\ng_case_4 <- \n  ggplot(data = plot_data) +\n  geom_density(aes(x = bhat, fill = type), alpha = 0.5) +\n  scale_fill_discrete(name = \"Estimating Equation\") +\n  geom_vline(xintercept = 1, color = \"blue\", linewidth = 1) + # the true beta_1\n  geom_vline(xintercept = 1.988, color = \"red\", linetype = 2, linewidth = 1) + # predicted plim of EE1\n  xlab(\"Estimate of beta_1\") +\n  theme_bw(base_size = 30) +\n  theme(legend.position = \"bottom\")","id":17,"options":{"autorun":"false","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.8","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"4.5","fig-width":"7","label":"unnamed-chunk-17","message":"true","out-height":"","out-width":"55%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"g_case_4","id":18,"options":{"autorun":"false","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.8","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"6.5","fig-width":"9","label":"unnamed-chunk-18","message":"true","out-height":"","out-width":"55%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"mean(estimates_storage[, 1]) # EE1: should be close to 1.988\nmean(estimates_storage[, 2]) # EE2: should be close to 1","id":19,"options":{"autorun":"false","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.8","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"4.5","fig-width":"7","label":"unnamed-chunk-19","message":"true","out-height":"","out-width":"55%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"N <- 100\nmu <- rnorm(N) # common term shared by x1 and x2\nx1 <- 0.1 * rnorm(N) + 0.9 * mu # independent variable\nx2 <- 0.1 * rnorm(N) + 0.9 * mu # independent variable\n(\nols_res <- feols(x1 ~ x2, data = data.frame(x1 = x1, x2 = x2))\n)","id":20,"options":{"autorun":"false","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.8","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"4.5","fig-width":"7","label":"unnamed-chunk-20","message":"true","out-height":"","out-width":"55%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"mu <- rnorm(10000)\nx1 <- 0.1 * rnorm(10000) + 0.9 * mu\nx2 <- 0.1 * rnorm(10000) + 0.9 * mu\ncor(x1, x2)^2 # this is R^2_j for EE2","id":21,"options":{"autorun":"false","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.8","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"4.5","fig-width":"7","label":"unnamed-chunk-21","message":"true","out-height":"","out-width":"55%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"set.seed(37834)\n\nN <- 100\nB <- 1000\nstorage_rev <- matrix(0, B, 2)\n\nfor (i in 1:B) {\n  mu <- rnorm(N)\n  x1 <- 0.9 * rnorm(N) + 0.1 * mu # now mostly its own variation\n  x2 <- 2.23 * rnorm(N) + 0.1 * mu # large variance, barely related to x1\n  u <- rnorm(N)\n  y <- 1 + x1 + 5 * x2 + u # x2 now matters a lot\n  data <- data.frame(y = y, x1 = x1, x2 = x2)\n\n  storage_rev[i, 1] <- feols(y ~ x1, data = data)$coefficient[\"x1\"]\n  storage_rev[i, 2] <- feols(y ~ x1 + x2, data = data)$coefficient[\"x1\"]\n}\n\n#--- variance of the estimates under each estimating equation ---#\nc(EE1 = var(storage_rev[, 1]), EE2 = var(storage_rev[, 2]))","id":22,"options":{"autorun":"false","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.8","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"4.5","fig-width":"7","label":"unnamed-chunk-22","message":"true","out-height":"","out-width":"55%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"plot_data_rev <- rbind(\n  data.table(bhat = storage_rev[, 1], type = \"EE 1\"),\n  data.table(bhat = storage_rev[, 2], type = \"EE 2\")\n)\n\nggplot(data = plot_data_rev) +\n  geom_density(aes(x = bhat, fill = type), alpha = 0.5) +\n  scale_fill_discrete(name = \"Estimating Equation\") +\n  geom_vline(xintercept = 1, color = \"blue\", linewidth = 1) +\n  xlab(\"Estimate of beta_1\") +\n  theme_bw(base_size = 30) +\n  theme(legend.position = \"bottom\")","id":23,"options":{"autorun":"false","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.8","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"6.5","fig-width":"9","label":"unnamed-chunk-23","message":"true","out-height":"","out-width":"55%","output":"true","read-only":"false","results":"markup","warning":"true"}}];
 
   </script>
   <script type="module">
@@ -2146,10 +2307,10 @@ Lecturer transcript
 <p>The simplest possible setting in which the question can even be asked: y depends on two variables, x-one and x-two, plus an error. Your interest is entirely in x-one. That is the coefficient in your paper, the one your policy conclusion rests on. X-two is the variable you are deciding about. So read the objective box carefully. We are not asking whether x-two is estimated well. We are asking what happens to beta-one-hat depending on whether x-two is in the model or out of it. Two variables is enough to see everything; more would only add algebra.</p>
 </details>
 <p>Consider the following model,</p>
-<p><span class="math display">\[
+<p><span class="math display">
 y_i = \beta_0 + \beta_1 x_{1,i} + \beta_2 x_{2,i} + u_i
-\]</span></p>
-<p>Your interest is in estimating the impact of <span class="math inline">\(x_1\)</span> on <span class="math inline">\(y\)</span>.</p>
+</span></p>
+<p>Your interest is in estimating the impact of <span class="math inline">x_1</span> on <span class="math inline">y</span>.</p>
 <div title="Objective">
 <div class="callout callout-note no-icon callout-titled callout-style-default">
 <div class="callout-body">
@@ -2157,7 +2318,7 @@ y_i = \beta_0 + \beta_1 x_{1,i} + \beta_2 x_{2,i} + u_i
 <p><strong>Objective</strong></p>
 </div>
 <div class="callout-content">
-<p>Using this simple model, we investigate what happens to the coefficient estimate on <span class="math inline">\(x_1\)</span> if you include/omit <span class="math inline">\(x_2\)</span>.</p>
+<p>Using this simple model, we investigate what happens to the coefficient estimate on <span class="math inline">x_1</span> if you include/omit <span class="math inline">x_2</span>.</p>
 </div>
 </div>
 </div>
@@ -2170,15 +2331,15 @@ Lecturer transcript
 </summary>
 <p>Four cases, and look at how they are constructed, because the structure is the whole design of the lecture. Two things can be true or false. Either beta-two is zero or it is not, meaning x-two either matters for y or it does not. And either x-two is correlated with x-one or it is not. Two binary conditions give four combinations, and those are exactly the four cases listed. Nothing else varies. So when you see a difference in the results, you know precisely which of the two conditions caused it, because only one thing changed.</p>
 </details>
-<p>The model: <span class="math display">\[y_i = \beta_0 + \beta_1 x_{1,i} + \beta_2 x_{2,i} + u_i\]</span></p>
+<p>The model: <span class="math display">y_i = \beta_0 + \beta_1 x_{1,i} + \beta_2 x_{2,i} + u_i</span></p>
 <p><strong>Case 1</strong>:</p>
-<p>What happens if <span class="math inline">\(\beta_2=0\)</span>, but <span style="color:blue">include</span> <span class="math inline">\(x_2\)</span> that is <span style="color:blue">not</span> correlated with <span class="math inline">\(x_1\)</span>?</p>
+<p>What happens if <span class="math inline">\beta_2=0</span>, but <span style="color:blue">include</span> <span class="math inline">x_2</span> that is <span style="color:blue">not</span> correlated with <span class="math inline">x_1</span>?</p>
 <p><strong>Case 2</strong>:</p>
-<p>What happens if <span class="math inline">\(\beta_2=0\)</span>, but <span style="color:blue">include</span> <span class="math inline">\(x_2\)</span> that is <span style="color:blue">highly</span> correlated with <span class="math inline">\(x_1\)</span>?</p>
+<p>What happens if <span class="math inline">\beta_2=0</span>, but <span style="color:blue">include</span> <span class="math inline">x_2</span> that is <span style="color:blue">highly</span> correlated with <span class="math inline">x_1</span>?</p>
 <p><strong>Case 3</strong>:</p>
-<p>What happens if <span class="math inline">\(\beta_2\ne 0\)</span>, but <span style="color:blue">omit</span> <span class="math inline">\(x_2\)</span> that is <span style="color:blue">not</span> correlated with <span class="math inline">\(x_1\)</span>?</p>
+<p>What happens if <span class="math inline">\beta_2\ne 0</span>, but <span style="color:blue">omit</span> <span class="math inline">x_2</span> that is <span style="color:blue">not</span> correlated with <span class="math inline">x_1</span>?</p>
 <p><strong>Case 4</strong>:</p>
-<p>What happens if <span class="math inline">\(\beta_2\ne 0\)</span>, but <span style="color:blue">omit</span> <span class="math inline">\(x_2\)</span> that is <span style="color:blue">highly</span> correlated with <span class="math inline">\(x_1\)</span>?</p>
+<p>What happens if <span class="math inline">\beta_2\ne 0</span>, but <span style="color:blue">omit</span> <span class="math inline">x_2</span> that is <span style="color:blue">highly</span> correlated with <span class="math inline">x_1</span>?</p>
 </div>
 <div id="tabset-1-4">
 <details class="transcript">
@@ -2188,15 +2349,15 @@ Lecturer transcript
 <p>Two things we track in every case: is beta-one-hat unbiased, and how large is its variance. And then the formula, which you already have from lecture 02. Read the three bullets under it, because they are the map for the entire lecture. Omitting a relevant variable pushes that variable into the error term, which changes the numerator. Including a correlated variable raises R-squared-j, which shrinks the denominator. The four cases are just the four combinations of those two effects being present or absent. Everything that follows is bookkeeping on this one expression.</p>
 </details>
 <ul>
-<li><p>Is <span class="math inline">\(\widehat{\beta}_1\)</span> unbiased, that is <span class="math inline">\(E[\widehat{\beta}_1]=\beta_1\)</span>?</p></li>
-<li><p><span class="math inline">\(Var(\widehat{\beta}_1)\)</span>? (how accurate the estimation of <span class="math inline">\(\widehat{\beta}_1\)</span> is)</p></li>
+<li><p>Is <span class="math inline">\widehat{\beta}_1</span> unbiased, that is <span class="math inline">E[\widehat{\beta}_1]=\beta_1</span>?</p></li>
+<li><p><span class="math inline">Var(\widehat{\beta}_1)</span>? (how accurate the estimation of <span class="math inline">\widehat{\beta}_1</span> is)</p></li>
 </ul>
 <p><br></p>
 <p>Everything in this lecture comes out of one formula you already have, from lecture 02:</p>
-<p><span class="math display">\[Var(\widehat{\beta}_j)= \frac{\sigma^2}{SST_j(1-R^2_j)}\]</span></p>
+<p><span class="math display">Var(\widehat{\beta}_j)= \frac{\sigma^2}{SST_j(1-R^2_j)}</span></p>
 <ul>
 <li>omitting a relevant variable changes the <span style="color:blue">numerator</span>, because that variable goes into the error term</li>
-<li>including a correlated variable changes the <span style="color:red">denominator</span>, through <span class="math inline">\(R^2_j\)</span></li>
+<li>including a correlated variable changes the <span style="color:red">denominator</span>, through <span class="math inline">R^2_j</span></li>
 <li>the four cases below are just the four combinations of those two things happening or not</li>
 </ul>
 </div>
@@ -2217,11 +2378,11 @@ Lecturer transcript
 <p>Case one, and it is the easy corner. Read the three conditions. X-one and x-two are uncorrelated, beta-two is zero, and the error is well behaved. So x-two is doing nothing at all: it does not affect y, and it carries no information about x-one either. The example makes that concrete. A farmer’s height genuinely has no effect on corn yield, and taller farmers do not apply more nitrogen. Ask yourself before we run anything: if you throw a variable like that into your regression, what could possibly go wrong? Case one is the sanity check.</p>
 </details>
 <p><strong>True Model</strong></p>
-<p><span class="math inline">\(y_i=\beta_0 + \beta_1 x_{1,i} + \beta_2 x_{2,i} + u_i\)</span></p>
+<p><span class="math inline">y_i=\beta_0 + \beta_1 x_{1,i} + \beta_2 x_{2,i} + u_i</span></p>
 <ul>
-<li><span class="math inline">\(cor(x_1,x_2) = 0\)</span></li>
-<li><span class="math inline">\(\beta_2=0\)</span></li>
-<li><span class="math inline">\(E[u_i|x_{1,i},x_{2,i}]=0\)</span></li>
+<li><span class="math inline">cor(x_1,x_2) = 0</span></li>
+<li><span class="math inline">\beta_2=0</span></li>
+<li><span class="math inline">E[u_i|x_{1,i},x_{2,i}]=0</span></li>
 </ul>
 <div title="Example">
 <div class="callout callout-note no-icon callout-titled callout-style-default">
@@ -2230,9 +2391,9 @@ Lecturer transcript
 <p><strong>Example</strong></p>
 </div>
 <div class="callout-content">
-<p><span class="math inline">\(\mbox{corn yield} = \beta_0 + \beta_1 \times N + \beta_2 \times \mbox{farmer's height} + u\)</span></p>
+<p><span class="math inline">\text{corn yield} = \beta_0 + \beta_1 \times N + \beta_2 \times \text{farmer's height} + u</span></p>
 <ul>
-<li>a farmer’s height does not affect yield (<span class="math inline">\(\beta_2 = 0\)</span>), and it is not related to how much nitrogen they apply (<span class="math inline">\(cor(x_1,x_2)=0\)</span>)</li>
+<li>a farmer’s height does not affect yield (<span class="math inline">\beta_2 = 0</span>), and it is not related to how much nitrogen they apply (<span class="math inline">cor(x_1,x_2)=0</span>)</li>
 </ul>
 </div>
 </div>
@@ -2248,9 +2409,9 @@ Lecturer transcript
 </details>
 <p>We will estimate the following models:</p>
 <p><br></p>
-<p><span class="math inline">\(EE_1\)</span>: <span class="math inline">\(y_i=\beta_0 + \beta_1 x_{1,i} + v_i \mbox{ , where } (v_i = \beta_2 x_{2,i} + u_i)\)</span></p>
-<p><span class="math inline">\(EE_2\)</span>: <span class="math inline">\(y_i=\beta_0 + \beta_1 x_{1,i} + \beta_2 x_{2,i} + u_i\)</span></p>
-<p>(Only <span class="math inline">\(x_1\)</span> is included in <span class="math inline">\(EE_1\)</span>, while <span class="math inline">\(x_1\)</span> and <span class="math inline">\(x_2\)</span> are included in <span class="math inline">\(EE_2\)</span>.)</p>
+<p><span class="math inline">EE_1</span>: <span class="math inline">y_i=\beta_0 + \beta_1 x_{1,i} + v_i \text{ , where } (v_i = \beta_2 x_{2,i} + u_i)</span></p>
+<p><span class="math inline">EE_2</span>: <span class="math inline">y_i=\beta_0 + \beta_1 x_{1,i} + \beta_2 x_{2,i} + u_i</span></p>
+<p>(Only <span class="math inline">x_1</span> is included in <span class="math inline">EE_1</span>, while <span class="math inline">x_1</span> and <span class="math inline">x_2</span> are included in <span class="math inline">EE_2</span>.)</p>
 <p><br></p>
 <div title="Question">
 <div class="callout callout-note no-icon callout-titled callout-style-default">
@@ -2261,9 +2422,9 @@ Lecturer transcript
 <div class="callout-content">
 <p>What do you think is gonna happen? Any guess?</p>
 <ul>
-<li><span class="math inline">\(E[\widehat{\beta}_1]=\beta_1\)</span> in <span class="math inline">\(EE_1\)</span>? (bias?)</li>
-<li><span class="math inline">\(E[\widehat{\beta}_1]=\beta_1\)</span> in <span class="math inline">\(EE_2\)</span>? (bias?)</li>
-<li><span class="math inline">\(Var(\widehat{\beta}_1)\)</span> in <span class="math inline">\(EE_1\)</span> <span class="math inline">\(\gtreqqless\)</span> <span class="math inline">\(Var(\widehat{\beta}_1)\)</span> in <span class="math inline">\(EE_2\)</span>?</li>
+<li><span class="math inline">E[\widehat{\beta}_1]=\beta_1</span> in <span class="math inline">EE_1</span>? (bias?)</li>
+<li><span class="math inline">E[\widehat{\beta}_1]=\beta_1</span> in <span class="math inline">EE_2</span>? (bias?)</li>
+<li><span class="math inline">Var(\widehat{\beta}_1)</span> in <span class="math inline">EE_1</span> <span class="math inline">\gtreqqless</span> <span class="math inline">Var(\widehat{\beta}_1)</span> in <span class="math inline">EE_2</span>?</li>
 </ul>
 </div>
 </div>
@@ -2294,14 +2455,14 @@ Lecturer transcript
 <summary>
 Lecturer transcript
 </summary>
-<p>Two densities, and the blue line is the true beta-one of one. Look at three things. Both densities are centered on the blue line, so both estimating equations are unbiased, which is what you would hope. Their widths are essentially identical, so including x-two cost you nothing in precision. And they overlap almost perfectly. That is case one in a picture: an irrelevant, uncorrelated variable is simply harmless. Keep this image in mind, because in the next three cases one or both of those observations will fail, and you will be able to see exactly which.</p>
+<p>Two densities, and the blue line is the true beta-one of one. Look at three things. Both densities are centered on the blue line, so both estimating equations are unbiased, which is what you would hope. Their widths are nearly identical in this simulation. In a finite sample, the sample correlation will not be exactly zero and estimating an extra coefficient uses a degree of freedom, so the added variable is not literally free. But an irrelevant variable that is orthogonal to x-one has no systematic precision benefit, and its cost becomes negligible here. Keep this image in mind, because in the next three cases one or both of those observations will fail.</p>
 </details>
 <div id="qwebr-insertion-location-4"></div>
 <noscript>Please enable JavaScript to experience the dynamic code cell content on this page.</noscript>
 </div>
 <div id="tabset-6-5">
 <div class="panel-tabset">
-<ul id="tabset-2" class="panel-tabset-tabby"><li><a data-tabby-default="" href="#tabset-2-1"><span class="math inline">\(EE_1\)</span></a></li><li><a href="#tabset-2-2"><span class="math inline">\(EE_2\)</span></a></li></ul>
+<ul id="tabset-2" class="panel-tabset-tabby"><li><a data-tabby-default="" href="#tabset-2-1"><span class="math inline">EE_1</span></a></li><li><a href="#tabset-2-2"><span class="math inline">EE_2</span></a></li></ul>
 <div class="tab-content">
 <div id="tabset-2-1">
 <details class="transcript">
@@ -2313,27 +2474,27 @@ Lecturer transcript
 <div class="columns">
 <div class="column" style="width:50%;">
 <p><strong>True model</strong></p>
-<p><span class="math inline">\(y_i=\beta_0 + \beta_1 x_{1,i} + \beta_2 x_{2,i} + u_i\)</span></p>
+<p><span class="math inline">y_i=\beta_0 + \beta_1 x_{1,i} + \beta_2 x_{2,i} + u_i</span></p>
 <ul>
-<li><span class="math inline">\(cor(x_1,x_2) = 0\)</span></li>
-<li><span class="math inline">\(\beta_2=0\)</span></li>
-<li><span class="math inline">\(E[u_i|x_{1,i},x_{2,i}]=0\)</span></li>
+<li><span class="math inline">cor(x_1,x_2) = 0</span></li>
+<li><span class="math inline">\beta_2=0</span></li>
+<li><span class="math inline">E[u_i|x_{1,i},x_{2,i}]=0</span></li>
 </ul>
 </div><!--end of the 1st column--><div class="column" style="width:50%;">
 <p><strong>Estimated model</strong></p>
-<p><span class="math inline">\(EE_1\)</span>: <span class="math inline">\(y_i = \beta_0 + \beta_1 x_{1,i} + v_{i} \;\; (v_i = \beta_2 x_{2,i} + u_{i})\)</span></p>
+<p><span class="math inline">EE_1</span>: <span class="math inline">y_i = \beta_0 + \beta_1 x_{1,i} + v_{i} \;\; (v_i = \beta_2 x_{2,i} + u_{i})</span></p>
 </div><!--end of the 2nd column-->
 </div>
 <!--end of the columns-->
 <p><br></p>
 <p><strong>Question</strong></p>
-<p><span class="math inline">\(E[v_i|x_{1,i}]=0?\)</span></p>
+<p><span class="math inline">E[v_i|x_{1,i}]=0?</span></p>
 <br>
 <details>
 <summary>
 Answer
 </summary>
-Yes, because <span class="math inline">\(x_1\)</span> is not correlated with either of <span class="math inline">\(x_2\)</span> and <span class="math inline">\(u\)</span>. So, <strong>no</strong> bias.
+Yes, because <span class="math inline">x_1</span> is not correlated with either of <span class="math inline">x_2</span> and <span class="math inline">u</span>. So, <strong>no</strong> bias.
 </details>
 </div>
 <div id="tabset-2-2">
@@ -2346,27 +2507,27 @@ Lecturer transcript
 <div class="columns">
 <div class="column" style="width:50%;">
 <p><strong>True model</strong></p>
-<p><span class="math inline">\(y_i=\beta_0 + \beta_1 x_{1,i} + \beta_2 x_{2,i} + u_i\)</span></p>
+<p><span class="math inline">y_i=\beta_0 + \beta_1 x_{1,i} + \beta_2 x_{2,i} + u_i</span></p>
 <ul>
-<li><span class="math inline">\(cor(x_1,x_2) = 0\)</span></li>
-<li><span class="math inline">\(\beta_2=0\)</span></li>
-<li><span class="math inline">\(E[u_i|x_{1,i},x_{2,i}]=0\)</span></li>
+<li><span class="math inline">cor(x_1,x_2) = 0</span></li>
+<li><span class="math inline">\beta_2=0</span></li>
+<li><span class="math inline">E[u_i|x_{1,i},x_{2,i}]=0</span></li>
 </ul>
 </div><!--end of the 1st column--><div class="column" style="width:50%;">
 <p><strong>Estimated model</strong></p>
-<p><span class="math inline">\(EE_2\)</span>: <span class="math inline">\(y_i = \beta_0 + \beta_1 x_{1,i} + \beta_2 x_{2,i} + u_{i}\)</span></p>
+<p><span class="math inline">EE_2</span>: <span class="math inline">y_i = \beta_0 + \beta_1 x_{1,i} + \beta_2 x_{2,i} + u_{i}</span></p>
 </div><!--end of the 2nd column-->
 </div>
 <!--end of the columns-->
 <p><br></p>
 <p><strong>Question</strong></p>
-<p><span class="math inline">\(E[u_i|x_{1,i},x_{2,i}]=0\)</span>?</p>
+<p><span class="math inline">E[u_i|x_{1,i},x_{2,i}]=0</span>?</p>
 <br>
 <details>
 <summary>
 Answer
 </summary>
-Yes, because <span class="math inline">\(x_1\)</span> and <span class="math inline">\(x_2\)</span> are not correlated with <span class="math inline">\(u\)</span> (by assumption). So, <strong>no</strong> bias.
+Yes, because <span class="math inline">x_1</span> and <span class="math inline">x_2</span> are not correlated with <span class="math inline">u</span> (by assumption). So, <strong>no</strong> bias.
 </details>
 </div>
 </div>
@@ -2375,7 +2536,7 @@ Yes, because <span class="math inline">\(x_1\)</span> and <span class="math inli
 </div>
 <div id="tabset-6-6">
 <div class="panel-tabset">
-<ul id="tabset-5" class="panel-tabset-tabby"><li><a data-tabby-default="" href="#tabset-5-1"><span class="math inline">\(EE_1\)</span></a></li><li><a href="#tabset-5-2"><span class="math inline">\(EE_2\)</span></a></li><li><a href="#tabset-5-3"><span class="math inline">\(EE_1\)</span> v.s. <span class="math inline">\(EE_2\)</span></a></li></ul>
+<ul id="tabset-5" class="panel-tabset-tabby"><li><a data-tabby-default="" href="#tabset-5-1"><span class="math inline">EE_1</span></a></li><li><a href="#tabset-5-2"><span class="math inline">EE_2</span></a></li><li><a href="#tabset-5-3"><span class="math inline">EE_1</span> v.s. <span class="math inline">EE_2</span></a></li></ul>
 <div class="tab-content">
 <div id="tabset-5-1">
 <details class="transcript">
@@ -2387,28 +2548,28 @@ Lecturer transcript
 <div class="columns">
 <div class="column" style="width:30%;">
 <p><strong>True model</strong></p>
-<p><span class="math inline">\(y_i=\beta_0 + \beta_1 x_{1,i} + \beta_2 x_{2,i} + u_i\)</span></p>
+<p><span class="math inline">y_i=\beta_0 + \beta_1 x_{1,i} + \beta_2 x_{2,i} + u_i</span></p>
 <ul>
-<li><span class="math inline">\(cor(x_1,x_2) = 0\)</span></li>
-<li><span class="math inline">\(\beta_2=0\)</span></li>
-<li><span class="math inline">\(E[u_i|x_{1,i},x_{2,i}]=0\)</span></li>
+<li><span class="math inline">cor(x_1,x_2) = 0</span></li>
+<li><span class="math inline">\beta_2=0</span></li>
+<li><span class="math inline">E[u_i|x_{1,i},x_{2,i}]=0</span></li>
 </ul>
 </div><!--end of the 1st column--><div class="column" style="width:30%;">
 <p><strong>Variance</strong></p>
-<p><span class="math inline">\(Var(\widehat{\beta}_j)= \frac{\sigma_v^2}{SST_j(1-R^2_j)}\)</span></p>
-<p>where <span class="math inline">\(R^2_j\)</span> is the <span class="math inline">\(R^2\)</span> when you regress <span class="math inline">\(x_j\)</span> on all the other covariates.</p>
+<p><span class="math inline">Var(\widehat{\beta}_j)= \frac{\sigma_v^2}{SST_j(1-R^2_j)}</span></p>
+<p>where <span class="math inline">R^2_j</span> is the <span class="math inline">R^2</span> when you regress <span class="math inline">x_j</span> on all the other covariates.</p>
 </div><!--end of the 2nd column--><div class="column" style="width:40%;">
 <p><strong>The estimated model</strong></p>
-<p><span class="math inline">\(EE_1\)</span>: <span class="math inline">\(y_i = \beta_0 + \beta_1 x_{1,i} + v_{i} \;\; (\beta_2 x_{2,i} + u_{i})\)</span></p>
+<p><span class="math inline">EE_1</span>: <span class="math inline">y_i = \beta_0 + \beta_1 x_{1,i} + v_{i} \;\; (\beta_2 x_{2,i} + u_{i})</span></p>
 </div><!--end of the 3rd column-->
 </div>
 <!--end of the columns-->
 <p><br></p>
 <div class="panel-tabset">
-<ul id="tabset-3" class="panel-tabset-tabby"><li><a data-tabby-default="" href="#tabset-3-1">Question (<span class="math inline">\(R_j^2\)</span>)</a></li><li><a href="#tabset-3-2">Question (variance of the error term)</a></li></ul>
+<ul id="tabset-3" class="panel-tabset-tabby"><li><a data-tabby-default="" href="#tabset-3-1">Question (<span class="math inline">R_j^2</span>)</a></li><li><a href="#tabset-3-2">Question (variance of the error term)</a></li></ul>
 <div class="tab-content">
 <div id="tabset-3-1">
-<p><span class="math inline">\(R_j^2\)</span>?</p>
+<p><span class="math inline">R_j^2</span>?</p>
 <br>
 <details>
 <summary>
@@ -2418,15 +2579,15 @@ Answer
 </details>
 </div>
 <div id="tabset-3-2">
-<p><span class="math inline">\(Var(v_i) = Var(\beta_2 x_{2,i} + u_i)\)</span>?</p>
+<p><span class="math inline">Var(v_i) = Var(\beta_2 x_{2,i} + u_i)</span>?</p>
 <br>
 <details>
 <summary>
 Answer
 </summary>
-<p><span class="math display">\[
+<p><span class="math display">
 Var(v_i) = Var(\beta_2 x_{2,i} + u_i) = \sigma_u^2
-\]</span> because <span class="math inline">\(\beta_2 = 0\)</span>.</p>
+</span> because <span class="math inline">\beta_2 = 0</span>.</p>
 </details>
 </div>
 </div>
@@ -2443,46 +2604,46 @@ Lecturer transcript
 <div class="columns">
 <div class="column" style="width:30%;">
 <p><strong>True model</strong></p>
-<p><span class="math inline">\(y_i=\beta_0 + \beta_1 x_{1,i} + \beta_2 x_{2,i} + u_i\)</span></p>
+<p><span class="math inline">y_i=\beta_0 + \beta_1 x_{1,i} + \beta_2 x_{2,i} + u_i</span></p>
 <ul>
-<li><span class="math inline">\(cor(x_1,x_2) = 0\)</span></li>
-<li><span class="math inline">\(\beta_2=0\)</span></li>
-<li><span class="math inline">\(E[u_i|x_{1,i},x_{2,i}]=0\)</span></li>
+<li><span class="math inline">cor(x_1,x_2) = 0</span></li>
+<li><span class="math inline">\beta_2=0</span></li>
+<li><span class="math inline">E[u_i|x_{1,i},x_{2,i}]=0</span></li>
 </ul>
 </div><!--end of the 1st column--><div class="column" style="width:30%;">
 <p><strong>Variance</strong></p>
-<p><span class="math inline">\(Var(\widehat{\beta}_j)= \frac{\sigma_u^2}{SST_j(1-R^2_j)}\)</span></p>
-<p>where <span class="math inline">\(R^2_j\)</span> is the <span class="math inline">\(R^2\)</span> when you regress <span class="math inline">\(x_j\)</span> on all the other covariates.</p>
+<p><span class="math inline">Var(\widehat{\beta}_j)= \frac{\sigma_u^2}{SST_j(1-R^2_j)}</span></p>
+<p>where <span class="math inline">R^2_j</span> is the <span class="math inline">R^2</span> when you regress <span class="math inline">x_j</span> on all the other covariates.</p>
 </div><!--end of the 2nd column--><div class="column" style="width:40%;">
 <p><strong>The estimated model</strong></p>
-<p><span class="math inline">\(EE2\)</span>: <span class="math inline">\(y_i = \beta_0 + \beta_1 x_{1,i} + \beta_2 x_{2,i} + u_{i}\)</span></p>
+<p><span class="math inline">EE2</span>: <span class="math inline">y_i = \beta_0 + \beta_1 x_{1,i} + \beta_2 x_{2,i} + u_{i}</span></p>
 </div><!--end of the 3rd column-->
 </div>
 <!--end of the columns-->
 <p><br></p>
 <div class="panel-tabset">
-<ul id="tabset-4" class="panel-tabset-tabby"><li><a data-tabby-default="" href="#tabset-4-1">Question (<span class="math inline">\(R_j^2\)</span>)</a></li><li><a href="#tabset-4-2">Question (variance of the error term)</a></li></ul>
+<ul id="tabset-4" class="panel-tabset-tabby"><li><a data-tabby-default="" href="#tabset-4-1">Question (<span class="math inline">R_j^2</span>)</a></li><li><a href="#tabset-4-2">Question (variance of the error term)</a></li></ul>
 <div class="tab-content">
 <div id="tabset-4-1">
-<p><span class="math inline">\(R_j^2\)</span>?</p>
+<p><span class="math inline">R_j^2</span>?</p>
 <br>
 <details>
 <summary>
 Answer
 </summary>
-0 on average because <span class="math inline">\(cor(x_1, x_2)=0\)</span>
+0 on average because <span class="math inline">cor(x_1, x_2)=0</span>
 </details>
 </div>
 <div id="tabset-4-2">
-<p><span class="math inline">\(Var(u_i)\)</span>?</p>
+<p><span class="math inline">Var(u_i)</span>?</p>
 <br>
 <details>
 <summary>
 Answer
 </summary>
-<span class="math display">\[
+<span class="math display">
 Var(u_i) = \sigma_u^2
-\]</span>
+</span>
 </details>
 </div>
 </div>
@@ -2494,7 +2655,7 @@ Var(u_i) = \sigma_u^2
 <summary>
 Lecturer transcript
 </summary>
-<p>Here is the comparison laid out. Read the three columns. Both models have R-squared-j equal to zero and both have error variance sigma-u squared, and the formula in the third column takes only those two inputs plus the sum of squares of x-one, which does not depend on which model you run. Every ingredient is identical, so the variances are identical. That is the answer, and it is worth saying what it means practically: adding a useless, uncorrelated control variable is free. It does not help, but it costs you nothing either.</p>
+<p>Here is the population comparison laid out. When x-two is orthogonal to x-one, the multicollinearity term is zero, and both models have error variance sigma-u squared. In an actual finite sample, their sample correlation will generally be small rather than exactly zero, and the larger model also estimates one more coefficient. Thus the variances need not be exactly identical, although they are nearly so in this design. The practical lesson is that an irrelevant, nearly uncorrelated control offers no precision gain and usually has only a small precision cost.</p>
 </details>
 <div title="Question">
 <div class="callout callout-note no-icon callout-titled callout-style-default">
@@ -2503,7 +2664,7 @@ Lecturer transcript
 <p><strong>Question</strong></p>
 </div>
 <div class="callout-content">
-<p><span class="math inline">\(Var(\widehat{\beta}_1)\)</span> in <span class="math inline">\(EE_1\)</span> <span class="math inline">\(\gtreqqless\)</span> <span class="math inline">\(Var(\widehat{\beta}_1)\)</span> in <span class="math inline">\(EE_2\)</span>?</p>
+<p><span class="math inline">Var(\widehat{\beta}_1)</span> in <span class="math inline">EE_1</span> <span class="math inline">\gtreqqless</span> <span class="math inline">Var(\widehat{\beta}_1)</span> in <span class="math inline">EE_2</span>?</p>
 </div>
 </div>
 </div>
@@ -2511,20 +2672,20 @@ Lecturer transcript
 <p><br></p>
 <div class="columns">
 <div class="column" style="width:33%;">
-<p><strong><span class="math inline">\(EE_1\)</span></strong></p>
+<p><strong><span class="math inline">EE_1</span></strong></p>
 <ul>
-<li><span class="math inline">\(R_j^2 = 0\)</span></li>
-<li><span class="math inline">\(Var(error) = Var(v_i) = \sigma_u^2\)</span></li>
+<li><span class="math inline">R_j^2 = 0</span></li>
+<li><span class="math inline">Var(error) = Var(v_i) = \sigma_u^2</span></li>
 </ul>
 </div><!--end of the 1st column--><div class="column" style="width:33%;">
-<p><strong><span class="math inline">\(EE_2\)</span></strong></p>
+<p><strong><span class="math inline">EE_2</span></strong></p>
 <ul>
-<li><span class="math inline">\(R_j^2 = 0\)</span></li>
-<li><span class="math inline">\(Var(error) = Var(u_i) = \sigma_u^2\)</span></li>
+<li><span class="math inline">R_j^2 = 0</span></li>
+<li><span class="math inline">Var(error) = Var(u_i) = \sigma_u^2</span></li>
 </ul>
 </div><!--end of the 2nd column--><div class="column" style="width:33%;">
 <p><strong>Variance formula</strong></p>
-<p><span class="math inline">\(Var(\widehat{\beta}_j)= \frac{Var(error)}{SST_j(1-R^2_j)}\)</span></p>
+<p><span class="math inline">Var(\widehat{\beta}_j)= \frac{Var(error)}{SST_j(1-R^2_j)}</span></p>
 </div></div>
 <!--end of the columns-->
 <br> <br>
@@ -2547,8 +2708,8 @@ Lecturer transcript
 <p>The two takeaways from case one, and both are permission rather than warning. Including a variable that has no explanatory power and is uncorrelated with x-one leaves your variance exactly where it was. And omitting such a variable leaves you unbiased. So in this corner of the world it genuinely does not matter what you do. Remember that this is the only case where that is true. Three more cases follow, and each one breaks exactly one of the two conditions we imposed here, so you will be able to attribute every difference to the thing that changed.</p>
 </details>
 <ul>
-<li><p>If you include an irrelevant variable that has no explanatory power beyond <span class="math inline">\(x_1\)</span> and is not correlated with <span class="math inline">\(x_1\)</span> (<span class="math inline">\(EE_2\)</span>), then the variance of the OLS estimator on <span class="math inline">\(x_1\)</span> will be the same as when you do not include <span class="math inline">\(x_2\)</span> as a covariate (<span class="math inline">\(EE_1\)</span>)</p></li>
-<li><p>If you omit an irrelevant variable that has no explanatory power beyond <span class="math inline">\(x_1\)</span> (<span class="math inline">\(EE_1\)</span>) and is not correlated with <span class="math inline">\(x_1\)</span>, then the OLS estimator on <span class="math inline">\(x_1\)</span> is still unbiased</p></li>
+<li><p>If you include an irrelevant variable that has no explanatory power beyond <span class="math inline">x_1</span> and is not correlated with <span class="math inline">x_1</span> (<span class="math inline">EE_2</span>), then the variance of the OLS estimator on <span class="math inline">x_1</span> will be the same as when you do not include <span class="math inline">x_2</span> as a covariate (<span class="math inline">EE_1</span>)</p></li>
+<li><p>If you omit an irrelevant variable that has no explanatory power beyond <span class="math inline">x_1</span> (<span class="math inline">EE_1</span>) and is not correlated with <span class="math inline">x_1</span>, then the OLS estimator on <span class="math inline">x_1</span> is still unbiased</p></li>
 </ul>
 </div>
 </div>
@@ -2568,11 +2729,11 @@ Lecturer transcript
 <p>Case two, and exactly one thing has changed from case one: x-one and x-two are now correlated. Beta-two is still zero, so x-two is still genuinely irrelevant to y. Read the example, because it is the shape this takes in practice. Fertilizer expenditure is almost entirely determined by how much nitrogen you applied, so the two are tightly related. But once you already know the nitrogen rate, the dollar figure tells you nothing further about yield. An irrelevant variable that happens to move with the one you care about. This is what multicollinearity means.</p>
 </details>
 <p><strong>True Model</strong></p>
-<p><span class="math inline">\(y_i=\beta_0 + \beta_1 x_{1,i} + \beta_2 x_{2,i} + u_i\)</span></p>
+<p><span class="math inline">y_i=\beta_0 + \beta_1 x_{1,i} + \beta_2 x_{2,i} + u_i</span></p>
 <ul>
-<li><span class="math inline">\(cor(x_1,x_2) \ne 0\)</span></li>
-<li><span class="math inline">\(\beta_2=0\)</span></li>
-<li><span class="math inline">\(E[u_i|x_{1,i},x_{2,i}]=0\)</span></li>
+<li><span class="math inline">cor(x_1,x_2) \ne 0</span></li>
+<li><span class="math inline">\beta_2=0</span></li>
+<li><span class="math inline">E[u_i|x_{1,i},x_{2,i}]=0</span></li>
 </ul>
 <div title="Example">
 <div class="callout callout-note no-icon callout-titled callout-style-default">
@@ -2581,9 +2742,9 @@ Lecturer transcript
 <p><strong>Example</strong></p>
 </div>
 <div class="callout-content">
-<p><span class="math inline">\(\mbox{corn yield} = \beta_0 + \beta_1 \times N + \beta_2 \times \mbox{fertilizer expenditure} + u\)</span></p>
+<p><span class="math inline">\text{corn yield} = \beta_0 + \beta_1 \times N + \beta_2 \times \text{fertilizer expenditure} + u</span></p>
 <ul>
-<li>fertilizer expenditure is almost entirely determined by how much nitrogen is applied (<span class="math inline">\(cor(x_1,x_2)\ne 0\)</span>), but once you know <span class="math inline">\(N\)</span> it tells you nothing more about yield (<span class="math inline">\(\beta_2 = 0\)</span>)</li>
+<li>fertilizer expenditure is almost entirely determined by how much nitrogen is applied (<span class="math inline">cor(x_1,x_2)\ne 0</span>), but once you know <span class="math inline">N</span> it tells you nothing more about yield (<span class="math inline">\beta_2 = 0</span>)</li>
 </ul>
 </div>
 </div>
@@ -2599,9 +2760,9 @@ Lecturer transcript
 </details>
 <p>We will estimate the following models:</p>
 <p><br></p>
-<p><span class="math inline">\(EE_1\)</span>: <span class="math inline">\(y_i=\beta_0 + \beta_1 x_{1,i} + v_i \mbox{ , where } (v_i = \beta_2 x_{2,i} + u_i)\)</span></p>
-<p><span class="math inline">\(EE_2\)</span>: <span class="math inline">\(y_i=\beta_0 + \beta_1 x_{1,i} + \beta_2 x_{2,i} + u_i\)</span></p>
-<p>(Only <span class="math inline">\(x_1\)</span> is included in <span class="math inline">\(EE_1\)</span>, while <span class="math inline">\(x_1\)</span> and <span class="math inline">\(x_2\)</span> are included in <span class="math inline">\(EE_2\)</span>)</p>
+<p><span class="math inline">EE_1</span>: <span class="math inline">y_i=\beta_0 + \beta_1 x_{1,i} + v_i \text{ , where } (v_i = \beta_2 x_{2,i} + u_i)</span></p>
+<p><span class="math inline">EE_2</span>: <span class="math inline">y_i=\beta_0 + \beta_1 x_{1,i} + \beta_2 x_{2,i} + u_i</span></p>
+<p>(Only <span class="math inline">x_1</span> is included in <span class="math inline">EE_1</span>, while <span class="math inline">x_1</span> and <span class="math inline">x_2</span> are included in <span class="math inline">EE_2</span>)</p>
 <p><br></p>
 <div title="Question">
 <div class="callout callout-note no-icon callout-titled callout-style-default">
@@ -2612,9 +2773,9 @@ Lecturer transcript
 <div class="callout-content">
 <p>What do you think is gonna happen? Any guess?</p>
 <ul>
-<li><span class="math inline">\(E[\widehat{\beta}_1]=\beta_1\)</span> in <span class="math inline">\(EE_1\)</span>? (bias?)</li>
-<li><span class="math inline">\(E[\widehat{\beta}_1]=\beta_1\)</span> in <span class="math inline">\(EE_2\)</span>? (bias?)</li>
-<li><span class="math inline">\(Var(\widehat{\beta}_1)\)</span> in <span class="math inline">\(EE_1\)</span> <span class="math inline">\(\gtreqqless\)</span> <span class="math inline">\(Var(\widehat{\beta}_1)\)</span> in <span class="math inline">\(EE_2\)</span>?</li>
+<li><span class="math inline">E[\widehat{\beta}_1]=\beta_1</span> in <span class="math inline">EE_1</span>? (bias?)</li>
+<li><span class="math inline">E[\widehat{\beta}_1]=\beta_1</span> in <span class="math inline">EE_2</span>? (bias?)</li>
+<li><span class="math inline">Var(\widehat{\beta}_1)</span> in <span class="math inline">EE_1</span> <span class="math inline">\gtreqqless</span> <span class="math inline">Var(\widehat{\beta}_1)</span> in <span class="math inline">EE_2</span>?</li>
 </ul>
 </div>
 </div>
@@ -2652,7 +2813,7 @@ Lecturer transcript
 </div>
 <div id="tabset-11-5">
 <div class="panel-tabset">
-<ul id="tabset-7" class="panel-tabset-tabby"><li><a data-tabby-default="" href="#tabset-7-1"><span class="math inline">\(EE_1\)</span></a></li><li><a href="#tabset-7-2"><span class="math inline">\(EE_2\)</span></a></li></ul>
+<ul id="tabset-7" class="panel-tabset-tabby"><li><a data-tabby-default="" href="#tabset-7-1"><span class="math inline">EE_1</span></a></li><li><a href="#tabset-7-2"><span class="math inline">EE_2</span></a></li></ul>
 <div class="tab-content">
 <div id="tabset-7-1">
 <details class="transcript">
@@ -2664,21 +2825,21 @@ Lecturer transcript
 <div class="columns">
 <div class="column" style="width:50%;">
 <p><strong>True model</strong></p>
-<p><span class="math inline">\(y_i=\beta_0 + \beta_1 x_{1,i} + \beta_2 x_{2,i} + u_i\)</span></p>
+<p><span class="math inline">y_i=\beta_0 + \beta_1 x_{1,i} + \beta_2 x_{2,i} + u_i</span></p>
 <ul>
-<li><span class="math inline">\(cor(x_1,x_2) \ne 0\)</span></li>
-<li><span class="math inline">\(\beta_2=0\)</span></li>
-<li><span class="math inline">\(E[u_i|x_{1,i},x_{2,i}]=0\)</span></li>
+<li><span class="math inline">cor(x_1,x_2) \ne 0</span></li>
+<li><span class="math inline">\beta_2=0</span></li>
+<li><span class="math inline">E[u_i|x_{1,i},x_{2,i}]=0</span></li>
 </ul>
 </div><!--end of the 1st column--><div class="column" style="width:50%;">
 <p><strong>Estimated model</strong></p>
-<p><span class="math inline">\(EE_1\)</span>: <span class="math inline">\(y_i = \beta_0 + \beta_1 x_{1,i} + v_{i} \;\; (v_i = \beta_2 x_{2,i} + u_{i})\)</span></p>
+<p><span class="math inline">EE_1</span>: <span class="math inline">y_i = \beta_0 + \beta_1 x_{1,i} + v_{i} \;\; (v_i = \beta_2 x_{2,i} + u_{i})</span></p>
 </div><!--end of the 2nd column-->
 </div>
 <!--end of the columns-->
 <p><br></p>
 <p><strong>Question</strong></p>
-<p><span class="math inline">\(E[v_i|x_{1,i}]=0?\)</span></p>
+<p><span class="math inline">E[v_i|x_{1,i}]=0?</span></p>
 <br>
 <details>
 <summary>
@@ -2686,8 +2847,8 @@ Answer
 </summary>
 <p>Yes, because</p>
 <ul>
-<li><span class="math inline">\(x_1\)</span> is correlated with <span class="math inline">\(x_2\)</span>, but <span class="math inline">\(\beta_2 = 0\)</span>.</li>
-<li><span class="math inline">\(x_1\)</span> is not correlated with <span class="math inline">\(u\)</span></li>
+<li><span class="math inline">x_1</span> is correlated with <span class="math inline">x_2</span>, but <span class="math inline">\beta_2 = 0</span>.</li>
+<li><span class="math inline">x_1</span> is not correlated with <span class="math inline">u</span></li>
 </ul>
 So, <strong>no</strong> bias.
 </details>
@@ -2702,27 +2863,27 @@ Lecturer transcript
 <div class="columns">
 <div class="column" style="width:50%;">
 <p><strong>True model</strong></p>
-<p><span class="math inline">\(y_i=\beta_0 + \beta_1 x_{1,i} + \beta_2 x_{2,i} + u_i\)</span></p>
+<p><span class="math inline">y_i=\beta_0 + \beta_1 x_{1,i} + \beta_2 x_{2,i} + u_i</span></p>
 <ul>
-<li><span class="math inline">\(cor(x_1,x_2) \ne 0\)</span></li>
-<li><span class="math inline">\(\beta_2=0\)</span></li>
-<li><span class="math inline">\(E[u_i|x_{1,i},x_{2,i}]=0\)</span></li>
+<li><span class="math inline">cor(x_1,x_2) \ne 0</span></li>
+<li><span class="math inline">\beta_2=0</span></li>
+<li><span class="math inline">E[u_i|x_{1,i},x_{2,i}]=0</span></li>
 </ul>
 </div><!--end of the 1st column--><div class="column" style="width:50%;">
 <p><strong>Estimated model</strong></p>
-<p><span class="math inline">\(EE_2\)</span>: <span class="math inline">\(y_i = \beta_0 + \beta_1 x_{1,i} + \beta_2 x_{2,i} + u_{i}\)</span></p>
+<p><span class="math inline">EE_2</span>: <span class="math inline">y_i = \beta_0 + \beta_1 x_{1,i} + \beta_2 x_{2,i} + u_{i}</span></p>
 </div><!--end of the 2nd column-->
 </div>
 <!--end of the columns-->
 <p><br></p>
 <p><strong>Question</strong></p>
-<p><span class="math inline">\(E[u_i|x_{1,i},x_{2,i}]=0\)</span>?</p>
+<p><span class="math inline">E[u_i|x_{1,i},x_{2,i}]=0</span>?</p>
 <br>
 <details>
 <summary>
 Answer
 </summary>
-Yes, because <span class="math inline">\(x_1\)</span> and <span class="math inline">\(x_2\)</span> are not correlated with <span class="math inline">\(u\)</span> (by assumption). So, <strong>no</strong> bias.
+Yes, because <span class="math inline">x_1</span> and <span class="math inline">x_2</span> are not correlated with <span class="math inline">u</span> (by assumption). So, <strong>no</strong> bias.
 </details>
 </div>
 </div>
@@ -2731,7 +2892,7 @@ Yes, because <span class="math inline">\(x_1\)</span> and <span class="math inli
 </div>
 <div id="tabset-11-6">
 <div class="panel-tabset">
-<ul id="tabset-10" class="panel-tabset-tabby"><li><a data-tabby-default="" href="#tabset-10-1"><span class="math inline">\(EE_1\)</span></a></li><li><a href="#tabset-10-2"><span class="math inline">\(EE_2\)</span></a></li><li><a href="#tabset-10-3"><span class="math inline">\(EE_1\)</span> v.s. <span class="math inline">\(EE_2\)</span></a></li></ul>
+<ul id="tabset-10" class="panel-tabset-tabby"><li><a data-tabby-default="" href="#tabset-10-1"><span class="math inline">EE_1</span></a></li><li><a href="#tabset-10-2"><span class="math inline">EE_2</span></a></li><li><a href="#tabset-10-3"><span class="math inline">EE_1</span> v.s. <span class="math inline">EE_2</span></a></li></ul>
 <div class="tab-content">
 <div id="tabset-10-1">
 <details class="transcript">
@@ -2743,28 +2904,28 @@ Lecturer transcript
 <div class="columns">
 <div class="column" style="width:30%;">
 <p><strong>True model</strong></p>
-<p><span class="math inline">\(y_i=\beta_0 + \beta_1 x_{1,i} + \beta_2 x_{2,i} + u_i\)</span></p>
+<p><span class="math inline">y_i=\beta_0 + \beta_1 x_{1,i} + \beta_2 x_{2,i} + u_i</span></p>
 <ul>
-<li><span class="math inline">\(cor(x_1,x_2) \ne 0\)</span></li>
-<li><span class="math inline">\(\beta_2=0\)</span></li>
-<li><span class="math inline">\(E[u_i|x_{1,i},x_{2,i}]=0\)</span></li>
+<li><span class="math inline">cor(x_1,x_2) \ne 0</span></li>
+<li><span class="math inline">\beta_2=0</span></li>
+<li><span class="math inline">E[u_i|x_{1,i},x_{2,i}]=0</span></li>
 </ul>
 </div><!--end of the 1st column--><div class="column" style="width:30%;">
 <p><strong>Variance</strong></p>
-<p><span class="math inline">\(Var(\widehat{\beta}_j)= \frac{\sigma_v^2}{SST_j(1-R^2_j)}\)</span></p>
-<p>where <span class="math inline">\(R^2_j\)</span> is the <span class="math inline">\(R^2\)</span> when you regress <span class="math inline">\(x_j\)</span> on all the other covariates.</p>
+<p><span class="math inline">Var(\widehat{\beta}_j)= \frac{\sigma_v^2}{SST_j(1-R^2_j)}</span></p>
+<p>where <span class="math inline">R^2_j</span> is the <span class="math inline">R^2</span> when you regress <span class="math inline">x_j</span> on all the other covariates.</p>
 </div><!--end of the 2nd column--><div class="column" style="width:40%;">
 <p><strong>The estimated model</strong></p>
-<p><span class="math inline">\(EE_1\)</span>: <span class="math inline">\(y_i = \beta_0 + \beta_1 x_{1,i} + v_{i} \;\; (\beta_2 x_{2,i} + u_{i})\)</span></p>
+<p><span class="math inline">EE_1</span>: <span class="math inline">y_i = \beta_0 + \beta_1 x_{1,i} + v_{i} \;\; (\beta_2 x_{2,i} + u_{i})</span></p>
 </div><!--end of the 3rd column-->
 </div>
 <!--end of the columns-->
 <p><br></p>
 <div class="panel-tabset">
-<ul id="tabset-8" class="panel-tabset-tabby"><li><a data-tabby-default="" href="#tabset-8-1">Question (<span class="math inline">\(R_j^2\)</span>)</a></li><li><a href="#tabset-8-2">Question (variance of the error term)</a></li></ul>
+<ul id="tabset-8" class="panel-tabset-tabby"><li><a data-tabby-default="" href="#tabset-8-1">Question (<span class="math inline">R_j^2</span>)</a></li><li><a href="#tabset-8-2">Question (variance of the error term)</a></li></ul>
 <div class="tab-content">
 <div id="tabset-8-1">
-<p><span class="math inline">\(R_j^2\)</span>?</p>
+<p><span class="math inline">R_j^2</span>?</p>
 <br>
 <details>
 <summary>
@@ -2774,15 +2935,15 @@ Answer
 </details>
 </div>
 <div id="tabset-8-2">
-<p><span class="math inline">\(Var(v_i) = Var(\beta_2 x_{2,i} + u_i)\)</span>?</p>
+<p><span class="math inline">Var(v_i) = Var(\beta_2 x_{2,i} + u_i)</span>?</p>
 <br>
 <details>
 <summary>
 Answer
 </summary>
-<p><span class="math display">\[
+<p><span class="math display">
 Var(v_i) = Var(\beta_2 x_{2,i} + u_i) = \sigma_u^2
-\]</span> because <span class="math inline">\(\beta_2 = 0\)</span>.</p>
+</span> because <span class="math inline">\beta_2 = 0</span>.</p>
 </details>
 </div>
 </div>
@@ -2799,48 +2960,48 @@ Lecturer transcript
 <div class="columns">
 <div class="column" style="width:30%;">
 <p><strong>True model</strong></p>
-<p><span class="math inline">\(y_i=\beta_0 + \beta_1 x_{1,i} + \beta_2 x_{2,i} + u_i\)</span></p>
+<p><span class="math inline">y_i=\beta_0 + \beta_1 x_{1,i} + \beta_2 x_{2,i} + u_i</span></p>
 <ul>
-<li><span class="math inline">\(cor(x_1,x_2) \ne 0\)</span></li>
-<li><span class="math inline">\(\beta_2=0\)</span></li>
-<li><span class="math inline">\(E[u_i|x_{1,i},x_{2,i}]=0\)</span></li>
+<li><span class="math inline">cor(x_1,x_2) \ne 0</span></li>
+<li><span class="math inline">\beta_2=0</span></li>
+<li><span class="math inline">E[u_i|x_{1,i},x_{2,i}]=0</span></li>
 </ul>
 </div><!--end of the 1st column--><div class="column" style="width:30%;">
 <p><strong>Variance</strong></p>
-<p><span class="math inline">\(Var(\widehat{\beta}_j)= \frac{\sigma_u^2}{SST_j(1-R^2_j)}\)</span></p>
-<p>where <span class="math inline">\(R^2_j\)</span> is the <span class="math inline">\(R^2\)</span> when you regress <span class="math inline">\(x_j\)</span> on all the other covariates.</p>
+<p><span class="math inline">Var(\widehat{\beta}_j)= \frac{\sigma_u^2}{SST_j(1-R^2_j)}</span></p>
+<p>where <span class="math inline">R^2_j</span> is the <span class="math inline">R^2</span> when you regress <span class="math inline">x_j</span> on all the other covariates.</p>
 </div><!--end of the 2nd column--><div class="column" style="width:40%;">
 <p><strong>The estimated model</strong></p>
-<p><span class="math inline">\(EE_2\)</span>: <span class="math inline">\(y_i = \beta_0 + \beta_1 x_{1,i} + \beta_2 x_{2,i} + u_{i}\)</span></p>
+<p><span class="math inline">EE_2</span>: <span class="math inline">y_i = \beta_0 + \beta_1 x_{1,i} + \beta_2 x_{2,i} + u_{i}</span></p>
 </div><!--end of the 3rd column-->
 </div>
 <!--end of the columns-->
 <p><br></p>
 <div class="panel-tabset">
-<ul id="tabset-9" class="panel-tabset-tabby"><li><a data-tabby-default="" href="#tabset-9-1">Question (<span class="math inline">\(R_j^2\)</span>)</a></li><li><a href="#tabset-9-2">Question (variance of the error term)</a></li></ul>
+<ul id="tabset-9" class="panel-tabset-tabby"><li><a data-tabby-default="" href="#tabset-9-1">Question (<span class="math inline">R_j^2</span>)</a></li><li><a href="#tabset-9-2">Question (variance of the error term)</a></li></ul>
 <div class="tab-content">
 <div id="tabset-9-1">
-<p><span class="math inline">\(R_j^2\)</span>?</p>
+<p><span class="math inline">R_j^2</span>?</p>
 <br>
 <details>
 <summary>
 Answer
 </summary>
-<p><span class="math inline">\(R_j^2\)</span> is non-zero because <span class="math inline">\(x_1\)</span> and <span class="math inline">\(x_2\)</span> are correlated. If you regress <span class="math inline">\(x_1\)</span> on <span class="math inline">\(x_2\)</span>, then its <span class="math inline">\(R^2\)</span> is non-zero.</p>
+<p><span class="math inline">R_j^2</span> is non-zero because <span class="math inline">x_1</span> and <span class="math inline">x_2</span> are correlated. If you regress <span class="math inline">x_1</span> on <span class="math inline">x_2</span>, then its <span class="math inline">R^2</span> is non-zero.</p>
 <div id="qwebr-insertion-location-9"></div>
 <noscript>Please enable JavaScript to experience the dynamic code cell content on this page.</noscript>
 </details>
 </div>
 <div id="tabset-9-2">
-<p><span class="math inline">\(Var(u_i)\)</span>?</p>
+<p><span class="math inline">Var(u_i)</span>?</p>
 <br>
 <details>
 <summary>
 Answer
 </summary>
-<span class="math display">\[
+<span class="math display">
 Var(u_i) = \sigma_u^2
-\]</span>
+</span>
 </details>
 </div>
 </div>
@@ -2861,7 +3022,7 @@ Lecturer transcript
 <p><strong>Question</strong></p>
 </div>
 <div class="callout-content">
-<p><span class="math inline">\(Var(\widehat{\beta}_1)\)</span> in <span class="math inline">\(EE_1\)</span> <span class="math inline">\(\gtreqqless\)</span> <span class="math inline">\(Var(\widehat{\beta}_1)\)</span> in <span class="math inline">\(EE_2\)</span>?</p>
+<p><span class="math inline">Var(\widehat{\beta}_1)</span> in <span class="math inline">EE_1</span> <span class="math inline">\gtreqqless</span> <span class="math inline">Var(\widehat{\beta}_1)</span> in <span class="math inline">EE_2</span>?</p>
 </div>
 </div>
 </div>
@@ -2869,20 +3030,20 @@ Lecturer transcript
 <p><br></p>
 <div class="columns">
 <div class="column" style="width:33%;">
-<p><strong><span class="math inline">\(EE_1\)</span></strong></p>
+<p><strong><span class="math inline">EE_1</span></strong></p>
 <ul>
-<li><span class="math inline">\(R_j^2 = 0\)</span></li>
-<li><span class="math inline">\(Var(error) = Var(v_i) = \sigma_u^2\)</span></li>
+<li><span class="math inline">R_j^2 = 0</span></li>
+<li><span class="math inline">Var(error) = Var(v_i) = \sigma_u^2</span></li>
 </ul>
 </div><!--end of the 1st column--><div class="column" style="width:33%;">
-<p><strong><span class="math inline">\(EE_2\)</span></strong></p>
+<p><strong><span class="math inline">EE_2</span></strong></p>
 <ul>
-<li><span class="math inline">\(R_j^2 &gt; 0\)</span></li>
-<li><span class="math inline">\(Var(error) = Var(u_i) = \sigma_u^2\)</span></li>
+<li><span class="math inline">R_j^2 &gt; 0</span></li>
+<li><span class="math inline">Var(error) = Var(u_i) = \sigma_u^2</span></li>
 </ul>
 </div><!--end of the 2nd column--><div class="column" style="width:33%;">
 <p><strong>Variance formula</strong></p>
-<p><span class="math inline">\(Var(\widehat{\beta}_j)= \frac{Var(error)}{SST_j(1-R^2_j)}\)</span></p>
+<p><span class="math inline">Var(\widehat{\beta}_j)= \frac{Var(error)}{SST_j(1-R^2_j)}</span></p>
 </div></div>
 <!--end of the columns-->
 <br> <br>
@@ -2890,7 +3051,7 @@ Lecturer transcript
 <summary>
 Answer
 </summary>
-So, <span class="math inline">\(Var(\widehat{\beta}_1)\)</span> in <span class="math inline">\(EE_1\)</span> <span class="math inline">\(&lt;\)</span> <span class="math inline">\(Var(\widehat{\beta}_1)\)</span> in <span class="math inline">\(EE_2\)</span>
+So, <span class="math inline">Var(\widehat{\beta}_1)</span> in <span class="math inline">EE_1</span> <span class="math inline">&lt;</span> <span class="math inline">Var(\widehat{\beta}_1)</span> in <span class="math inline">EE_2</span>
 </details>
 </div>
 </div>
@@ -2905,8 +3066,8 @@ Lecturer transcript
 <p>Case two in two lines. Including an irrelevant but highly correlated variable inflates the variance of the coefficient you care about. And omitting it leaves you unbiased. So here, unlike case one, the choice matters, and it points clearly toward leaving x-two out. Now notice what makes this case safe to reason about: because beta-two is zero, there is no bias on either side, so variance is the only consideration. In case four that will no longer be true, and the decision will get genuinely hard.</p>
 </details>
 <ul>
-<li><p>If you include an irrelevant variable that has no explanatory power beyond <span class="math inline">\(x_1\)</span>, but is highly correlated with <span class="math inline">\(x_1\)</span> (<span class="math inline">\(EE_2\)</span>), then the variance of the OLS estimator on <span class="math inline">\(x_1\)</span> is larger compared to when you do not include <span class="math inline">\(x_2\)</span> (<span class="math inline">\(EE_1\)</span>)</p></li>
-<li><p>If you omit an irrelevant variable that has no explanatory power beyond <span class="math inline">\(x_1\)</span> (<span class="math inline">\(EE_1\)</span>), but is highly correlated with <span class="math inline">\(x_1\)</span>, then the OLS estimator on <span class="math inline">\(x_1\)</span> is still unbiased</p></li>
+<li><p>If you include an irrelevant variable that has no explanatory power beyond <span class="math inline">x_1</span>, but is highly correlated with <span class="math inline">x_1</span> (<span class="math inline">EE_2</span>), then the variance of the OLS estimator on <span class="math inline">x_1</span> is larger compared to when you do not include <span class="math inline">x_2</span> (<span class="math inline">EE_1</span>)</p></li>
+<li><p>If you omit an irrelevant variable that has no explanatory power beyond <span class="math inline">x_1</span> (<span class="math inline">EE_1</span>), but is highly correlated with <span class="math inline">x_1</span>, then the OLS estimator on <span class="math inline">x_1</span> is still unbiased</p></li>
 </ul>
 </div>
 </div>
@@ -2926,11 +3087,11 @@ Lecturer transcript
 <p>Case three, and we have flipped the other switch. Now beta-two is not zero, so x-two genuinely affects y, but x-one and x-two are back to being uncorrelated. Read the example, because the reasoning behind it is what you would need to argue in a paper. Growing season rainfall obviously affects corn yield. But a farmer picks their nitrogen rate before the season begins, so the rate they chose cannot depend on rain that has not fallen yet. A variable that matters for y but is unrelated to your variable of interest.</p>
 </details>
 <p><strong>True Model</strong></p>
-<p><span class="math inline">\(y_i=\beta_0 + \beta_1 x_{1,i} + \beta_2 x_{2,i} + u_i\)</span></p>
+<p><span class="math inline">y_i=\beta_0 + \beta_1 x_{1,i} + \beta_2 x_{2,i} + u_i</span></p>
 <ul>
-<li><span class="math inline">\(cor(x_1,x_2) = 0\)</span></li>
-<li><span class="math inline">\(\beta_2 \ne 0\)</span></li>
-<li><span class="math inline">\(E[u_i|x_{1,i},x_{2,i}]=0\)</span></li>
+<li><span class="math inline">cor(x_1,x_2) = 0</span></li>
+<li><span class="math inline">\beta_2 \ne 0</span></li>
+<li><span class="math inline">E[u_i|x_{1,i},x_{2,i}]=0</span></li>
 </ul>
 <div title="Example">
 <div class="callout callout-note no-icon callout-titled callout-style-default">
@@ -2939,9 +3100,9 @@ Lecturer transcript
 <p><strong>Example</strong></p>
 </div>
 <div class="callout-content">
-<p><span class="math inline">\(\mbox{corn yield} = \beta_0 + \beta_1 \times N + \beta_2 \times \mbox{growing season rainfall} + u\)</span></p>
+<p><span class="math inline">\text{corn yield} = \beta_0 + \beta_1 \times N + \beta_2 \times \text{growing season rainfall} + u</span></p>
 <ul>
-<li>rainfall clearly affects yield (<span class="math inline">\(\beta_2 \ne 0\)</span>), but a farmer chooses their nitrogen rate before the season starts, so it is unrelated to the rain they end up getting (<span class="math inline">\(cor(x_1,x_2) = 0\)</span>)</li>
+<li>rainfall clearly affects yield (<span class="math inline">\beta_2 \ne 0</span>), but a farmer chooses their nitrogen rate before the season starts, so it is unrelated to the rain they end up getting (<span class="math inline">cor(x_1,x_2) = 0</span>)</li>
 </ul>
 </div>
 </div>
@@ -2957,9 +3118,9 @@ Lecturer transcript
 </details>
 <p>We will estimate the following models:</p>
 <p><br></p>
-<p><span class="math inline">\(EE_1\)</span>: <span class="math inline">\(y_i=\beta_0 + \beta_1 x_{1,i} + v_i \mbox{ , where } (v_i = \beta_2 x_{2,i} + u_i)\)</span></p>
-<p><span class="math inline">\(EE_2\)</span>: <span class="math inline">\(y_i=\beta_0 + \beta_1 x_{1,i} + \beta_2 x_{2,i} + u_i\)</span></p>
-<p>(Only <span class="math inline">\(x_1\)</span> is included in <span class="math inline">\(EE_1\)</span>, while <span class="math inline">\(x_1\)</span> and <span class="math inline">\(x_2\)</span> are included in <span class="math inline">\(EE_2\)</span>)</p>
+<p><span class="math inline">EE_1</span>: <span class="math inline">y_i=\beta_0 + \beta_1 x_{1,i} + v_i \text{ , where } (v_i = \beta_2 x_{2,i} + u_i)</span></p>
+<p><span class="math inline">EE_2</span>: <span class="math inline">y_i=\beta_0 + \beta_1 x_{1,i} + \beta_2 x_{2,i} + u_i</span></p>
+<p>(Only <span class="math inline">x_1</span> is included in <span class="math inline">EE_1</span>, while <span class="math inline">x_1</span> and <span class="math inline">x_2</span> are included in <span class="math inline">EE_2</span>)</p>
 <p><br></p>
 <div title="Question">
 <div class="callout callout-note no-icon callout-titled callout-style-default">
@@ -2970,9 +3131,9 @@ Lecturer transcript
 <div class="callout-content">
 <p>What do you think is gonna happen? Any guess?</p>
 <ul>
-<li><span class="math inline">\(E[\widehat{\beta}_1]=\beta_1\)</span> in <span class="math inline">\(EE_1\)</span>? (bias?)</li>
-<li><span class="math inline">\(E[\widehat{\beta}_1]=\beta_1\)</span> in <span class="math inline">\(EE_2\)</span>? (bias?)</li>
-<li><span class="math inline">\(Var(\widehat{\beta}_1)\)</span> in <span class="math inline">\(EE_1\)</span> <span class="math inline">\(\gtreqqless\)</span> <span class="math inline">\(Var(\widehat{\beta}_1)\)</span> in <span class="math inline">\(EE_2\)</span>?</li>
+<li><span class="math inline">E[\widehat{\beta}_1]=\beta_1</span> in <span class="math inline">EE_1</span>? (bias?)</li>
+<li><span class="math inline">E[\widehat{\beta}_1]=\beta_1</span> in <span class="math inline">EE_2</span>? (bias?)</li>
+<li><span class="math inline">Var(\widehat{\beta}_1)</span> in <span class="math inline">EE_1</span> <span class="math inline">\gtreqqless</span> <span class="math inline">Var(\widehat{\beta}_1)</span> in <span class="math inline">EE_2</span>?</li>
 </ul>
 </div>
 </div>
@@ -3010,7 +3171,7 @@ Lecturer transcript
 </div>
 <div id="tabset-16-5">
 <div class="panel-tabset">
-<ul id="tabset-12" class="panel-tabset-tabby"><li><a data-tabby-default="" href="#tabset-12-1"><span class="math inline">\(EE_1\)</span></a></li><li><a href="#tabset-12-2"><span class="math inline">\(EE_2\)</span></a></li></ul>
+<ul id="tabset-12" class="panel-tabset-tabby"><li><a data-tabby-default="" href="#tabset-12-1"><span class="math inline">EE_1</span></a></li><li><a href="#tabset-12-2"><span class="math inline">EE_2</span></a></li></ul>
 <div class="tab-content">
 <div id="tabset-12-1">
 <details class="transcript">
@@ -3022,27 +3183,27 @@ Lecturer transcript
 <div class="columns">
 <div class="column" style="width:50%;">
 <p><strong>True model</strong></p>
-<p><span class="math inline">\(y_i=\beta_0 + \beta_1 x_{1,i} + \beta_2 x_{2,i} + u_i\)</span></p>
+<p><span class="math inline">y_i=\beta_0 + \beta_1 x_{1,i} + \beta_2 x_{2,i} + u_i</span></p>
 <ul>
-<li><span class="math inline">\(cor(x_1,x_2) = 0\)</span></li>
-<li><span class="math inline">\(\beta_2 \ne 0\)</span></li>
-<li><span class="math inline">\(E[u_i|x_{1,i},x_{2,i}]=0\)</span></li>
+<li><span class="math inline">cor(x_1,x_2) = 0</span></li>
+<li><span class="math inline">\beta_2 \ne 0</span></li>
+<li><span class="math inline">E[u_i|x_{1,i},x_{2,i}]=0</span></li>
 </ul>
 </div><!--end of the 1st column--><div class="column" style="width:50%;">
 <p><strong>Estimated model</strong></p>
-<p><span class="math inline">\(EE_1\)</span>: <span class="math inline">\(y_i = \beta_0 + \beta_1 x_{1,i} + v_{i} \;\; (v_i = \beta_2 x_{2,i} + u_{i})\)</span></p>
+<p><span class="math inline">EE_1</span>: <span class="math inline">y_i = \beta_0 + \beta_1 x_{1,i} + v_{i} \;\; (v_i = \beta_2 x_{2,i} + u_{i})</span></p>
 </div><!--end of the 2nd column-->
 </div>
 <!--end of the columns-->
 <p><br></p>
 <p><strong>Question</strong></p>
-<p><span class="math inline">\(E[v_i|x_{1,i}]=0?\)</span></p>
+<p><span class="math inline">E[v_i|x_{1,i}]=0?</span></p>
 <br>
 <details>
 <summary>
 Answer
 </summary>
-<p>Yes, because <span class="math inline">\(x_1\)</span> is not correlated with either <span class="math inline">\(x_2\)</span> or <span class="math inline">\(u\)</span>.</p>
+<p>Yes, because <span class="math inline">x_1</span> is not correlated with either <span class="math inline">x_2</span> or <span class="math inline">u</span>.</p>
 So, <strong>no</strong> bias.
 </details>
 </div>
@@ -3056,27 +3217,27 @@ Lecturer transcript
 <div class="columns">
 <div class="column" style="width:50%;">
 <p><strong>True model</strong></p>
-<p><span class="math inline">\(y_i=\beta_0 + \beta_1 x_{1,i} + \beta_2 x_{2,i} + u_i\)</span></p>
+<p><span class="math inline">y_i=\beta_0 + \beta_1 x_{1,i} + \beta_2 x_{2,i} + u_i</span></p>
 <ul>
-<li><span class="math inline">\(cor(x_1,x_2) = 0\)</span></li>
-<li><span class="math inline">\(\beta_2 \ne 0\)</span></li>
-<li><span class="math inline">\(E[u_i|x_{1,i},x_{2,i}]=0\)</span></li>
+<li><span class="math inline">cor(x_1,x_2) = 0</span></li>
+<li><span class="math inline">\beta_2 \ne 0</span></li>
+<li><span class="math inline">E[u_i|x_{1,i},x_{2,i}]=0</span></li>
 </ul>
 </div><!--end of the 1st column--><div class="column" style="width:50%;">
 <p><strong>Estimated model</strong></p>
-<p><span class="math inline">\(EE_2\)</span>: <span class="math inline">\(y_i = \beta_0 + \beta_1 x_{1,i} + \beta_2 x_{2,i} + u_{i}\)</span></p>
+<p><span class="math inline">EE_2</span>: <span class="math inline">y_i = \beta_0 + \beta_1 x_{1,i} + \beta_2 x_{2,i} + u_{i}</span></p>
 </div><!--end of the 2nd column-->
 </div>
 <!--end of the columns-->
 <p><br></p>
 <p><strong>Question</strong></p>
-<p><span class="math inline">\(E[u_i|x_{1,i},x_{2,i}]=0\)</span>?</p>
+<p><span class="math inline">E[u_i|x_{1,i},x_{2,i}]=0</span>?</p>
 <br>
 <details>
 <summary>
 Answer
 </summary>
-Yes, because <span class="math inline">\(x_1\)</span> and <span class="math inline">\(x_2\)</span> are not correlated with <span class="math inline">\(u\)</span> (by assumption). So, <strong>no</strong> bias.
+Yes, because <span class="math inline">x_1</span> and <span class="math inline">x_2</span> are not correlated with <span class="math inline">u</span> (by assumption). So, <strong>no</strong> bias.
 </details>
 </div>
 </div>
@@ -3085,7 +3246,7 @@ Yes, because <span class="math inline">\(x_1\)</span> and <span class="math inli
 </div>
 <div id="tabset-16-6">
 <div class="panel-tabset">
-<ul id="tabset-15" class="panel-tabset-tabby"><li><a data-tabby-default="" href="#tabset-15-1"><span class="math inline">\(EE_1\)</span></a></li><li><a href="#tabset-15-2"><span class="math inline">\(EE_2\)</span></a></li><li><a href="#tabset-15-3"><span class="math inline">\(EE_1\)</span> v.s. <span class="math inline">\(EE_2\)</span></a></li></ul>
+<ul id="tabset-15" class="panel-tabset-tabby"><li><a data-tabby-default="" href="#tabset-15-1"><span class="math inline">EE_1</span></a></li><li><a href="#tabset-15-2"><span class="math inline">EE_2</span></a></li><li><a href="#tabset-15-3"><span class="math inline">EE_1</span> v.s. <span class="math inline">EE_2</span></a></li></ul>
 <div class="tab-content">
 <div id="tabset-15-1">
 <details class="transcript">
@@ -3097,28 +3258,28 @@ Lecturer transcript
 <div class="columns">
 <div class="column" style="width:30%;">
 <p><strong>True model</strong></p>
-<p><span class="math inline">\(y_i=\beta_0 + \beta_1 x_{1,i} + \beta_2 x_{2,i} + u_i\)</span></p>
+<p><span class="math inline">y_i=\beta_0 + \beta_1 x_{1,i} + \beta_2 x_{2,i} + u_i</span></p>
 <ul>
-<li><span class="math inline">\(cor(x_1,x_2) = 0\)</span></li>
-<li><span class="math inline">\(\beta_2 \ne 0\)</span></li>
-<li><span class="math inline">\(E[u_i|x_{1,i},x_{2,i}]=0\)</span></li>
+<li><span class="math inline">cor(x_1,x_2) = 0</span></li>
+<li><span class="math inline">\beta_2 \ne 0</span></li>
+<li><span class="math inline">E[u_i|x_{1,i},x_{2,i}]=0</span></li>
 </ul>
 </div><!--end of the 1st column--><div class="column" style="width:30%;">
 <p><strong>Variance</strong></p>
-<p><span class="math inline">\(Var(\widehat{\beta}_j)= \frac{\sigma_v^2}{SST_j(1-R^2_j)}\)</span></p>
-<p>where <span class="math inline">\(R^2_j\)</span> is the <span class="math inline">\(R^2\)</span> when you regress <span class="math inline">\(x_j\)</span> on all the other covariates.</p>
+<p><span class="math inline">Var(\widehat{\beta}_j)= \frac{\sigma_v^2}{SST_j(1-R^2_j)}</span></p>
+<p>where <span class="math inline">R^2_j</span> is the <span class="math inline">R^2</span> when you regress <span class="math inline">x_j</span> on all the other covariates.</p>
 </div><!--end of the 2nd column--><div class="column" style="width:40%;">
 <p><strong>The estimated model</strong></p>
-<p><span class="math inline">\(EE_1\)</span>: <span class="math inline">\(y_i = \beta_0 + \beta_1 x_{1,i} + v_{i} \;\; (\beta_2 x_{2,i} + u_{i})\)</span></p>
+<p><span class="math inline">EE_1</span>: <span class="math inline">y_i = \beta_0 + \beta_1 x_{1,i} + v_{i} \;\; (\beta_2 x_{2,i} + u_{i})</span></p>
 </div><!--end of the 3rd column-->
 </div>
 <!--end of the columns-->
 <p><br></p>
 <div class="panel-tabset">
-<ul id="tabset-13" class="panel-tabset-tabby"><li><a data-tabby-default="" href="#tabset-13-1">Question (<span class="math inline">\(R_j^2\)</span>)</a></li><li><a href="#tabset-13-2">Question (variance of the error term)</a></li></ul>
+<ul id="tabset-13" class="panel-tabset-tabby"><li><a data-tabby-default="" href="#tabset-13-1">Question (<span class="math inline">R_j^2</span>)</a></li><li><a href="#tabset-13-2">Question (variance of the error term)</a></li></ul>
 <div class="tab-content">
 <div id="tabset-13-1">
-<p><span class="math inline">\(R_j^2\)</span>?</p>
+<p><span class="math inline">R_j^2</span>?</p>
 <br>
 <details>
 <summary>
@@ -3128,17 +3289,17 @@ Answer
 </details>
 </div>
 <div id="tabset-13-2">
-<p><span class="math inline">\(Var(v_i) = Var(\beta_2 x_{2,i} + u_i)\)</span>?</p>
+<p><span class="math inline">Var(v_i) = Var(\beta_2 x_{2,i} + u_i)</span>?</p>
 <br>
 <details>
 <summary>
 Answer
 </summary>
-<span class="math display">\[\begin{align}
+<span class="math display">\begin{align}
 Var(error) &amp; = Var(v_i) \\
   &amp; = Var(\beta_2 x_{2,i} + u_i) \\
   &amp; = \beta_2^2\cdot Var(x_{2,i}) + \sigma_u^2
-\end{align}\]</span>
+\end{align}</span>
 </details>
 </div>
 </div>
@@ -3150,53 +3311,53 @@ Var(error) &amp; = Var(v_i) \\
 <summary>
 Lecturer transcript
 </summary>
-<p>And for the model that includes x-two, both terms are back to their smallest values. R-squared-j is zero on average, since x-one and x-two are uncorrelated, so the denominator is untouched. And the error variance is just sigma-u squared, because x-two is properly accounted for rather than dumped into the error. Run the cell if you want to see R-squared-j come out near zero. So this model has the smaller numerator and the same denominator, which settles the comparison before we even get to the next tab.</p>
+<p>And for the model that includes x-two, both terms are back near their smallest values. The population relationship between x-one and x-two is zero, so sample R-squared-j is near zero rather than exactly zero. The error variance is just sigma-u squared, because x-two is properly accounted for rather than dumped into the error. The large reduction in the numerator drives the comparison in this design; the small finite-sample denominator and degrees-of-freedom differences do not overturn it.</p>
 </details>
 <div class="columns">
 <div class="column" style="width:30%;">
 <p><strong>True model</strong></p>
-<p><span class="math inline">\(y_i=\beta_0 + \beta_1 x_{1,i} + \beta_2 x_{2,i} + u_i\)</span></p>
+<p><span class="math inline">y_i=\beta_0 + \beta_1 x_{1,i} + \beta_2 x_{2,i} + u_i</span></p>
 <ul>
-<li><span class="math inline">\(cor(x_1,x_2) = 0\)</span></li>
-<li><span class="math inline">\(\beta_2 \ne 0\)</span></li>
-<li><span class="math inline">\(E[u_i|x_{1,i},x_{2,i}]=0\)</span></li>
+<li><span class="math inline">cor(x_1,x_2) = 0</span></li>
+<li><span class="math inline">\beta_2 \ne 0</span></li>
+<li><span class="math inline">E[u_i|x_{1,i},x_{2,i}]=0</span></li>
 </ul>
 </div><!--end of the 1st column--><div class="column" style="width:30%;">
 <p><strong>Variance</strong></p>
-<p><span class="math inline">\(Var(\widehat{\beta}_j)= \frac{\sigma_u^2}{SST_j(1-R^2_j)}\)</span></p>
-<p>where <span class="math inline">\(R^2_j\)</span> is the <span class="math inline">\(R^2\)</span> when you regress <span class="math inline">\(x_j\)</span> on all the other covariates.</p>
+<p><span class="math inline">Var(\widehat{\beta}_j)= \frac{\sigma_u^2}{SST_j(1-R^2_j)}</span></p>
+<p>where <span class="math inline">R^2_j</span> is the <span class="math inline">R^2</span> when you regress <span class="math inline">x_j</span> on all the other covariates.</p>
 </div><!--end of the 2nd column--><div class="column" style="width:40%;">
 <p><strong>The estimated model</strong></p>
-<p><span class="math inline">\(EE_2\)</span>: <span class="math inline">\(y_i = \beta_0 + \beta_1 x_{1,i} + \beta_2 x_{2,i} + u_{i}\)</span></p>
+<p><span class="math inline">EE_2</span>: <span class="math inline">y_i = \beta_0 + \beta_1 x_{1,i} + \beta_2 x_{2,i} + u_{i}</span></p>
 </div><!--end of the 3rd column-->
 </div>
 <!--end of the columns-->
 <p><br></p>
 <div class="panel-tabset">
-<ul id="tabset-14" class="panel-tabset-tabby"><li><a data-tabby-default="" href="#tabset-14-1">Question (<span class="math inline">\(R_j^2\)</span>)</a></li><li><a href="#tabset-14-2">Question (variance of the error term)</a></li></ul>
+<ul id="tabset-14" class="panel-tabset-tabby"><li><a data-tabby-default="" href="#tabset-14-1">Question (<span class="math inline">R_j^2</span>)</a></li><li><a href="#tabset-14-2">Question (variance of the error term)</a></li></ul>
 <div class="tab-content">
 <div id="tabset-14-1">
-<p><span class="math inline">\(R_j^2\)</span>?</p>
+<p><span class="math inline">R_j^2</span>?</p>
 <br>
 <details>
 <summary>
 Answer
 </summary>
-<p><span class="math inline">\(R_j^2\)</span> is (on average) zero because <span class="math inline">\(x_1\)</span> and <span class="math inline">\(x_2\)</span> are not correlated. If you regress <span class="math inline">\(x_1\)</span> on <span class="math inline">\(x_2\)</span>, then its <span class="math inline">\(R^2\)</span> is zero (on average).</p>
+<p><span class="math inline">R_j^2</span> is (on average) zero because <span class="math inline">x_1</span> and <span class="math inline">x_2</span> are not correlated. If you regress <span class="math inline">x_1</span> on <span class="math inline">x_2</span>, then its <span class="math inline">R^2</span> is zero (on average).</p>
 <div id="qwebr-insertion-location-14"></div>
 <noscript>Please enable JavaScript to experience the dynamic code cell content on this page.</noscript>
 </details>
 </div>
 <div id="tabset-14-2">
-<p><span class="math inline">\(Var(u_i)\)</span>?</p>
+<p><span class="math inline">Var(u_i)</span>?</p>
 <br>
 <details>
 <summary>
 Answer
 </summary>
-<span class="math display">\[
+<span class="math display">
 Var(error) = Var(u_i) = \sigma_u^2
-\]</span>
+</span>
 </details>
 </div>
 </div>
@@ -3208,7 +3369,7 @@ Var(error) = Var(u_i) = \sigma_u^2
 <summary>
 Lecturer transcript
 </summary>
-<p>The comparison, and now it runs the other way. Both have R-squared-j equal to zero, so the denominators match. But the numerators differ: the model omitting x-two carries beta-two squared times the variance of x-two on top of sigma-u squared, while the model including it carries only sigma-u squared. Bigger numerator, same denominator, bigger variance. So including x-two is strictly better here. Compare this against case two, where including it was strictly worse. Same formula, opposite conclusion, because a different term moved.</p>
+<p>The comparison now runs the other way. At the population level the regressors are orthogonal, so the multicollinearity denominator is unchanged. But the error variances differ: the model omitting x-two carries beta-two squared times the variance of x-two on top of sigma-u squared, while the model including it carries only sigma-u squared. In this design that precision gain easily dominates the small finite-sample cost of estimating another coefficient. Compare this against case two, where strong collinearity made inclusion costly.</p>
 </details>
 <div title="Question">
 <div class="callout callout-note no-icon callout-titled callout-style-default">
@@ -3217,7 +3378,7 @@ Lecturer transcript
 <p><strong>Question</strong></p>
 </div>
 <div class="callout-content">
-<p><span class="math inline">\(Var(\widehat{\beta}_1)\)</span> in <span class="math inline">\(EE_1\)</span> <span class="math inline">\(\gtreqqless\)</span> <span class="math inline">\(Var(\widehat{\beta}_1)\)</span> in <span class="math inline">\(EE_2\)</span>?</p>
+<p><span class="math inline">Var(\widehat{\beta}_1)</span> in <span class="math inline">EE_1</span> <span class="math inline">\gtreqqless</span> <span class="math inline">Var(\widehat{\beta}_1)</span> in <span class="math inline">EE_2</span>?</p>
 </div>
 </div>
 </div>
@@ -3225,20 +3386,20 @@ Lecturer transcript
 <p><br></p>
 <div class="columns">
 <div class="column" style="width:40%;">
-<p><strong><span class="math inline">\(EE_1\)</span></strong></p>
+<p><strong><span class="math inline">EE_1</span></strong></p>
 <ul>
-<li><span class="math inline">\(R_j^2 = 0\)</span></li>
-<li><span class="math inline">\(Var(error) = Var(v_i) = \beta_2^2\cdot Var(x_{2,i}) + \sigma_u^2\)</span></li>
+<li><span class="math inline">R_j^2 = 0</span></li>
+<li><span class="math inline">Var(error) = Var(v_i) = \beta_2^2\cdot Var(x_{2,i}) + \sigma_u^2</span></li>
 </ul>
 </div><!--end of the 1st column--><div class="column" style="width:33%;">
-<p><strong><span class="math inline">\(EE_2\)</span></strong></p>
+<p><strong><span class="math inline">EE_2</span></strong></p>
 <ul>
-<li><span class="math inline">\(R_j^2 = 0\)</span></li>
-<li><span class="math inline">\(Var(error) = Var(u_i) = \sigma_u^2\)</span></li>
+<li><span class="math inline">R_j^2 = 0</span></li>
+<li><span class="math inline">Var(error) = Var(u_i) = \sigma_u^2</span></li>
 </ul>
 </div><!--end of the 2nd column--><div class="column" style="width:27%;">
 <p><strong>Variance formula</strong></p>
-<p><span class="math inline">\(Var(\widehat{\beta}_j)= \frac{Var(error)}{SST_j(1-R^2_j)}\)</span></p>
+<p><span class="math inline">Var(\widehat{\beta}_j)= \frac{Var(error)}{SST_j(1-R^2_j)}</span></p>
 </div></div>
 <!--end of the columns-->
 <br> <br>
@@ -3246,7 +3407,7 @@ Lecturer transcript
 <summary>
 Answer
 </summary>
-So, <span class="math inline">\(Var(\widehat{\beta}_1)\)</span> in <span class="math inline">\(EE_1\)</span> <span class="math inline">\(&gt;\)</span> <span class="math inline">\(Var(\widehat{\beta}_1)\)</span> in <span class="math inline">\(EE_2\)</span>
+So, <span class="math inline">Var(\widehat{\beta}_1)</span> in <span class="math inline">EE_1</span> <span class="math inline">&gt;</span> <span class="math inline">Var(\widehat{\beta}_1)</span> in <span class="math inline">EE_2</span>
 </details>
 </div>
 </div>
@@ -3261,8 +3422,8 @@ Lecturer transcript
 <p>Case three summarised, and note that both statements favour including x-two. Including a relevant but uncorrelated variable reduces your variance, because it takes explanatory power out of the error term. And omitting it leaves you unbiased, so nothing catastrophic happens if you cannot get it. That last point is genuinely useful in practice: if you can argue a missing variable is uncorrelated with your treatment, you can argue it costs you precision but not credibility. That argument is the backbone of a randomised experiment.</p>
 </details>
 <ul>
-<li><p>If you include a variable that has some explanatory power beyond <span class="math inline">\(x_1\)</span>, but is not correlated with <span class="math inline">\(x_1\)</span> (<span class="math inline">\(EE_2\)</span>), then the variance of the OLS estimator on <span class="math inline">\(x_1\)</span> is smaller compared to when you do not include <span class="math inline">\(x_2\)</span> (<span class="math inline">\(EE_1\)</span>)</p></li>
-<li><p>If you omit a variable that has some explanatory power beyond <span class="math inline">\(x_1\)</span> (<span class="math inline">\(EE_1\)</span>), but is not correlated with <span class="math inline">\(x_1\)</span>, then the OLS estimator on <span class="math inline">\(x_1\)</span> is still unbiased</p></li>
+<li><p>If you include a variable that has some explanatory power beyond <span class="math inline">x_1</span>, but is not correlated with <span class="math inline">x_1</span> (<span class="math inline">EE_2</span>), then the variance of the OLS estimator on <span class="math inline">x_1</span> is smaller compared to when you do not include <span class="math inline">x_2</span> (<span class="math inline">EE_1</span>)</p></li>
+<li><p>If you omit a variable that has some explanatory power beyond <span class="math inline">x_1</span> (<span class="math inline">EE_1</span>), but is not correlated with <span class="math inline">x_1</span>, then the OLS estimator on <span class="math inline">x_1</span> is still unbiased</p></li>
 </ul>
 </div>
 </div>
@@ -3282,11 +3443,11 @@ Lecturer transcript
 <p>Case four, both switches flipped. X-two matters for y, and it is correlated with x-one. Read the example and the note under it. Better soil raises yield, and farmers do not apply the same nitrogen rate on good ground as on poor ground, so soil quality is related to the nitrogen decision. Now read the second bullet, which is the honest one. This is the case that actually happens. Case one is a curiosity, cases two and three are instructive, and case four is what you will face on essentially every project with observational data.</p>
 </details>
 <p><strong>True Model</strong></p>
-<p><span class="math inline">\(y_i=\beta_0 + \beta_1 x_{1,i} + \beta_2 x_{2,i} + u_i\)</span></p>
+<p><span class="math inline">y_i=\beta_0 + \beta_1 x_{1,i} + \beta_2 x_{2,i} + u_i</span></p>
 <ul>
-<li><span class="math inline">\(cor(x_1,x_2) \ne 0\)</span></li>
-<li><span class="math inline">\(\beta_2 \ne 0\)</span></li>
-<li><span class="math inline">\(E[u_i|x_{1,i},x_{2,i}]=0\)</span></li>
+<li><span class="math inline">cor(x_1,x_2) \ne 0</span></li>
+<li><span class="math inline">\beta_2 \ne 0</span></li>
+<li><span class="math inline">E[u_i|x_{1,i},x_{2,i}]=0</span></li>
 </ul>
 <div title="Example">
 <div class="callout callout-note no-icon callout-titled callout-style-default">
@@ -3295,9 +3456,9 @@ Lecturer transcript
 <p><strong>Example</strong></p>
 </div>
 <div class="callout-content">
-<p><span class="math inline">\(\mbox{corn yield} = \beta_0 + \beta_1 \times N + \beta_2 \times \mbox{soil quality} + u\)</span></p>
+<p><span class="math inline">\text{corn yield} = \beta_0 + \beta_1 \times N + \beta_2 \times \text{soil quality} + u</span></p>
 <ul>
-<li>better soil raises yield (<span class="math inline">\(\beta_2 \ne 0\)</span>), and farmers apply nitrogen differently on good and poor ground (<span class="math inline">\(cor(x_1,x_2) \ne 0\)</span>)</li>
+<li>better soil raises yield (<span class="math inline">\beta_2 \ne 0</span>), and farmers apply nitrogen differently on good and poor ground (<span class="math inline">cor(x_1,x_2) \ne 0</span>)</li>
 <li>this is the case that actually happens in practice, and the one you have to worry about</li>
 </ul>
 </div>
@@ -3314,9 +3475,9 @@ Lecturer transcript
 </details>
 <p>We will estimate the following models:</p>
 <p><br></p>
-<p><span class="math inline">\(EE_1\)</span>: <span class="math inline">\(y_i=\beta_0 + \beta_1 x_{1,i} + v_i \mbox{ , where } (v_i = \beta_2 x_{2,i} + u_i)\)</span></p>
-<p><span class="math inline">\(EE_2\)</span>: <span class="math inline">\(y_i=\beta_0 + \beta_1 x_{1,i} + \beta_2 x_{2,i} + u_i\)</span></p>
-<p>(Only <span class="math inline">\(x_1\)</span> is included in <span class="math inline">\(EE_1\)</span>, while <span class="math inline">\(x_1\)</span> and <span class="math inline">\(x_2\)</span> are included in <span class="math inline">\(EE_2\)</span>)</p>
+<p><span class="math inline">EE_1</span>: <span class="math inline">y_i=\beta_0 + \beta_1 x_{1,i} + v_i \text{ , where } (v_i = \beta_2 x_{2,i} + u_i)</span></p>
+<p><span class="math inline">EE_2</span>: <span class="math inline">y_i=\beta_0 + \beta_1 x_{1,i} + \beta_2 x_{2,i} + u_i</span></p>
+<p>(Only <span class="math inline">x_1</span> is included in <span class="math inline">EE_1</span>, while <span class="math inline">x_1</span> and <span class="math inline">x_2</span> are included in <span class="math inline">EE_2</span>)</p>
 <p><br></p>
 <div title="Question">
 <div class="callout callout-note no-icon callout-titled callout-style-default">
@@ -3327,9 +3488,9 @@ Lecturer transcript
 <div class="callout-content">
 <p>What do you think is gonna happen? Any guess?</p>
 <ul>
-<li><span class="math inline">\(E[\widehat{\beta}_1]=\beta_1\)</span> in <span class="math inline">\(EE_1\)</span>? (bias?)</li>
-<li><span class="math inline">\(E[\widehat{\beta}_1]=\beta_1\)</span> in <span class="math inline">\(EE_2\)</span>? (bias?)</li>
-<li><span class="math inline">\(Var(\widehat{\beta}_1)\)</span> in <span class="math inline">\(EE_1\)</span> <span class="math inline">\(\gtreqqless\)</span> <span class="math inline">\(Var(\widehat{\beta}_1)\)</span> in <span class="math inline">\(EE_2\)</span>?</li>
+<li><span class="math inline">E[\widehat{\beta}_1]=\beta_1</span> in <span class="math inline">EE_1</span>? (bias?)</li>
+<li><span class="math inline">E[\widehat{\beta}_1]=\beta_1</span> in <span class="math inline">EE_2</span>? (bias?)</li>
+<li><span class="math inline">Var(\widehat{\beta}_1)</span> in <span class="math inline">EE_1</span> <span class="math inline">\gtreqqless</span> <span class="math inline">Var(\widehat{\beta}_1)</span> in <span class="math inline">EE_2</span>?</li>
 </ul>
 </div>
 </div>
@@ -3365,7 +3526,7 @@ Lecturer transcript
 <div id="qwebr-insertion-location-18"></div>
 <noscript>Please enable JavaScript to experience the dynamic code cell content on this page.</noscript>
 <ul>
-<li>the <span style="color:blue"> blue </span> line is the true <span class="math inline">\(\beta_1 = 1\)</span>; the <span style="color:red"> red dashed </span> line is where <span class="math inline">\(EE_1\)</span> is predicted to land, and we work out that number on the <code>Predicted bias</code> tab</li>
+<li>the <span style="color:blue"> blue </span> line is the true <span class="math inline">\beta_1 = 1</span>; the <span style="color:red"> red dashed </span> line is where <span class="math inline">EE_1</span> is predicted to land, and we work out that number on the <code>Predicted bias</code> tab</li>
 </ul>
 </div>
 <div id="tabset-21-5">
@@ -3377,9 +3538,9 @@ Lecturer transcript
 </details>
 <p>This is the one case with bias, and it is <span style="color:blue"> exactly </span> predictable. From the data generating process:</p>
 <ul>
-<li><span class="math inline">\(Cov(x_1, x_2) = Var(\mu) \times 0.9^2 = 0.81\)</span> and <span class="math inline">\(Var(x_1) = 0.1^2 + 0.9^2 = 0.82\)</span></li>
-<li>so <span class="math inline">\(\delta_1 = \frac{Cov(x_1,x_2)}{Var(x_1)} = \frac{0.81}{0.82} \approx 0.988\)</span></li>
-<li>and therefore <span class="math inline">\(E[\tilde{\beta}_1] = \beta_1 + \beta_2 \cdot \delta_1 = 1 + 1 \times 0.988 = \mathbf{1.988}\)</span></li>
+<li><span class="math inline">Cov(x_1, x_2) = Var(\mu) \times 0.9^2 = 0.81</span> and <span class="math inline">Var(x_1) = 0.1^2 + 0.9^2 = 0.82</span></li>
+<li>so <span class="math inline">\delta_1 = \frac{Cov(x_1,x_2)}{Var(x_1)} = \frac{0.81}{0.82} \approx 0.988</span></li>
+<li>and therefore <span class="math inline">E[\tilde{\beta}_1] = \beta_1 + \beta_2 \cdot \delta_1 = 1 + 1 \times 0.988 = \mathbf{1.988}</span></li>
 </ul>
 <p>Check it against your own simulation:</p>
 <div id="qwebr-insertion-location-19"></div>
@@ -3399,7 +3560,7 @@ Lecturer transcript
 </div>
 <div id="tabset-21-6">
 <div class="panel-tabset">
-<ul id="tabset-17" class="panel-tabset-tabby"><li><a data-tabby-default="" href="#tabset-17-1"><span class="math inline">\(EE_1\)</span></a></li><li><a href="#tabset-17-2"><span class="math inline">\(EE_2\)</span></a></li></ul>
+<ul id="tabset-17" class="panel-tabset-tabby"><li><a data-tabby-default="" href="#tabset-17-1"><span class="math inline">EE_1</span></a></li><li><a href="#tabset-17-2"><span class="math inline">EE_2</span></a></li></ul>
 <div class="tab-content">
 <div id="tabset-17-1">
 <details class="transcript">
@@ -3411,27 +3572,27 @@ Lecturer transcript
 <div class="columns">
 <div class="column" style="width:50%;">
 <p><strong>True model</strong></p>
-<p><span class="math inline">\(y_i=\beta_0 + \beta_1 x_{1,i} + \beta_2 x_{2,i} + u_i\)</span></p>
+<p><span class="math inline">y_i=\beta_0 + \beta_1 x_{1,i} + \beta_2 x_{2,i} + u_i</span></p>
 <ul>
-<li><span class="math inline">\(cor(x_1,x_2) \ne 0\)</span></li>
-<li><span class="math inline">\(\beta_2 \ne 0\)</span></li>
-<li><span class="math inline">\(E[u_i|x_{1,i},x_{2,i}]=0\)</span></li>
+<li><span class="math inline">cor(x_1,x_2) \ne 0</span></li>
+<li><span class="math inline">\beta_2 \ne 0</span></li>
+<li><span class="math inline">E[u_i|x_{1,i},x_{2,i}]=0</span></li>
 </ul>
 </div><!--end of the 1st column--><div class="column" style="width:50%;">
 <p><strong>Estimated model</strong></p>
-<p><span class="math inline">\(EE_1\)</span>: <span class="math inline">\(y_i = \beta_0 + \beta_1 x_{1,i} + v_{i} \;\; (v_i = \beta_2 x_{2,i} + u_{i})\)</span></p>
+<p><span class="math inline">EE_1</span>: <span class="math inline">y_i = \beta_0 + \beta_1 x_{1,i} + v_{i} \;\; (v_i = \beta_2 x_{2,i} + u_{i})</span></p>
 </div><!--end of the 2nd column-->
 </div>
 <!--end of the columns-->
 <p><br></p>
 <p><strong>Question</strong></p>
-<p><span class="math inline">\(E[v_i|x_{1,i}]=0?\)</span></p>
+<p><span class="math inline">E[v_i|x_{1,i}]=0?</span></p>
 <br>
 <details>
 <summary>
 Answer
 </summary>
-<p>No, because <span class="math inline">\(x_1\)</span> is correlated with <span class="math inline">\(x_2\)</span> and <span class="math inline">\(\beta_2 \ne 0\)</span>.</p>
+<p>No, because <span class="math inline">x_1</span> is correlated with <span class="math inline">x_2</span> and <span class="math inline">\beta_2 \ne 0</span>.</p>
 So, there will be bias.
 </details>
 </div>
@@ -3445,27 +3606,27 @@ Lecturer transcript
 <div class="columns">
 <div class="column" style="width:50%;">
 <p><strong>True model</strong></p>
-<p><span class="math inline">\(y_i=\beta_0 + \beta_1 x_{1,i} + \beta_2 x_{2,i} + u_i\)</span></p>
+<p><span class="math inline">y_i=\beta_0 + \beta_1 x_{1,i} + \beta_2 x_{2,i} + u_i</span></p>
 <ul>
-<li><span class="math inline">\(cor(x_1,x_2) \ne 0\)</span></li>
-<li><span class="math inline">\(\beta_2 \ne 0\)</span></li>
-<li><span class="math inline">\(E[u_i|x_{1,i},x_{2,i}]=0\)</span></li>
+<li><span class="math inline">cor(x_1,x_2) \ne 0</span></li>
+<li><span class="math inline">\beta_2 \ne 0</span></li>
+<li><span class="math inline">E[u_i|x_{1,i},x_{2,i}]=0</span></li>
 </ul>
 </div><!--end of the 1st column--><div class="column" style="width:50%;">
 <p><strong>Estimated model</strong></p>
-<p><span class="math inline">\(EE_2\)</span>: <span class="math inline">\(y_i = \beta_0 + \beta_1 x_{1,i} + \beta_2 x_{2,i} + u_{i}\)</span></p>
+<p><span class="math inline">EE_2</span>: <span class="math inline">y_i = \beta_0 + \beta_1 x_{1,i} + \beta_2 x_{2,i} + u_{i}</span></p>
 </div><!--end of the 2nd column-->
 </div>
 <!--end of the columns-->
 <p><br></p>
 <p><strong>Question</strong></p>
-<p><span class="math inline">\(E[u_i|x_{1,i},x_{2,i}]=0\)</span>?</p>
+<p><span class="math inline">E[u_i|x_{1,i},x_{2,i}]=0</span>?</p>
 <br>
 <details>
 <summary>
 Answer
 </summary>
-Yes, because <span class="math inline">\(x_1\)</span> and <span class="math inline">\(x_2\)</span> are not correlated with <span class="math inline">\(u\)</span> (by assumption). So, <strong>no</strong> bias.
+Yes, because <span class="math inline">x_1</span> and <span class="math inline">x_2</span> are not correlated with <span class="math inline">u</span> (by assumption). So, <strong>no</strong> bias.
 </details>
 </div>
 </div>
@@ -3474,7 +3635,7 @@ Yes, because <span class="math inline">\(x_1\)</span> and <span class="math inli
 </div>
 <div id="tabset-21-7">
 <div class="panel-tabset">
-<ul id="tabset-20" class="panel-tabset-tabby"><li><a data-tabby-default="" href="#tabset-20-1"><span class="math inline">\(EE_1\)</span></a></li><li><a href="#tabset-20-2"><span class="math inline">\(EE_2\)</span></a></li><li><a href="#tabset-20-3"><span class="math inline">\(EE_1\)</span> v.s. <span class="math inline">\(EE_2\)</span></a></li><li><a href="#tabset-20-4">Why <span class="math inline">\(EE_1\)</span> won here</a></li><li><a href="#tabset-20-5">When <span class="math inline">\(EE_2\)</span> wins instead</a></li></ul>
+<ul id="tabset-20" class="panel-tabset-tabby"><li><a data-tabby-default="" href="#tabset-20-1"><span class="math inline">EE_1</span></a></li><li><a href="#tabset-20-2"><span class="math inline">EE_2</span></a></li><li><a href="#tabset-20-3"><span class="math inline">EE_1</span> v.s. <span class="math inline">EE_2</span></a></li><li><a href="#tabset-20-4">Why <span class="math inline">EE_1</span> won here</a></li><li><a href="#tabset-20-5">When <span class="math inline">EE_2</span> wins instead</a></li></ul>
 <div class="tab-content">
 <div id="tabset-20-1">
 <details class="transcript">
@@ -3486,28 +3647,28 @@ Lecturer transcript
 <div class="columns">
 <div class="column" style="width:30%;">
 <p><strong>True model</strong></p>
-<p><span class="math inline">\(y_i=\beta_0 + \beta_1 x_{1,i} + \beta_2 x_{2,i} + u_i\)</span></p>
+<p><span class="math inline">y_i=\beta_0 + \beta_1 x_{1,i} + \beta_2 x_{2,i} + u_i</span></p>
 <ul>
-<li><span class="math inline">\(cor(x_1,x_2) \ne 0\)</span></li>
-<li><span class="math inline">\(\beta_2 \ne 0\)</span></li>
-<li><span class="math inline">\(E[u_i|x_{1,i},x_{2,i}]=0\)</span></li>
+<li><span class="math inline">cor(x_1,x_2) \ne 0</span></li>
+<li><span class="math inline">\beta_2 \ne 0</span></li>
+<li><span class="math inline">E[u_i|x_{1,i},x_{2,i}]=0</span></li>
 </ul>
 </div><!--end of the 1st column--><div class="column" style="width:30%;">
 <p><strong>Variance</strong></p>
-<p><span class="math inline">\(Var(\widehat{\beta}_j)= \frac{\sigma_v^2}{SST_j(1-R^2_j)}\)</span></p>
-<p>where <span class="math inline">\(R^2_j\)</span> is the <span class="math inline">\(R^2\)</span> when you regress <span class="math inline">\(x_j\)</span> on all the other covariates.</p>
+<p><span class="math inline">Var(\widehat{\beta}_j)= \frac{\sigma_v^2}{SST_j(1-R^2_j)}</span></p>
+<p>where <span class="math inline">R^2_j</span> is the <span class="math inline">R^2</span> when you regress <span class="math inline">x_j</span> on all the other covariates.</p>
 </div><!--end of the 2nd column--><div class="column" style="width:40%;">
 <p><strong>The estimated model</strong></p>
-<p><span class="math inline">\(EE_1\)</span>: <span class="math inline">\(y_i = \beta_0 + \beta_1 x_{1,i} + v_{i} \;\; (\beta_2 x_{2,i} + u_{i})\)</span></p>
+<p><span class="math inline">EE_1</span>: <span class="math inline">y_i = \beta_0 + \beta_1 x_{1,i} + v_{i} \;\; (\beta_2 x_{2,i} + u_{i})</span></p>
 </div><!--end of the 3rd column-->
 </div>
 <!--end of the columns-->
 <p><br></p>
 <div class="panel-tabset">
-<ul id="tabset-18" class="panel-tabset-tabby"><li><a data-tabby-default="" href="#tabset-18-1">Question (<span class="math inline">\(R_j^2\)</span>)</a></li><li><a href="#tabset-18-2">Question (variance of the error term)</a></li></ul>
+<ul id="tabset-18" class="panel-tabset-tabby"><li><a data-tabby-default="" href="#tabset-18-1">Question (<span class="math inline">R_j^2</span>)</a></li><li><a href="#tabset-18-2">Question (variance of the error term)</a></li></ul>
 <div class="tab-content">
 <div id="tabset-18-1">
-<p><span class="math inline">\(R_j^2\)</span>?</p>
+<p><span class="math inline">R_j^2</span>?</p>
 <br>
 <details>
 <summary>
@@ -3517,17 +3678,17 @@ Answer
 </details>
 </div>
 <div id="tabset-18-2">
-<p><span class="math inline">\(Var(v_i) = Var(\beta_2 x_{2,i} + u_i)\)</span>?</p>
+<p><span class="math inline">Var(v_i) = Var(\beta_2 x_{2,i} + u_i)</span>?</p>
 <br>
 <details>
 <summary>
 Answer
 </summary>
-<span class="math display">\[\begin{align}
+<span class="math display">\begin{align}
 Var(error) &amp; = Var(v_i) \\
   &amp; = Var(\beta_2 x_{2,i} + u_i) \\
   &amp; = \beta_2^2\cdot Var(x_{2,i}) + \sigma_u^2
-\end{align}\]</span>
+\end{align}</span>
 </details>
 </div>
 </div>
@@ -3544,48 +3705,48 @@ Lecturer transcript
 <div class="columns">
 <div class="column" style="width:30%;">
 <p><strong>True model</strong></p>
-<p><span class="math inline">\(y_i=\beta_0 + \beta_1 x_{1,i} + \beta_2 x_{2,i} + u_i\)</span></p>
+<p><span class="math inline">y_i=\beta_0 + \beta_1 x_{1,i} + \beta_2 x_{2,i} + u_i</span></p>
 <ul>
-<li><span class="math inline">\(cor(x_1,x_2) \ne 0\)</span></li>
-<li><span class="math inline">\(\beta_2 \ne 0\)</span></li>
-<li><span class="math inline">\(E[u_i|x_{1,i},x_{2,i}]=0\)</span></li>
+<li><span class="math inline">cor(x_1,x_2) \ne 0</span></li>
+<li><span class="math inline">\beta_2 \ne 0</span></li>
+<li><span class="math inline">E[u_i|x_{1,i},x_{2,i}]=0</span></li>
 </ul>
 </div><!--end of the 1st column--><div class="column" style="width:30%;">
 <p><strong>Variance</strong></p>
-<p><span class="math inline">\(Var(\widehat{\beta}_j)= \frac{\sigma_u^2}{SST_j(1-R^2_j)}\)</span></p>
-<p>where <span class="math inline">\(R^2_j\)</span> is the <span class="math inline">\(R^2\)</span> when you regress <span class="math inline">\(x_j\)</span> on all the other covariates.</p>
+<p><span class="math inline">Var(\widehat{\beta}_j)= \frac{\sigma_u^2}{SST_j(1-R^2_j)}</span></p>
+<p>where <span class="math inline">R^2_j</span> is the <span class="math inline">R^2</span> when you regress <span class="math inline">x_j</span> on all the other covariates.</p>
 </div><!--end of the 2nd column--><div class="column" style="width:40%;">
 <p><strong>The estimated model</strong></p>
-<p><span class="math inline">\(EE_2\)</span>: <span class="math inline">\(y_i = \beta_0 + \beta_1 x_{1,i} + \beta_2 x_{2,i} + u_{i}\)</span></p>
+<p><span class="math inline">EE_2</span>: <span class="math inline">y_i = \beta_0 + \beta_1 x_{1,i} + \beta_2 x_{2,i} + u_{i}</span></p>
 </div><!--end of the 3rd column-->
 </div>
 <!--end of the columns-->
 <p><br></p>
 <div class="panel-tabset">
-<ul id="tabset-19" class="panel-tabset-tabby"><li><a data-tabby-default="" href="#tabset-19-1">Question (<span class="math inline">\(R_j^2\)</span>)</a></li><li><a href="#tabset-19-2">Question (variance of the error term)</a></li></ul>
+<ul id="tabset-19" class="panel-tabset-tabby"><li><a data-tabby-default="" href="#tabset-19-1">Question (<span class="math inline">R_j^2</span>)</a></li><li><a href="#tabset-19-2">Question (variance of the error term)</a></li></ul>
 <div class="tab-content">
 <div id="tabset-19-1">
-<p><span class="math inline">\(R_j^2\)</span>?</p>
+<p><span class="math inline">R_j^2</span>?</p>
 <br>
 <details>
 <summary>
 Answer
 </summary>
-<p><span class="math inline">\(R_j^2\)</span> is non-zero because <span class="math inline">\(x_1\)</span> and <span class="math inline">\(x_2\)</span> are correlated. If you regress <span class="math inline">\(x_1\)</span> on <span class="math inline">\(x_2\)</span>, then its <span class="math inline">\(R^2\)</span> is non-zero.</p>
+<p><span class="math inline">R_j^2</span> is non-zero because <span class="math inline">x_1</span> and <span class="math inline">x_2</span> are correlated. If you regress <span class="math inline">x_1</span> on <span class="math inline">x_2</span>, then its <span class="math inline">R^2</span> is non-zero.</p>
 <div id="qwebr-insertion-location-20"></div>
 <noscript>Please enable JavaScript to experience the dynamic code cell content on this page.</noscript>
 </details>
 </div>
 <div id="tabset-19-2">
-<p><span class="math inline">\(Var(u_i)\)</span>?</p>
+<p><span class="math inline">Var(u_i)</span>?</p>
 <br>
 <details>
 <summary>
 Answer
 </summary>
-<span class="math display">\[
+<span class="math display">
 Var(error) = Var(u_i) = \sigma_u^2
-\]</span>
+</span>
 </details>
 </div>
 </div>
@@ -3597,7 +3758,7 @@ Var(error) = Var(u_i) = \sigma_u^2
 <summary>
 Lecturer transcript
 </summary>
-<p>Look at the columns and you will see why the answer is, honestly, it depends. The model omitting x-two has the larger numerator but an untouched denominator. The model including it has the smaller numerator but a denominator shrunk by R-squared-j. Neither dominates. Which one has the smaller variance depends on the actual numbers: how strong the correlation is, how large beta-two is, how spread out x-two is. The next two tabs work through one setting of those numbers and then deliberately reverse them.</p>
+<p>This comparison needs more care than the first three cases. The familiar variance formula assumes the regression error satisfies the exogeneity condition. In EE1 here, the composite error contains x-two and is correlated with x-one, so we cannot obtain its sampling variance by simply inserting the unconditional variance of that composite error into the usual formula. The Monte Carlo distributions can still illustrate bias and dispersion for this particular data-generating process, but the columns below are intuition, not a valid general variance derivation for EE1.</p>
 </details>
 <div title="Question">
 <div class="callout callout-note no-icon callout-titled callout-style-default">
@@ -3606,7 +3767,7 @@ Lecturer transcript
 <p><strong>Question</strong></p>
 </div>
 <div class="callout-content">
-<p><span class="math inline">\(Var(\widehat{\beta}_1)\)</span> in <span class="math inline">\(EE_1\)</span> <span class="math inline">\(\gtreqqless\)</span> <span class="math inline">\(Var(\widehat{\beta}_1)\)</span> in <span class="math inline">\(EE_2\)</span>?</p>
+<p><span class="math inline">Var(\widehat{\beta}_1)</span> in <span class="math inline">EE_1</span> <span class="math inline">\gtreqqless</span> <span class="math inline">Var(\widehat{\beta}_1)</span> in <span class="math inline">EE_2</span>?</p>
 </div>
 </div>
 </div>
@@ -3614,20 +3775,20 @@ Lecturer transcript
 <p><br></p>
 <div class="columns">
 <div class="column" style="width:40%;">
-<p><strong><span class="math inline">\(EE_1\)</span></strong></p>
+<p><strong><span class="math inline">EE_1</span></strong></p>
 <ul>
-<li><span class="math inline">\(R_j^2 = 0\)</span></li>
-<li><span class="math inline">\(Var(error) = Var(v_i) = \beta_2^2\cdot Var(x_{2,i}) + \sigma_u^2\)</span></li>
+<li><span class="math inline">R_j^2 = 0</span></li>
+<li><span class="math inline">Var(error) = Var(v_i) = \beta_2^2\cdot Var(x_{2,i}) + \sigma_u^2</span></li>
 </ul>
 </div><!--end of the 1st column--><div class="column" style="width:33%;">
-<p><strong><span class="math inline">\(EE_2\)</span></strong></p>
+<p><strong><span class="math inline">EE_2</span></strong></p>
 <ul>
-<li><span class="math inline">\(R_j^2 \ne 0\)</span></li>
-<li><span class="math inline">\(Var(error) = Var(u_i) = \sigma_u^2\)</span></li>
+<li><span class="math inline">R_j^2 \ne 0</span></li>
+<li><span class="math inline">Var(error) = Var(u_i) = \sigma_u^2</span></li>
 </ul>
 </div><!--end of the 2nd column--><div class="column" style="width:27%;">
 <p><strong>Variance formula</strong></p>
-<p><span class="math inline">\(Var(\widehat{\beta}_j) = \frac{Var(error)}{SST_j(1-R^2_j)}\)</span></p>
+<p><span class="math inline">Var(\widehat{\beta}_j) = \frac{Var(error)}{SST_j(1-R^2_j)}</span></p>
 </div></div>
 <!--end of the columns-->
 <br> <br>
@@ -3643,32 +3804,32 @@ It depends.
 <summary>
 Lecturer transcript
 </summary>
-<p>Let’s put numbers on it for the simulation we just ran. Run the cell: R-squared-j is about zero point nine seven six, so one minus it is about zero point zero two four, and the denominator for the including model is shrunk by a factor of roughly forty. Meanwhile the omitting model’s numerator rose only from one to about one point eight two, so its penalty is a near-doubling. A factor of two against a factor of forty is no contest. That is why the omitting model came out with the lower variance here.</p>
+<p>Let’s put numbers on the correctly specified EE2: R-squared-j is about zero point nine seven six, so one minus it is about zero point zero two four. That strong collinearity makes the EE2 estimate imprecise. The simulation shows that the biased EE1 estimate is less dispersed in this design. Do not justify EE1’s dispersion by plugging 1.82 into the standard exogenous-error formula, however; EE1 violates the condition under which that formula was derived.</p>
 </details>
 <p>Both terms in the variance formula moved, and they moved in opposite directions. Which one wins is a matter of magnitudes:</p>
 <ul>
-<li><span class="math inline">\(x_1\)</span> and <span class="math inline">\(x_2\)</span> are highly correlated, so <span class="math inline">\(R_j^2\)</span> is very high for <span class="math inline">\(EE_2\)</span> — this <span style="color:red"> inflates </span> <span class="math inline">\(Var(\widehat{\beta}_1)\)</span> in <span class="math inline">\(EE_2\)</span></li>
+<li><span class="math inline">x_1</span> and <span class="math inline">x_2</span> are highly correlated, so <span class="math inline">R_j^2</span> is very high for <span class="math inline">EE_2</span> — this <span style="color:red"> inflates </span> <span class="math inline">Var(\widehat{\beta}_1)</span> in <span class="math inline">EE_2</span></li>
 </ul>
 <div id="qwebr-insertion-location-21"></div>
 <noscript>Please enable JavaScript to experience the dynamic code cell content on this page.</noscript>
 <p><br></p>
 <ul>
-<li>but <span class="math inline">\(\beta_2 = 1\)</span> and <span class="math inline">\(Var(x_2) \approx 0.82\)</span> are both small, so folding <span class="math inline">\(x_2\)</span> into the error term only raises the numerator from <span class="math inline">\(\sigma_u^2 = 1\)</span> to about <span class="math inline">\(1.82\)</span> — a mild <span style="color:blue"> penalty </span> for <span class="math inline">\(EE_1\)</span></li>
+<li>but <span class="math inline">\beta_2 = 1</span> and <span class="math inline">Var(x_2) \approx 0.82</span> are both small, so folding <span class="math inline">x_2</span> into the error term only raises the numerator from <span class="math inline">\sigma_u^2 = 1</span> to about <span class="math inline">1.82</span> — a mild <span style="color:blue"> penalty </span> for <span class="math inline">EE_1</span></li>
 </ul>
 <p><br></p>
-<p>A near-doubling of the numerator is no match for a denominator shrunk by a factor of about 40. That is why <span class="math inline">\(Var(\widehat{\beta}_1)\)</span> in <span class="math inline">\(EE_1\)</span> came out <span style="color:blue"> lower </span> than in <span class="math inline">\(EE_2\)</span>.</p>
+<p>A near-doubling of the numerator is no match for a denominator shrunk by a factor of about 40. That is why <span class="math inline">Var(\widehat{\beta}_1)</span> in <span class="math inline">EE_1</span> came out <span style="color:blue"> lower </span> than in <span class="math inline">EE_2</span>.</p>
 </div>
 <div id="tabset-20-5">
 <details class="transcript">
 <summary>
 Lecturer transcript
 </summary>
-<p>Now let’s deliberately reverse the magnitudes and watch the ranking flip. X-one and x-two now share almost nothing, so R-squared-j is tiny and the denominator is barely touched. But beta-two is five and the variance of x-two is about five, so omitting x-two inflates the numerator enormously. Run both cells. The variances come out around one point eight against zero point zero one three, the reverse of before. Same formula, same four conditions, opposite answer, purely because the numbers changed. Nothing here is a rule of thumb.</p>
+<p>Now let’s deliberately change the data-generating process and watch the simulated ranking flip. X-one and x-two share almost nothing, so including x-two creates little multicollinearity, while x-two has a large effect and substantial independent variation. Run both cells. The simulated variances reverse their earlier ranking. This demonstrates that a biased estimator can be more or less dispersed than the correctly specified estimator depending on the design; it does not restore the invalid plug-in variance calculation for EE1.</p>
 </details>
 <p>Now let’s reverse the conditions:</p>
 <ul>
-<li><span class="math inline">\(x_1\)</span> and <span class="math inline">\(x_2\)</span> are <strong>NOT</strong> highly correlated, so <span class="math inline">\(R_j^2\)</span> is small for <span class="math inline">\(EE_2\)</span></li>
-<li><span class="math inline">\(\beta_2 = 5\)</span> and <span class="math inline">\(Var(x_2) \approx 5\)</span>, so omitting <span class="math inline">\(x_2\)</span> inflates the error variance enormously</li>
+<li><span class="math inline">x_1</span> and <span class="math inline">x_2</span> are <strong>NOT</strong> highly correlated, so <span class="math inline">R_j^2</span> is small for <span class="math inline">EE_2</span></li>
+<li><span class="math inline">\beta_2 = 5</span> and <span class="math inline">Var(x_2) \approx 5</span>, so omitting <span class="math inline">x_2</span> inflates the error variance enormously</li>
 </ul>
 <p>Run it and compare against the picture on the <code>MC Results</code> tab:</p>
 <div id="qwebr-insertion-location-22"></div>
@@ -3677,8 +3838,8 @@ Lecturer transcript
 <div id="qwebr-insertion-location-23"></div>
 <noscript>Please enable JavaScript to experience the dynamic code cell content on this page.</noscript>
 <ul>
-<li><span class="math inline">\(EE_1\)</span> is now the <span style="color:red"> wide </span> one (<span class="math inline">\(Var \approx 1.8\)</span> against <span class="math inline">\(0.013\)</span> for <span class="math inline">\(EE_2\)</span>): the ranking has flipped</li>
-<li><span class="math inline">\(x_1\)</span> and <span class="math inline">\(x_2\)</span> still share a little of <span class="math inline">\(\mu\)</span>, so <span class="math inline">\(EE_1\)</span> keeps a small bias of <span class="math inline">\(\beta_2\cdot\delta_1 \approx 5 \times \frac{0.01}{0.82} \approx 0.06\)</span> — tiny next to a standard deviation of <span class="math inline">\(1.34\)</span>, which is exactly why it is invisible in the plot</li>
+<li><span class="math inline">EE_1</span> is now the <span style="color:red"> wide </span> one (<span class="math inline">Var \approx 1.8</span> against <span class="math inline">0.013</span> for <span class="math inline">EE_2</span>): the ranking has flipped</li>
+<li><span class="math inline">x_1</span> and <span class="math inline">x_2</span> still share a little of <span class="math inline">\mu</span>, so <span class="math inline">EE_1</span> keeps a small bias of <span class="math inline">\beta_2\cdot\delta_1 \approx 5 \times \frac{0.01}{0.82} \approx 0.06</span> — tiny next to a standard deviation of <span class="math inline">1.34</span>, which is exactly why it is invisible in the plot</li>
 </ul>
 </div>
 </div>
@@ -3709,7 +3870,7 @@ Lecturer transcript
 </summary>
 <p>Here is the whole lecture on one slide. Two conditions, four cells. Read across the top row: with beta-two equal to zero, x-two is irrelevant, and the only question is whether including it costs you variance, which it does when the two are correlated. Read the bottom row: x-two matters, and now omitting it either costs variance or costs you bias. Then read the two bullets. Bias appears in exactly one cell, and it needs both conditions at once. Either one on its own, as cases two and three showed, leaves you unbiased.</p>
 </details>
-<p>The question is always the same: <span style="color:blue"> should <span class="math inline">\(x_2\)</span> be in the model? </span> The answer depends on only two things.</p>
+<p>The question is always the same: <span style="color:blue"> should <span class="math inline">x_2</span> be in the model? </span> The answer depends on only two things.</p>
 <table class="caption-top">
 <colgroup>
 <col style="width: 33%">
@@ -3719,28 +3880,28 @@ Lecturer transcript
 <thead>
 <tr class="header">
 <th></th>
-<th><span class="math inline">\(cor(x_1,x_2) = 0\)</span></th>
-<th><span class="math inline">\(cor(x_1,x_2) \ne 0\)</span></th>
+<th><span class="math inline">cor(x_1,x_2) = 0</span></th>
+<th><span class="math inline">cor(x_1,x_2) \ne 0</span></th>
 </tr>
 </thead>
 <tbody>
 <tr class="odd">
-<td><strong><span class="math inline">\(\beta_2 = 0\)</span></strong></td>
-<td><strong>Case 1</strong>: both unbiased, same variance. Including <span class="math inline">\(x_2\)</span> costs you nothing.</td>
-<td><strong>Case 2</strong>: both unbiased, but including <span class="math inline">\(x_2\)</span> <span style="color:red"> inflates </span> the variance. This is multicollinearity.</td>
+<td><strong><span class="math inline">\beta_2 = 0</span></strong></td>
+<td><strong>Case 1</strong>: both unbiased, same variance. Including <span class="math inline">x_2</span> costs you nothing.</td>
+<td><strong>Case 2</strong>: both unbiased, but including <span class="math inline">x_2</span> <span style="color:red"> inflates </span> the variance. This is multicollinearity.</td>
 </tr>
 <tr class="even">
-<td><strong><span class="math inline">\(\beta_2 \ne 0\)</span></strong></td>
-<td><strong>Case 3</strong>: both unbiased, but <span style="color:blue"> omitting </span> <span class="math inline">\(x_2\)</span> inflates the variance. Include it.</td>
-<td><strong>Case 4</strong>: omitting <span class="math inline">\(x_2\)</span> gives you <span style="color:red">bias</span>. Including it may inflate the variance. A genuine trade-off.</td>
+<td><strong><span class="math inline">\beta_2 \ne 0</span></strong></td>
+<td><strong>Case 3</strong>: both unbiased, but <span style="color:blue"> omitting </span> <span class="math inline">x_2</span> inflates the variance. Include it.</td>
+<td><strong>Case 4</strong>: omitting <span class="math inline">x_2</span> gives you <span style="color:red">bias</span>. Including it may inflate the variance. A genuine trade-off.</td>
 </tr>
 </tbody>
 </table>
 <p><br></p>
 <p>Two things to carry away:</p>
 <ul>
-<li><span style="color:red"> bias </span> appears in exactly one cell, and it needs <span style="color:red"> both </span> conditions: <span class="math inline">\(x_2\)</span> must matter <span style="color:red"> and </span> be correlated with <span class="math inline">\(x_1\)</span>. Either one alone is harmless for unbiasedness.</li>
-<li>in the three cells with no bias, including <span class="math inline">\(x_2\)</span> is never worse than a variance question. Case 4 is the only one where you have to choose, and economists almost always choose unbiasedness.</li>
+<li><span style="color:red"> bias </span> appears in exactly one cell, and it needs <span style="color:red"> both </span> conditions: <span class="math inline">x_2</span> must matter <span style="color:red"> and </span> be correlated with <span class="math inline">x_1</span>. Either one alone is harmless for unbiasedness.</li>
+<li>in the three cells with no bias, including <span class="math inline">x_2</span> is never worse than a variance question. Case 4 is the only one where you have to choose, and economists almost always choose unbiasedness.</li>
 </ul>
 </section>
 <section id="omitted-variable-bias-theory" class="slide level2">
@@ -3756,19 +3917,19 @@ Lecturer transcript
 <p>Now the algebra behind what case four showed us. Notice the two different symbols: beta-one-tilde for the estimator from the model that omits x-two, beta-one-hat for the one that includes it. Then the auxiliary regression, and read the direction carefully because this is where people go wrong. You regress the omitted variable on the included one, not the reverse. Delta-one is that slope, the covariance over the variance of x-one. The boxed result says the bias is beta-two times delta-one, and case four’s number came from exactly this.</p>
 </details>
 <p><strong>True model</strong></p>
-<p><span class="math inline">\(y_i=\beta_0 + \beta_1 x_{1,i} + \beta_2 x_{2,i} + u_i\)</span></p>
+<p><span class="math inline">y_i=\beta_0 + \beta_1 x_{1,i} + \beta_2 x_{2,i} + u_i</span></p>
 <p><br></p>
-<p><strong><span class="math inline">\(EE_1\)</span></strong></p>
-<p><span class="math inline">\(y_i = \beta_0 + \beta_1 x_{1,i} + v_{i} \;\; (\beta_2 x_{2,i} + u_{i})\)</span></p>
-<p>Let <span class="math inline">\(\tilde{\beta}_1\)</span> denote the estimator of <span class="math inline">\(\beta_1\)</span> from this model</p>
+<p><strong><span class="math inline">EE_1</span></strong></p>
+<p><span class="math inline">y_i = \beta_0 + \beta_1 x_{1,i} + v_{i} \;\; (\beta_2 x_{2,i} + u_{i})</span></p>
+<p>Let <span class="math inline">\tilde{\beta}_1</span> denote the estimator of <span class="math inline">\beta_1</span> from this model</p>
 <p><br></p>
-<p><strong><span class="math inline">\(EE_2\)</span></strong></p>
-<p><span class="math inline">\(y_i = \beta_0 + \beta_1 x_{1,i} + \beta_2 x_{2,i} + u_{i}\)</span></p>
-<p>Let <span class="math inline">\(\widehat{\beta}_1\)</span> and <span class="math inline">\(\widehat{\beta}_2\)</span> denote the estimator of <span class="math inline">\(\beta_1\)</span> and <span class="math inline">\(\beta_2\)</span></p>
+<p><strong><span class="math inline">EE_2</span></strong></p>
+<p><span class="math inline">y_i = \beta_0 + \beta_1 x_{1,i} + \beta_2 x_{2,i} + u_{i}</span></p>
+<p>Let <span class="math inline">\widehat{\beta}_1</span> and <span class="math inline">\widehat{\beta}_2</span> denote the estimator of <span class="math inline">\beta_1</span> and <span class="math inline">\beta_2</span></p>
 <p><br></p>
-<p><strong>Relationship between <span class="math inline">\(x_1\)</span> and <span class="math inline">\(x_2\)</span></strong></p>
+<p><strong>Relationship between <span class="math inline">x_1</span> and <span class="math inline">x_2</span></strong></p>
 <p>Regress the <span style="color:red"> omitted </span> variable on the <span style="color:blue"> included </span> one:</p>
-<p><span class="math inline">\(x_{2,i} = \delta_0 + \delta_1 x_{1,i} + e_{i}\)</span>, so that <span class="math inline">\(\delta_1 = \frac{Cov(x_1,x_2)}{Var(x_1)}\)</span></p>
+<p><span class="math inline">x_{2,i} = \delta_0 + \delta_1 x_{1,i} + e_{i}</span>, so that <span class="math inline">\delta_1 = \frac{Cov(x_1,x_2)}{Var(x_1)}</span></p>
 <p><br></p>
 <div class="callout callout-important no-icon callout-titled callout-style-default">
 <div class="callout-body">
@@ -3776,11 +3937,11 @@ Lecturer transcript
 <p><strong>Important</strong></p>
 </div>
 <div class="callout-content">
-<p>Then, <span class="math inline">\(E[\tilde{\beta}_1] = \beta_1 + \beta_2 \cdot \delta_1\)</span>, where <span class="math inline">\(\beta_2 \cdot \delta_1\)</span> is the bias.</p>
+<p>Then, <span class="math inline">E[\tilde{\beta}_1] = \beta_1 + \beta_2 \cdot \delta_1</span>, where <span class="math inline">\beta_2 \cdot \delta_1</span> is the bias.</p>
 </div>
 </div>
 </div>
-<p>That is, if you omit <span class="math inline">\(x_2\)</span> and regress <span class="math inline">\(y\)</span> only on <span class="math inline">\(x_1\)</span>, then the bias is the product of the impact of <span class="math inline">\(x_2\)</span> on <span class="math inline">\(y\)</span> (<span class="math inline">\(\beta_2\)</span>) and the slope you would get from regressing <span class="math inline">\(x_2\)</span> on <span class="math inline">\(x_1\)</span> (<span class="math inline">\(\delta_1\)</span>).</p>
+<p>That is, if you omit <span class="math inline">x_2</span> and regress <span class="math inline">y</span> only on <span class="math inline">x_1</span>, then the bias is the product of the impact of <span class="math inline">x_2</span> on <span class="math inline">y</span> (<span class="math inline">\beta_2</span>) and the slope you would get from regressing <span class="math inline">x_2</span> on <span class="math inline">x_1</span> (<span class="math inline">\delta_1</span>).</p>
 <ul>
 <li>note the <span style="color:red"> direction </span> of that auxiliary regression: omitted on included, not the other way around</li>
 </ul>
@@ -3794,16 +3955,16 @@ Lecturer transcript
 </details>
 <p><strong>Direction of bias</strong></p>
 <ul>
-<li><span class="math inline">\(Cor(x_1, x_2) &gt; 0\)</span> and <span class="math inline">\(\beta_2 &gt;0\)</span>, then <span class="math inline">\(bias &gt; 0\)</span></li>
-<li><span class="math inline">\(Cor(x_1, x_2) &gt; 0\)</span> and <span class="math inline">\(\beta_2 &lt;0\)</span>, then <span class="math inline">\(bias &lt; 0\)</span></li>
-<li><span class="math inline">\(Cor(x_1, x_2) &lt; 0\)</span> and <span class="math inline">\(\beta_2 &gt;0\)</span>, then <span class="math inline">\(bias &lt; 0\)</span></li>
-<li><span class="math inline">\(Cor(x_1, x_2) &lt; 0\)</span> and <span class="math inline">\(\beta_2 &lt;0\)</span>, then <span class="math inline">\(bias &gt; 0\)</span></li>
+<li><span class="math inline">Cor(x_1, x_2) &gt; 0</span> and <span class="math inline">\beta_2 &gt;0</span>, then <span class="math inline">bias &gt; 0</span></li>
+<li><span class="math inline">Cor(x_1, x_2) &gt; 0</span> and <span class="math inline">\beta_2 &lt;0</span>, then <span class="math inline">bias &lt; 0</span></li>
+<li><span class="math inline">Cor(x_1, x_2) &lt; 0</span> and <span class="math inline">\beta_2 &gt;0</span>, then <span class="math inline">bias &lt; 0</span></li>
+<li><span class="math inline">Cor(x_1, x_2) &lt; 0</span> and <span class="math inline">\beta_2 &lt;0</span>, then <span class="math inline">bias &gt; 0</span></li>
 </ul>
 <p><br></p>
 <p><strong>Magnitude of bias</strong></p>
 <ul>
-<li><p>The greater the correlation between <span class="math inline">\(x_1\)</span> and <span class="math inline">\(x_2\)</span>, the greater the bias</p></li>
-<li><p>The greater <span class="math inline">\(|\beta_2|\)</span> is, the greater the bias</p></li>
+<li><p>Holding the standard deviations of <span class="math inline">x_1</span> and <span class="math inline">x_2</span> fixed, the greater <span class="math inline">|Cor(x_1,x_2)|</span> is, the greater the absolute bias</p></li>
+<li><p>The greater <span class="math inline">|\beta_2|</span> is, the greater the bias</p></li>
 </ul>
 <div title="Note">
 <div class="callout callout-note no-icon callout-titled callout-style-default">
@@ -3812,7 +3973,7 @@ Lecturer transcript
 <p><strong>Note</strong></p>
 </div>
 <div class="callout-content">
-<p><span class="math inline">\(\beta_1\)</span> — the coefficient you actually care about — plays <span style="color:red"> no role </span> in the bias. Omitting <span class="math inline">\(x_2\)</span> shifts <span class="math inline">\(\widehat{\beta}_1\)</span> by <span class="math inline">\(\beta_2\cdot\delta_1\)</span> regardless of how large or small the true effect of <span class="math inline">\(x_1\)</span> is.</p>
+<p><span class="math inline">\beta_1</span> — the coefficient you actually care about — plays <span style="color:red"> no role </span> in the bias. Omitting <span class="math inline">x_2</span> shifts <span class="math inline">\widehat{\beta}_1</span> by <span class="math inline">\beta_2\cdot\delta_1</span> regardless of how large or small the true effect of <span class="math inline">x_1</span> is.</p>
 </div>
 </div>
 </div>
@@ -3829,16 +3990,16 @@ Lecturer transcript
 </summary>
 <p>Work this one out yourself before I say anything. Nitrogen is your variable of interest, soil erodibility is omitted and sits in the error term. Two facts on screen. Farmers apply more nitrogen to more erodible ground to compensate for nutrient loss, so the correlation is positive. And erodibility hurts yield, so gamma is negative. Positive correlation times negative gamma gives a negative bias. So your estimate of nitrogen’s effect on yield comes out too low. You would understate the value of fertiliser, possibly badly.</p>
 </details>
-<p><span class="math display">\[
+<p><span class="math display">
 \begin{aligned}
-\mbox{corn yield} = \alpha + \beta \cdot N + (\gamma \cdot \mbox{soil erodability}  + \mu)
+\text{corn yield} = \alpha + \beta \cdot N + (\gamma \cdot \text{soil erodability}  + \mu)
 \end{aligned}
-\]</span></p>
+</span></p>
 <ul>
 <li>Famers tend to apply more nitrogen to the field that is more erodible to compensate for loss of nutrient due to erosion</li>
-<li>Soil erodability affects corn yield negatively <span class="math inline">\((\gamma &lt; 0)\)</span></li>
+<li>Soil erodability affects corn yield negatively <span class="math inline">(\gamma &lt; 0)</span></li>
 </ul>
-<p>What is the direction of bias on <span class="math inline">\(\hat{\beta}\)</span>?</p>
+<p>What is the direction of bias on <span class="math inline">\hat{\beta}</span>?</p>
 </div>
 <div id="tabset-22-2">
 <details class="transcript">
@@ -3847,16 +4008,16 @@ Lecturer transcript
 </summary>
 <p>This is the classic housing example, and it is worth knowing because it appears in Wooldridge and in real policy debates. You want the effect of distance to an incinerator on house prices. But planners put incinerators on the edge of town, so distance to the incinerator is negatively related to distance from the city center, and distance from the center lowers prices. Negative correlation times negative gamma gives a positive bias. So you would overstate how much being near an incinerator hurts a house’s value.</p>
 </details>
-<p><span class="math display">\[
+<p><span class="math display">
 \begin{aligned}
-\mbox{house price} = \alpha + \beta \cdot \mbox{dist to incinerators} + (\gamma \cdot \mbox{dist to city center}  + \mu)
+\text{house price} = \alpha + \beta \cdot \text{dist to incinerators} + (\gamma \cdot \text{dist to city center}  + \mu)
 \end{aligned}
-\]</span></p>
+</span></p>
 <ul>
 <li>The city planner placed incinerators in the outskirt of a city to avoid their potentially negative health effects</li>
-<li>Distance to city center has a negative impact on house price <span class="math inline">\((\gamma &lt; 0)\)</span></li>
+<li>Distance to city center has a negative impact on house price <span class="math inline">(\gamma &lt; 0)</span></li>
 </ul>
-<p>What is the direction of bias on <span class="math inline">\(\hat{\beta}\)</span>?</p>
+<p>What is the direction of bias on <span class="math inline">\hat{\beta}</span>?</p>
 </div>
 <div id="tabset-22-3">
 <details class="transcript">
@@ -3865,18 +4026,18 @@ Lecturer transcript
 </summary>
 <p>One from my own field. You are estimating the effect of precipitation on groundwater use, and irrigation technology is omitted. Farmers in drier places adopt center pivot more, so precipitation is negatively correlated with center pivot adoption. And center pivot applies water more efficiently, so gamma is negative. Negative times negative gives a positive bias. Now notice something useful: you would expect the true effect of precipitation on groundwater use to be negative, and the bias pushes upward, against your expectation. The next tab is about why that is good news.</p>
 </details>
-<p><span class="math display">\[
+<p><span class="math display">
 \begin{aligned}
-\mbox{groundwater use} = \alpha + \beta \cdot \mbox{precipitation} + (\gamma \cdot \mbox{center pivot}  + \mu)
+\text{groundwater use} = \alpha + \beta \cdot \text{precipitation} + (\gamma \cdot \text{center pivot}  + \mu)
 \end{aligned}
-\]</span></p>
-<p><span class="math inline">\(\mbox{groundwater use}\)</span>: groundwater use by a farmer for irrigated production</p>
-<p><span class="math inline">\(\mbox{center pivot}\)</span>: 1 if center pivot is used, 0 if flood irrigation (less effective) is used</p>
+</span></p>
+<p><span class="math inline">\text{groundwater use}</span>: groundwater use by a farmer for irrigated production</p>
+<p><span class="math inline">\text{center pivot}</span>: 1 if center pivot is used, 0 if flood irrigation (less effective) is used</p>
 <ul>
 <li>Farmers who have relatively low precipitation during the growing season tend to adopt center pivot more</li>
-<li>center pivot applied water more efficiently than flood irrigation <span class="math inline">\((\gamma &lt; 0)\)</span></li>
+<li>center pivot applied water more efficiently than flood irrigation <span class="math inline">(\gamma &lt; 0)</span></li>
 </ul>
-<p>What is the direction of bias on <span class="math inline">\(\hat{\beta}\)</span>?</p>
+<p>What is the direction of bias on <span class="math inline">\hat{\beta}</span>?</p>
 </div>
 </div>
 </div>
@@ -3894,15 +4055,15 @@ Lecturer transcript
 </summary>
 <p>Here is why signing the bias is worth the effort. The true effect is minus ten, the bias is plus five, so what you actually estimate is minus five. You never see the first two numbers, only the last. But if you can argue the bias is positive, then your estimate of minus five is a conservative one: the truth must be even more negative. So you can say, with a straight face, that the effect is at least this large. The bias worked against you and the result survived anyway.</p>
 </details>
-<p><span class="math display">\[
+<p><span class="math display">
 \begin{aligned}
-\mbox{groundwater use} = \alpha + \beta \cdot \mbox{precipitation} + (\gamma \cdot \mbox{center pivot}  + \mu)
+\text{groundwater use} = \alpha + \beta \cdot \text{precipitation} + (\gamma \cdot \text{center pivot}  + \mu)
 \end{aligned}
-\]</span></p>
+</span></p>
 <ul>
-<li>The true <span class="math inline">\(\beta\)</span> is <span class="math inline">\(-10\)</span> (<span style="color: red;"> you do not observe this </span>)</li>
-<li>The bias on <span class="math inline">\(\widehat{\beta}\)</span> is <span class="math inline">\(5\)</span> (<span style="color: red;"> you do not observe this </span>)</li>
-<li><span class="math inline">\(\widehat{\beta}\)</span> is <span class="math inline">\(-5\)</span> (<span style="color: red;"> you only observe this </span>)</li>
+<li>The true <span class="math inline">\beta</span> is <span class="math inline">-10</span> (<span style="color: red;"> you do not observe this </span>)</li>
+<li>The bias on <span class="math inline">\widehat{\beta}</span> is <span class="math inline">5</span> (<span style="color: red;"> you do not observe this </span>)</li>
+<li><span class="math inline">\widehat{\beta}</span> is <span class="math inline">-5</span> (<span style="color: red;"> you only observe this </span>)</li>
 </ul>
 <p>You believe the direction of bias is positive (you need provide reasoning behind your belief), and yet, the estimated coefficient is still negative. So, you can be quite confident that the sign of the impact of precipitation is negative. You can say your estimate is a conservative estimate of the impact of precipitation on groundwater use.</p>
 </div>
@@ -3913,17 +4074,17 @@ Lecturer transcript
 </summary>
 <p>And here is the case where the same reasoning gives you nothing. True effect minus ten, bias minus five, estimate minus fifteen. Again you see only the last number. But now the bias points the same direction as your finding, so it could be doing all the work. A large enough negative bias could produce a negative estimate even if the truth were positive. Read the last sentence: there is nothing you can do. The direction of the bias determines whether this argument is available to you, and you do not get to choose it.</p>
 </details>
-<p><span class="math display">\[
+<p><span class="math display">
 \begin{aligned}
-\mbox{house price} = \alpha + \beta \cdot \mbox{dist to incinerators} + (\gamma \cdot \mbox{dist to city center}  + \mu)
+\text{house price} = \alpha + \beta \cdot \text{dist to incinerators} + (\gamma \cdot \text{dist to city center}  + \mu)
 \end{aligned}
-\]</span></p>
+</span></p>
 <ul>
-<li>The true <span class="math inline">\(\beta\)</span> is <span class="math inline">\(-10\)</span> (<span style="color: red;"> you do not observe this </span>)</li>
-<li>The bias on <span class="math inline">\(\widehat{\beta}\)</span> is <span class="math inline">\(-5\)</span> (<span style="color: red;"> you do not observe this </span>)</li>
-<li><span class="math inline">\(\widehat{\beta}\)</span> is <span class="math inline">\(-15\)</span> (<span style="color: red;"> you only observe this </span>)</li>
+<li>The true <span class="math inline">\beta</span> is <span class="math inline">-10</span> (<span style="color: red;"> you do not observe this </span>)</li>
+<li>The bias on <span class="math inline">\widehat{\beta}</span> is <span class="math inline">-5</span> (<span style="color: red;"> you do not observe this </span>)</li>
+<li><span class="math inline">\widehat{\beta}</span> is <span class="math inline">-15</span> (<span style="color: red;"> you only observe this </span>)</li>
 </ul>
-<p>You believe the direction of bias is negative, and the estimated coefficient is negative. So, unlike the case above, you cannot be confident that <span class="math inline">\(\widehat{\beta}\)</span> would have been negative if it were not for the bias (by observing dist to city center and include it as a covariate). It is very much possible that the degree of bias is so large that the estimated coefficient turns negative even though the true sign of <span class="math inline">\(\beta\)</span> is positive. In this case, there is nothing you can do.</p>
+<p>You believe the direction of bias is negative, and the estimated coefficient is negative. So, unlike the case above, you cannot be confident that <span class="math inline">\widehat{\beta}</span> would have been negative if it were not for the bias (by observing dist to city center and include it as a covariate). It is very much possible that the degree of bias is so large that the estimated coefficient turns negative even though the true sign of <span class="math inline">\beta</span> is positive. In this case, there is nothing you can do.</p>
 </div>
 </div>
 </div>
@@ -3955,7 +4116,6 @@ Lecturer transcript
   <script src="../../site_libs/revealjs/plugin/notes/notes.js"></script>
   <script src="../../site_libs/revealjs/plugin/search/search.js"></script>
   <script src="../../site_libs/revealjs/plugin/zoom/zoom.js"></script>
-  <script src="../../site_libs/revealjs/plugin/math/math.js"></script>
   <script>window.define = window.backupDefine; window.backupDefine = undefined;</script>
 
   <script>
@@ -4123,27 +4283,9 @@ Lecturer transcript
         // Factor of the display size that should remain empty around the content
         margin: 0.1,
 
-        math: {
-          mathjax: 'https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.9/MathJax.js',
-          config: 'TeX-AMS_HTML-full',
-          tex2jax: {
-            inlineMath: [['\\(','\\)']],
-            displayMath: [['\\[','\\]']],
-            balanceBraces: true,
-            processEscapes: false,
-            processRefs: true,
-            processEnvironments: true,
-            preview: 'TeX',
-            skipTags: ['script','noscript','style','textarea','pre','code'],
-            ignoreClass: 'tex2jax_ignore',
-            processClass: 'tex2jax_process'
-          },
-        },
-
         // reveal.js plugins
         plugins: [QuartoLineHighlight, PdfExport, RevealMenu, QuartoSupport,
 
-          RevealMath,
           RevealNotes,
           RevealSearch,
           RevealZoom

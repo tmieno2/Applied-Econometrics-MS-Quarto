@@ -2,6 +2,7 @@
 title: "08: OLS Asymptotics"
 format: 
   revealjs: 
+    html-math-method: katex
     theme: [default, ../custom.scss, ../notebook.scss]
     fontsize: 1.2em
     callout-icon: false
@@ -9,20 +10,34 @@ format:
     echo: true
     embed-resources: false
     fig-dpi: 400
+    include-in-header:
+      - ../transcript-support.html
+      - ../webr-layout.html
     footer: "[back to course website with lecture slides](https://tmieno2.github.io/Applied-Econometrics-MS-Quarto/lectures/)"
 execute:
   echo: true
-  out-width: 80%
+  out-width: 55%
 webr:
   packages: ['fixest', 'dplyr', 'data.table', 'ggplot2']
   cell-options:
     editor-font-scale: 0.8
+    dpi: 216
+    fig-width: 7
+    fig-height: 4.5
+    out-width: 55%
 filters:
   - webr
   - shinylive
 ---
 
 ## OLS Asymptotics
+
+<details class="transcript">
+<summary>Lecturer transcript</summary>
+
+This lecture changes the question we ask about OLS. Everything so far has been a finite-sample statement: under the Gauss-Markov assumptions the estimator is unbiased and efficient at any sample size, however small. Asymptotic properties ask something different, namely what happens as the sample grows without bound. That may sound like a purely theoretical exercise, but it is the practical foundation for most applied work, because it is what lets us do inference when the normality assumption fails. Two results matter here: consistency, which concerns where the estimator settles, and asymptotic normality, which concerns the shape of its distribution.
+
+</details>
 
 ```{r}
 #| include: false
@@ -33,9 +48,9 @@ library(data.table)
 
 **Large Sample Properties of OLS**
   
-+ Properties of OLS that hold only when the sample size is infinite 
++ Properties that describe the limiting behavior of OLS as the sample size grows
 
-+ (loosely put) How OLS estimators behave when the number of observations goes <span style = "color: blue;"> infinite (really large) </span>
++ These limiting results often provide useful approximations when the sample is <span style = "color: blue;">large</span>
 
 <br>
 
@@ -46,7 +61,7 @@ Under certain conditions:
 + OLS estimators are unbiased
 + OLS estimators are efficient
 
-These hold <span style = "color: blue;"> whatever the sample size is </span>.
+These are finite-sample properties: when their assumptions hold, they apply <span style = "color: blue;">regardless of sample size</span>.
 
 # Consistency
 
@@ -56,9 +71,24 @@ These hold <span style = "color: blue;"> whatever the sample size is </span>.
 
 ### Definition
 
-**Verbally (and very loosely)**
+<details class="transcript">
+<summary>Lecturer transcript</summary>
 
-An estimator is <span style = "color: blue;"> consistent </span> if the probability that the estimator produces the true parameter is 1 when sample size is infinite.
+Consistency is a statement about a sequence of estimators indexed by sample size. Fix any tolerance epsilon, however small. Consistency says the probability that the estimate lands within epsilon of the truth approaches one as n grows. Note what it does not say. It does not promise the estimator is unbiased at any particular n, and it does not promise that the estimate you have in hand is close to the truth. Unbiasedness and consistency are logically distinct: an estimator can be unbiased at every n yet inconsistent, and biased at every n yet consistent.
+
+</details>
+
+**Verbally**
+
+An estimator is <span style = "color: blue;">consistent</span> if it becomes arbitrarily close to the true parameter with probability approaching 1 as the sample size grows.
+
+**Formally**
+
+For every $\varepsilon>0$,
+
+$$P\left(\left|\widehat{\theta}_n-\theta\right|<\varepsilon\right)\longrightarrow 1.$$
+
+We write $\widehat{\theta}_n\overset{p}{\longrightarrow}\theta$.
 
 
 ### MC simulation
@@ -67,13 +97,25 @@ An estimator is <span style = "color: blue;"> consistent </span> if the probabil
 
 #### Setup
 
-OLS estimator of the coefficient on $x$ in the following model with all $MLR.1$ through $MLR.4$ satisfied:
+<details class="transcript">
+<summary>Lecturer transcript</summary>
+
+The simulation setup is deliberately minimal: one regressor, an intercept, and an error that satisfies the zero conditional mean assumption by construction. Because we generate the data ourselves, we know the true beta one is exactly one, and that is the whole advantage of a Monte Carlo experiment. In real data you never see the truth, so you can never check whether your estimator landed near it. Here we can, and we can watch what changes as the sample size grows.
+
+</details>
+
+Consider the OLS estimator of the coefficient on $x$ in the following model, with $MLR.1$ through $MLR.4$ satisfied:
 
 $$y_i = \beta_0 + \beta_1 x_i + u_i$$
 
-with all the conditions necessary for the unbiasedness property of OLS satisfied.
-
 #### Conceptual steps (Pseudo Code)
+
+<details class="transcript">
+<summary>Lecturer transcript</summary>
+
+The pseudo-code is worth reading before the R code. We draw a sample, estimate, and store one coefficient; then we repeat a thousand times to trace out the sampling distribution; and then we do the whole thing again at three different sample sizes. That last step is the one that reveals consistency. A single sampling distribution tells you nothing about limiting behavior. You need to see how the distribution changes as n grows.
+
+</details>
 
 + Generate data according to $y_i = \beta_0 + \beta_1 x_i + u_i$
 + Estimate the coefficients and store them
@@ -82,22 +124,29 @@ with all the conditions necessary for the unbiasedness property of OLS satisfied
 
 **What you should see is**
 
-As $N$ gets larger (more observations), the distribution of $\widehat{\beta}_1$ get more tightly centered around its true value (here, $1$). Eventually, it becomes so tight that the probability you get the true value becomes 1.
+As $N$ gets larger, the distribution of $\widehat{\beta}_1$ becomes more tightly concentrated around its true value (here, $1$). For any fixed margin around 1, the probability that $\widehat{\beta}_1$ falls inside that margin approaches 1.
 
 #### R code
+
+<details class="transcript">
+<summary>Lecturer transcript</summary>
+
+The nested loops implement exactly that. The outer loop walks through the sample sizes and the inner loop runs the thousand replications at each one. Note that we regenerate x and u inside the inner loop, so every replication is a genuinely fresh sample rather than a resampling of one dataset. The storage matrix has one column per sample size, which is the shape the plotting code on the next tab expects.
+
+</details>
 
 ```{webr-r}
 #--- Preparation ---#
 B <- 1000 # the number of iterations
 N_list <- c(100, 1000, 10000) # sample size
 N_len <- length(N_list)
-estimate_storage <- matrix(0, B, 3) # estimates storage
+estimate_storage <- matrix(0, B, N_len) # estimates storage
 
 for (j in 1:N_len) {
   temp_N <- N_list[j]
   for (i in 1:B) {
     #--- generate data ---#
-    x <- rnorm(temp_N) # indep var 1
+    x <- rnorm(temp_N) # independent variable
     u <- rnorm(temp_N) * 0.2 # error
     y <- 1 + x + u # dependent variable 1
     data <- data.frame(y = y, x = x)
@@ -113,8 +162,15 @@ for (j in 1:N_len) {
 
 #### Results
 
+<details class="transcript inline">
+<summary>Lecturer transcript</summary>
+
+Three densities, one per sample size, all centered on the true value of one. What changes is the spread: it tightens as n grows, and it keeps tightening without limit. You can read consistency directly off this picture. Pick any interval around one, however narrow, and the share of the distribution inside it approaches one as the sample grows. Notice also that unbiasedness alone would have given us three densities centered at one with no requirement that they narrow. Consistency is the extra statement about collapsing.
+
+</details>
+
 ```{webr-r}
-plot_data <- melt(data.frame(estimate_storage))
+plot_data <- melt(as.data.table(estimate_storage), measure.vars = 1:N_len)
 
 #--- create a figure ---#
 g_co_ex <-
@@ -126,6 +182,7 @@ g_co_ex <-
     name = "Sample Size",
     labels = c("N=100 ", "N=1,000 ", "N=10,000")
   ) +
+  theme_bw(base_size = 30) +
   theme(
     legend.position = "bottom"
   )
@@ -135,35 +192,50 @@ g_co_ex
 
 **Consistency of OLS estimators**
 
-Under $MLR.1$ through $MLR.4$, OLS estimators are consistent
+Under $MLR.1$ through $MLR.4$, OLS estimators are consistent.
 
 :::
 <!--end of panel-->
 
-### MC simualation: Inconsistency
+### MC simulation: Inconsistency
 
 ::: {.panel-tabset}
 
 #### Conceptual steps (Pseudo Code)
 
+<details class="transcript">
+<summary>Lecturer transcript</summary>
+
+Now we break the key assumption on purpose and ask whether more data can rescue us. The question on this slide is one students often get wrong, because a good deal of informal advice suggests that large samples cure most problems. They do not cure this one. Commit to an answer before running the code, then check it against the picture.
+
+</details>
+
 **Pseudo Code**
 
-+ generate data ($N$ observations) according to $y_i = \beta_0 + \beta_1 x_i + u_i$ with $E[u_i|x_i]\ne 0$
++ Generate data ($N$ observations) according to $y_i = \beta_0 + \beta_1 x_i + u_i$ with $E[u_i\mid x_i]\ne 0$
 + Estimate the coefficients and store them
-+ repeat the above experiment 1000 times
-+ examine how the coefficient estimates are distributed
++ Repeat the above experiment 1000 times
++ Examine how the coefficient estimates are distributed
 
 **Question**
 
-Would the bias disappear as N gets larger?
+Does the bias disappear as $N$ gets larger?
 
 #### R code
 
+<details class="transcript">
+<summary>Lecturer transcript</summary>
+
+The mechanism is the shared component mu, which enters both x and u. That is what makes x endogenous: it carries information about the error term. Everything else about the simulation is unchanged from the consistent case. Because we built the correlation ourselves, we can compute exactly what the estimator converges to, which is what the results tab reports.
+
+</details>
+
 ```{webr-r}
 #--- Preparation ---#
+B <- 1000 # the number of iterations
 N_list <- c(100, 1000, 10000) # sample size
 N_len <- length(N_list)
-estimate_storage <- matrix(0, B, 3) # estimates storage
+estimate_storage <- matrix(0, B, N_len) # estimates storage
 
 for (j in 1:N_len) {
   temp_N <- N_list[j]
@@ -186,24 +258,44 @@ for (j in 1:N_len) {
 
 #### Results
 
+<details class="transcript inline">
+<summary>Lecturer transcript</summary>
+
+The distributions narrow just as before, but they narrow around one point two rather than around one. The dashed line is the truth and the solid line is the probability limit, which works out to one plus the covariance of x and u over the variance of x, or one plus zero point two five over one point two five. This is the central lesson of the section: more data buys precision, not correctness. A large sample gives you a very tight confidence interval around the wrong number.
+
+</details>
+
 ```{webr-r}
 #--- wide to long format ---#
-plot_data <- melt(data.frame(estimate_storage))
+plot_data <- melt(as.data.table(estimate_storage), measure.vars = 1:N_len)
 
 #--- create a figure ---#
 g_inco_ex <- ggplot(data = plot_data) +
   geom_density(aes(x = value, fill = variable), alpha = 0.4) +
-  geom_vline(xintercept = 1) +
+  geom_vline(xintercept = 1, linetype = "dashed") +
+  geom_vline(xintercept = 1.2) +
   scale_fill_discrete(
     name = "Sample Size",
     labels = c("N=100 ", "N=1,000 ", "N=10,000")
   ) +
+  theme_bw(base_size = 30) +
   theme(
     legend.position = "bottom"
   )
 
 g_inco_ex
 ```
+
+The dashed line is the true coefficient, $\beta_1=1$. The solid line is the probability limit:
+
+$$
+\operatorname{plim}(\widehat{\beta}_1)
+=1+\frac{Cov(x,u)}{Var(x)}
+=1+\frac{0.25}{1.25}
+=1.2.
+$$
+
+As $N$ grows, the sampling distribution becomes narrower around 1.2—not around the true value of 1. More data reduce sampling variation but do not remove this endogeneity bias.
 
 :::
 <!--end of panel-->
@@ -221,43 +313,57 @@ g_inco_ex
 
 ### Normality assumption
 
+<details class="transcript">
+<summary>Lecturer transcript</summary>
+
+Recall where MLR.6 was actually used. It was not needed for unbiasedness, and it was not needed for the Gauss-Markov theorem. It was needed to claim that the t-statistic follows an exact t distribution in a finite sample. Normality of the error is a strong assumption, and for outcomes such as wages or firm sales it is plainly false. So the question is whether inference survives without it. The answer is yes, asymptotically, and the central limit theorem is what delivers that.
+
+</details>
+
 When we talked about hypothesis testing, we made the following assumption:
 
 <br>
 
 **Normality assumption**
 
-The population error $u$ is <span style = "color: blue;">independent</span> of the explanatory variables $x_1,\dots,x_k$ and is <span style = "color: blue;">normally</span> distributed with zero mean and variance $\sigma^2$: 
+The population error $u$ is <span style = "color: blue;">independent</span> of the explanatory variables $x_1,\dots,x_k$ and is <span style = "color: blue;">normally</span> distributed with zero mean and variance $\sigma^2$:
 
-$u\sim Normal(0,\sigma^2)$ 
+$u\sim N(0,\sigma^2)$
 
 <br>
 
 **Remember**
 
-+ If the normality assumption is violated, t-statistic and F-statistic we constructed before are no longer distributed as t-distribution and F-distribution, respectively
++ Without the normality assumption, the t- and F-statistics constructed earlier do not have exact t and F distributions in finite samples
 
-+ So, whenever $MLR.6$ is violated, our t- and F-tests are invalid
++ Therefore, their exact finite-sample tests are no longer justified
 
 <br>
 
 **Fortunately**
 
-You can continue to use t- and F-tests because (slightly transformed) OLS estimators are <span style = "color: blue;">approximately</span> normally distributed when the sample size is <span style = "color: blue;">large enough</span>.
+Under the assumptions developed below, suitably standardized OLS estimators are <span style = "color: blue;">approximately</span> normally distributed when the sample size is <span style = "color: blue;">large enough</span>. This supports approximate large-sample inference without $MLR.6$.
 
 ### Central Limit Theorem (CLT)
 
-:::{.callout-note title="Central Limit Theorem"}
-Suppose $\{x_1,x_2,\dots\}$ is a sequence of idetically independently distributed random variables with $E[x_i]=\mu$ and $Var[x_i]=\sigma^2<\infty$. Then, as $n$ approaches infinity, 
+<details class="transcript">
+<summary>Lecturer transcript</summary>
 
-$$\sqrt{n}(\frac{1}{n} \sum_{i=1}^n x_i-\mu)\overset{d}{\longrightarrow} N(0,\sigma^2)$$
+The central limit theorem says a suitably standardized sample mean converges in distribution to a normal, whatever the distribution of the underlying draws, provided the variance is finite. Both operations in the standardization matter. Centering at mu removes the location, and multiplying by root n counteracts the fact that the sample mean's variance shrinks at rate one over n. Without the root n scaling, the distribution would simply collapse to a point and there would be no shape left to describe.
+
+</details>
+
+::: {.callout-note title="Central Limit Theorem"}
+Suppose $\{x_1,x_2,\dots\}$ is a sequence of independent and identically distributed random variables with $E[x_i]=\mu$ and $Var(x_i)=\sigma^2<\infty$. Then, as $n$ approaches infinity,
+
+$$\sqrt{n}\left(\frac{1}{n} \sum_{i=1}^n x_i-\mu\right)\overset{d}{\longrightarrow} N(0,\sigma^2).$$
 :::
 
 <br>
 
 **Verbally**
 
-Sample mean less its expected value multiplied by $\sqrt{n}$ (square root of the sample size) is going to be distributed as Normal distribution as $n$ goes infinity where its expected value is 0 and variance is the variance of $x$.
+After centering the sample mean at $\mu$ and scaling it by $\sqrt{n}$, its distribution approaches a normal distribution with mean 0 and variance $\sigma^2$.
 
 ### Demonstration
 
@@ -265,14 +371,21 @@ Sample mean less its expected value multiplied by $\sqrt{n}$ (square root of the
 
 #### Example
 
+<details class="transcript">
+<summary>Lecturer transcript</summary>
+
+Bernoulli draws make the point vividly, because nothing could look less normal than a variable taking only the values zero and one. The mean is p and the variance is p times one minus p, which is zero point two one here. Run the small cell to see ten draws and the transformed sample mean for a single replication. One number tells you nothing; the demonstration on the next tab repeats it five thousand times.
+
+</details>
+
 ::: {.columns}
 
 ::: {.column width="50%"}
 **Setup**
 
-Conside a random variable ($x$) that follows Bernouli distribution with $p = 0.3$. That is, it takes 0 and 1 with probability of 0.7 and 0.3, respectively.
+Consider a random variable $x$ that follows a Bernoulli distribution with $p=0.3$. It equals 1 with probability 0.3 and 0 with probability 0.7.
 
-$x_i \sim Bern(p = 0.3)$
+$x_i \sim \operatorname{Bernoulli}(p=0.3)$
 
 + $\mu = E[x_i] = p = 0.3$
 + $\sigma^2 \equiv Var[x_i] = p(1-p) = 0.21$
@@ -280,12 +393,12 @@ $x_i \sim Bern(p = 0.3)$
 <!--end of the 1st column-->
 ::: {.column width="50%"}
 
-This is what 10 random draws and the transformed version of their sum look like:
+This is what 10 random draws and the transformed sample mean look like:
 
 ```{webr-r}
 #| autorun: true
 (
-x <- runif(10) < 0.3
+x <- rbinom(10, size = 1, prob = 0.3)
 )
 
 sqrt(10) * (mean(x) - 0.3)
@@ -301,18 +414,25 @@ sqrt(10) * (mean(x) - 0.3)
 
 **According to CLT**
 
-$\sqrt{n}(\frac{1}{n} \sum_{i=1}^n x_i-\mu)\overset{d}{\longrightarrow} N(0,\sigma^2)$ 
+$\sqrt{n}\left(\frac{1}{n} \sum_{i=1}^n x_i-\mu\right)\overset{d}{\longrightarrow} N(0,\sigma^2)$
 
 <br>
 
 **So,**
 
-$\sqrt{n}(\frac{1}{n} \sum_{i=1}^n x_i-0.3)\overset{d}{\longrightarrow} N(0,0.21)$
+$\sqrt{n}\left(\frac{1}{n} \sum_{i=1}^n x_i-0.3\right)\overset{d}{\longrightarrow} N(0,0.21)$
 
 
 #### Demonstration
 
-In each of the 5000 iterations, this application draws the number of samples you specify ($N$) from $x_i \sim Bern(p=0.3)$ and then calculate $\sqrt{N}(\frac{1}{N} \sum_{i=1}^N x_i-0.3)$. Then the histogram of the 5000 values is presented.
+<details class="transcript inline">
+<summary>Lecturer transcript</summary>
+
+Move the sample size slider and watch the histogram. At very small N the transformed mean takes only a handful of discrete values and looks nothing like the red normal curve. As N grows, the gaps fill in and the histogram settles onto the limiting density. Notice that the limiting variance never changes with N; it stays fixed at zero point two one. Convergence here is about the shape of the distribution, not about it becoming narrower.
+
+</details>
+
+In each of 5000 iterations, this application draws the number of observations you specify ($N$) from $x_i\sim\operatorname{Bernoulli}(0.3)$ and calculates $\sqrt{N}(\bar{x}-0.3)$. The histogram shows the resulting 5000 values; the red curve is the limiting $N(0,0.21)$ density.
 
 <br>
 
@@ -330,7 +450,7 @@ ui <- page_sidebar(
   sidebar = sidebar(
     numericInput("n_samples",
         "Number of samples:",
-        min = 1, max = 100000, value = 10, step = 100
+        min = 1, max = 100000, value = 10, step = 10
       ),
     br(),
     actionButton("simulate", "Simulate"),
@@ -346,33 +466,27 @@ server <- function(input, output) {
       N <- input$n_samples # number of observations #<<
       B <- 5000 # number of iterations
       p <- 0.3 # mean of the Bernoulli distribution
-      storage <- rep(0, B)
-
-      for (i in 1:B) {
-        #--- draw from Bern[0.3] (x distributed as Bern[0.3]) ---#
-        x_seq <- runif(N) <= p
-
-        #--- sample mean ---#
-        x_mean <- mean(x_seq)
-
-        #--- normalize ---#
-        lhs <- sqrt(N) * (x_mean - p)
-
-        #--- save lhs to storage ---#
-        storage[i] <- lhs
-      }
+      successes <- rbinom(B, size = N, prob = p)
+      storage <- sqrt(N) * (successes / N - p)
 
       #--- create a figure to present ---#
       ggplot() +
         geom_histogram(
           data = data.frame(x = storage),
-          aes(x = x),
-          color = "blue",
-          fill = "gray"
+          aes(x = x, y = after_stat(density)),
+          bins = 30,
+          color = "navy",
+          fill = "gray80"
         ) +
-        xlab("Transformed version of sample mean") +
-        ylab("Count") +
-        theme_bw()
+        geom_function(
+          fun = dnorm,
+          args = list(mean = 0, sd = sqrt(p * (1 - p))),
+          color = "red",
+          linewidth = 1
+        ) +
+        xlab(expression(sqrt(N) * (bar(x) - 0.3))) +
+        ylab("Density") +
+        theme_bw(base_size = 30)
     })
   })
 }
@@ -390,39 +504,57 @@ shinyApp(ui = ui, server = server)
 
 #### Asymptotic normality
 
-Under assumptions $MLR.1$ through $MLR.5$, with <span style = "color: red;"> any </span> distribution of the error term (the normality assumption of the error term not necessary), OLS estimator is asymptotically normally distributed. 
+<details class="transcript">
+<summary>Lecturer transcript</summary>
+
+Here is the result applied to OLS. The scaled and centered estimator converges in distribution to a normal whose variance involves sigma squared over a term built from the part of x j that is unrelated to the other regressors. That residual variation term should look familiar: it is the same quantity that governs multicollinearity, which is why a regressor well explained by the others is estimated imprecisely. Crucially, MLR.6 appears nowhere in this result. Normality of the error has been replaced by a limiting argument.
+
+</details>
+
+Under assumptions $MLR.1$ through $MLR.5$, the OLS estimator is asymptotically normally distributed even when the error is not normally distributed.
 
 <br>
 
 **Asymptotic Normality of OLS**
 
-$\sqrt{n}(\widehat{\beta}_j-\beta_j)\overset{a}{\longrightarrow} N(0,\sigma^2/\alpha_j^2)$
+$\sqrt{n}(\widehat{\beta}_j-\beta_j)\overset{d}{\longrightarrow} N(0,\sigma^2/\alpha_j^2)$
 
-where $\alpha_j^2=plim(\frac{1}{n}\sum_{i=1}^n r^2_{i,j})$, where $r^2_{i,j}$ are the residuals from regressing $x_j$ on the other independent variables.
+where
+
+$$\alpha_j^2=\operatorname{plim}\left(\frac{1}{n}\sum_{i=1}^n r_{ij}^2\right),$$
+
+and $r_{ij}$ is the residual from regressing $x_j$ on the other independent variables (and an intercept).
 
 <br>
 
 **Consistency**
 
-$\widehat{\sigma}^2\equiv \frac{1}{n-k-1}\sum_{i=1}^n \widehat{u}_i^2$ is a consistent estimator of of $\sigma^2$ $(Var(u))$
+$\widehat{\sigma}^2\equiv \frac{1}{n-k-1}\sum_{i=1}^n \widehat{u}_i^2$ is a consistent estimator of $\sigma^2$ under $MLR.1$ through $MLR.5$.
 
-#### test-statistic (small v.s. large sample)
+#### Test statistic (small vs. large sample)
+
+<details class="transcript">
+<summary>Lecturer transcript</summary>
+
+This slide is worth memorizing as a pair. In the top block, with the normality assumption, both statements are exact and hold at any sample size, and the second uses the t distribution because we had to estimate sigma. In the bottom block, without normality, both statements are limiting approximations and the t distribution has been replaced by the standard normal. The same formulas, but a different justification and a different scope.
+
+</details>
 
 **Small sample (any sample size)**
 
-Under $MLR.1$ through $MLR.5$ <span style = "color: blue;">and</span> $MLR.6$ $(u_i\sim N(0,\sigma^2))$,
+Under $MLR.1$ through $MLR.5$ <span style = "color: blue;">and</span> $MLR.6$,
 
-+ $(\widehat{\beta}_j-\beta_j)/se(\widehat{\beta}_j) \sim N(0,1)$
-+ $(\widehat{\beta}_j-\beta_j)/\widehat{se(\widehat{\beta}_j)} \sim t_{n-k-1}$
++ $(\widehat{\beta}_j-\beta_j)/\operatorname{sd}(\widehat{\beta}_j\mid X) \sim N(0,1)$
++ $(\widehat{\beta}_j-\beta_j)/\widehat{\operatorname{se}}(\widehat{\beta}_j) \sim t_{n-k-1}$
 
 <br>
 
-**Large sample (when $n$ goes infinity)**
+**Large sample (as $n\to\infty$)**
 
 Under $MLR.1$ through $MLR.5$ <span style = "color: blue;">without</span> $MLR.6$,
 
-+ $(\widehat{\beta}_j-\beta_j)/se(\widehat{\beta}_j) \overset{a}{\longrightarrow} N(0,1)$ 
-+ $(\widehat{\beta}_j-\beta_j)/\widehat{se(\widehat{\beta}_j)} \overset{a}{\longrightarrow} N(0,1)$ 
++ $(\widehat{\beta}_j-\beta_j)/\operatorname{sd}(\widehat{\beta}_j\mid X) \overset{d}{\longrightarrow} N(0,1)$
++ $(\widehat{\beta}_j-\beta_j)/\widehat{\operatorname{se}}(\widehat{\beta}_j) \overset{d}{\longrightarrow} N(0,1)$
 :::
 <!--end of panel-->
 
@@ -438,21 +570,35 @@ Under $MLR.1$ through $MLR.5$ <span style = "color: blue;">without</span> $MLR.6
 
 ### How?
 
+<details class="transcript">
+<summary>Lecturer transcript</summary>
+
+The practical procedure is unchanged: form the t-statistic exactly as before and compare it with a critical value. What has changed is where the critical value comes from in principle. Asymptotic theory calls for a standard normal, whereas the finite-sample theory called for a t. The natural question is whether that difference matters in practice, and the next tab answers it.
+
+</details>
+
 **It turns out,**
 
-You can proceed exactly the same way as you did before (practically speaking)!!
+For a two-sided test of $H_0:\beta_j=\beta_{j,0}$, you can proceed much as before:
 
-+ calculate $(\widehat{\beta}_j-\beta_j)/\widehat{se(\widehat{\beta}_j)}$
++ Calculate $t_j=(\widehat{\beta}_j-\beta_{j,0})/\widehat{\operatorname{se}}(\widehat{\beta}_j)$.
 
-+ check if the obtained value is greater than (in magnitude) the critical value for the specified significance level under $t_{n-k-1}$
++ Reject at significance level $\alpha$ if $|t_j|$ exceeds the $1-\alpha/2$ critical value.
 
 <br>
 
 **But,**
 
-Shouldn't we use $N(0,1)$ when you find the critical value?
+Shouldn't we use $N(0,1)$ to find the critical value?
 
 ### t-distribution and normal distribution
+
+<details class="transcript inline">
+<summary>Lecturer transcript</summary>
+
+The figure answers it. At two degrees of freedom the t distribution has visibly fatter tails than the normal, but by thirty degrees of freedom the curves are nearly indistinguishable, and by fifty you cannot separate them by eye. So in any sample large enough for the asymptotic argument to be credible, the t critical value your software prints is effectively the normal one. In practice you simply read the p-values the software gives you.
+
+</details>
 
 ```{r echo = F, out.width = "80%"}
 x <- seq(-3, 3, length = 1000)
@@ -475,7 +621,7 @@ plot_data <- data.table(
 ggplot(data = plot_data) +
   geom_line(aes(y = value, x = x, color = variable)) +
   scale_color_discrete(name = "", guide = guide_legend(nrow = 2)) +
-  theme_bw() +
+  theme_bw(base_size = 30) +
   theme(
     legend.position = "bottom"
   )
@@ -483,27 +629,23 @@ ggplot(data = plot_data) +
 
 <br>
 
-Since $t_{n-k-1}$ and $N(0,1)$ are almost identical when $n$ is large, there is very little error in using $t_{n-k-1}$ instead of $N(0,1)$ to find the critical value.
+The asymptotic theory calls for a standard-normal critical value. Because $t_{n-k-1}$ approaches $N(0,1)$ as its degrees of freedom grow, using the corresponding t critical value makes very little difference in a large sample.
 
 
-### non-homosketastic error case
+### Heteroskedastic errors
 
-::: {.columns}
+<details class="transcript">
+<summary>Lecturer transcript</summary>
 
-::: {.column width="70%"}
-The consistency of the default estimation of $\widehat{Var(\widehat{\beta})}$ <span style = "color: red;"> DOES </span> require the homoskedasticity assumption (MLR.5).
+One warning to close on. Asymptotics rescues you from the normality assumption, but not from the homoskedasticity assumption. The default variance estimator is built on MLR.5, and if the errors are heteroskedastic that estimator stays inconsistent no matter how much data you collect. This is not a small-sample problem that fades away; it is the wrong formula. So use heteroskedasticity-robust standard errors as your default, and cluster them when observations are dependent within groups.
 
-In other words, the problem of using the default variance estimator under the hteroskedasticity does not go away even when the sample size is large. 
+</details>
 
-So, we should use heteroskedasticity-robust or cluster-robust standard error estimators even when the sample size is large
-:::
-<!--end of the 1st column-->
-::: {.column width="30%"}
+The consistency of the default estimator of $Var(\widehat{\beta})$ <span style = "color: red;">does</span> require the homoskedasticity assumption ($MLR.5$).
 
-:::
-<!--end of the 2nd column-->
-:::
-<!--end of the columns-->
+In other words, using the default variance estimator under heteroskedasticity remains a problem even when the sample size is large.
+
+Use heteroskedasticity-robust standard errors with independent observations. When observations may be dependent within groups, use standard errors clustered at the appropriate level.
 
 
 :::

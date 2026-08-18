@@ -94,7 +94,23 @@
     code span.vs { color: #20794d; } /* VerbatimString */
     code span.wa { color: #5e5e5e; font-style: italic; } /* Warning */
   </style>
-  <link rel="stylesheet" href="../../site_libs/revealjs/dist/theme/quarto-efe7f97d24ea27507c65df08cab6e7d6.css">
+  <link rel="stylesheet" href="../../site_libs/revealjs/dist/theme/quarto-db62157d6cf4bc51d0b25352aea75d23.css">
+  <script>window.backupDefine = window.define; window.define = undefined;</script><script src="https://cdn.jsdelivr.net/npm/katex@latest/dist/katex.min.js"></script>
+  <script>document.addEventListener("DOMContentLoaded", function () {
+ var mathElements = document.getElementsByClassName("math");
+ var macros = [];
+ for (var i = 0; i < mathElements.length; i++) {
+  var texText = mathElements[i].firstChild;
+  if (mathElements[i].tagName == "SPAN") {
+   katex.render(texText.data, mathElements[i], {
+    displayMode: mathElements[i].classList.contains('display'),
+    throwOnError: false,
+    macros: macros,
+    fleqn: false
+   });
+}}});
+  </script>
+  <script>window.define = window.backupDefine; window.backupDefine = undefined;</script><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@latest/dist/katex.min.css">
   <link href="../../site_libs/revealjs/plugin/quarto-line-highlight/line-highlight.css" rel="stylesheet">
   <link href="../../site_libs/revealjs/plugin/reveal-menu/menu.css" rel="stylesheet">
   <link href="../../site_libs/revealjs/plugin/reveal-menu/quarto-menu.css" rel="stylesheet">
@@ -360,6 +376,151 @@
       var el = e.target;
       if (el && el.closest && el.closest('.panel-tabset [role="tab"]')) closeAll();
     }, true);
+  })();
+  </script>
+  <!-- Adaptive code/output layout for WebR cells in revealjs lecture decks. -->
+  <script>
+  (function () {
+    "use strict";
+
+    var MAX_CODE_LINES = 12;
+    var MAX_CODE_SHARE = 0.58;
+    var MIN_CODE_SHARE = 0.30;
+    var MAX_OUTPUT_SHARE = 0.70;
+
+    function detailsFor(area) {
+      var match = area.id && area.id.match(/qwebr-interactive-area-(\d+)/);
+      if (!match || !globalThis.qwebrCellDetails) return null;
+      return globalThis.qwebrCellDetails[Number(match[1]) - 1] || null;
+    }
+
+    function codeMetrics(code) {
+      var lines = String(code || "").split("\n");
+      var substantive = lines.filter(function (line) {
+        return line.trim() && !/^\s*#/.test(line);
+      });
+      return {
+        lines: substantive.length,
+        maxChars: lines.reduce(function (n, line) {
+          return Math.max(n, line.replace(/\t/g, "  ").length);
+        }, 0)
+      };
+    }
+
+    function setTracks(host, codeShare) {
+      codeShare = Math.max(MIN_CODE_SHARE, Math.min(MAX_CODE_SHARE, codeShare));
+      var outputShare = 1 - codeShare;
+      host.style.setProperty("--webr-code-track", codeShare + "fr");
+      host.style.setProperty("--webr-output-track", outputShare + "fr");
+      host.style.setProperty("--webr-code-share", (codeShare * 100) + "%");
+    }
+
+    function measureRenderedCode(area, host, code, attempt) {
+      if (host.dataset.webrLayout !== "side") return;
+      var sample = area.querySelector(".view-line, .monaco-editor");
+      if (!sample || !area.clientWidth) {
+        if (attempt < 20) setTimeout(function () {
+          measureRenderedCode(area, host, code, attempt + 1);
+        }, 100);
+        return;
+      }
+      var style = getComputedStyle(sample);
+      var canvas = document.createElement("canvas");
+      var context = canvas.getContext("2d");
+      context.font = [style.fontStyle, style.fontWeight, style.fontSize,
+        style.fontFamily].filter(Boolean).join(" ");
+      var widest = String(code || "").split("\n").reduce(function (width, line) {
+        return Math.max(width, context.measureText(line.replace(/\t/g, "  ")).width);
+      }, 0);
+      // Monaco's line-number gutter, padding, and scrollbar need about 76px in
+      // addition to the measured glyph width.
+      var available = Math.max(1, area.clientWidth - 16);
+      setTracks(host, (widest + 76) / available);
+    }
+
+    function stack(host) {
+      if (host.dataset.webrLayoutManual === "true") return;
+      host.classList.remove("side-out");
+      host.dataset.webrLayout = "stacked";
+    }
+
+    function assessOutput(area, host, metrics) {
+      if (host.dataset.webrLayout !== "side") return;
+      var graph = area.querySelector(".qwebr-output-graph-area canvas, .qwebr-output-graph-area img");
+      if (graph) return; // plots scale cleanly within their grid track
+
+      var pre = area.querySelector(".qwebr-output-code-area pre");
+      if (!pre || getComputedStyle(pre).visibility === "hidden") return;
+
+      var codeNeed = Math.max(MIN_CODE_SHARE,
+        Math.min(MAX_CODE_SHARE, (metrics.maxChars + 8) / 150));
+      var available = Math.max(1, area.clientWidth - 16);
+      var outputNeed = Math.min(MAX_OUTPUT_SHARE,
+        Math.max(0.42, (pre.scrollWidth + 24) / available));
+      var outputLines = (pre.innerText || "").split("\n").length;
+
+      // If both measured widths cannot coexist, or the console result is too
+      // tall to read as a right-hand panel, retain WebR's original vertical stack.
+      if (codeNeed + outputNeed > 1 || outputLines > 16 ||
+          pre.scrollHeight > area.ownerDocument.documentElement.clientHeight * 0.62) {
+        stack(host);
+        return;
+      }
+
+      setTracks(host, 1 - outputNeed);
+      requestAnimationFrame(function () {
+        if (pre.scrollWidth > pre.clientWidth * 1.08) stack(host);
+      });
+    }
+
+    function configure(area) {
+      if (area.dataset.webrLayoutChecked === "true") return;
+      area.dataset.webrLayoutChecked = "true";
+
+      var details = detailsFor(area);
+      if (!details || !details.options || details.options.context === "setup") return;
+      var metrics = codeMetrics(details.code);
+      if (!metrics.lines || metrics.lines > MAX_CODE_LINES || metrics.maxChars > 88) return;
+
+      var existingWrapper = area.closest(".side-out");
+      var host = existingWrapper || area.closest(".cell") || area.parentElement;
+      if (!host) return;
+
+      if (existingWrapper) {
+        host.dataset.webrLayoutManual = "true";
+      } else {
+        host.classList.add("side-out");
+      }
+      host.dataset.webrLayout = "side";
+
+      // Estimate an initial split from the longest source line. The output is
+      // intentionally favoured; actual output dimensions refine it after a run.
+      var initialCodeShare = (metrics.maxChars + 10) / 145;
+      setTracks(host, initialCodeShare);
+      measureRenderedCode(area, host, details.code, 0);
+
+      var observer = new MutationObserver(function () {
+        requestAnimationFrame(function () { assessOutput(area, host, metrics); });
+      });
+      observer.observe(area, { childList: true, subtree: true, characterData: true,
+        attributes: true, attributeFilter: ["style", "class"] });
+      requestAnimationFrame(function () { assessOutput(area, host, metrics); });
+    }
+
+    function scan() {
+      document.querySelectorAll(".qwebr-interactive-area").forEach(configure);
+    }
+
+    var pageObserver = new MutationObserver(scan);
+    function start() {
+      scan();
+      pageObserver.observe(document.body, { childList: true, subtree: true });
+    }
+    if (document.readyState === "loading") {
+      document.addEventListener("DOMContentLoaded", start, { once: true });
+    } else {
+      start();
+    }
   })();
   </script>
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/monaco-editor@0.47.0/min/vs/editor/editor.main.css">
@@ -652,7 +813,7 @@
   };
 
   // Store cell data
-  globalThis.qwebrCellDetails = [{"code":"1 - pnorm(1)","id":1,"options":{"autorun":"false","classes":"","comment":"","context":"interactive","dpi":72,"editor-font-scale":"0.8","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":5,"fig-width":7,"label":"unnamed-chunk-1","message":"true","out-height":"","out-width":"700px","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"#--- get the data ---#\ndata(\"wage1\", package = \"wooldridge\")\n\n#--- run a regression ---#\nreg_wage <- feols(wage ~ educ + exper + tenure, data = wage1)","id":2,"options":{"autorun":"true","classes":"","comment":"","context":"interactive","dpi":72,"editor-font-scale":"0.8","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":5,"fig-width":7,"label":"unnamed-chunk-2","message":"true","out-height":"","out-width":"700px","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"#* tidy up the regression results\nreg_results_table <- broom::tidy(reg_wage)\n\n#* display\nreg_results_table","id":3,"options":{"autorun":"true","classes":"","comment":"","context":"interactive","dpi":72,"editor-font-scale":"0.8","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":5,"fig-width":7,"label":"unnamed-chunk-3","message":"true","out-height":"","out-width":"700px","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"#--- coefficient estimate on educ ---#\nbeta_educ <-\n  reg_results_table %>%\n  filter(term == \"educ\") %>%\n  pull(estimate)\n\n#--- se of the coefficient on educ ---#\nse_beta_educ <-\n  reg_results_table %>%\n  filter(term == \"educ\") %>%\n  pull(std.error)\n\n#--- get the t-value ---#\n(\n  t_value <- (beta_educ - 1) / se_beta_educ\n)","id":4,"options":{"autorun":"false","classes":"","comment":"","context":"interactive","dpi":72,"editor-font-scale":"0.8","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":5,"fig-width":7,"label":"unnamed-chunk-4","message":"true","out-height":"","out-width":"700px","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"(\n  df_t <- degrees_freedom(reg_wage, \"resid\")\n)","id":5,"options":{"autorun":"false","classes":"","comment":"","context":"interactive","dpi":72,"editor-font-scale":"0.8","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":5,"fig-width":7,"label":"unnamed-chunk-5","message":"true","out-height":"","out-width":"700px","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"(\n  critical_value <- qt(0.975, df = df_t)\n)","id":6,"options":{"autorun":"false","classes":"","comment":"","context":"interactive","dpi":72,"editor-font-scale":"0.8","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":5,"fig-width":7,"label":"unnamed-chunk-6","message":"true","out-height":"","out-width":"700px","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"wage_reg <- feols(wage ~ educ + exper + tenure, data = wage1)","id":7,"options":{"autorun":"true","classes":"","comment":"","context":"interactive","dpi":72,"editor-font-scale":"0.8","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":5,"fig-width":7,"label":"unnamed-chunk-7","message":"true","out-height":"","out-width":"700px","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"(\nwage_reg_coef <- broom::tidy(wage_reg)\n)","id":8,"options":{"autorun":"true","classes":"","comment":"","context":"interactive","dpi":72,"editor-font-scale":"0.8","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":5,"fig-width":7,"label":"unnamed-chunk-8","message":"true","out-height":"","out-width":"700px","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"qt(0.05, df = 522)\nqt(0.95, df = 522)","id":9,"options":{"autorun":"false","classes":"","comment":"","context":"interactive","dpi":72,"editor-font-scale":"0.8","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":5,"fig-width":7,"label":"unnamed-chunk-9","message":"true","out-height":"","out-width":"700px","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"broom::tidy(\n    wage_reg, \n    conf.int = TRUE, \n    conf.level = 0.9\n  ) %>%\n  dplyr::relocate(term, conf.low, conf.high)","id":10,"options":{"autorun":"false","classes":"","comment":"","context":"interactive","dpi":72,"editor-font-scale":"0.8","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":5,"fig-width":7,"label":"unnamed-chunk-10","message":"true","out-height":"","out-width":"700px","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"#--- import data ---#\ndata(\"twoyear\", package = \"wooldridge\")\n\n(\nreg_sc <- fixest::feols(lwage ~ jc + univ + exper, data = twoyear) # OLS\n)","id":11,"options":{"autorun":"true","classes":"","comment":"","context":"interactive","dpi":72,"editor-font-scale":"0.8","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":5,"fig-width":7,"label":"unnamed-chunk-11","message":"true","out-height":"","out-width":"700px","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"(\nvcov_sc <- vcov(reg_sc) # variance covariance matrix\n)","id":12,"options":{"autorun":"true","classes":"","comment":"","context":"interactive","dpi":72,"editor-font-scale":"0.8","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":5,"fig-width":7,"label":"unnamed-chunk-12","message":"true","out-height":"","out-width":"700px","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"#--- reg results ---#\nreg_sc_td <- broom::tidy(reg_sc)\n\n#--- get coefficients ---#\nbeta_jc <-\n  reg_sc_td %>%\n  filter(term == \"jc\") %>%\n  pull(estimate)\n\nbeta_univ <-\n  reg_sc_td %>%\n  filter(term == \"univ\") %>%\n  pull(estimate)","id":13,"options":{"autorun":"true","classes":"","comment":"","context":"interactive","dpi":72,"editor-font-scale":"0.8","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":5,"fig-width":7,"label":"unnamed-chunk-13","message":"true","out-height":"","out-width":"700px","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"numerator <- beta_jc - beta_univ\ndenominator <-\n  sqrt(\n    vcov_sc[\"jc\", \"jc\"] - 2 * vcov_sc[\"jc\", \"univ\"] + vcov_sc[\"univ\", \"univ\"]\n  )\nt_stat <- numerator / denominator\nt_stat","id":14,"options":{"autorun":"true","classes":"","comment":"","context":"interactive","dpi":72,"editor-font-scale":"0.8","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":5,"fig-width":7,"label":"unnamed-chunk-14","message":"true","out-height":"","out-width":"700px","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"car::linearHypothesis(reg_sc, \"jc=univ\")","id":15,"options":{"autorun":"true","classes":"","comment":"","context":"interactive","dpi":72,"editor-font-scale":"0.8","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":5,"fig-width":7,"label":"unnamed-chunk-15","message":"true","out-height":"","out-width":"700px","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"t_stat^2","id":16,"options":{"autorun":"true","classes":"","comment":"","context":"interactive","dpi":72,"editor-font-scale":"0.8","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":5,"fig-width":7,"label":"unnamed-chunk-16","message":"true","out-height":"","out-width":"700px","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"#--- load the mlb data ---#\ndata(\"mlb1\", package = \"wooldridge\")\n\n#--- run a rergession ---#\nmlb_reg <- fixest::feols(log(salary) ~ years + gamesyr + bavg\n  + hrunsyr + rbisyr, data = mlb1)\n\n#--- take a look at the results ---#\nbroom::tidy(mlb_reg)","id":17,"options":{"autorun":"true","classes":"","comment":"","context":"interactive","dpi":72,"editor-font-scale":"0.8","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":5,"fig-width":7,"label":"unnamed-chunk-17","message":"true","out-height":"","out-width":"700px","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"broom::tidy(mlb_reg)","id":18,"options":{"autorun":"true","classes":"","comment":"","context":"interactive","dpi":72,"editor-font-scale":"0.8","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":5,"fig-width":7,"label":"unnamed-chunk-18","message":"true","out-height":"","out-width":"700px","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"#--- run OLS ---#\nres_u <- feols(log(salary) ~ years + gamesyr + bavg\n  + hrunsyr + rbisyr, data = mlb1)\n\n#--- SSR ---#\nsum(res_u$residuals^2)","id":19,"options":{"autorun":"true","classes":"","comment":"","context":"interactive","dpi":72,"editor-font-scale":"0.8","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":5,"fig-width":7,"label":"unnamed-chunk-19","message":"true","out-height":"","out-width":"700px","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"#--- run OLS ---#\nres_r <- feols(log(salary) ~ years + gamesyr, data = mlb1)\n\n#--- SSR ---#\nsum(res_r$residuals^2)","id":20,"options":{"autorun":"false","classes":"","comment":"","context":"interactive","dpi":72,"editor-font-scale":"0.8","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":5,"fig-width":7,"label":"unnamed-chunk-20","message":"true","out-height":"","out-width":"700px","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"#--- unrestricted model ---#\nreg_u <- feols(log(salary) ~ years + gamesyr +\n  bavg + hrunsyr + rbisyr, data = mlb1)\n\nSSR_u <- sum(reg_u$residuals^2)\n\n#--- restricted model ---#\nreg_r <- feols(log(salary) ~ years + gamesyr, data = mlb1)\n\nSSR_r <- sum(reg_r$residuals^2)","id":21,"options":{"autorun":"true","classes":"","comment":"","context":"interactive","dpi":72,"editor-font-scale":"0.8","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":5,"fig-width":7,"label":"unnamed-chunk-21","message":"true","out-height":"","out-width":"700px","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"df_q <- 3 # the number of restrictions\ndf_ur <- degrees_freedom(reg_u, \"resid\") # degrees of freedom for the unrestricted model\nF_stat_num <- (SSR_r - SSR_u) / df_q # numerator of F-stat\nF_stat_denom <- SSR_u / df_ur # denominator of F-stat\nF_sta <- F_stat_num / F_stat_denom # F-stat\nF_sta","id":22,"options":{"autorun":"false","classes":"","comment":"","context":"interactive","dpi":72,"editor-font-scale":"0.8","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":5,"fig-width":7,"label":"unnamed-chunk-22","message":"true","out-height":"","out-width":"700px","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"alpha <- 0.05 # 5%  significance level\nc_value <- qf(1 - alpha, df1 = df_q, df2 = df_ur)\nc_value","id":23,"options":{"autorun":"false","classes":"","comment":"","context":"interactive","dpi":72,"editor-font-scale":"0.8","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":5,"fig-width":7,"label":"unnamed-chunk-23","message":"true","out-height":"","out-width":"700px","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"F_sta > c_value","id":24,"options":{"autorun":"false","classes":"","comment":"","context":"interactive","dpi":72,"editor-font-scale":"0.8","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":5,"fig-width":7,"label":"unnamed-chunk-24","message":"true","out-height":"","out-width":"700px","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"#--- F-test ---#\ncar::linearHypothesis(mlb_reg, c(\"bavg=0\", \"hrunsyr=0\", \"rbisyr=0\"))","id":25,"options":{"autorun":"true","classes":"","comment":"","context":"interactive","dpi":72,"editor-font-scale":"0.8","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":5,"fig-width":7,"label":"unnamed-chunk-25","message":"true","out-height":"","out-width":"700px","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"N <- 300 # num observations\nmu <- runif(N) # term shared by indep vars 1 and 2\nx1 <- 0.1 * runif(N) + 2 * mu # indep 1\nx2 <- 0.1 * runif(N) + 2 * mu # indep 2\nx3 <- runif(N) # indep 3\nu <- rnorm(N) # error\ny <- 1 + x1 + x2 + x3 + u # generate y\ndata <- data.table(y = y, x1 = x1, x2 = x2, x3 = x3) # combine into a data.table","id":26,"options":{"autorun":"false","classes":"","comment":"","context":"interactive","dpi":72,"editor-font-scale":"0.8","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":5,"fig-width":7,"label":"unnamed-chunk-26","message":"true","out-height":"","out-width":"700px","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"cor(x1, x2) # correlation between x1 and x2","id":27,"options":{"autorun":"false","classes":"","comment":"","context":"interactive","dpi":72,"editor-font-scale":"0.8","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":5,"fig-width":7,"label":"unnamed-chunk-27","message":"true","out-height":"","out-width":"700px","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"reg_u <- fixest::feols(y ~ x1 + x2 + x3, data = data) # OLS\nbroom::tidy(reg_u) # results","id":28,"options":{"autorun":"false","classes":"","comment":"","context":"interactive","dpi":72,"editor-font-scale":"0.8","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":5,"fig-width":7,"label":"unnamed-chunk-28","message":"true","out-height":"","out-width":"700px","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"#--- unrestricted ---#\nSSR_u <- sum(reg_u$residuals^2)\n\n#--- restricted ---#\nreg_r <- fixest::feols(y ~ x3, data = data)\nSSR_r <- sum(reg_r$residuals^2)\n\n#--- degrees of freedom of residuals ---#\ndf_resid <- degrees_freedom(reg_u, \"resid\")\n\n#--- F ---#\nF_stat <- ((SSR_r - SSR_u) / 2) / (SSR_u / df_resid)\n\n#--- critical value ---#\nalpha <- 0.05\n(\n  c_value <- qf(1 - alpha, df1 = 2, df2 = df_resid)\n)","id":29,"options":{"autorun":"false","classes":"","comment":"","context":"interactive","dpi":72,"editor-font-scale":"0.8","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":5,"fig-width":7,"label":"unnamed-chunk-29","message":"true","out-height":"","out-width":"700px","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"#--- F > critical value? ---#\nF_stat\nF_stat > c_value","id":30,"options":{"autorun":"false","classes":"","comment":"","context":"interactive","dpi":72,"editor-font-scale":"0.8","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":5,"fig-width":7,"label":"unnamed-chunk-30","message":"true","out-height":"","out-width":"700px","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"dplyr::select(mlb1, bavg, hrunsyr, rbisyr) %>% cor()","id":31,"options":{"autorun":"true","classes":"","comment":"","context":"interactive","dpi":72,"editor-font-scale":"0.8","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":5,"fig-width":7,"label":"unnamed-chunk-31","message":"true","out-height":"","out-width":"700px","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"#--- OLS ---#\nreg_sc <- feols(lwage ~ jc + univ + exper, data = twoyear) # OLS\n\n#--- F-test ---#\nF_test <- car::linearHypothesis(reg_sc, c(\"jc-univ=0\"))\n\n#--- t-statistic ---#\nsqrt(F_test$Chisq[2])","id":32,"options":{"autorun":"false","classes":"","comment":"","context":"interactive","dpi":72,"editor-font-scale":"0.8","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":5,"fig-width":7,"label":"unnamed-chunk-32","message":"true","out-height":"","out-width":"700px","output":"true","read-only":"false","results":"markup","warning":"true"}}];
+  globalThis.qwebrCellDetails = [{"code":"1 - pnorm(1)","id":1,"options":{"autorun":"false","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.8","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"4.5","fig-width":"7","label":"unnamed-chunk-1","message":"true","out-height":"","out-width":"55%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"#--- get the data ---#\ndata(\"wage1\", package = \"wooldridge\")\n\n#--- run a regression ---#\nreg_wage <- feols(wage ~ educ + exper + tenure, data = wage1)","id":2,"options":{"autorun":"true","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.8","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"4.5","fig-width":"7","label":"unnamed-chunk-2","message":"true","out-height":"","out-width":"55%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"#* tidy up the regression results\nreg_results_table <- broom::tidy(reg_wage)\n\n#* display\nreg_results_table","id":3,"options":{"autorun":"true","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.8","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"4.5","fig-width":"7","label":"unnamed-chunk-3","message":"true","out-height":"","out-width":"55%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"#--- coefficient estimate on educ ---#\nbeta_educ <-\n  reg_results_table %>%\n  filter(term == \"educ\") %>%\n  pull(estimate)\n\n#--- se of the coefficient on educ ---#\nse_beta_educ <-\n  reg_results_table %>%\n  filter(term == \"educ\") %>%\n  pull(std.error)\n\n#--- get the t-value ---#\n(\n  t_value <- (beta_educ - 1) / se_beta_educ\n)","id":4,"options":{"autorun":"false","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.8","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"4.5","fig-width":"7","label":"unnamed-chunk-4","message":"true","out-height":"","out-width":"55%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"(\n  df_t <- degrees_freedom(reg_wage, \"resid\")\n)","id":5,"options":{"autorun":"false","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.8","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"4.5","fig-width":"7","label":"unnamed-chunk-5","message":"true","out-height":"","out-width":"55%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"(\n  critical_value <- qt(0.975, df = df_t)\n)","id":6,"options":{"autorun":"false","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.8","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"4.5","fig-width":"7","label":"unnamed-chunk-6","message":"true","out-height":"","out-width":"55%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"wage_reg <- feols(wage ~ educ + exper + tenure, data = wage1)","id":7,"options":{"autorun":"true","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.8","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"4.5","fig-width":"7","label":"unnamed-chunk-7","message":"true","out-height":"","out-width":"55%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"(\nwage_reg_coef <- broom::tidy(wage_reg)\n)","id":8,"options":{"autorun":"true","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.8","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"4.5","fig-width":"7","label":"unnamed-chunk-8","message":"true","out-height":"","out-width":"55%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"qt(0.05, df = 522)\nqt(0.95, df = 522)","id":9,"options":{"autorun":"false","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.8","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"4.5","fig-width":"7","label":"unnamed-chunk-9","message":"true","out-height":"","out-width":"55%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"broom::tidy(\n    wage_reg, \n    conf.int = TRUE, \n    conf.level = 0.9\n  ) %>%\n  dplyr::relocate(term, conf.low, conf.high)","id":10,"options":{"autorun":"false","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.8","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"4.5","fig-width":"7","label":"unnamed-chunk-10","message":"true","out-height":"","out-width":"55%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"#--- import data ---#\ndata(\"twoyear\", package = \"wooldridge\")\n\n(\nreg_sc <- fixest::feols(lwage ~ jc + univ + exper, data = twoyear) # OLS\n)","id":11,"options":{"autorun":"true","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.8","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"4.5","fig-width":"7","label":"unnamed-chunk-11","message":"true","out-height":"","out-width":"55%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"(\nvcov_sc <- vcov(reg_sc) # variance covariance matrix\n)","id":12,"options":{"autorun":"true","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.8","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"4.5","fig-width":"7","label":"unnamed-chunk-12","message":"true","out-height":"","out-width":"55%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"#--- reg results ---#\nreg_sc_td <- broom::tidy(reg_sc)\n\n#--- get coefficients ---#\nbeta_jc <-\n  reg_sc_td %>%\n  filter(term == \"jc\") %>%\n  pull(estimate)\n\nbeta_univ <-\n  reg_sc_td %>%\n  filter(term == \"univ\") %>%\n  pull(estimate)","id":13,"options":{"autorun":"true","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.8","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"4.5","fig-width":"7","label":"unnamed-chunk-13","message":"true","out-height":"","out-width":"55%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"numerator <- beta_jc - beta_univ\ndenominator <-\n  sqrt(\n    vcov_sc[\"jc\", \"jc\"] - 2 * vcov_sc[\"jc\", \"univ\"] + vcov_sc[\"univ\", \"univ\"]\n  )\nt_stat <- numerator / denominator\nt_stat","id":14,"options":{"autorun":"true","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.8","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"4.5","fig-width":"7","label":"unnamed-chunk-14","message":"true","out-height":"","out-width":"55%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"car::linearHypothesis(reg_sc, \"jc=univ\")","id":15,"options":{"autorun":"true","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.8","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"4.5","fig-width":"7","label":"unnamed-chunk-15","message":"true","out-height":"","out-width":"55%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"t_stat^2","id":16,"options":{"autorun":"true","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.8","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"4.5","fig-width":"7","label":"unnamed-chunk-16","message":"true","out-height":"","out-width":"55%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"#--- load the mlb data ---#\ndata(\"mlb1\", package = \"wooldridge\")\n\n#--- run a rergession ---#\nmlb_reg <- fixest::feols(log(salary) ~ years + gamesyr + bavg\n  + hrunsyr + rbisyr, data = mlb1)\n\n#--- take a look at the results ---#\nbroom::tidy(mlb_reg)","id":17,"options":{"autorun":"true","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.8","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"4.5","fig-width":"7","label":"unnamed-chunk-17","message":"true","out-height":"","out-width":"55%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"broom::tidy(mlb_reg)","id":18,"options":{"autorun":"true","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.8","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"4.5","fig-width":"7","label":"unnamed-chunk-18","message":"true","out-height":"","out-width":"55%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"#--- run OLS ---#\nres_u <- feols(log(salary) ~ years + gamesyr + bavg\n  + hrunsyr + rbisyr, data = mlb1)\n\n#--- SSR ---#\nsum(res_u$residuals^2)","id":19,"options":{"autorun":"true","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.8","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"4.5","fig-width":"7","label":"unnamed-chunk-19","message":"true","out-height":"","out-width":"55%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"#--- run OLS ---#\nres_r <- feols(log(salary) ~ years + gamesyr, data = mlb1)\n\n#--- SSR ---#\nsum(res_r$residuals^2)","id":20,"options":{"autorun":"false","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.8","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"4.5","fig-width":"7","label":"unnamed-chunk-20","message":"true","out-height":"","out-width":"55%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"#--- unrestricted model ---#\nreg_u <- feols(log(salary) ~ years + gamesyr +\n  bavg + hrunsyr + rbisyr, data = mlb1)\n\nSSR_u <- sum(reg_u$residuals^2)\n\n#--- restricted model ---#\nreg_r <- feols(log(salary) ~ years + gamesyr, data = mlb1)\n\nSSR_r <- sum(reg_r$residuals^2)","id":21,"options":{"autorun":"true","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.8","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"4.5","fig-width":"7","label":"unnamed-chunk-21","message":"true","out-height":"","out-width":"55%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"df_q <- 3 # the number of restrictions\ndf_ur <- degrees_freedom(reg_u, \"resid\") # degrees of freedom for the unrestricted model\nF_stat_num <- (SSR_r - SSR_u) / df_q # numerator of F-stat\nF_stat_denom <- SSR_u / df_ur # denominator of F-stat\nF_sta <- F_stat_num / F_stat_denom # F-stat\nF_sta","id":22,"options":{"autorun":"false","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.8","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"4.5","fig-width":"7","label":"unnamed-chunk-22","message":"true","out-height":"","out-width":"55%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"alpha <- 0.05 # 5%  significance level\nc_value <- qf(1 - alpha, df1 = df_q, df2 = df_ur)\nc_value","id":23,"options":{"autorun":"false","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.8","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"4.5","fig-width":"7","label":"unnamed-chunk-23","message":"true","out-height":"","out-width":"55%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"F_sta > c_value","id":24,"options":{"autorun":"false","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.8","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"4.5","fig-width":"7","label":"unnamed-chunk-24","message":"true","out-height":"","out-width":"55%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"#--- F-test ---#\ncar::linearHypothesis(mlb_reg, c(\"bavg=0\", \"hrunsyr=0\", \"rbisyr=0\"))","id":25,"options":{"autorun":"true","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.8","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"4.5","fig-width":"7","label":"unnamed-chunk-25","message":"true","out-height":"","out-width":"55%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"N <- 300 # num observations\nmu <- runif(N) # term shared by indep vars 1 and 2\nx1 <- 0.1 * runif(N) + 2 * mu # indep 1\nx2 <- 0.1 * runif(N) + 2 * mu # indep 2\nx3 <- runif(N) # indep 3\nu <- rnorm(N) # error\ny <- 1 + x1 + x2 + x3 + u # generate y\ndata <- data.table(y = y, x1 = x1, x2 = x2, x3 = x3) # combine into a data.table","id":26,"options":{"autorun":"false","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.8","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"4.5","fig-width":"7","label":"unnamed-chunk-26","message":"true","out-height":"","out-width":"55%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"cor(x1, x2) # correlation between x1 and x2","id":27,"options":{"autorun":"false","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.8","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"4.5","fig-width":"7","label":"unnamed-chunk-27","message":"true","out-height":"","out-width":"55%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"reg_u <- fixest::feols(y ~ x1 + x2 + x3, data = data) # OLS\nbroom::tidy(reg_u) # results","id":28,"options":{"autorun":"false","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.8","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"4.5","fig-width":"7","label":"unnamed-chunk-28","message":"true","out-height":"","out-width":"55%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"#--- unrestricted ---#\nSSR_u <- sum(reg_u$residuals^2)\n\n#--- restricted ---#\nreg_r <- fixest::feols(y ~ x3, data = data)\nSSR_r <- sum(reg_r$residuals^2)\n\n#--- degrees of freedom of residuals ---#\ndf_resid <- degrees_freedom(reg_u, \"resid\")\n\n#--- F ---#\nF_stat <- ((SSR_r - SSR_u) / 2) / (SSR_u / df_resid)\n\n#--- critical value ---#\nalpha <- 0.05\n(\n  c_value <- qf(1 - alpha, df1 = 2, df2 = df_resid)\n)","id":29,"options":{"autorun":"false","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.8","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"4.5","fig-width":"7","label":"unnamed-chunk-29","message":"true","out-height":"","out-width":"55%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"#--- F > critical value? ---#\nF_stat\nF_stat > c_value","id":30,"options":{"autorun":"false","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.8","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"4.5","fig-width":"7","label":"unnamed-chunk-30","message":"true","out-height":"","out-width":"55%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"dplyr::select(mlb1, bavg, hrunsyr, rbisyr) %>% cor()","id":31,"options":{"autorun":"true","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.8","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"4.5","fig-width":"7","label":"unnamed-chunk-31","message":"true","out-height":"","out-width":"55%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"#--- OLS ---#\nreg_sc <- feols(lwage ~ jc + univ + exper, data = twoyear) # OLS\n\n#--- F-test ---#\nF_test <- car::linearHypothesis(reg_sc, c(\"jc-univ=0\"))\n\n#--- t-statistic ---#\nsqrt(F_test$Chisq[2])","id":32,"options":{"autorun":"false","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.8","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"4.5","fig-width":"7","label":"unnamed-chunk-32","message":"true","out-height":"","out-width":"55%","output":"true","read-only":"false","results":"markup","warning":"true"}}];
 
   </script>
   <script type="module">
@@ -2171,7 +2332,7 @@ Lecturer transcript
 </details>
 <p>Here is the general step of any hypothesis testing:</p>
 <ul>
-<li><p>Step 1: specify the null <span class="math inline">\((H_0)\)</span> and alternative <span class="math inline">\((H_1)\)</span> hypotheses</p></li>
+<li><p>Step 1: specify the null <span class="math inline">(H_0)</span> and alternative <span class="math inline">(H_1)</span> hypotheses</p></li>
 <li><p>Step 2: find the distribution of the test statistic <span style="color: red;"> if the null hypothesis is true </span></p></li>
 <li><p>Step 3: calculate the test statistic based on the data and regression results</p></li>
 <li><p>Step 4: define the significance level</p></li>
@@ -2180,7 +2341,7 @@ Lecturer transcript
 </div>
 <div id="tabset-3-2">
 <div class="panel-tabset">
-<ul id="tabset-1" class="panel-tabset-tabby"><li><a data-tabby-default="" href="#tabset-1-1">Setting</a></li><li><a href="#tabset-1-2">distribution of <span class="math inline">\(\theta\)</span></a></li><li><a href="#tabset-1-3">distribution of <span class="math inline">\(\theta\)</span> if <span class="math inline">\(H_0\)</span> is true</a></li><li><a href="#tabset-1-4">Case 1</a></li><li><a href="#tabset-1-5">Case 2</a></li></ul>
+<ul id="tabset-1" class="panel-tabset-tabby"><li><a data-tabby-default="" href="#tabset-1-1">Setting</a></li><li><a href="#tabset-1-2">distribution of <span class="math inline">\theta</span></a></li><li><a href="#tabset-1-3">distribution of <span class="math inline">\theta</span> if <span class="math inline">H_0</span> is true</a></li><li><a href="#tabset-1-4">Case 1</a></li><li><a href="#tabset-1-5">Case 2</a></li></ul>
 <div class="tab-content">
 <div id="tabset-1-1">
 <details class="transcript">
@@ -2190,13 +2351,13 @@ Lecturer transcript
 <p>A deliberately artificial example, and the artificiality is the point. We want to test whether the expected value of x is one. Read the state of knowledge: we somehow already know the variance is four. That never happens in practice, and we assume it here only so the first pass through the logic has nothing hidden in it. Your estimator is the sample mean, which you already know is unbiased from lecture 03. So we have an estimator and a target value, and the question is how to decide whether the two are far enough apart to matter.</p>
 </details>
 <p><strong>Goal</strong></p>
-<p>Suppose you want to test if the expected value of a normally distributed random variable <span class="math inline">\((x)\)</span> is 1 or not.</p>
+<p>Suppose you want to test if the expected value of a normally distributed random variable <span class="math inline">(x)</span> is 1 or not.</p>
 <p><br></p>
 <p><strong>State of Knowledge</strong></p>
-<p>We do know <span class="math inline">\(x\)</span> follows a normal distribution and its variance is 4 for some reason.</p>
+<p>We do know <span class="math inline">x</span> follows a normal distribution and its variance is 4 for some reason.</p>
 <p><br></p>
 <p><strong>Your Estimator</strong></p>
-<p>Your estimator is the sample mean: <span class="math inline">\(\theta = \sum_{i=1}^J x_i/J\)</span></p>
+<p>Your estimator is the sample mean: <span class="math inline">\theta = \sum_{i=1}^J x_i/J</span></p>
 </div>
 <div id="tabset-1-2">
 <details class="transcript">
@@ -2212,12 +2373,12 @@ Lecturer transcript
 <p><strong>Math Aside 1</strong></p>
 </div>
 <div class="callout-content">
-<p><span class="math inline">\(Var(ax) = a^2 Var(X)\)</span></p>
+<p><span class="math inline">Var(ax) = a^2 Var(X)</span></p>
 </div>
 </div>
 </div>
 </div>
-<p>So, we know that <span class="math inline">\(\theta \sim N(\alpha, 4/J)\)</span> (of course <span class="math inline">\(\alpha\)</span> is not known).</p>
+<p>So, we know that <span class="math inline">\theta \sim N(\alpha, 4/J)</span> (of course <span class="math inline">\alpha</span> is not known).</p>
 <p><br></p>
 <div title="Math Aside 2">
 <div class="callout callout-note no-icon callout-titled callout-style-default">
@@ -2226,18 +2387,18 @@ Lecturer transcript
 <p><strong>Math Aside 2</strong></p>
 </div>
 <div class="callout-content">
-<p>If <span class="math inline">\(x \sim N(a, b)\)</span>, then, <span class="math inline">\(x-a \sim N(0, b)\)</span> (shift)</p>
+<p>If <span class="math inline">x \sim N(a, b)</span>, then, <span class="math inline">x-a \sim N(0, b)</span> (shift)</p>
 </div>
 </div>
 </div>
 </div>
-<p>So, <span class="math inline">\(\frac{x-a}{\sqrt{b}} \sim N(0, 1)\)</span> (combined with Math Aside 1)</p>
+<p>So, <span class="math inline">\frac{x-a}{\sqrt{b}} \sim N(0, 1)</span> (combined with Math Aside 1)</p>
 <p><br></p>
 <p><strong>This means,</strong></p>
-<p>Since <span class="math inline">\(\theta = \sum_{i=1}^J x_i/J\)</span> and <span class="math inline">\(x_i \sim N(\alpha, 4)\)</span>,</p>
+<p>Since <span class="math inline">\theta = \sum_{i=1}^J x_i/J</span> and <span class="math inline">x_i \sim N(\alpha, 4)</span>,</p>
 <ul>
-<li><span class="math inline">\(Var(\theta) = J \times \frac{1}{J^2}Var(x) = 4/J\)</span></li>
-<li><span class="math inline">\(\frac{\sqrt{J}}{2} \cdot (\theta - \alpha)\sim N(0, 1)\)</span>.</li>
+<li><span class="math inline">Var(\theta) = J \times \frac{1}{J^2}Var(x) = 4/J</span></li>
+<li><span class="math inline">\frac{\sqrt{J}}{2} \cdot (\theta - \alpha)\sim N(0, 1)</span>.</li>
 </ul>
 </div>
 <div id="tabset-1-3">
@@ -2249,16 +2410,16 @@ Lecturer transcript
 </details>
 <div class="columns">
 <div class="column" style="width:50%;">
-<p>We established that <span class="math inline">\(\frac{\sqrt{J}}{2} \cdot (\theta - \alpha)\sim N(0, 1)\)</span>.</p>
-<p>The null hypothesis is <span class="math inline">\(\alpha = 1\)</span>.</p>
-<p>If <span class="math inline">\(\alpha = 1\)</span> is indeed true, then <span class="math inline">\(\sqrt{J} \times (\theta - 1)/2 \sim N(0, 1)\)</span>.</p>
+<p>We established that <span class="math inline">\frac{\sqrt{J}}{2} \cdot (\theta - \alpha)\sim N(0, 1)</span>.</p>
+<p>The null hypothesis is <span class="math inline">\alpha = 1</span>.</p>
+<p>If <span class="math inline">\alpha = 1</span> is indeed true, then <span class="math inline">\sqrt{J} \times (\theta - 1)/2 \sim N(0, 1)</span>.</p>
 <p>In other words, if you take the sample mean, <span style="color: red;">subtract the value under the null</span>, multiply by the square root of the number of observations, and divide by 2, the result follows the standard Normal distribution like below.</p>
 </div><!--end of the 1st column--><div class="column" style="width:50%;">
 <div class="cell">
 <div class="cell-output-display">
 <div>
 <figure>
-<p><img data-src="05-testing_files/figure-revealjs/unnamed-chunk-2-1.png" width="4000"></p>
+<p><img data-src="05-testing_files/figure-revealjs/unnamed-chunk-2-1.png" width="2800"></p>
 </figure>
 </div>
 </div>
@@ -2276,15 +2437,15 @@ Lecturer transcript
 </details>
 <div class="columns">
 <div class="column" style="width:50%;">
-<p>Suppose you have obtained 100 samples <span class="math inline">\((J = 100)\)</span> and calculated <span class="math inline">\(\theta\)</span> (sample mean), which turned out to be 2.</p>
-<p>Then, your test statistic is <span class="math inline">\(\sqrt{100} \times (2-1)/2 = 5\)</span>.</p>
+<p>Suppose you have obtained 100 samples <span class="math inline">(J = 100)</span> and calculated <span class="math inline">\theta</span> (sample mean), which turned out to be 2.</p>
+<p>Then, your test statistic is <span class="math inline">\sqrt{100} \times (2-1)/2 = 5</span>.</p>
 <p>How unlikely is it to get the number you got (5) if the null hypothesis is indeed true?</p>
 </div><!--end of the 1st column--><div class="column" style="width:50%;">
 <div class="cell">
 <div class="cell-output-display">
 <div>
 <figure>
-<p><img data-src="05-testing_files/figure-revealjs/unnamed-chunk-3-1.png" width="4000"></p>
+<p><img data-src="05-testing_files/figure-revealjs/unnamed-chunk-3-1.png" width="2800"></p>
 </figure>
 </div>
 </div>
@@ -2302,15 +2463,15 @@ Lecturer transcript
 </details>
 <div class="columns">
 <div class="column" style="width:50%;">
-<p>Suppose you have obtained 400 samples <span class="math inline">\((J = 400)\)</span> and calculated <span class="math inline">\(\theta\)</span> (sample mean), which turned out to be 1.02.</p>
-<p>Then, your test statistic is <span class="math inline">\(\sqrt{400} \times (1.02-1)/2 = 0.2\)</span>.</p>
+<p>Suppose you have obtained 400 samples <span class="math inline">(J = 400)</span> and calculated <span class="math inline">\theta</span> (sample mean), which turned out to be 1.02.</p>
+<p>Then, your test statistic is <span class="math inline">\sqrt{400} \times (1.02-1)/2 = 0.2</span>.</p>
 <p>How unlikely is it to get the number you got (0.2) if the null hypothesis is indeed true?</p>
 </div><!--end of the 1st column--><div class="column" style="width:50%;">
 <div class="cell">
 <div class="cell-output-display">
 <div>
 <figure>
-<p><img data-src="05-testing_files/figure-revealjs/unnamed-chunk-4-1.png" width="4000"></p>
+<p><img data-src="05-testing_files/figure-revealjs/unnamed-chunk-4-1.png" width="2800"></p>
 </figure>
 </div>
 </div>
@@ -2332,15 +2493,15 @@ Lecturer transcript
 </details>
 <div class="columns">
 <div class="column" style="width:40%;">
-<p>Note that you do not really need to use <span class="math inline">\(\sqrt{J} \times (\theta - \alpha)/2\)</span> as your test statistic.</p>
-<p>You could alternatively use <span class="math inline">\(\theta - \alpha\)</span>. But, in that case, you need to be looking at <span class="math inline">\(N(0, 4/J)\)</span> instead of <span class="math inline">\(N(0, 1)\)</span> to see how unlikely you get the number you got.</p>
-<p>For example, when the number of observations is 100 <span class="math inline">\((J = 100)\)</span>, the distribution of <span class="math inline">\(\theta-\alpha\)</span> looks like the figure on the right.</p>
+<p>Note that you do not really need to use <span class="math inline">\sqrt{J} \times (\theta - \alpha)/2</span> as your test statistic.</p>
+<p>You could alternatively use <span class="math inline">\theta - \alpha</span>. But, in that case, you need to be looking at <span class="math inline">N(0, 4/J)</span> instead of <span class="math inline">N(0, 1)</span> to see how unlikely you get the number you got.</p>
+<p>For example, when the number of observations is 100 <span class="math inline">(J = 100)</span>, the distribution of <span class="math inline">\theta-\alpha</span> looks like the figure on the right.</p>
 </div><!--end of the 1st column--><div class="column" style="width:60%;">
 <div class="cell">
 <div class="cell-output-display">
 <div>
 <figure>
-<p><img data-src="05-testing_files/figure-revealjs/unnamed-chunk-5-1.png" width="4000"></p>
+<p><img data-src="05-testing_files/figure-revealjs/unnamed-chunk-5-1.png" width="2800"></p>
 </figure>
 </div>
 </div>
@@ -2349,10 +2510,10 @@ Lecturer transcript
 </div>
 <!--end of the columns-->
 <p><strong>Reconsider the case 1</strong></p>
-<p>Suppose you have obtained 100 samples <span class="math inline">\((J = 100)\)</span> and calculated <span class="math inline">\(\theta\)</span> (sample mean), which turned out to be 2.</p>
-<p>Then, your test statistic is <span class="math inline">\(2-1 = 1\)</span>.</p>
+<p>Suppose you have obtained 100 samples <span class="math inline">(J = 100)</span> and calculated <span class="math inline">\theta</span> (sample mean), which turned out to be 2.</p>
+<p>Then, your test statistic is <span class="math inline">2-1 = 1</span>.</p>
 <p>Is it unlikely for you to get 1 if the null hypothesis is true?</p>
-<p>The conclusion would be exactly the same as using <span class="math inline">\(\sqrt{J} \times (\theta - \alpha)/2\)</span> because the distribution under the null is adjusted according to the test statistic you use.</p>
+<p>The conclusion would be exactly the same as using <span class="math inline">\sqrt{J} \times (\theta - \alpha)/2</span> because the distribution under the null is adjusted according to the test statistic you use.</p>
 <div class="callout callout-note no-icon callout-titled callout-style-default">
 <div class="callout-body">
 <div class="callout-title">
@@ -2396,11 +2557,11 @@ Lecturer transcript
 </summary>
 <p>Your turn, and the structure mirrors the worked example exactly, so you should be able to do all four parts. Read the setup: the difference in salaries between two universities, distributed Normal with unknown mean alpha and variance sixteen. You want to test whether alpha is ten. Work through the four questions on paper before opening the answer. Part two is the one to be careful with, because the variance of the sample mean is not sixteen; it is sixteen over four hundred. Then read the note underneath, which flags the two things this artificial setup let us skip.</p>
 </details>
-<p>You have collected data on annual salary for those who graduated from University A and B. You are interested in testing whether the difference in annual salary between the universities (call it <span class="math inline">\(x\)</span>) is 10 on average. You know (for unknown reasons) that the difference is distributed as <span class="math inline">\(N(\alpha, 16)\)</span>.</p>
+<p>You have collected data on annual salary for those who graduated from University A and B. You are interested in testing whether the difference in annual salary between the universities (call it <span class="math inline">x</span>) is 10 on average. You know (for unknown reasons) that the difference is distributed as <span class="math inline">N(\alpha, 16)</span>.</p>
 <ol type="1">
 <li>What is the null hypothesis?</li>
 <li>Under the null hypothesis, what is the distribution of the sample mean when the number of observation is 400?</li>
-<li>Normalize the test statistic so that the transformed version follows <span class="math inline">\(N(0, 1)\)</span>.</li>
+<li>Normalize the test statistic so that the transformed version follows <span class="math inline">N(0, 1)</span>.</li>
 <li>The actual difference you observed is 10.2. What is the probability that you observe a number greater than 10.2 if the null hypothesis is true? Use <code>pnorm()</code>.</li>
 </ol>
 <div class="callout callout-note no-icon callout-titled callout-style-default">
@@ -2412,7 +2573,7 @@ Lecturer transcript
 <p>In reality,</p>
 <ul>
 <li>we need to find out what the distribution of the test statistic is</li>
-<li>we need to formally define when we accept or not accept the null hypothesis</li>
+<li>we need to formally define when we reject or fail to reject the null hypothesis</li>
 </ul>
 </div>
 </div>
@@ -2423,13 +2584,13 @@ Lecturer transcript
 <summary>
 Lecturer transcript
 </summary>
-<p>Check yours against this. The null is alpha equals ten, and under it the sample mean has variance sixteen over four hundred, so standard deviation zero point two. Dividing by that means multiplying by root of four hundred over sixteen, which is five. Your observed difference is ten point two, so the statistic is five times zero point two, which is one. Run the cell: one minus pnorm of one is about sixteen percent. So a gap this size happens roughly one time in six when the null is true, which is not remotely unusual.</p>
+<p>Check yours against this. The null is alpha equals ten, and under it the sample mean has variance sixteen over four hundred, so standard deviation zero point two. Dividing by that means multiplying by root of four hundred over four, which is five. Your observed difference is ten point two, so the statistic is five times zero point two, which is one. Run the cell: one minus pnorm of one is about sixteen percent. So a gap this size happens roughly one time in six when the null is true, which is not remotely unusual.</p>
 </details>
 <ol type="1">
-<li><span class="math inline">\(\alpha = 10\)</span></li>
-<li><span class="math inline">\(\theta \sim N(\alpha, 16/400)\)</span></li>
-<li><span class="math inline">\(\sqrt{\frac{400}{16}}\cdot (\theta - \alpha)\)</span></li>
-<li>The test statistic is <span class="math inline">\(5 \times (10.2 - 10) = 1\)</span></li>
+<li><span class="math inline">\alpha = 10</span></li>
+<li><span class="math inline">\theta \sim N(\alpha, 16/400)</span></li>
+<li><span class="math inline">\sqrt{\frac{400}{16}}\cdot (\theta - \alpha)</span></li>
+<li>The test statistic is <span class="math inline">5 \times (10.2 - 10) = 1</span></li>
 </ol>
 <div id="qwebr-insertion-location-1"></div>
 <noscript>Please enable JavaScript to experience the dynamic code cell content on this page.</noscript>
@@ -2455,7 +2616,7 @@ Lecturer transcript
 <section id="hypothesis-testing-of-the-coefficients" class="slide level2">
 <h2>Hypothesis Testing of the Coefficients</h2>
 <div class="panel-tabset">
-<ul id="tabset-5" class="panel-tabset-tabby"><li><a data-tabby-default="" href="#tabset-5-1">Example</a></li><li><a href="#tabset-5-2">Distribution of <span class="math inline">\(\beta_j\)</span></a></li><li><a href="#tabset-5-3">t-test</a></li><li><a href="#tabset-5-4">Recap on notations</a></li></ul>
+<ul id="tabset-5" class="panel-tabset-tabby"><li><a data-tabby-default="" href="#tabset-5-1">Example</a></li><li><a href="#tabset-5-2">Distribution of <span class="math inline">\beta_j</span></a></li><li><a href="#tabset-5-3">t-test</a></li><li><a href="#tabset-5-4">Recap on notations</a></li></ul>
 <div class="tab-content">
 <div id="tabset-5-1">
 <details class="transcript">
@@ -2465,7 +2626,7 @@ Lecturer transcript
 <p>Now the same logic pointed at regression coefficients, which is what you actually care about. Two example hypotheses in the box: education has no effect, experience has a positive effect. Note they have different shapes, one an equality and one an inequality, and that distinction becomes one-sided versus two-sided testing shortly. Then read the three bullets, because the second is the crux. If beta-one-hat were a fixed number you would just look at it. But it is one realisation of a random variable, so even when the true beta is exactly zero you can draw an estimate far from zero.</p>
 </details>
 <p>Consider the following model,</p>
-<p><span class="math display">\[wage = \beta_0 + \beta_1 educ + \beta_2 exper + u\]</span></p>
+<p><span class="math display">wage = \beta_0 + \beta_1 educ + \beta_2 exper + u</span></p>
 <div title="Example Hypotheses">
 <div class="callout callout-note no-icon callout-titled callout-style-default">
 <div class="callout-body">
@@ -2474,8 +2635,8 @@ Lecturer transcript
 </div>
 <div class="callout-content">
 <ul>
-<li>education has no impact on wage <span class="math inline">\((\beta_1=0)\)</span></li>
-<li>experience has a positive impact on wage <span class="math inline">\((\beta_2&gt;0)\)</span></li>
+<li>education has no impact on wage <span class="math inline">(\beta_1=0)</span></li>
+<li>experience has a positive impact on wage <span class="math inline">(\beta_2&gt;0)</span></li>
 </ul>
 </div>
 </div>
@@ -2483,9 +2644,9 @@ Lecturer transcript
 </div>
 <p><br></p>
 <ul>
-<li><p>If <span class="math inline">\(\widehat{\beta}_1\)</span> is non-random, but just a scalar, all you have to do is just check if <span class="math inline">\(\widehat{\beta}_1=0\)</span> or not</p></li>
-<li><p>But, the estimate you get is <span style="color: blue;"> just one realization </span> of the range of values <span class="math inline">\(\widehat{\beta}_1\)</span> could take because it is a random variable</p></li>
-<li><p>This means that even if <span class="math inline">\(\beta_1=0\)</span> in the population, it is possible to get an estimate that is very far from 0</p></li>
+<li><p>If <span class="math inline">\widehat{\beta}_1</span> is non-random, but just a scalar, all you have to do is just check if <span class="math inline">\widehat{\beta}_1=0</span> or not</p></li>
+<li><p>But, the estimate you get is <span style="color: blue;"> just one realization </span> of the range of values <span class="math inline">\widehat{\beta}_1</span> could take because it is a random variable</p></li>
+<li><p>This means that even if <span class="math inline">\beta_1=0</span> in the population, it is possible to get an estimate that is very far from 0</p></li>
 </ul>
 </div>
 <div id="tabset-5-2">
@@ -2502,7 +2663,7 @@ Lecturer transcript
 <p>So far, we learned that:</p>
 <ul>
 <li>OLS estimators are unbiased under MLR.1 ~ MLR.4</li>
-<li>Variance of the OLS estimator of <span class="math inline">\(\beta_j\)</span> is <span class="math inline">\(\frac{\sigma^2}{SST_x\cdot (1-R^2_j)}\)</span> under MLR.1 ~ MLR.5</li>
+<li>Variance of the OLS estimator of <span class="math inline">\beta_j</span> is <span class="math inline">\frac{\sigma^2}{SST_x\cdot (1-R^2_j)}</span> under MLR.1 ~ MLR.5</li>
 </ul>
 <p>We have <span style="color: blue;"> NOT </span> made any assumptions about the distribution of the error term!!</p>
 <p>In order to perform hypothesis testing, we need to make assumptions about the distribution of error term (this is not strictly true, but more on this later)</p>
@@ -2522,8 +2683,8 @@ Lecturer transcript
 <p><strong>Normality of the error term</strong></p>
 </div>
 <div class="callout-content">
-<p>The population error <span class="math inline">\(u\)</span> is <span style="color: red;"> independent </span> of the explanatory variables <span class="math inline">\(x_1,\dots,x_k\)</span> and is <span style="color: red;"> normally </span> distributed with zero mean and variance <span class="math inline">\(\sigma^2\)</span>:</p>
-<p><span class="math display">\[u\sim N(0,\sigma^2)\]</span></p>
+<p>The population error <span class="math inline">u</span> is <span style="color: red;"> independent </span> of the explanatory variables <span class="math inline">x_1,\dots,x_k</span> and is <span style="color: red;"> normally </span> distributed with zero mean and variance <span class="math inline">\sigma^2</span>:</p>
+<p><span class="math display">u\sim N(0,\sigma^2)</span></p>
 </div>
 </div>
 </div>
@@ -2537,8 +2698,8 @@ Lecturer transcript
 <p>The normality assumption is much more than error term being distributed as Normal.</p>
 <p>Independence of the error term implies</p>
 <ul>
-<li><span class="math inline">\(E[u|x] = 0\)</span></li>
-<li><span class="math inline">\(Var[u|x]= \sigma^2\)</span></li>
+<li><span class="math inline">E[u|x] = 0</span></li>
+<li><span class="math inline">Var[u|x]= \sigma^2</span></li>
 </ul>
 <p>So, we are necessarily assuming MLR.4 and MLR.5 hold by the independence assumption.</p>
 </div>
@@ -2555,18 +2716,18 @@ Lecturer transcript
 <div class="columns">
 <div class="column" style="width:50%;">
 <p><strong>distribution of the dependent variable</strong></p>
-<p>The distribution of <span class="math inline">\(y\)</span> conditional on <span class="math inline">\(x\)</span> is a Normal distribution</p>
-<p><span class="math inline">\(y|x \sim N(\beta_0+\beta_1 x_1+\dots+\beta_k x_k,\sigma^2)\)</span></p>
+<p>The distribution of <span class="math inline">y</span> conditional on <span class="math inline">x</span> is a Normal distribution</p>
+<p><span class="math inline">y|x \sim N(\beta_0+\beta_1 x_1+\dots+\beta_k x_k,\sigma^2)</span></p>
 <ul>
-<li><span class="math inline">\(E[y|x]\)</span> is <span class="math inline">\(\beta_0+\beta_1 x_1+\dots+\beta_k x_k\)</span></li>
-<li><span class="math inline">\(u|x\)</span> is <span class="math inline">\(N(0,\sigma^2)\)</span></li>
+<li><span class="math inline">E[y|x]</span> is <span class="math inline">\beta_0+\beta_1 x_1+\dots+\beta_k x_k</span></li>
+<li><span class="math inline">u|x</span> is <span class="math inline">N(0,\sigma^2)</span></li>
 </ul>
 </div><!--end of the 1st column--><div class="column" style="width:50%;">
 <p><strong>distribution of the OLS estimator</strong></p>
-<p>If the MLR.1 through MLR.6 are satisfied, <span class="math inline">\(OLS\)</span> estimators are also Normally distributed!</p>
-<p><span class="math inline">\(\widehat{\beta}_j \sim N(\beta_j,Var(\widehat{\beta}_j))\)</span></p>
+<p>If the MLR.1 through MLR.6 are satisfied, <span class="math inline">OLS</span> estimators are also Normally distributed!</p>
+<p><span class="math inline">\widehat{\beta}_j \sim N(\beta_j,Var(\widehat{\beta}_j))</span></p>
 <p>which means,</p>
-<p><span class="math inline">\(\frac{\widehat{\beta}_j-\beta_j}{se(\widehat{\beta}_j)} \sim N(0,1)\)</span></p>
+<p><span class="math inline">\frac{\widehat{\beta}_j-\beta_j}{se(\widehat{\beta}_j)} \sim N(0,1)</span></p>
 </div><!--end of the 2nd column-->
 </div>
 <!--end of the columns-->
@@ -2577,7 +2738,7 @@ Lecturer transcript
 <p><strong>Question</strong></p>
 </div>
 <div class="callout-content">
-<p>Okay, so are we going to use this for testing involving <span class="math inline">\(\beta_j\)</span>?</p>
+<p>Okay, so are we going to use this for testing involving <span class="math inline">\beta_j</span>?</p>
 </div>
 </div>
 </div>
@@ -2594,10 +2755,10 @@ Lecturer transcript
 </summary>
 <p>And here is the catch the question was pointing at. The expression on the previous tab used the true standard error, which contains sigma squared, which you do not know. Replace it with the estimated standard error and the distribution is no longer Normal. It becomes t with n minus k minus one degrees of freedom. The extra spread in the t distribution is the cost of estimating the denominator: you have two random things in the ratio now instead of one. Note the corrected formula in the parenthesis, and the square root in particular, because the standard error is the root of the variance.</p>
 </details>
-<p>In practice, we need to estimate <span class="math inline">\(se(\beta_j)\)</span>. If we use <span class="math inline">\(\widehat{se(\widehat{\beta}_j)}\)</span> instead of <span class="math inline">\(se(\widehat{\beta}_j)\)</span>, then,</p>
-<p><span class="math inline">\(\frac{\widehat{\beta}_j-\beta_j}{\widehat{se(\widehat{\beta}_j)}} \sim t_{n-k-1}\)</span></p>
-<p>where <span class="math inline">\(n-k-1\)</span> is the degree of freedom of residual.</p>
-<p>(Note: <span class="math inline">\(\widehat{se(\widehat{\beta}_j)} = \sqrt{\widehat{\sigma}^2/\big[SST_X\cdot (1-R_j^2)\big]}\)</span> — the standard error is the <span style="color: red;"> square root </span> of the estimated variance)</p>
+<p>In practice, we need to estimate <span class="math inline">se(\beta_j)</span>. If we use <span class="math inline">\widehat{se(\widehat{\beta}_j)}</span> instead of <span class="math inline">se(\widehat{\beta}_j)</span>, then,</p>
+<p><span class="math inline">\frac{\widehat{\beta}_j-\beta_j}{\widehat{se(\widehat{\beta}_j)}} \sim t_{n-k-1}</span></p>
+<p>where <span class="math inline">n-k-1</span> is the degree of freedom of residual.</p>
+<p>(Note: <span class="math inline">\widehat{se(\widehat{\beta}_j)} = \sqrt{\widehat{\sigma}^2/\big[SST_X\cdot (1-R_j^2)\big]}</span> — the standard error is the <span style="color: red;"> square root </span> of the estimated variance)</p>
 </div>
 <div id="tabset-5-4">
 <details class="transcript">
@@ -2607,25 +2768,25 @@ Lecturer transcript
 <p>This is a reference tab rather than something to work through, and I would bookmark it. The distinction that matters most is the hat. Sigma squared is the true error variance; sigma-hat squared is what you compute from the residuals. Var of beta-j-hat is a true quantity; the version with a hat over the whole thing is your estimate of it. And se is the square root of a variance, never the variance itself. Almost every algebra mistake in this lecture comes from losing track of which of these you are holding.</p>
 </details>
 <ul>
-<li><span class="math inline">\(k\)</span>: the number of explanatory variables included except the intercept</li>
-<li><span class="math inline">\(\sigma^2\)</span>: the <span style="color: blue;"> true </span> variance of the error term</li>
-<li><span class="math inline">\(\widehat{\sigma^2}\)</span>: the estimator (estimate) of the variance of the error term
+<li><span class="math inline">k</span>: the number of explanatory variables included except the intercept</li>
+<li><span class="math inline">\sigma^2</span>: the <span style="color: blue;"> true </span> variance of the error term</li>
+<li><span class="math inline">\widehat{\sigma^2}</span>: the estimator (estimate) of the variance of the error term
 <ul>
-<li><span class="math inline">\(\widehat{\sigma^2} = \frac{\sum \widehat{u}_i^2}{n-k-1}\)</span></li>
+<li><span class="math inline">\widehat{\sigma^2} = \frac{\sum \widehat{u}_i^2}{n-k-1}</span></li>
 </ul></li>
-<li><span class="math inline">\(SST_X = \sum (x_i - \bar{x})^2\)</span></li>
-<li><span class="math inline">\(\widehat{\beta}_j\)</span>: OLS estimator (estimate) on explanatory variable <span class="math inline">\(x_j\)</span>
+<li><span class="math inline">SST_X = \sum (x_i - \bar{x})^2</span></li>
+<li><span class="math inline">\widehat{\beta}_j</span>: OLS estimator (estimate) on explanatory variable <span class="math inline">x_j</span>
 <ul>
-<li><span class="math inline">\(\widehat{\beta} = \frac{\sum (x_i - \bar{x})(y_i - \bar{y})}{SST_X}\)</span> (for simple univariate regression)</li>
+<li><span class="math inline">\widehat{\beta} = \frac{\sum (x_i - \bar{x})(y_i - \bar{y})}{SST_X}</span> (for simple univariate regression)</li>
 </ul></li>
-<li><span class="math inline">\(var(\widehat{\beta}_j)\)</span>: the <span style="color: blue;"> true </span> variance of <span class="math inline">\(\widehat{\beta}_j\)</span></li>
-<li><span class="math inline">\(R^2_j\)</span>: <span class="math inline">\(R^2\)</span> when you regress <span class="math inline">\(x_j\)</span> on all the other covariates (mathematical expression omitted)</li>
-<li><span class="math inline">\(\widehat{var(\widehat{\beta}_j)}\)</span>: Estimator (estimate) of <span class="math inline">\(var(\widehat{\beta}_j)\)</span>
+<li><span class="math inline">var(\widehat{\beta}_j)</span>: the <span style="color: blue;"> true </span> variance of <span class="math inline">\widehat{\beta}_j</span></li>
+<li><span class="math inline">R^2_j</span>: <span class="math inline">R^2</span> when you regress <span class="math inline">x_j</span> on all the other covariates (mathematical expression omitted)</li>
+<li><span class="math inline">\widehat{var(\widehat{\beta}_j)}</span>: Estimator (estimate) of <span class="math inline">var(\widehat{\beta}_j)</span>
 <ul>
-<li><span class="math inline">\(\widehat{var(\widehat{\beta}_j)} = \frac{\widehat{\sigma^2}}{SST_X\cdot(1-R^2_j)}\)</span></li>
+<li><span class="math inline">\widehat{var(\widehat{\beta}_j)} = \frac{\widehat{\sigma^2}}{SST_X\cdot(1-R^2_j)}</span></li>
 </ul></li>
-<li><span class="math inline">\(se(\widehat{\beta}_j)\)</span>: square root of <span class="math inline">\(var(\widehat{\beta}_j)\)</span></li>
-<li><span class="math inline">\(\widehat{se(\widehat{\beta}_j)}\)</span>: square root of <span class="math inline">\(\widehat{var(\widehat{\beta}_j)}\)</span></li>
+<li><span class="math inline">se(\widehat{\beta}_j)</span>: square root of <span class="math inline">var(\widehat{\beta}_j)</span></li>
+<li><span class="math inline">\widehat{se(\widehat{\beta}_j)}</span>: square root of <span class="math inline">\widehat{var(\widehat{\beta}_j)}</span></li>
 </ul>
 </div>
 </div>
@@ -2633,7 +2794,7 @@ Lecturer transcript
 <!--end of panel-->
 </section>
 <section id="details-of-hypothesis-testing-on-beta_j" class="slide level2">
-<h2>Details of hypothesis testing on <span class="math inline">\(\beta_j\)</span></h2>
+<h2>Details of hypothesis testing on <span class="math inline">\beta_j</span></h2>
 <div class="panel-tabset">
 <ul id="tabset-8" class="panel-tabset-tabby"><li><a data-tabby-default="" href="#tabset-8-1">Null and alternative hypothesis</a></li><li><a href="#tabset-8-2">Significance level</a></li><li><a href="#tabset-8-3">p-value</a></li><li><a href="#tabset-8-4">Example</a></li></ul>
 <div class="tab-content">
@@ -2665,11 +2826,11 @@ Lecturer transcript
 <p>Two shapes of alternative, and which you use changes where you look. With a one-sided alternative you have a directional claim, so you only care about one tail of the distribution. With a two-sided alternative you care about departures in either direction, so you look at both tails. The practical consequence is that for a given significance level the two-sided critical value is further out, because you have to split your error budget across two tails. Then read the callout: these critical values are just quantiles, the same computation as <code>qnorm</code> in lecture 03.</p>
 </details>
 <p><strong>one-sided alternative</strong></p>
-<p><span class="math inline">\(H_0:\)</span> <span class="math inline">\(\beta_j = 0\)</span> <span class="math inline">\(H_1:\)</span> <span class="math inline">\(\beta_j &gt; 0\)</span></p>
+<p><span class="math inline">H_0:</span> <span class="math inline">\beta_j = 0</span> <span class="math inline">H_1:</span> <span class="math inline">\beta_j &gt; 0</span></p>
 <p>You look at the positive end of the t-distribution to see if the t-statistic you obtained is more extreme than the level of error you accept (significance level).</p>
 <p><br></p>
 <p><strong>two-sided alternative</strong></p>
-<p><span class="math inline">\(H_0:\)</span> <span class="math inline">\(\beta_j = 0\)</span> <span class="math inline">\(H_1:\)</span> <span class="math inline">\(\beta_j \ne 0\)</span></p>
+<p><span class="math inline">H_0:</span> <span class="math inline">\beta_j = 0</span> <span class="math inline">H_1:</span> <span class="math inline">\beta_j \ne 0</span></p>
 <p>You look at both ends of the t-distribution to see if the t-statistic you obtained is more extreme than the level of error you accept (significance level).</p>
 <p><br></p>
 <div title="This is where lecture 03 pays off">
@@ -2679,7 +2840,7 @@ Lecturer transcript
 <p><strong>This is where lecture 03 pays off</strong></p>
 </div>
 <div class="callout-content">
-<p>The numbers we are about to use as critical values are just <span style="color: blue;">quantiles</span>, computed exactly the way we computed <code>qnorm(0.95) = 1.64</code> in the Monte Carlo lecture. The only change is which distribution you ask: <code>qt()</code> instead of <code>qnorm()</code>, because we had to estimate <span class="math inline">\(\sigma\)</span> rather than know it.</p>
+<p>The numbers we are about to use as critical values are just <span style="color: blue;">quantiles</span>, computed exactly the way we computed <code>qnorm(0.95) = 1.64</code> in the Monte Carlo lecture. The only change is which distribution you ask: <code>qt()</code> instead of <code>qnorm()</code>, because we had to estimate <span class="math inline">\sigma</span> rather than know it.</p>
 </div>
 </div>
 </div>
@@ -2712,7 +2873,7 @@ Lecturer transcript
 </div>
 </div>
 </div>
-<p>The lower the significance level, the more sure you are that the null is indeed wrong when you reject it.</p>
+<p>A lower significance level requires stronger evidence before rejecting the null and reduces the long-run probability of a Type I error. It does not tell us the probability that the null hypothesis is true.</p>
 <p><br></p>
 <p><strong>But lowering it is not free</strong></p>
 <p>There are two ways to be wrong, and they trade off against each other:</p>
@@ -2725,18 +2886,18 @@ Lecturer transcript
 <thead>
 <tr class="header">
 <th></th>
-<th><span class="math inline">\(H_0\)</span> is true</th>
-<th><span class="math inline">\(H_0\)</span> is false</th>
+<th><span class="math inline">H_0</span> is true</th>
+<th><span class="math inline">H_0</span> is false</th>
 </tr>
 </thead>
 <tbody>
 <tr class="odd">
-<td><strong>You reject <span class="math inline">\(H_0\)</span></strong></td>
+<td><strong>You reject <span class="math inline">H_0</span></strong></td>
 <td><span style="color: red;"> Type I error </span> (probability = significance level)</td>
 <td>correct</td>
 </tr>
 <tr class="even">
-<td><strong>You do not reject <span class="math inline">\(H_0\)</span></strong></td>
+<td><strong>You do not reject <span class="math inline">H_0</span></strong></td>
 <td>correct</td>
 <td><span style="color: blue;"> Type II error </span></td>
 </tr>
@@ -2745,7 +2906,7 @@ Lecturer transcript
 <ul>
 <li>the significance level is a choice about how much <span style="color: red;"> Type I </span> error you will tolerate</li>
 <li>pushing it down from 5% to 1% moves the critical value further out, so you reject less often — which means more <span style="color: blue;"> Type II </span> error: real effects you fail to detect</li>
-<li><span class="math inline">\(1 - P(\mbox{Type II error})\)</span> is called the <span style="color: blue;"> power </span> of the test: the chance of detecting an effect that is genuinely there</li>
+<li><span class="math inline">1 - P(\text{Type II error})</span> is called the <span style="color: blue;"> power </span> of the test: the chance of detecting an effect that is genuinely there</li>
 <li>this is why “not statistically significant” does <span style="color: red;"> not </span> mean “no effect”. It may just mean your test had too little power to see it</li>
 </ul>
 </div>
@@ -2759,7 +2920,7 @@ Lecturer transcript
 <div class="columns">
 <div class="column" style="width:40%;">
 <ul>
-<li><p>Figure on the right presents the distribution of <span class="math inline">\(\frac{\widehat{\beta}_j-\beta_j}{\widehat{se(\widehat{\beta}_j)}}\)</span> if <span class="math inline">\(\beta_j = 0\)</span> (the null hypothesis is true).</p></li>
+<li><p>Figure on the right presents the distribution of <span class="math inline">\frac{\widehat{\beta}_j-\beta_j}{\widehat{se(\widehat{\beta}_j)}}</span> if <span class="math inline">\beta_j = 0</span> (the null hypothesis is true).</p></li>
 <li><p>The probability that you get a value larger than 1.65 is 5% (0.05 in area).</p></li>
 </ul>
 </div><!--end of the 1st column--><div class="column" style="width:60%;">
@@ -2767,7 +2928,7 @@ Lecturer transcript
 <div class="cell-output-display">
 <div>
 <figure>
-<p><img data-src="05-testing_files/figure-revealjs/unnamed-chunk-7-1.png" width="4000"></p>
+<p><img data-src="05-testing_files/figure-revealjs/unnamed-chunk-7-1.png" width="2800"></p>
 </figure>
 </div>
 </div>
@@ -2787,7 +2948,7 @@ Lecturer transcript
 </div>
 </div>
 </div>
-<p>If you follow the decision rule, then you have a 5% chance that you are wrong in rejecting the null hypothesis of <span class="math inline">\(\beta_j = 0\)</span>. Here,</p>
+<p>If you follow the decision rule, then you have a 5% chance that you are wrong in rejecting the null hypothesis of <span class="math inline">\beta_j = 0</span>. Here,</p>
 <ul>
 <li>5% is the <span style="color: red;"> significance level</span></li>
 <li>1.65 is the <span style="color: red;"> critical value</span> above which you will reject the null</li>
@@ -2803,7 +2964,7 @@ Lecturer transcript
 <div class="columns">
 <div class="column" style="width:40%;">
 <ul>
-<li>The figure on the right presents the distribution of <span class="math inline">\(\frac{\widehat{\beta}_j-\beta_j}{\widehat{se(\widehat{\beta}_j)}}\)</span> if <span class="math inline">\(\beta_j = 0\)</span> (the null hypothesis is true).</li>
+<li>The figure on the right presents the distribution of <span class="math inline">\frac{\widehat{\beta}_j-\beta_j}{\widehat{se(\widehat{\beta}_j)}}</span> if <span class="math inline">\beta_j = 0</span> (the null hypothesis is true).</li>
 <li>The probability that you get a value larger than 2.33 is 1% (0.01 in area).</li>
 </ul>
 </div><!--end of the 1st column--><div class="column" style="width:60%;">
@@ -2811,7 +2972,7 @@ Lecturer transcript
 <div class="cell-output-display">
 <div>
 <figure>
-<p><img data-src="05-testing_files/figure-revealjs/unnamed-chunk-8-1.png" width="4000"></p>
+<p><img data-src="05-testing_files/figure-revealjs/unnamed-chunk-8-1.png" width="2800"></p>
 </figure>
 </div>
 </div>
@@ -2831,7 +2992,7 @@ Lecturer transcript
 </div>
 </div>
 </div>
-<p>If you follow the decision rule, then you have a 1% chance that you are wrong in rejecting the null hypothesis of <span class="math inline">\(\beta_j = 0\)</span>. Here,</p>
+<p>If you follow the decision rule, then you have a 1% chance that you are wrong in rejecting the null hypothesis of <span class="math inline">\beta_j = 0</span>. Here,</p>
 <ul>
 <li>1% is the <span style="color: red;"> significance level </span></li>
 <li>2.33 is the <span style="color: red;"> critical value </span> above which you will reject the null</li>
@@ -2847,16 +3008,16 @@ Lecturer transcript
 <div class="columns">
 <div class="column" style="width:40%;">
 <ul>
-<li><p>The figure on the right presents the distribution of <span class="math inline">\(\frac{\widehat{\beta}_j-\beta_j}{\widehat{se(\widehat{\beta}_j)}}\)</span> if <span class="math inline">\(\beta_j = 0\)</span> (the null hypothesis is true).</p></li>
+<li><p>The figure on the right presents the distribution of <span class="math inline">\frac{\widehat{\beta}_j-\beta_j}{\widehat{se(\widehat{\beta}_j)}}</span> if <span class="math inline">\beta_j = 0</span> (the null hypothesis is true).</p></li>
 <li><p>The probability that you get a value more extreme than 1.96 or -1.96 is 5% (0.05 in area combining the two areas at the edges).</p></li>
 </ul>
-<p>(Note: irrespective of the type of test, the distribution of the t-statistic is the same — every figure on this slide is the <span style="color: red;"> same </span> <span class="math inline">\(t_{522}\)</span> curve. Only the shaded region changes.)</p>
+<p>(Note: irrespective of the type of test, the distribution of the t-statistic is the same — every figure on this slide is the <span style="color: red;"> same </span> <span class="math inline">t_{522}</span> curve. Only the shaded region changes.)</p>
 </div><!--end of the 1st column--><div class="column" style="width:60%;">
 <div class="cell">
 <div class="cell-output-display">
 <div>
 <figure>
-<p><img data-src="05-testing_files/figure-revealjs/unnamed-chunk-9-1.png" width="4000"></p>
+<p><img data-src="05-testing_files/figure-revealjs/unnamed-chunk-9-1.png" width="2800"></p>
 </figure>
 </div>
 </div>
@@ -2876,7 +3037,7 @@ Lecturer transcript
 </div>
 </div>
 </div>
-<p>If you follow the decision rule, then you have a 5% chance that you are wrong in rejecting the null hypothesis of <span class="math inline">\(\beta_j = 0\)</span>. Here,</p>
+<p>If you follow the decision rule, then you have a 5% chance that you are wrong in rejecting the null hypothesis of <span class="math inline">\beta_j = 0</span>. Here,</p>
 <ul>
 <li>5% is the <span style="color: red;"> significance level </span></li>
 <li>1.96 is the <span style="color: red;"> critical value </span> beyond which you will reject the null</li>
@@ -2908,15 +3069,15 @@ Lecturer transcript
 <div class="columns">
 <div class="column" style="width:50%;">
 <ul>
-<li><p>Suppose the t-statistic you got is 2.16. Then, there’s a 3.1% chance you reject the null when it is actually true, if you use it as the critical value.</p></li>
-<li><p>So, the lower significance level the null hypothesis is rejected is 3.1%, which is the definition of p-value.</p></li>
+<li><p>Suppose the t-statistic you got is 2.16. If the null hypothesis is true, the probability of observing a test statistic at least this extreme is 3.1%.</p></li>
+<li><p>Thus, 3.1% is the smallest significance level at which the null would be rejected, which is the definition of the p-value.</p></li>
 </ul>
 </div><!--end of the 1st column--><div class="column" style="width:50%;">
 <div class="cell">
 <div class="cell-output-display">
 <div>
 <figure>
-<p><img data-src="05-testing_files/figure-revealjs/unnamed-chunk-10-1.png" width="4000"></p>
+<p><img data-src="05-testing_files/figure-revealjs/unnamed-chunk-10-1.png" width="2800"></p>
 </figure>
 </div>
 </div>
@@ -2948,21 +3109,21 @@ Lecturer transcript
 <p><strong>Estimated Model</strong></p>
 <p>The impact of experience on wage:</p>
 <ul>
-<li><span class="math inline">\(log(wage) = 0.284+0.092\times educ+0.0041\times exper + 0.022 \times tenure\)</span></li>
-<li><span class="math inline">\(\widehat{se(\widehat{\beta}_{exper})} = 0.0017\)</span></li>
-<li><span class="math inline">\(n = 526\)</span></li>
+<li><span class="math inline">log(wage) = 0.284+0.092\times educ+0.0041\times exper + 0.022 \times tenure</span></li>
+<li><span class="math inline">\widehat{se(\widehat{\beta}_{exper})} = 0.0017</span></li>
+<li><span class="math inline">n = 526</span></li>
 </ul>
 <p><br></p>
 <p><strong>Hypothesis</strong></p>
 <ul>
-<li><span class="math inline">\(H_0\)</span>: <span class="math inline">\(\beta_{exper}=0\)</span></li>
-<li><span class="math inline">\(H_1\)</span>: <span class="math inline">\(\beta_{exper}&gt;0\)</span></li>
+<li><span class="math inline">H_0</span>: <span class="math inline">\beta_{exper}=0</span></li>
+<li><span class="math inline">H_1</span>: <span class="math inline">\beta_{exper}&gt;0</span></li>
 </ul>
 <p><br></p>
 <p><strong>Test</strong></p>
-<p>t-statistic <span class="math inline">\(= 0.0041/0.0017 = 2.41\)</span></p>
-<p>The critical value is the 99% quantile of <span class="math inline">\(t_{526-3-1}\)</span>, which is <span class="math inline">\(2.33\)</span> (it can be obtained by <code>qt(0.99, 522)</code>)</p>
-<p>Since <span class="math inline">\(2.41 &gt; 2.33\)</span>, we reject the null in favor of the alternative hypothesis at the 1% level.</p>
+<p>t-statistic <span class="math inline">= 0.0041/0.0017 = 2.41</span></p>
+<p>The critical value is the 99% quantile of <span class="math inline">t_{526-3-1}</span>, which is <span class="math inline">2.33</span> (it can be obtained by <code>qt(0.99, 522)</code>)</p>
+<p>Since <span class="math inline">2.41 &gt; 2.33</span>, we reject the null in favor of the alternative hypothesis at the 1% level.</p>
 </div>
 </div>
 </div>
@@ -2995,16 +3156,16 @@ Lecturer transcript
 <noscript>Please enable JavaScript to experience the dynamic code cell content on this page.</noscript>
 <p><br></p>
 <ul>
-<li><code>estimate</code>: coefficient estimates <span class="math inline">\((\widehat{\beta}_j)\)</span></li>
-<li><code>std.error</code>: <span class="math inline">\(\widehat{se(\widehat{\beta}_j)}\)</span></li>
-<li><code>statistic</code>: t-statistic for the null of <span class="math inline">\(\beta_j = 0\)</span></li>
-<li><code>p.value</code>: p-value (for the two sided test with the null of <span class="math inline">\(\beta_j = 0\)</span>)</li>
+<li><code>estimate</code>: coefficient estimates <span class="math inline">(\widehat{\beta}_j)</span></li>
+<li><code>std.error</code>: <span class="math inline">\widehat{se(\widehat{\beta}_j)}</span></li>
+<li><code>statistic</code>: t-statistic for the null of <span class="math inline">\beta_j = 0</span></li>
+<li><code>p.value</code>: p-value (for the two sided test with the null of <span class="math inline">\beta_j = 0</span>)</li>
 </ul>
-<p>So, for the t-test of <span class="math inline">\(\beta_j = 0\)</span> is already there. You do not need to do anything further.</p>
-<p>For the null hypothesis other than <span class="math inline">\(\beta_j = 0\)</span>, you need further work.</p>
+<p>So, for the t-test of <span class="math inline">\beta_j = 0</span> is already there. You do not need to do anything further.</p>
+<p>For the null hypothesis other than <span class="math inline">\beta_j = 0</span>, you need further work.</p>
 </div>
 <div id="tabset-10-3">
-<p>Suppose you are testing the null hypothesis of <span class="math inline">\(\beta_{educ} = 1\)</span> against the alternative hypothesis of <span class="math inline">\(\beta_{educ} \ne 1\)</span> (so, this is a two-sided test).</p>
+<p>Suppose you are testing the null hypothesis of <span class="math inline">\beta_{educ} = 1</span> against the alternative hypothesis of <span class="math inline">\beta_{educ} \ne 1</span> (so, this is a two-sided test).</p>
 <p>The t-value for this test is not available from the summary.</p>
 <div class="panel-tabset">
 <ul id="tabset-9" class="panel-tabset-tabby"><li><a data-tabby-default="" href="#tabset-9-1">get t-value</a></li><li><a href="#tabset-9-2">critical value and t-test</a></li></ul>
@@ -3026,11 +3187,11 @@ Lecturer transcript
 </summary>
 <p>And the other half: the critical value. First get the degrees of freedom from the fit rather than counting by hand, which avoids exactly the kind of error that comes from typing a number. Then <code>qt</code> at zero point nine seven five, because this is two-sided and we want two and a half percent in each tail. Compare the absolute value of your t-statistic against it. The gap here is enormous, which should not surprise you: a return to education of one dollar per year of schooling is nothing like the estimate the data gives.</p>
 </details>
-<p>The degree of freedom <span class="math inline">\((n-k-1)\)</span> of the t-distribution can be obtained by applying <code>degrees_freedom(reg_wage, "resid")</code>:</p>
+<p>The degree of freedom <span class="math inline">(n-k-1)</span> of the t-distribution can be obtained by applying <code>degrees_freedom(reg_wage, "resid")</code>:</p>
 <div id="qwebr-insertion-location-5"></div>
 <noscript>Please enable JavaScript to experience the dynamic code cell content on this page.</noscript>
 <p><br></p>
-<p>You can get the 97.5% quantile of the <span class="math inline">\(t_{522}\)</span> using the <code>qt()</code> function:</p>
+<p>You can get the 97.5% quantile of the <span class="math inline">t_{522}</span> using the <code>qt()</code> function:</p>
 <div id="qwebr-insertion-location-6"></div>
 <noscript>Please enable JavaScript to experience the dynamic code cell content on this page.</noscript>
 <p><br></p>
@@ -3093,10 +3254,10 @@ Lecturer transcript
 </summary>
 <p>The general recipe, and it is short. To get an A percent interval, chop off the same amount of probability from each tail: A percent in the middle means one hundred minus A percent left over, split in two. So the lower bound is the hundred minus A over two quantile and the upper bound is its mirror image. Note the parentheses carefully. It is one hundred minus A, then divided by two, not one hundred minus A over two. That distinction is the difference between two point five percent and fifty-two point five percent.</p>
 </details>
-<p>For the <strong>assumed</strong> distribution of statistic <span class="math inline">\(x\)</span>, the <span class="math inline">\(A\%\)</span> confidence interval of <span class="math inline">\(x\)</span> is the range with</p>
+<p>For the <strong>assumed</strong> distribution of statistic <span class="math inline">x</span>, the <span class="math inline">A\%</span> confidence interval of <span class="math inline">x</span> is the range with</p>
 <ul>
-<li>lower bound: <span class="math inline">\((100 - A)/2\)</span> percent quantile of <span class="math inline">\(x\)</span></li>
-<li>upper bound: <span class="math inline">\(100-(100 - A)/2\)</span> percent quantile of <span class="math inline">\(x\)</span></li>
+<li>lower bound: <span class="math inline">(100 - A)/2</span> percent quantile of <span class="math inline">x</span></li>
+<li>upper bound: <span class="math inline">100-(100 - A)/2</span> percent quantile of <span class="math inline">x</span></li>
 </ul>
 </div>
 <div id="tabset-11-2">
@@ -3110,16 +3271,16 @@ Lecturer transcript
 <div class="column" style="width:40%;">
 <p>For the 95% CI (A = 95),</p>
 <ul>
-<li>lower bound: <span class="math inline">\(2.5\)</span> <span class="math inline">\(\big((100-95)/2\big)\)</span> percent quantile of <span class="math inline">\(x\)</span></li>
-<li>upper bound: <span class="math inline">\(97.5\)</span> <span class="math inline">\(\big(100-(100-95)/2\big)\)</span> percent quantile of <span class="math inline">\(x\)</span></li>
+<li>lower bound: <span class="math inline">2.5</span> <span class="math inline">\big((100-95)/2\big)</span> percent quantile of <span class="math inline">x</span></li>
+<li>upper bound: <span class="math inline">97.5</span> <span class="math inline">\big(100-(100-95)/2\big)</span> percent quantile of <span class="math inline">x</span></li>
 </ul>
-<p>If <span class="math inline">\(x\)</span> follows the standard normal distribution <span class="math inline">\((x \sim N(0, 1))\)</span>, then,the 2.5% and 97.5% quantiles are -1.96 and 1.96, respectively. So, the 95% CI of <span class="math inline">\(x\)</span> is [-1.96, 1.96].</p>
+<p>If <span class="math inline">x</span> follows the standard normal distribution <span class="math inline">(x \sim N(0, 1))</span>, then,the 2.5% and 97.5% quantiles are -1.96 and 1.96, respectively. So, the 95% CI of <span class="math inline">x</span> is [-1.96, 1.96].</p>
 </div><!--end of the 1st column--><div class="column" style="width:60%;">
 <div class="cell">
 <div class="cell-output-display">
 <div>
 <figure>
-<p><img data-src="05-testing_files/figure-revealjs/unnamed-chunk-12-1.png" width="4000"></p>
+<p><img data-src="05-testing_files/figure-revealjs/unnamed-chunk-12-1.png" width="2800"></p>
 </figure>
 </div>
 </div>
@@ -3140,20 +3301,20 @@ Lecturer transcript
 <p>The derivation, and it has two moves. We know the distribution of the standardised quantity, so we know its interval directly: the quantiles of the t distribution. But you want an interval for beta-j, not for that ratio, so you have to invert. Solve the ratio for beta-j and you get beta-hat minus t times the standard error. Then read the last two bullets: scale each quantile by the standard error and shift by the estimate. The lower quantile is negative and the upper positive, which is what puts the estimate in the middle.</p>
 </details>
 <p>Under the assumption of MLR.1 through MLR.6 (which includes the normality assumption of the error), we learned that</p>
-<p><span class="math inline">\(\frac{\widehat{\beta}_j - \beta_j}{\widehat{se(\widehat{\beta}_j)}} \sim t_{n-k-1}\)</span></p>
-<p>So, following the general procedure we discussed in the previous slide, the A% confidence interval of <span class="math inline">\(\frac{\widehat{\beta}_j - \beta_j}{\widehat{se(\widehat{\beta}_j)}}\)</span> is</p>
+<p><span class="math inline">\frac{\widehat{\beta}_j - \beta_j}{\widehat{se(\widehat{\beta}_j)}} \sim t_{n-k-1}</span></p>
+<p>So, following the general procedure we discussed in the previous slide, the A% confidence interval of <span class="math inline">\frac{\widehat{\beta}_j - \beta_j}{\widehat{se(\widehat{\beta}_j)}}</span> is</p>
 <ul>
-<li>lower bound: <span class="math inline">\((100 − A)/2\)</span>% quantile of the <span class="math inline">\(t_{n-k-1}\)</span> distribution (let’s call this <span class="math inline">\(Q_l\)</span>)</li>
-<li>upper bound: <span class="math inline">\(100 - (100 − A)/2\)</span>% quantile of the <span class="math inline">\(t_{n-k-1}\)</span> distribution (let’s call this <span class="math inline">\(Q_h\)</span>)</li>
+<li>lower bound: <span class="math inline">(100 − A)/2</span>% quantile of the <span class="math inline">t_{n-k-1}</span> distribution (let’s call this <span class="math inline">Q_l</span>)</li>
+<li>upper bound: <span class="math inline">100 - (100 − A)/2</span>% quantile of the <span class="math inline">t_{n-k-1}</span> distribution (let’s call this <span class="math inline">Q_h</span>)</li>
 </ul>
-<p>But, we want the A% CI of <span class="math inline">\(\beta_j\)</span>, not <span class="math inline">\(\frac{\widehat{\beta}_j - \beta_j}{\widehat{se(\widehat{\beta}_j)}}\)</span>. Solving for <span class="math inline">\(\beta_j\)</span>,</p>
-<p><span class="math inline">\(\beta_j = \widehat{\beta}_j - t_{n-k-1}\times \widehat{se(\widehat{\beta}_j)}\)</span></p>
-<p>So, to get the A% CI of <span class="math inline">\(\beta_j\)</span>, we scale the CI of <span class="math inline">\(\frac{\widehat{\beta}_j - \beta_j}{\widehat{se(\widehat{\beta}_j)}}\)</span> by <span class="math inline">\(\widehat{se(\widehat{\beta}_j)}\)</span> and then shift by <span class="math inline">\(\widehat{\beta}_j\)</span>. Because the <span class="math inline">\(t\)</span> distribution is symmetric, the minus sign above just swaps which quantile lands on which end:</p>
+<p>But, we want the A% CI of <span class="math inline">\beta_j</span>, not <span class="math inline">\frac{\widehat{\beta}_j - \beta_j}{\widehat{se(\widehat{\beta}_j)}}</span>. Solving for <span class="math inline">\beta_j</span>,</p>
+<p><span class="math inline">\beta_j = \widehat{\beta}_j - t_{n-k-1}\times \widehat{se(\widehat{\beta}_j)}</span></p>
+<p>So, to get the A% CI of <span class="math inline">\beta_j</span>, we scale the CI of <span class="math inline">\frac{\widehat{\beta}_j - \beta_j}{\widehat{se(\widehat{\beta}_j)}}</span> by <span class="math inline">\widehat{se(\widehat{\beta}_j)}</span> and then shift by <span class="math inline">\widehat{\beta}_j</span>. Because the <span class="math inline">t</span> distribution is symmetric, the minus sign above just swaps which quantile lands on which end:</p>
 <ul>
-<li>lower bound: <span class="math inline">\(Q_l \times \widehat{se(\widehat{\beta}_j)} + \widehat{\beta}_j\)</span></li>
-<li>upper bound: <span class="math inline">\(Q_h \times \widehat{se(\widehat{\beta}_j)} + \widehat{\beta}_j\)</span></li>
+<li>lower bound: <span class="math inline">Q_l \times \widehat{se(\widehat{\beta}_j)} + \widehat{\beta}_j</span></li>
+<li>upper bound: <span class="math inline">Q_h \times \widehat{se(\widehat{\beta}_j)} + \widehat{\beta}_j</span></li>
 </ul>
-<p>Note that <span class="math inline">\(Q_l\)</span> is <span style="color: blue;"> negative </span> and <span class="math inline">\(Q_h\)</span> is <span style="color: red;">positive</span>.</p>
+<p>Note that <span class="math inline">Q_l</span> is <span style="color: blue;"> negative </span> and <span class="math inline">Q_h</span> is <span style="color: red;">positive</span>.</p>
 </div>
 <div id="tabset-13-4">
 <div class="panel-tabset">
@@ -3181,13 +3342,13 @@ Lecturer transcript
 </summary>
 <p>Three numbers, and I want you to see how few there are. The estimate is about zero point six, the standard error about zero point zero five, and the degrees of freedom are five hundred and twenty-two, which is five hundred and twenty-six observations minus three regressors minus one for the intercept. That is the whole input. Note the degrees of freedom is computed from the fit rather than typed in, which matters more than it sounds: a stale hardcoded number is exactly the kind of error that renders without complaint and quietly misleads.</p>
 </details>
-<p>We are interested in getting the 90% confidence interval of the coefficient on <code>educ</code> <span class="math inline">\((\beta_{educ})\)</span>. Under all the assumptions (MLR.1 through MLR.6), we know that in general,</p>
-<p><span class="math inline">\(\frac{\widehat{\beta}_{educ} - \beta_{educ}}{\widehat{se(\widehat{\beta}_{educ})}} \sim t_{n-k-1}\)</span></p>
+<p>We are interested in getting the 90% confidence interval of the coefficient on <code>educ</code> <span class="math inline">(\beta_{educ})</span>. Under all the assumptions (MLR.1 through MLR.6), we know that in general,</p>
+<p><span class="math inline">\frac{\widehat{\beta}_{educ} - \beta_{educ}}{\widehat{se(\widehat{\beta}_{educ})}} \sim t_{n-k-1}</span></p>
 <p>Specifically for this regression,</p>
 <ul>
-<li><p><span class="math inline">\(\widehat{\beta}_{educ}\)</span> = 0.599</p></li>
-<li><p><span class="math inline">\(\widehat{se(\widehat{\beta}_{educ})}\)</span> = 0.0513</p></li>
-<li><p><span class="math inline">\(n - k - 1 = 522\)</span> (degrees of freedom)</p></li>
+<li><p><span class="math inline">\widehat{\beta}_{educ}</span> = 0.599</p></li>
+<li><p><span class="math inline">\widehat{se(\widehat{\beta}_{educ})}</span> = 0.0513</p></li>
+<li><p><span class="math inline">n - k - 1 = 522</span> (degrees of freedom)</p></li>
 </ul>
 </div>
 <div id="tabset-12-3">
@@ -3199,24 +3360,24 @@ Lecturer transcript
 </details>
 <div class="columns">
 <div class="column" style="width:50%;">
-<p>Now, we need to find the 5% <span class="math inline">\(\big((100-90)/2\big)\)</span> and 95% <span class="math inline">\(\big(100-(100-90)/2\big)\)</span> quantiles of <span class="math inline">\(t_{522}\)</span>.</p>
+<p>Now, we need to find the 5% <span class="math inline">\big((100-90)/2\big)</span> and 95% <span class="math inline">\big(100-(100-90)/2\big)</span> quantiles of <span class="math inline">t_{522}</span>.</p>
 <div id="qwebr-insertion-location-9"></div>
 <noscript>Please enable JavaScript to experience the dynamic code cell content on this page.</noscript>
 <p><br></p>
-<p>So, the 90% CI of <span class="math inline">\(\frac{0.599 - \beta_{educ}}{0.051} \sim t_{522}\)</span> is [-1.648, 1.648]</p>
-<p>By scaling and shifting, the lower and upper bounds of the 90% CI of <span class="math inline">\(\beta_{educ}\)</span> are:</p>
+<p>So, the 90% CI of <span class="math inline">\frac{0.599 - \beta_{educ}}{0.051} \sim t_{522}</span> is [-1.648, 1.648]</p>
+<p>By scaling and shifting, the lower and upper bounds of the 90% CI of <span class="math inline">\beta_{educ}</span> are:</p>
 <ul>
-<li><p>lower bound: 0.599 + 0.051 <span class="math inline">\(\times\)</span> -1.648 = 0.514</p></li>
-<li><p>upper bound: 0.599 + 0.051 <span class="math inline">\(\times\)</span> 1.648 = 0.683</p></li>
+<li><p>lower bound: 0.599 + 0.051 <span class="math inline">\times</span> -1.648 = 0.514</p></li>
+<li><p>upper bound: 0.599 + 0.051 <span class="math inline">\times</span> 1.648 = 0.683</p></li>
 </ul>
 <p>Confirm these against the <code>In practice</code> tab, which asks <code>broom</code> for the same interval.</p>
 </div><!--end of the 1st column--><div class="column" style="width:50%;">
-<p>The distribution of <span class="math inline">\(t_{522}\)</span>:</p>
+<p>The distribution of <span class="math inline">t_{522}</span>:</p>
 <div class="cell">
 <div class="cell-output-display">
 <div>
 <figure>
-<p><img data-src="05-testing_files/figure-revealjs/unnamed-chunk-15-1.png" width="4000"></p>
+<p><img data-src="05-testing_files/figure-revealjs/unnamed-chunk-15-1.png" width="2800"></p>
 </figure>
 </div>
 </div>
@@ -3257,7 +3418,7 @@ Lecturer transcript
 <section id="linear-combination-of-multiple-coefficients-1" class="slide level2">
 <h2>Linear Combination of Multiple Coefficients</h2>
 <div class="panel-tabset">
-<ul id="tabset-15" class="panel-tabset-tabby"><li><a data-tabby-default="" href="#tabset-15-1">Example</a></li><li><a href="#tabset-15-2">Rewrite the hypothesis</a></li><li><a href="#tabset-15-3">Math</a></li><li><a href="#tabset-15-4">Going back to the example</a></li><li><a href="#tabset-15-5">get <span class="math inline">\(se(\widehat{\beta}_1-\widehat{\beta}_2)\)</span></a></li><li><a href="#tabset-15-6">Demonstration using R</a></li></ul>
+<ul id="tabset-15" class="panel-tabset-tabby"><li><a data-tabby-default="" href="#tabset-15-1">Example</a></li><li><a href="#tabset-15-2">Rewrite the hypothesis</a></li><li><a href="#tabset-15-3">Math</a></li><li><a href="#tabset-15-4">Going back to the example</a></li><li><a href="#tabset-15-5">get <span class="math inline">se(\widehat{\beta}_1-\widehat{\beta}_2)</span></a></li><li><a href="#tabset-15-6">Demonstration using R</a></li></ul>
 <div class="tab-content">
 <div id="tabset-15-1">
 <details class="transcript">
@@ -3267,18 +3428,18 @@ Lecturer transcript
 <p>A genuinely different question, and notice that it is not about any single coefficient. Two dummy variables, one for attending a two-year college and one for a four-year college, so beta-one and beta-two are their respective effects on log wage. The question is whether four-year college has the bigger effect, which is a claim about the two coefficients <em>relative to each other</em>. Neither one on its own answers it. Read the hypotheses at the bottom, and notice the null is equality: the two kinds of college have the same effect.</p>
 </details>
 <p><strong>Model</strong></p>
-<p><span class="math display">\[log(wage) = \beta_0+\beta_1 jc+ \beta_2 univ + \beta_3 exper + u\]</span></p>
+<p><span class="math display">log(wage) = \beta_0+\beta_1 jc+ \beta_2 univ + \beta_3 exper + u</span></p>
 <ul>
-<li><span class="math inline">\(jc\)</span>: 1 if you attended 2-year college, 0 otherwise</li>
-<li><span class="math inline">\(univ\)</span>: 1 if you attended 4-year college, 0 otherwise</li>
+<li><span class="math inline">jc</span>: 1 if you attended 2-year college, 0 otherwise</li>
+<li><span class="math inline">univ</span>: 1 if you attended 4-year college, 0 otherwise</li>
 </ul>
 <p><strong>Question</strong></p>
 <p>Is the impact of education on wage greater if you attend a 4-year college than a 2-year college?</p>
 <p><strong>Hypothesis</strong></p>
 <p>The null and alternative hypotheses would be:</p>
 <ul>
-<li><span class="math inline">\(H_1:\)</span> <span class="math inline">\(\beta_1 &lt; \beta_2\)</span></li>
-<li><span class="math inline">\(H_0:\)</span> <span class="math inline">\(\beta_1 = \beta_2\)</span></li>
+<li><span class="math inline">H_1:</span> <span class="math inline">\beta_1 &lt; \beta_2</span></li>
+<li><span class="math inline">H_0:</span> <span class="math inline">\beta_1 = \beta_2</span></li>
 </ul>
 </div>
 <div id="tabset-15-2">
@@ -3290,21 +3451,21 @@ Lecturer transcript
 </details>
 <p>The null and alternative hypotheses are:</p>
 <ul>
-<li><span class="math inline">\(H_1:\)</span> <span class="math inline">\(\beta_1 &lt; \beta_2\)</span></li>
-<li><span class="math inline">\(H_0:\)</span> <span class="math inline">\(\beta_1 = \beta_2\)</span></li>
+<li><span class="math inline">H_1:</span> <span class="math inline">\beta_1 &lt; \beta_2</span></li>
+<li><span class="math inline">H_0:</span> <span class="math inline">\beta_1 = \beta_2</span></li>
 </ul>
 <p>Rewriting them,</p>
 <ul>
-<li><span class="math inline">\(H_1:\)</span> <span class="math inline">\(\beta_1-\beta_2 &lt; 0\)</span></li>
-<li><span class="math inline">\(H_0:\)</span> <span class="math inline">\(\beta_1 - \beta_2 =0\)</span></li>
+<li><span class="math inline">H_1:</span> <span class="math inline">\beta_1-\beta_2 &lt; 0</span></li>
+<li><span class="math inline">H_0:</span> <span class="math inline">\beta_1 - \beta_2 =0</span></li>
 </ul>
 <p>Or,</p>
 <ul>
-<li><span class="math inline">\(H_1:\)</span> <span class="math inline">\(\alpha &lt; 0\)</span></li>
-<li><span class="math inline">\(H_0:\)</span> <span class="math inline">\(\alpha =0\)</span></li>
+<li><span class="math inline">H_1:</span> <span class="math inline">\alpha &lt; 0</span></li>
+<li><span class="math inline">H_0:</span> <span class="math inline">\alpha =0</span></li>
 </ul>
-<p>where <span class="math inline">\(\alpha = \beta_1 - \beta_2\)</span></p>
-<p>Note that <span class="math inline">\(\alpha\)</span> is a linear combination of <span class="math inline">\(\beta_1\)</span> and <span class="math inline">\(\beta_2\)</span>.</p>
+<p>where <span class="math inline">\alpha = \beta_1 - \beta_2</span></p>
+<p>Note that <span class="math inline">\alpha</span> is a linear combination of <span class="math inline">\beta_1</span> and <span class="math inline">\beta_2</span>.</p>
 </div>
 <div id="tabset-15-3">
 <details class="transcript">
@@ -3320,16 +3481,16 @@ Lecturer transcript
 <p><strong>Important Fact</strong></p>
 </div>
 <div class="callout-content">
-<p>For any linear combination of the OLS coefficients, denoted as <span class="math inline">\(\widehat{\alpha}\)</span>, the following holds:</p>
-<p><span class="math display">\[\frac{\widehat{\alpha}-\alpha}{\widehat{se(\widehat{\alpha})}} \sim t_{n-k-1}\]</span></p>
-<p>Where <span class="math inline">\(\alpha\)</span> is the true value (it is <span class="math inline">\(\beta_1 - \beta_2\)</span> in the example in the previous slide).</p>
+<p>For any linear combination of the OLS coefficients, denoted as <span class="math inline">\widehat{\alpha}</span>, the following holds:</p>
+<p><span class="math display">\frac{\widehat{\alpha}-\alpha}{\widehat{se(\widehat{\alpha})}} \sim t_{n-k-1}</span></p>
+<p>Where <span class="math inline">\alpha</span> is the true value (it is <span class="math inline">\beta_1 - \beta_2</span> in the example in the previous slide).</p>
 </div>
 </div>
 </div>
 </div>
 <p><br></p>
 <p>So, using the example, this means that</p>
-<p><span class="math display">\[\frac{\widehat{\alpha}-\alpha}{\widehat{se(\widehat{\alpha})}} = \frac{\widehat{\beta}_1-\widehat{\beta}_2-(\beta_1 - \beta_2)}{\widehat{se(\widehat{\beta}_1-\widehat{\beta}_2)}} \sim t_{n-k-1}\]</span></p>
+<p><span class="math display">\frac{\widehat{\alpha}-\alpha}{\widehat{se(\widehat{\alpha})}} = \frac{\widehat{\beta}_1-\widehat{\beta}_2-(\beta_1 - \beta_2)}{\widehat{se(\widehat{\beta}_1-\widehat{\beta}_2)}} \sim t_{n-k-1}</span></p>
 <p>This is great because we know how to do t-test!</p>
 </div>
 <div id="tabset-15-4">
@@ -3339,10 +3500,10 @@ Lecturer transcript
 </summary>
 <p>Substituting the null into the general result. Alpha is zero under the null, so the numerator is just the difference of the two estimates. Read the red “if” carefully, because it carries the whole logic: this distribution holds only under the null. Then the last sentence lists what you need to plug in. Two of the three you can read straight off the regression output. The third, the standard error of the difference, you cannot, and that is the entire subject of the next tab.</p>
 </details>
-<p>Our null hypothesis is <span class="math inline">\(\alpha = 0\)</span> (or <span class="math inline">\(\beta_1 - \beta_2 = 0\)</span>).</p>
+<p>Our null hypothesis is <span class="math inline">\alpha = 0</span> (or <span class="math inline">\beta_1 - \beta_2 = 0</span>).</p>
 <p>So, <span style="color: red;"> If </span> indeed the null hypothesis is true, then</p>
-<p><span class="math display">\[\frac{\widehat{\alpha}-0}{\widehat{se(\widehat{\alpha})}} = \frac{\widehat{\beta}_1-\widehat{\beta}_2-0}{\widehat{se(\widehat{\beta}_1-\widehat{\beta}_2)}} \sim t_{n-k-1}\]</span></p>
-<p>So, all you need to do is to substitute <span class="math inline">\(\widehat{\beta}_1\)</span>, <span class="math inline">\(\widehat{\beta}_2\)</span>, <span class="math inline">\(\widehat{se(\widehat{\beta}_1 - \widehat{\beta}_2)}\)</span> into the formula and see if the value is beyond the critical value for your chosen level of statistical significance.</p>
+<p><span class="math display">\frac{\widehat{\alpha}-0}{\widehat{se(\widehat{\alpha})}} = \frac{\widehat{\beta}_1-\widehat{\beta}_2-0}{\widehat{se(\widehat{\beta}_1-\widehat{\beta}_2)}} \sim t_{n-k-1}</span></p>
+<p>So, all you need to do is to substitute <span class="math inline">\widehat{\beta}_1</span>, <span class="math inline">\widehat{\beta}_2</span>, <span class="math inline">\widehat{se(\widehat{\beta}_1 - \widehat{\beta}_2)}</span> into the formula and see if the value is beyond the critical value for your chosen level of statistical significance.</p>
 </div>
 <div id="tabset-15-5">
 <details class="transcript">
@@ -3352,10 +3513,10 @@ Lecturer transcript
 <p>Here is the trap. It would be very convenient if the variance of a difference were the sum of the variances, and the slide states plainly that it is not. Read the math aside: expanding the variance of a linear combination produces a covariance term in the middle. With a equals one and b equals minus one, the two variances add and the covariance term comes in with a minus two in front. So you need the covariance between the two coefficient estimators, which does not appear anywhere in a standard regression table. That is why the next slide introduces the variance-covariance matrix.</p>
 </details>
 <p>But,</p>
-<p><span class="math display">\[se(\widehat{\beta}_1-\widehat{\beta}_2)= \sqrt{Var(\widehat{\beta}_1-\widehat{\beta}_2)} \ne \sqrt{Var(\widehat{\beta}_1)+Var(\widehat{\beta}_2)}\]</span></p>
+<p><span class="math display">se(\widehat{\beta}_1-\widehat{\beta}_2)= \sqrt{Var(\widehat{\beta}_1-\widehat{\beta}_2)} \ne \sqrt{Var(\widehat{\beta}_1)+Var(\widehat{\beta}_2)}</span></p>
 <p>If the following was true,</p>
-<p><span class="math display">\[se(\widehat{\beta}_1-\widehat{\beta}_2) = \sqrt{Var(\widehat{\beta}_1)+Var(\widehat{\beta}_2)}\]</span></p>
-<p>then, we could have just extracted <span class="math inline">\(Var(\widehat{\beta}_1)\)</span> and <span class="math inline">\(Var(\widehat{\beta}_2)\)</span> individually from the regression object on R, sum them up, and take a square root of it.</p>
+<p><span class="math display">se(\widehat{\beta}_1-\widehat{\beta}_2) = \sqrt{Var(\widehat{\beta}_1)+Var(\widehat{\beta}_2)}</span></p>
+<p>then, we could have just extracted <span class="math inline">Var(\widehat{\beta}_1)</span> and <span class="math inline">Var(\widehat{\beta}_2)</span> individually from the regression object on R, sum them up, and take a square root of it.</p>
 <div title="Math aside">
 <div class="callout callout-note no-icon callout-titled callout-style-default">
 <div class="callout-body">
@@ -3363,13 +3524,13 @@ Lecturer transcript
 <p><strong>Math aside</strong></p>
 </div>
 <div class="callout-content">
-<p><span class="math display">\[Var(ax+by) = a^2 Var(x) + 2abCov(x,y) + b^2 Var(y)\]</span></p>
+<p><span class="math display">Var(ax+by) = a^2 Var(x) + 2abCov(x,y) + b^2 Var(y)</span></p>
 </div>
 </div>
 </div>
 </div>
 <p>So,</p>
-<p><span class="math display">\[se(\widehat{\beta}_1-\widehat{\beta}_2)= \sqrt{Var(\widehat{\beta}_1-\widehat{\beta}_2)} = \sqrt{Var(\widehat{\beta}_1)-2Cov(\widehat{\beta}_1,\widehat{\beta}_2)+Var(\widehat{\beta}_2)}\]</span></p>
+<p><span class="math display">se(\widehat{\beta}_1-\widehat{\beta}_2)= \sqrt{Var(\widehat{\beta}_1-\widehat{\beta}_2)} = \sqrt{Var(\widehat{\beta}_1)-2Cov(\widehat{\beta}_1,\widehat{\beta}_2)+Var(\widehat{\beta}_2)}</span></p>
 </div>
 <div id="tabset-15-6">
 <div class="panel-tabset">
@@ -3401,8 +3562,8 @@ Lecturer transcript
 <div class="callout-content">
 <p>Variance covariance matrix is a matrix where</p>
 <ul>
-<li><span class="math inline">\(VCOV_{i,i}\)</span>: the variance of <span class="math inline">\(i\)</span>th variable’s coefficient estimator</li>
-<li><span class="math inline">\(VCOV_{i,j}\)</span>: the covariance between <span class="math inline">\(i\)</span>th and <span class="math inline">\(j\)</span>th variables’ estimators</li>
+<li><span class="math inline">VCOV_{i,i}</span>: the variance of <span class="math inline">i</span>th variable’s coefficient estimator</li>
+<li><span class="math inline">VCOV_{i,j}</span>: the covariance between <span class="math inline">i</span>th and <span class="math inline">j</span>th variables’ estimators</li>
 </ul>
 </div>
 </div>
@@ -3413,7 +3574,7 @@ Lecturer transcript
 <div id="qwebr-insertion-location-12"></div>
 <noscript>Please enable JavaScript to experience the dynamic code cell content on this page.</noscript>
 <p><br></p>
-<p>For example, <span class="math inline">\(vcov_{sc}[2, 2]\)</span> is the variance of <span class="math inline">\(\widehat{\beta}_{jc}\)</span>, and <span class="math inline">\(vcov_{sc}[2, 3]\)</span> is the covariance between <span class="math inline">\(\widehat{\beta}_{jc}\)</span> and <span class="math inline">\(\widehat{\beta}_{univ}\)</span>.</p>
+<p>For example, <span class="math inline">vcov_{sc}[2, 2]</span> is the variance of <span class="math inline">\widehat{\beta}_{jc}</span>, and <span class="math inline">vcov_{sc}[2, 3]</span> is the covariance between <span class="math inline">\widehat{\beta}_{jc}</span> and <span class="math inline">\widehat{\beta}_{univ}</span>.</p>
 </div>
 <div id="tabset-14-3">
 <details class="transcript">
@@ -3435,7 +3596,7 @@ Lecturer transcript
 <summary>
 Lecturer transcript
 </summary>
-<p>And of course there is a function for it. <code>car::linearHypothesis</code> takes the fit and the hypothesis written as a string, and does all of that internally. Run it and read the output. Then read the note underneath, because the output is not a t-statistic: it reports a chi-squared value, which is the square of the t-statistic. Run the last cell to confirm they match. The callout is the thing to remember: squaring is a monotone transformation on the positive side, so the two tests always reach the same verdict.</p>
+<p>And of course there is a function for it. <code>car::linearHypothesis</code> takes the fit and the hypothesis written as a string, and does all of that internally. For this model it reports a Wald chi-squared statistic whose numerical value is the square of the t-statistic. The reference distributions are not identical in a finite sample: the exact classical one-restriction test uses F with one numerator degree of freedom, equivalently t squared, while the chi-squared reference is asymptotic. They become nearly indistinguishable with many residual degrees of freedom.</p>
 </details>
 <p>In practice, you can just use <code>car::linearHypothesis()</code> to implement t-test involving a linear combination of multiple coefficients.</p>
 <p><strong>Syntax</strong></p>
@@ -3447,19 +3608,19 @@ Lecturer transcript
 <div id="qwebr-insertion-location-15"></div>
 <noscript>Please enable JavaScript to experience the dynamic code cell content on this page.</noscript>
 <p><br></p>
-<p>Please note that it runs <span class="math inline">\(\chi^2\)</span> test. When t-statistic is squared, it follows a <span class="math inline">\(\chi^2\)</span> distribution. So, it calculates the square of the t-statistic and look up the <span class="math inline">\(\chi^2\)</span> distribution critical value to decide whether to reject the null or not.</p>
+<p>Please note that this method reports a Wald <span class="math inline">\chi^2</span> test. Its statistic equals the squared t-statistic for one restriction, but the <span class="math inline">\chi^2_1</span> reference distribution is an asymptotic approximation. Under the classical finite-sample assumptions, the exact result is <span class="math inline">t_{df}^2 \sim F_{1,df}</span>.</p>
 <p>Let’s confirm this:</p>
 <div id="qwebr-insertion-location-16"></div>
 <noscript>Please enable JavaScript to experience the dynamic code cell content on this page.</noscript>
 <p><br></p>
-<p>Yes, this is the same as the <span class="math inline">\(\chi^2\)</span> value reported by <code>car::linearHypothesis(reg_sc, "jc=univ")</code></p>
+<p>Yes, this is the same as the <span class="math inline">\chi^2</span> value reported by <code>car::linearHypothesis(reg_sc, "jc=univ")</code></p>
 <div class="callout callout-important no-icon callout-titled callout-style-default">
 <div class="callout-body">
 <div class="callout-title">
 <p><strong>Important</strong></p>
 </div>
 <div class="callout-content">
-<p>The test results would be the same whether you run t-test or <span class="math inline">\(\chi^2\)</span> test.</p>
+<p>The test results would be the same whether you run t-test or <span class="math inline">\chi^2</span> test.</p>
 </div>
 </div>
 </div>
@@ -3499,30 +3660,30 @@ Lecturer transcript
 <p>A new kind of question, and read the hypothesis sentence rather than just the symbols. Once years in the league and games per year are controlled for, do the three performance measures matter <em>collectively</em>? Batting average, home runs, runs batted in. The null sets all three coefficients to zero simultaneously. Notice that is a single hypothesis about three parameters, not three separate hypotheses. And read the alternative: it is simply that the null is false, which happens as soon as any one of them is non-zero.</p>
 </details>
 <p><strong>Model</strong></p>
-<p><span class="math display">\[log(salary) =  \beta_0 + \beta_1 years + \beta_2 gamesyr + \beta_3 bavg + \beta_4 hrunsyr + \beta_5 rbisyr + u\]</span></p>
+<p><span class="math display">log(salary) =  \beta_0 + \beta_1 years + \beta_2 gamesyr + \beta_3 bavg + \beta_4 hrunsyr + \beta_5 rbisyr + u</span></p>
 <ul>
-<li><span class="math inline">\(salary\)</span>: salary in 1993</li>
-<li><span class="math inline">\(years\)</span>: years in the league</li>
-<li><span class="math inline">\(gamesyr\)</span>: average games played per year</li>
-<li><span class="math inline">\(bavg\)</span>: career batting average</li>
-<li><span class="math inline">\(hrunsyr\)</span>: home runs per year</li>
-<li><span class="math inline">\(rbisyr\)</span>: runs batted in per year</li>
+<li><span class="math inline">salary</span>: salary in 1993</li>
+<li><span class="math inline">years</span>: years in the league</li>
+<li><span class="math inline">gamesyr</span>: average games played per year</li>
+<li><span class="math inline">bavg</span>: career batting average</li>
+<li><span class="math inline">hrunsyr</span>: home runs per year</li>
+<li><span class="math inline">rbisyr</span>: runs batted in per year</li>
 </ul>
 <p><strong>Hypothesis</strong></p>
-<p>Once years in the league and games per year have been controlled for, the statistics measuring performance ( <span class="math inline">\(bavg\)</span>, <span class="math inline">\(hrunsyr\)</span>, <span class="math inline">\(rbisyr\)</span>) have no effect on salary collectively.</p>
-<p><span class="math inline">\(H_0\)</span>: <span class="math inline">\(\beta_3=0\)</span>, <span class="math inline">\(\beta_4=0\)</span>, and <span class="math inline">\(\beta_5=0\)</span></p>
-<p><span class="math inline">\(H_1\)</span>: <span class="math inline">\(H_0\)</span> is not true</p>
+<p>Once years in the league and games per year have been controlled for, the statistics measuring performance ( <span class="math inline">bavg</span>, <span class="math inline">hrunsyr</span>, <span class="math inline">rbisyr</span>) have no effect on salary collectively.</p>
+<p><span class="math inline">H_0</span>: <span class="math inline">\beta_3=0</span>, <span class="math inline">\beta_4=0</span>, and <span class="math inline">\beta_5=0</span></p>
+<p><span class="math inline">H_1</span>: <span class="math inline">H_0</span> is not true</p>
 </div>
 <div id="tabset-16-2">
 <details class="transcript">
 <summary>
 Lecturer transcript
 </summary>
-<p>Before we build new machinery, ask whether the old machinery would do. The obvious idea is to test each of the three coefficients separately with a t-test and combine the verdicts somehow. Think about why that is unsatisfying before moving on. Two reasons. First, running three tests at five percent each means your chance of at least one false rejection is well above five percent. Second, and more importantly for what follows, three individually weak pieces of evidence can add up to one strong piece, and separate tests will never see it.</p>
+<p>Before we build new machinery, ask whether the old machinery would do. The obvious idea is to test each of the three coefficients separately with a t-test and combine the verdicts somehow. Think about why that is unsatisfying before moving on. Two reasons. First, running several unadjusted tests can make the chance of at least one false rejection exceed five percent; the exact family-wise rate depends on dependence among the tests. Second, and more importantly for what follows, several individually weak pieces of evidence can add up to strong joint evidence, which separate verdicts can miss.</p>
 </details>
 <p>How do we test this?</p>
 <ul>
-<li><span class="math inline">\(H_0\)</span> holds only if <span class="math inline">\(\beta_3\)</span>, <span class="math inline">\(\beta_4\)</span>, <span style="color: red;"> and </span> <span class="math inline">\(\beta_5\)</span> are <span style="color: red;"> all </span> zero.</li>
+<li><span class="math inline">H_0</span> holds only if <span class="math inline">\beta_3</span>, <span class="math inline">\beta_4</span>, <span style="color: red;"> and </span> <span class="math inline">\beta_5</span> are <span style="color: red;"> all </span> zero.</li>
 <li>Conduct t-test for each coefficient individually?</li>
 </ul>
 </div>
@@ -3560,26 +3721,26 @@ Lecturer transcript
 <summary>
 Lecturer transcript
 </summary>
-<p>None of the three is significant, not even at the ten percent level. Taken at face value that says a player’s batting average, home runs and runs batted in have nothing to do with his salary, which is absurd. Read the next lines carefully. If you concluded they have no joint effect you would be wrong, and the last line points at the fix: the sum of squared residuals, and equivalently R-squared, can answer the joint question even when the individual tests cannot. That is the F-test, and it is the rest of this section.</p>
+<p>None of the three is individually significant, not even at the ten percent level. That does <strong>not</strong> say the variables have no relationship with salary; it says each separate test fails to distinguish its partial coefficient from zero. If you converted those three failures to reject into a conclusion of no joint effect, you would be wrong. Comparing restricted and unrestricted sums of squared residuals—equivalently, their fit—answers the joint question. That is the F-test, and it is the rest of this section.</p>
 </details>
 <p>None of the coefficients on <code>bavg</code>, <code>hrunsyr</code>, and <code>rbisyr</code> is statistically significantly different from 0 even at the 10% level!!</p>
 <p>So, does this mean that they collectively have no impact on the salary of MLB players?</p>
 <p>If you were to conclude that they do not have statistically significant impact jointly, you would turn out to be wrong!!</p>
-<p><span class="math inline">\(SSR\)</span> (or <span class="math inline">\(R^2\)</span>) turns out to be useful for testing their impacts jointly.</p>
+<p><span class="math inline">SSR</span> (or <span class="math inline">R^2</span>) turns out to be useful for testing their impacts jointly.</p>
 </div>
 </div>
 </div>
 <!--end of panel-->
 </div>
 <div id="tabset-23-3">
-<p>In doing an F-test of the null hypothesis, we compare sum of squared residuals <span class="math inline">\((SSR)\)</span> of two models:</p>
+<p>In doing an F-test of the null hypothesis, we compare sum of squared residuals <span class="math inline">(SSR)</span> of two models:</p>
 <p><br></p>
 <p><strong>Unrestricted Model</strong></p>
-<p><span class="math display">\[log(salary) = \beta_0 + \beta_1 years + \beta_2 gamesyr + \beta_3 bavg + \beta_4 hrunsyr + \beta_5 rbisyr + u\]</span></p>
+<p><span class="math display">log(salary) = \beta_0 + \beta_1 years + \beta_2 gamesyr + \beta_3 bavg + \beta_4 hrunsyr + \beta_5 rbisyr + u</span></p>
 <p><br></p>
 <p><strong>Restricted Model</strong></p>
-<p><span class="math display">\[log(salary) = \beta_0 + \beta_1 years + \beta_2 gamesyr + u\]</span></p>
-<p>The coefficients on <span class="math inline">\(bavg\)</span>, <span class="math inline">\(hrunsyr\)</span>, and <span class="math inline">\(rbisyr\)</span> are restricted to be 0 following the null hypothesis.</p>
+<p><span class="math display">log(salary) = \beta_0 + \beta_1 years + \beta_2 gamesyr + u</span></p>
+<p>The coefficients on <span class="math inline">bavg</span>, <span class="math inline">hrunsyr</span>, and <span class="math inline">rbisyr</span> are restricted to be 0 following the null hypothesis.</p>
 <div class="panel-tabset">
 <ul id="tabset-18" class="panel-tabset-tabby"><li><a data-tabby-default="" href="#tabset-18-1">Question</a></li><li><a href="#tabset-18-2">Answer</a></li></ul>
 <div class="tab-content">
@@ -3590,7 +3751,7 @@ Lecturer transcript
 </summary>
 <p>The idea behind the F-test in one question, and it is worth answering out loud. We are going to fit two models: the full one, and a restricted one that simply drops the three performance variables, which is what the null says you may do. Compare their sums of squared residuals. Which is bigger, and can you be sure? Think about it in terms of what OLS does. It picks coefficients to minimise the sum of squared residuals, so what happens when you take some of its freedom away?</p>
 </details>
-<p>If the null hypothesis is indeed true, then what do you think is going to happen if you compare the <span class="math inline">\(SSR\)</span> of the two models? Which one has a bigger <span class="math inline">\(SSR\)</span>?</p>
+<p>If the null hypothesis is indeed true, then what do you think is going to happen if you compare the <span class="math inline">SSR</span> of the two models? Which one has a bigger <span class="math inline">SSR</span>?</p>
 </div>
 <div id="tabset-18-2">
 <details class="transcript">
@@ -3599,18 +3760,18 @@ Lecturer transcript
 </summary>
 <p>The restricted model has the larger sum of squared residuals, and this is not a matter of probability. Setting three coefficients to zero is a constraint, and a constrained minimum can never be lower than an unconstrained one. Worst case the restriction happens to be exactly what OLS wanted anyway and the two are equal. So the difference is always non-negative. The real question is whether it is <em>large</em>, and that is what needs a distribution: large compared to what?</p>
 </details>
-<p><span class="math inline">\(SSR\)</span> from the restricted model should be large because the restricted model has a smaller explanatory power than the unrestricted model.</p>
+<p><span class="math inline">SSR</span> from the restricted model should be large because the restricted model has a smaller explanatory power than the unrestricted model.</p>
 </div>
 </div>
 </div>
 <!--end of panel-->
 </div>
 <div id="tabset-23-4">
-<p><strong>SSR of the unrestricted model</strong>: <span class="math inline">\(SSR_u\)</span></p>
+<p><strong>SSR of the unrestricted model</strong>: <span class="math inline">SSR_u</span></p>
 <div id="qwebr-insertion-location-19"></div>
 <noscript>Please enable JavaScript to experience the dynamic code cell content on this page.</noscript>
 <p><br></p>
-<p><strong>SSR of the restricted model</strong>: <span class="math inline">\(SSR_r\)</span></p>
+<p><strong>SSR of the restricted model</strong>: <span class="math inline">SSR_r</span></p>
 <div id="qwebr-insertion-location-20"></div>
 <noscript>Please enable JavaScript to experience the dynamic code cell content on this page.</noscript>
 <p><br></p>
@@ -3624,7 +3785,7 @@ Lecturer transcript
 </summary>
 <p>Both sums of squared residuals are now computed, so look at the two numbers before answering. The restricted one is larger, as we argued. Now: what does the gap between them actually measure? Think about what changed between the two fits. The only difference is that three variables were allowed to help in one and forced out of the other. So whatever extra fit the full model achieved has to be attributable to those three variables, and only to them, since everything else was identical.</p>
 </details>
-<p>What does <span class="math inline">\(SSR_r - SSR_u\)</span> measure?</p>
+<p>What does <span class="math inline">SSR_r - SSR_u</span> measure?</p>
 </div>
 <div id="tabset-19-2">
 <details class="transcript">
@@ -3660,19 +3821,19 @@ Lecturer transcript
 <div id="tabset-23-5">
 <p><strong>Setup</strong></p>
 <p>Consider a following general model:</p>
-<p><span class="math display">\[
+<p><span class="math display">
 y = \beta_0 +\beta_1 x_1 + \dots+\beta_k x_k +u
-\]</span></p>
-<p>Suppose we have <span class="math inline">\(q\)</span> restrictions to test: that is, the null hypothesis states that <span class="math inline">\(q\)</span> of the variables have zero coefficients.</p>
-<p><span class="math display">\[H_0: \beta_{k-q+1} =0, \beta_{k-q+2} =0, \dots, \beta_k=0\]</span></p>
-<p>When we impose the restrictions under <span class="math inline">\(H_0\)</span>, the restricted model is the following:</p>
-<p><span class="math display">\[y = \beta_0 +\beta_1 x_1 + \dots+\beta_{k-q} x_{k-q} + u\]</span></p>
+</span></p>
+<p>Suppose we have <span class="math inline">q</span> restrictions to test: that is, the null hypothesis states that <span class="math inline">q</span> of the variables have zero coefficients.</p>
+<p><span class="math display">H_0: \beta_{k-q+1} =0, \beta_{k-q+2} =0, \dots, \beta_k=0</span></p>
+<p>When we impose the restrictions under <span class="math inline">H_0</span>, the restricted model is the following:</p>
+<p><span class="math display">y = \beta_0 +\beta_1 x_1 + \dots+\beta_{k-q} x_{k-q} + u</span></p>
 <p><strong>F-statistic</strong></p>
 <p><span style="color: red;"> If </span> the null hypothesis is true, then,</p>
-<p><span class="math display">\[F = \frac{(SSR_r-SSR_u)/q}{SSR_u/(n-k-1)} \sim F_{q,n-k-1}\]</span></p>
+<p><span class="math display">F = \frac{(SSR_r-SSR_u)/q}{SSR_u/(n-k-1)} \sim F_{q,n-k-1}</span></p>
 <ul>
-<li><span class="math inline">\(q\)</span>: the number of restrictions</li>
-<li><span class="math inline">\(n-k-1\)</span>: degrees of freedom of residuals</li>
+<li><span class="math inline">q</span>: the number of restrictions</li>
+<li><span class="math inline">n-k-1</span>: degrees of freedom of residuals</li>
 </ul>
 <div class="panel-tabset">
 <ul id="tabset-20" class="panel-tabset-tabby"><li><a data-tabby-default="" href="#tabset-20-1">Question</a></li><li><a href="#tabset-20-2">Answer</a></li><li><a href="#tabset-20-3">Question 2</a></li><li><a href="#tabset-20-4">Answer 2</a></li></ul>
@@ -3684,7 +3845,7 @@ Lecturer transcript
 </summary>
 <p>A quick sanity check on the formula above before we use it. The F-statistic is a ratio, and you should be able to say something about its sign without computing anything. Look at the numerator and the denominator separately. The denominator is a sum of squares divided by a positive number, so it is positive. What about the numerator? Think back to the tab where we compared the two sums of squared residuals.</p>
 </details>
-<p>Is the above <span class="math inline">\(F\)</span>-statistic always positive?</p>
+<p>Is the above <span class="math inline">F</span>-statistic always positive?</p>
 </div>
 <div id="tabset-20-2">
 <details class="transcript">
@@ -3693,7 +3854,7 @@ Lecturer transcript
 </summary>
 <p>Non-negative, because the restricted sum of squared residuals can never be below the unrestricted one, for the constrained-minimum reason we gave earlier. That is worth noticing because it changes how you test. Unlike a t-statistic, an F-statistic never comes out negative, so there is no such thing as a two-sided F-test. You only ever look at the upper tail, and a large value is the only kind of evidence against the null.</p>
 </details>
-<p>Yes, because <span class="math inline">\(SSR_r-SSR_u\)</span> is always non-negative: the restricted model can never fit better than the unrestricted one.</p>
+<p>Yes, because <span class="math inline">SSR_r-SSR_u</span> is always non-negative: the restricted model can never fit better than the unrestricted one.</p>
 </div>
 <div id="tabset-20-3">
 <details class="transcript">
@@ -3702,7 +3863,7 @@ Lecturer transcript
 </summary>
 <p>One more reading of the formula, and this one tells you what the test is actually sensitive to. Suppose the three variables collectively matter a great deal. What does that do to the gap between the two sums of squared residuals, and therefore to the F-statistic? Answer it from the formula rather than from intuition, then check. Getting this direction right is what makes the decision rule memorable rather than something you have to look up.</p>
 </details>
-<p>The greater the joint contribution of the <span class="math inline">\(q\)</span> variables, the (greater or smaller) the <span class="math inline">\(F\)</span>-statistic?</p>
+<p>The greater the joint contribution of the <span class="math inline">q</span> variables, the (greater or smaller) the <span class="math inline">F</span>-statistic?</p>
 </div>
 <div id="tabset-20-4">
 <details class="transcript">
@@ -3731,7 +3892,7 @@ Lecturer transcript
 <div class="cell-output-display">
 <div>
 <figure>
-<p><img data-src="05-testing_files/figure-revealjs/unnamed-chunk-17-1.png" width="4000"></p>
+<p><img data-src="05-testing_files/figure-revealjs/unnamed-chunk-17-1.png" width="2800"></p>
 </figure>
 </div>
 </div>
@@ -3740,10 +3901,10 @@ Lecturer transcript
 <p><strong>F-test steps</strong></p>
 <ul>
 <li>Define the null hypothesis</li>
-<li>Estimate the unrestricted and restricted models to obtains their <span class="math inline">\(SSR\)</span></li>
-<li>Calculate <span class="math inline">\(F\)</span>-statistic</li>
+<li>Estimate the unrestricted and restricted models to obtains their <span class="math inline">SSR</span></li>
+<li>Calculate <span class="math inline">F</span>-statistic</li>
 <li>Define the significance level and corresponding critical value according to the F distribution with appropriate degrees of freedoms</li>
-<li>Reject if your <span class="math inline">\(F\)</span>-statistic is greater than the critical value, otherwise do not reject</li>
+<li>Reject if your <span class="math inline">F</span>-statistic is greater than the critical value, otherwise do not reject</li>
 </ul>
 </div><!--end of the 2nd column-->
 </div>
@@ -3827,7 +3988,7 @@ Lecturer transcript
 <li><p><code>regression</code>: the name of the regression results of the unrestricted model</p></li>
 <li><p><code>hypothesis</code>: text of the null hypothesis. For example,</p></li>
 </ul>
-<p><code>c("x1 = 0", "x2 = 1")</code> means the coefficients on <span class="math inline">\(x1\)</span> and <span class="math inline">\(x2\)</span> are <span class="math inline">\(0\)</span> and <span class="math inline">\(1\)</span>, respectively</p>
+<p><code>c("x1 = 0", "x2 = 1")</code> means the coefficients on <span class="math inline">x1</span> and <span class="math inline">x2</span> are <span class="math inline">0</span> and <span class="math inline">1</span>, respectively</p>
 </div>
 <div id="tabset-22-2">
 <details class="transcript">
@@ -3836,7 +3997,7 @@ Lecturer transcript
 </summary>
 <p>And here it is on the baseball model. Three restrictions in one vector, all setting a coefficient to zero. Run it and compare the statistic against the one you computed by hand two tabs ago. They should match. From now on this is what you will use, but I wanted you to build it once from sums of squared residuals so that the number means something. If you ever get a surprising F-test result, knowing it is a comparison of two model fits is what lets you work out why.</p>
 </details>
-<p>The following code test if <span class="math inline">\(\beta_{bavg} = 0\)</span>, <span class="math inline">\(\beta_{hrunsyr} = 0\)</span>, and <span class="math inline">\(\beta_{rbisyr} = 0\)</span>.</p>
+<p>The following code test if <span class="math inline">\beta_{bavg} = 0</span>, <span class="math inline">\beta_{hrunsyr} = 0</span>, and <span class="math inline">\beta_{rbisyr} = 0</span>.</p>
 <div id="qwebr-insertion-location-25"></div>
 <noscript>Please enable JavaScript to experience the dynamic code cell content on this page.</noscript>
 </div>
@@ -3903,7 +4064,7 @@ Lecturer transcript
 <p>The explanation, and then the connection back. The standard errors are large because the two variables are so alike that the estimation cannot tell their individual contributions apart. Read the callout, because this is lecture 04 seen from the other side. There we showed correlation inflates the variance through the one minus R-squared-j term. A bigger variance means a bigger standard error, and a bigger standard error means a smaller t-statistic. The insignificance you saw is that inflation, arriving at the testing stage. The F-test dodges it by never asking about the variables one at a time.</p>
 </details>
 <p>The standard error estimates of the coefficients on <code>x1</code> and <code>x2</code> are very high because they are so highly correlated that the estimation had a hard time distinguishing their individual impacts.</p>
-<p>But collectively they have large impacts, and the <span class="math inline">\(F\)</span>-test was able to detect the statistical significance of their impacts <span style="color: red;"> collectively</span>.</p>
+<p>But collectively they have large impacts, and the <span class="math inline">F</span>-test was able to detect the statistical significance of their impacts <span style="color: red;"> collectively</span>.</p>
 <p><br></p>
 <div title="This is lecture 04, seen from the other side">
 <div class="callout callout-important no-icon callout-titled callout-style-default">
@@ -3912,8 +4073,8 @@ Lecturer transcript
 <p><strong>This is lecture 04, seen from the other side</strong></p>
 </div>
 <div class="callout-content">
-<p>The data generating process here is Case 2 from the multicollinearity lecture: two regressors sharing a common term. There we showed that correlation inflates <span class="math inline">\(Var(\widehat{\beta}_j)\)</span> through the <span class="math inline">\(1-R^2_j\)</span> term in the denominator.</p>
-<p>A large variance means a large standard error, and a large standard error means a <span style="color: red;"> small </span> t-statistic — which is exactly the insignificance you see on the <code>Regression</code> tab. Multicollinearity did not make the estimates wrong; it made them too imprecise to distinguish individually. The <span class="math inline">\(F\)</span>-test sidesteps the problem entirely by never asking about them one at a time.</p>
+<p>The data generating process here is Case 2 from the multicollinearity lecture: two regressors sharing a common term. There we showed that correlation inflates <span class="math inline">Var(\widehat{\beta}_j)</span> through the <span class="math inline">1-R^2_j</span> term in the denominator.</p>
+<p>A large variance means a large standard error, and a large standard error means a <span style="color: red;"> small </span> t-statistic — which is exactly the insignificance you see on the <code>Regression</code> tab. Multicollinearity did not make the estimates wrong; it made them too imprecise to distinguish individually. The <span class="math inline">F</span>-test sidesteps the problem entirely by never asking about them one at a time.</p>
 </div>
 </div>
 </div>
@@ -3946,11 +4107,11 @@ Lecturer transcript
 <summary>
 Lecturer transcript
 </summary>
-<p>One last connection, and it ties the two halves of this lecture together. Testing a linear combination is just an F-test with one restriction. The fact underneath is exact: F with one numerator degree of freedom is the square of t on the same denominator degrees of freedom. Run the cell, which takes the square root of the chi-squared value, and compare against the t-statistic we computed by hand on the college slide. Same number. So there were never two procedures here, only one written two ways.</p>
+<p>One last connection, and it ties the two halves of this lecture together. Testing a linear combination is an F-test with one restriction. The exact finite-sample identity is that an F statistic with one numerator degree of freedom equals the corresponding t statistic squared. The Wald chi-squared statistic printed above has the same numerical value, although using a chi-squared rather than an F reference distribution is asymptotic. With this large sample the critical values are very close.</p>
 </details>
 <p>The test of a linear combination of the parameters we looked at earlier is a special case of F-test where the number of restriction is 1.</p>
-<p>It can be shown that square root of <span class="math inline">\(F_{1, df}\)</span> follows the <span class="math inline">\(t_{df}\)</span> distribution.</p>
-<p>So, we can actually use the <span class="math inline">\(F\)</span>-test for this type of hypothesis testing because <span class="math inline">\(F_{1,n-k-1} \sim t_{n-k-1}^2\)</span>.</p>
+<p>It can be shown that square root of <span class="math inline">F_{1, df}</span> follows the <span class="math inline">t_{df}</span> distribution.</p>
+<p>So, we can actually use the <span class="math inline">F</span>-test for this type of hypothesis testing because <span class="math inline">F_{1,n-k-1} \sim t_{n-k-1}^2</span>.</p>
 <div id="qwebr-insertion-location-32"></div>
 <noscript>Please enable JavaScript to experience the dynamic code cell content on this page.</noscript>
 <p><br></p>
@@ -3974,8 +4135,8 @@ Lecturer transcript
 </details>
 <p>Every test we did followed the same five steps from the very first slide:</p>
 <ul>
-<li>write down <span class="math inline">\(H_0\)</span> and <span class="math inline">\(H_1\)</span></li>
-<li>find the distribution of a test statistic <span style="color: red;"> assuming <span class="math inline">\(H_0\)</span> is true </span></li>
+<li>write down <span class="math inline">H_0</span> and <span class="math inline">H_1</span></li>
+<li>find the distribution of a test statistic <span style="color: red;"> assuming <span class="math inline">H_0</span> is true </span></li>
 <li>compute the statistic from your data</li>
 <li>pick a significance level, which fixes a critical value</li>
 <li>reject if your statistic is more extreme than that critical value</li>
@@ -4001,39 +4162,39 @@ Lecturer transcript
 <tr class="header">
 <th>Question</th>
 <th>Statistic</th>
-<th>Distribution under <span class="math inline">\(H_0\)</span></th>
+<th>Distribution under <span class="math inline">H_0</span></th>
 <th>In R</th>
 </tr>
 </thead>
 <tbody>
 <tr class="odd">
 <td>Is one coefficient equal to a value?</td>
-<td><span class="math inline">\(\dfrac{\widehat{\beta}_j - \beta_j^0}{\widehat{se(\widehat{\beta}_j)}}\)</span></td>
-<td><span class="math inline">\(t_{n-k-1}\)</span></td>
+<td><span class="math inline">\dfrac{\widehat{\beta}_j - \beta_j^0}{\widehat{se(\widehat{\beta}_j)}}</span></td>
+<td><span class="math inline">t_{n-k-1}</span></td>
 <td><code>broom::tidy()</code>, or by hand</td>
 </tr>
 <tr class="even">
 <td>Is a linear combination equal to a value?</td>
-<td><span class="math inline">\(\dfrac{\widehat{\alpha} - \alpha^0}{\widehat{se(\widehat{\alpha})}}\)</span></td>
-<td><span class="math inline">\(t_{n-k-1}\)</span></td>
+<td><span class="math inline">\dfrac{\widehat{\alpha} - \alpha^0}{\widehat{se(\widehat{\alpha})}}</span></td>
+<td><span class="math inline">t_{n-k-1}</span></td>
 <td><code>car::linearHypothesis()</code></td>
 </tr>
 <tr class="odd">
-<td>Are <span class="math inline">\(q\)</span> coefficients <span style="color: red;"> jointly </span> zero?</td>
-<td><span class="math inline">\(\dfrac{(SSR_r-SSR_u)/q}{SSR_u/(n-k-1)}\)</span></td>
-<td><span class="math inline">\(F_{q,\,n-k-1}\)</span></td>
+<td>Are <span class="math inline">q</span> coefficients <span style="color: red;"> jointly </span> zero?</td>
+<td><span class="math inline">\dfrac{(SSR_r-SSR_u)/q}{SSR_u/(n-k-1)}</span></td>
+<td><span class="math inline">F_{q,\,n-k-1}</span></td>
 <td><code>car::linearHypothesis()</code></td>
 </tr>
 <tr class="even">
 <td>What range of values is consistent with the data?</td>
 <td>the CI, not a test</td>
-<td><span class="math inline">\(t_{n-k-1}\)</span></td>
+<td><span class="math inline">t_{n-k-1}</span></td>
 <td><code>broom::tidy(conf.int = TRUE)</code></td>
 </tr>
 </tbody>
 </table>
 <ul>
-<li>the second row needs <span class="math inline">\(Cov(\widehat{\beta}_1,\widehat{\beta}_2)\)</span>, which is why the variance-covariance matrix appeared</li>
+<li>the second row needs <span class="math inline">Cov(\widehat{\beta}_1,\widehat{\beta}_2)</span>, which is why the variance-covariance matrix appeared</li>
 <li>the third row is the only one that cannot be built from a single coefficient and its standard error</li>
 </ul>
 </div>
@@ -4046,8 +4207,8 @@ Lecturer transcript
 </details>
 <p>Two connections worth remembering, because they mean there are fewer ideas here than there appear to be:</p>
 <ul>
-<li><p><strong><span class="math inline">\(F\)</span> with one restriction is just <span class="math inline">\(t\)</span> squared.</strong> <span class="math inline">\(F_{1,\,n-k-1} \sim t_{n-k-1}^2\)</span>, which is why <code>car::linearHypothesis()</code> gave the same answer as the t-test we did by hand.</p></li>
-<li><p><strong>The confidence interval and the two-sided test are the same statement.</strong> The 95% CI is exactly the set of null values you would <span style="color: blue;"> fail </span> to reject at the 5% level. If a CI excludes zero, the t-test rejects <span class="math inline">\(\beta_j = 0\)</span>; if it contains zero, it does not.</p></li>
+<li><p><strong><span class="math inline">F</span> with one restriction is just <span class="math inline">t</span> squared.</strong> <span class="math inline">F_{1,\,n-k-1} \sim t_{n-k-1}^2</span>, which is why <code>car::linearHypothesis()</code> gave the same answer as the t-test we did by hand.</p></li>
+<li><p><strong>The confidence interval and the two-sided test are the same statement.</strong> The 95% CI is exactly the set of null values you would <span style="color: blue;"> fail </span> to reject at the 5% level. If a CI excludes zero, the t-test rejects <span class="math inline">\beta_j = 0</span>; if it contains zero, it does not.</p></li>
 </ul>
 <p><br></p>
 <div title="The one thing to carry into your own work">
@@ -4089,7 +4250,6 @@ Lecturer transcript
   <script src="../../site_libs/revealjs/plugin/notes/notes.js"></script>
   <script src="../../site_libs/revealjs/plugin/search/search.js"></script>
   <script src="../../site_libs/revealjs/plugin/zoom/zoom.js"></script>
-  <script src="../../site_libs/revealjs/plugin/math/math.js"></script>
   <script>window.define = window.backupDefine; window.backupDefine = undefined;</script>
 
   <script>
@@ -4257,27 +4417,9 @@ Lecturer transcript
         // Factor of the display size that should remain empty around the content
         margin: 0.1,
 
-        math: {
-          mathjax: 'https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.9/MathJax.js',
-          config: 'TeX-AMS_HTML-full',
-          tex2jax: {
-            inlineMath: [['\\(','\\)']],
-            displayMath: [['\\[','\\]']],
-            balanceBraces: true,
-            processEscapes: false,
-            processRefs: true,
-            processEnvironments: true,
-            preview: 'TeX',
-            skipTags: ['script','noscript','style','textarea','pre','code'],
-            ignoreClass: 'tex2jax_ignore',
-            processClass: 'tex2jax_process'
-          },
-        },
-
         // reveal.js plugins
         plugins: [QuartoLineHighlight, PdfExport, RevealMenu, QuartoSupport,
 
-          RevealMath,
           RevealNotes,
           RevealSearch,
           RevealZoom

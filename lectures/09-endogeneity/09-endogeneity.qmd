@@ -2,22 +2,18 @@
 title: "09: Endogeneity"
 format: 
   revealjs: 
+    html-math-method: katex
     theme: [default, ../custom.scss, ../notebook.scss]
     fontsize: 1.2em
     callout-icon: false
     scrollable: true
     echo: true
     fig-dpi: 400
+    include-in-header: ../transcript-support.html
     footer: "[back to course website with lecture slides](https://tmieno2.github.io/Applied-Econometrics-MS-Quarto/lectures/)"
 execute:
   echo: true
-  out-width: 80%
-webr:
-  packages: ['fixest', 'dplyr', 'data.table', 'ggplot2', 'wooldridge']
-  cell-options:
-    editor-font-scale: 0.8
-filters:
-  - webr
+  out-width: 55%
 ---
 
 ```{r}
@@ -33,15 +29,24 @@ library(lmtest)
 
 ## Endogeneity
 
+<details class="transcript">
+<summary>Lecturer transcript</summary>
+
+Endogeneity is the central threat to causal interpretation in an OLS regression. The zero-conditional-mean assumption says that, after conditioning on every included explanatory variable, the remaining error should have mean zero. When that condition fails, at least one regressor contains information about the unobserved part of the outcome. OLS then mixes the effect of that regressor with the effect of whatever is hiding in the error term. The four labels at the bottom are common routes to this problem. They overlap conceptually: selection is often an omitted-variable problem, and reverse causality is another mechanism that creates correlation between a regressor and the error.
+
+</details>
+
 **Endogeneity**
   
-$E[u|x_k] \ne 0$ (the error term is not correlated with any of the independent variables)
+$E[u\mid x_1,\dots,x_k] \ne 0$
+
+The zero-conditional-mean assumption fails: the error term is systematically related to at least one explanatory variable.
 
 <br>
 
 **Endogenous independent variable**
 
-If the error term is, <span style = "color: red;">for whatever reason</span>, correlated with the independent variable $x_k$, then we say that $x_k$ is an endogenous independent variable.
+If an explanatory variable $x_k$ is, <span style = "color: red;">for whatever reason</span>, correlated with the error term, we call $x_k$ an endogenous explanatory variable.
 
 <br>
 
@@ -54,21 +59,35 @@ If the error term is, <span style = "color: red;">for whatever reason</span>, co
 
 ## Omitted Variable
 
+<details class="transcript">
+<summary>Lecturer transcript</summary>
+
+Use the wage equation to see exactly where omitted-variable bias comes from. The true model includes education, experience, and ability. If ability is unavailable and we leave it out, it does not disappear; its contribution moves into the composite error, which I call v. Education is likely related to ability, so education is now correlated with v. The estimated education coefficient therefore captures both the return to education and part of ability's association with wages. The sign of the bias depends on two signs: how ability affects wages and how ability is related to education. This is why merely saying that a variable was omitted is not enough to determine the direction of bias.
+
+</details>
+
 **True Model**
 
-$log(wage) = \beta_0 + \beta_1 educ + \beta_2 exper + \beta_3 ablility + u$
+$\log(wage) = \beta_0 + \beta_1 educ + \beta_2 exper + \beta_3 ability + u$
 
 <br>
 
 **Incorrectly specified (your) model**
 
-$log(wage) = \beta_0 + \beta_1 educ + \beta_2 exper  + v \;\;(u + \beta_3 ablility)$
+$\log(wage) = \beta_0 + \beta_1 educ + \beta_2 exper + v, \qquad v=u+\beta_3 ability$
 
 ## Bias from self-selection
 
 ::: {.panel-tabset}
 
 ### Context
+
+<details class="transcript">
+<summary>Lecturer transcript</summary>
+
+This sensor example turns the abstract definition into a research design. We would like beta one to measure how adopting a sensor changes irrigation. But these are observational data: farmers decide whether to adopt. Ask what the error term contains—soil, management skill, water prices, conservation preferences, and many other determinants of irrigation that are not in this simple equation. If any of those factors also influence adoption, sensor and u will be correlated. Before running a regression, the useful habit is to describe the decision that generated the explanatory variable. That decision often reveals the likely confounders.
+
+</details>
 
 **Research Question**
 
@@ -87,7 +106,7 @@ Observational (non-experimental) data on soil moisture sensor adoption and irrig
 $irrigation  = \beta_0 + \beta_1 sensor + u$
 
 + $irrigation$: the amount of irrigation by the farmer
-+ $sensor$: dummy variable that indicates whether the farmer has adopted soil moisture sensor or not 
++ $sensor$: indicator equal to 1 if the farmer adopted a soil-moisture sensor
 
 <br>
 
@@ -97,61 +116,89 @@ Is $sensor$ endogenous (is $sensor$ correlated with the error term)?
 
 ### Adoption decision
 
-Farmers do not just randomly adopt a soil moisture sensor, they consider available information to determine it is beneficial for them to adopt it or not.
+<details class="transcript">
+<summary>Lecturer transcript</summary>
+
+Think of adoption as an outcome with its own equation. Farmers combine observed and unobserved information to decide whether a sensor is worthwhile. Possible inputs include soil type, farm size, crop mix, water cost, prior drought experience, technical ability, and conservation preferences. Now compare that list with the determinants of irrigation demand. The overlap is the problem. For example, high water prices can make a sensor more attractive and independently reduce water use. A farmer's conservation preferences can encourage adoption and reduce irrigation even without the technology. Those common causes make adopters and non-adopters systematically different before we ever observe their water use.
+
+</details>
+
+Farmers do not adopt soil-moisture sensors randomly. They use available information to decide whether adoption would benefit them.
 
 <br>
 
 **Adoption (selection) equation**
 
-$sensor  = \beta_0 + \beta_1 x_2 + \dots + \beta_k x_k + v$
+$sensor  = \alpha_0 + \alpha_1 x_1 + \dots + \alpha_k x_k + v$
 
 <br>
 
 **Question**
 
-What would be variables that farmers look at when they decide whether they should get a soil moisture sensor or not?
+What variables might farmers consider when deciding whether to adopt a soil-moisture sensor?
 
 <br>
 
 **Question**
 
-Are any of the variables listed above also affect irrigation demand? 
+Do any of the variables listed above also affect irrigation demand?
 
 ### Common factors
+
+<details class="transcript">
+<summary>Lecturer transcript</summary>
+
+Soil type is a concrete common factor. Sandy soil drains quickly, which can raise irrigation requirements. The same feature can make real-time moisture information more valuable, raising the probability of sensor adoption. If soil type is not measured, its effect on irrigation sits in the regression error. Because sensor adoption also responds to soil type, the sensor indicator becomes correlated with that error. Notice that this argument does not require farmers to make mistakes or researchers to use bad data. Rational self-selection into treatment is enough to generate endogeneity in an observational comparison.
+
+</details>
 
 **Example**
 
 Soil quality/type (hard to accurately measure)
 
-+ farmers whose fields are sandy are more likely to adopt a soil moisture sensor (this is just a conjecture)
-+ farmers whose fields are sandy are likely to use more water 
++ Farmers whose fields are sandy may be more likely to adopt a soil-moisture sensor.
++ Sandy fields may require more irrigation.
 
 <br>
 
 **Key**
 
 
-Soil quality/type affect <span style = "color: red;"> both </span> the decision of soil moisture sensor adoption and irrigation.
+Soil quality or type affects <span style = "color: red;">both</span> sensor adoption and irrigation.
 
 + $sensor$ is a function of soil quality/type
-+ $irrigation$ is a function of soil quality/type, which is in the error term uncontrolled for
++ $irrigation$ is also a function of soil quality/type, which enters the error term when it is not controlled for
 
 ### So,
 
+<details class="transcript">
+<summary>Lecturer transcript</summary>
+
+Here is the same argument written directly in the outcome equation. The parenthetical expression is the composite error when soil type is omitted. Sensor adoption varies with soil type, and soil type appears inside that composite error, so the covariance between sensor and the error is not zero. OLS cannot distinguish water use caused by the sensor from water use associated with different soils. Depending on the relationships, the estimated sensor effect can be too positive, too negative, or even have the wrong sign. The important conclusion is not just that adopters differ; it is that they differ along a factor that also affects the outcome.
+
+</details>
+
 $$
 \begin{aligned}
-irrigation  = \beta_0 + \beta_1 sensor(\mbox{soil type}) + u\;\;(= \beta_s \mbox{soil type} + v)
+irrigation  = \beta_0 + \beta_1 sensor + (\beta_s\,\text{soil type}+v)
 \end{aligned}
 $$
-where $v$ include all the unobservable variables except soil type.
+where $v$ includes all other unobserved determinants of irrigation.
 
-:::{.callout-note}
+::: {.callout-note}
 So, $sensor$ and the error term in the irrigation model are correlated through soil type, leading to biased estimation of the impact of a sensor.
 :::
 
 ### Omitted variable bias
 
-:::{.callout-note}
+<details class="transcript">
+<summary>Lecturer transcript</summary>
+
+Selection bias can sometimes be addressed by controlling for the variables that jointly determine treatment and outcome. If soil type is measured well and included in the irrigation equation, its contribution no longer sits in the error term. Comparisons are then made among farms with the same included soil measure. But the conclusion is conditional: this fixes the problem only if the measure is accurate, the functional form is adequate, and no other relevant confounders remain. Adding controls mechanically is not a guarantee of causality. We need a substantive argument that treatment is as good as randomly assigned after conditioning on those controls.
+
+</details>
+
+::: {.callout-note}
 Selection bias is a form of omitted variable bias.
 :::
 
@@ -163,11 +210,11 @@ For example,
 
 $$
 \begin{aligned}
-irrigation  = \beta_0 + \beta_1 sensor(\mbox{soil type}) + \beta_s \mbox{soil type} + u
+irrigation  = \beta_0 + \beta_1 sensor + \beta_s\,\text{soil type} + v
 \end{aligned}
 $$
 
-This will get the common factor (soil type) out of the error in the main model, which means the adoption variable and the error term are no longer correlated in the main model.
+If soil type is measured accurately and there are no other confounders, including it removes this source of correlation between sensor adoption and the error term.
 
 
 :::
@@ -180,6 +227,13 @@ This will get the common factor (soil type) out of the error in the main model, 
 
 ### Context
 
+<details class="transcript">
+<summary>Lecturer transcript</summary>
+
+Now consider treatment and health. The simple cross-sectional regression compares currently treated and untreated patients. Doctors did not assign treatment randomly, and current health is not a before-and-after change. The error contains severity, prognosis, access to care, and other determinants of current health. Because those factors can also affect who receives treatment, a raw comparison may make an effective treatment look ineffective—or harmful—simply because the sickest patients are most likely to receive it. This is the classic reason observational medical comparisons require a careful account of the treatment-assignment process.
+
+</details>
+
 **Research Question**
 
 Does a particular type of medical treatment improve health?
@@ -188,8 +242,7 @@ Does a particular type of medical treatment improve health?
 
 **Data**
 
-Observational (non-experimental) <span style = "color: red;"> cross-sectional </span> data on a particular 
-type of medical treatment and health. Whether patients get the treatment or not is not randomized, rather it is determined by doctors (like in the real world).
+Observational (non-experimental) <span style = "color: red;">cross-sectional</span> data on a particular type of medical treatment and current health. Treatment is chosen by doctors rather than randomly assigned.
 
 <br>
 
@@ -197,10 +250,10 @@ type of medical treatment and health. Whether patients get the treatment or not 
 
 $health  = \beta_0 + \beta_1 treatment + u$
 
-+ $health$: indicator of the health of patients
-+ $treatment$: dummy variable that indicates whether the patient is treated or not 
++ $health$: measure of a patient's current health
++ $treatment$: indicator equal to 1 if the patient receives treatment
 
-This model basically compares the health of patients who have and have not had the treatment (no before-after comparison, yes this is dumb).
+This model compares the health of treated and untreated patients at a point in time; it does not make a before-and-after comparison.
 
 <br>
 
@@ -210,37 +263,56 @@ Is $treatment$ endogenous? (Is $treatment$ correlated with the error term?)
 
 ### Treatment decision
 
+<details class="transcript">
+<summary>Lecturer transcript</summary>
+
+Doctors use health information when choosing treatment. In the stylized selection equation, health helps predict treatment; if poorer health means a greater chance of treatment, alpha one would be negative when higher values mean better health. The equation is intentionally simple, but the logic is general. Treatment status reflects information about the outcome, including information the analyst may not observe. That makes treated and untreated patients incomparable without additional assumptions or a different design. Keep the timing straight: if doctors respond to baseline health, this is selection on a pre-treatment condition. If current health and current treatment jointly influence each other, we have simultaneous or reverse causality.
+
+</details>
+
 **Question**
 
-How do doctors decide whether to put their patients under a medical treatment?
+How do doctors decide whether to place their patients under medical treatment?
 
 
 **Answer**
 
-Patients' health condition!!!
+Their patients' health conditions.
 
 <br>
 
 **Selection (treatment decision) model**
 
-$\mbox{treatment}  = \alpha_0 + \alpha_1 \mbox{health} + u$
+$treatment  = \alpha_0 + \alpha_1 health + v$
 
 Less healthy people are more likely to be treated.
 
 ### Reverse causality
 
+<details class="transcript">
+<summary>Lecturer transcript</summary>
+
+These two equations show a feedback system. Treatment affects health in the first equation, while health affects treatment in the second. A health shock contained in u changes health and thereby changes treatment. Treatment is consequently related to u, violating the condition needed for OLS in the health equation. Calling the problem reverse causality highlights that the arrow is not only from treatment to health; it also runs from health to treatment. In an application, the exact label depends on timing. A treatment response to earlier health is selection on baseline health, while contemporaneous feedback is genuine simultaneity. Either way, the one-equation OLS coefficient is not automatically causal.
+
+</details>
+
 **Consequence**
 
-$health  = \beta_0 + \beta_1 treatment( = \alpha_0 + \alpha_1 \mbox{health} + u) + u$
+$$
+\begin{aligned}
+health &= \beta_0 + \beta_1 treatment + u,\\
+treatment &= \alpha_0 + \alpha_1 health + v.
+\end{aligned}
+$$
 
-$treatment$ is endogenous because it is a function of health itself ($treatment$ is a function of $u$, so correlated with the error term)!
+A shock in $u$ changes health, and health in turn affects treatment. Consequently, $treatment$ is correlated with $u$ and is endogenous in the health equation.
 
 <br>
 
 **Reverse Causality**
 
 
-This type of endogeneity problem is called <span style = "color: red;"> reverse causality </span> because the independent variable of interest is causally affected by the dependent variable even though your interest is in the estimation of the impact of the independent variable on the dependent variable.
+This endogeneity problem is called <span style = "color: red;">reverse causality</span>: the proposed outcome also affects the explanatory variable of interest. If treatment is chosen using <em>pre-treatment</em> health instead, the problem is more precisely described as selection on baseline health.
 
 ### Another example
 
@@ -248,15 +320,22 @@ This type of endogeneity problem is called <span style = "color: red;"> reverse 
 
 #### Context
 
+<details class="transcript">
+<summary>Lecturer transcript</summary>
+
+Environmental enforcement provides another setting where policy responds to the outcome it is supposed to improve. Regulators observe discharge quality and target inspections, penalties, or other actions toward facilities with serious violations. We then observe facility-level outcomes and enforcement over time. A naive regression asks whether facilities receiving more enforcement have better water quality. But those facilities were often selected precisely because their water quality was worse. The institutional rule that directs enforcement is therefore part of the econometric model, not background detail.
+
+</details>
+
 **Context**
 
-+ Under the Clean Water Act, some of those who discharge wastes into water (e.g., oil refinery) need to comply with water quality criteria of their discharges set under the law.
++ Under the Clean Water Act, facilities that discharge waste into water (e.g., oil refineries) must comply with applicable discharge requirements.
 
-+ EPA (Environmental Protection Agency) can take enforcement actions (e.g., financial penalties) to those who violate the requirements.  
++ The Environmental Protection Agency (EPA) can take enforcement actions (e.g., financial penalties) against facilities that violate those requirements.
 
 **Research Question**
 
-Are enforcement actions effective in improving the water quality of waster discharges?
+Are enforcement actions effective in improving the quality of wastewater discharges?
 
 <br>
 
@@ -264,27 +343,34 @@ Are enforcement actions effective in improving the water quality of waster disch
 
 Annual data on 
 
-+ water quality measures of waster discharges by individual firms 
-+ enforcement actions taken on firms by EPA
++ wastewater-discharge quality measures for individual facilities
++ enforcement actions taken against facilities by the EPA
 
 #### Reverse causality
 
+<details class="transcript">
+<summary>Lecturer transcript</summary>
+
+The two arrows are explicit here. Enforcement may improve water quality, which is the causal effect we want. At the same time, poor water quality triggers enforcement. As a result, enforcement actions are correlated with unobserved shocks to water quality. A negative association could mean enforcement harms quality, but it could also mean regulators correctly target deteriorating facilities. Even a positive association can be difficult to interpret without knowing the targeting process. We need exogenous variation in enforcement, a credible panel design, or another identification strategy to separate policy response from policy impact.
+
+</details>
+
 **Model of Interest**
 
-$\mbox{water quality}  = \beta_0 + \beta_1 \mbox{enforcement actions} + u$
+$\text{water quality}  = \beta_0 + \beta_1 \text{enforcement actions} + u$
 
 <br>
 
 **Selection (enforcement decision) model**
 
-$\mbox{enforcement actions}  = \beta_0 + \beta_1 \mbox{water quality} + u$
+$\text{enforcement actions}  = \alpha_0 + \alpha_1 \text{water quality} + v$
 
 + water quality is affected by enforcement actions
-+ enforcement actions is affected by water quality
++ enforcement actions are affected by water quality
 
 **Consequence**
 
-enforcement actions is endogenous because it is a function of water quality itself!
+Enforcement actions are endogenous because they respond to water quality itself.
 
 :::
 <!--end of panel-->
@@ -298,15 +384,22 @@ enforcement actions is endogenous because it is a function of water quality itse
 
 ### What is it?
 
+<details class="transcript">
+<summary>Lecturer transcript</summary>
+
+Measurement error means the recorded variable is not the underlying quantity the model intends to use. Survey respondents may round or misreport income, farmers may recall yields imperfectly, and spatial interpolation gives an estimate rather than the exact weather at a field. The consequences depend critically on which variable is measured with error and how that error is related to the true variable, the regressors, and the structural disturbance. There is no general rule that measurement error always biases every coefficient toward zero. We will first examine error in the dependent variable and then the classical case for an explanatory variable.
+
+</details>
+
 **Definition**
 
-Inaccuracy in the values observed as opposed to the actual values
+The observed value of a variable differs from its true value.
 
 <br>
 
 **Examples**
 
-+ reporting errors (any kind of survey has the potential of mis-reporting)
++ reporting errors (any survey has the potential for misreporting)
   * household survey on income and savings
   * survey on rice yield by farmers in developing countries
 + the use of estimated values
@@ -315,21 +408,28 @@ Inaccuracy in the values observed as opposed to the actual values
 
 **Question**
 
-What are the consequences of having measurement errors in variables you use in regression?
+What are the consequences of measurement error in variables used in a regression?
 
 ### ME in the Dependent Variable
+
+<details class="transcript">
+<summary>Lecturer transcript</summary>
+
+Start with the true outcome y-star and define the recording error e as observed minus true. Substituting the observed outcome into the model simply adds e to the original disturbance. OLS remains unbiased and consistent if that measurement error has conditional mean zero given all regressors. Intuitively, the observed points become noisier around the same conditional mean, so estimates become less precise but do not systematically tilt. This is a condition, not an automatic result. If reporting error varies systematically with x—for example, high-income households underreport by more—the composite error can be correlated with the regressors and coefficients can be biased.
+
+</details>
 
 **True Model**
 
 $y^*=  \beta_0 + \beta_1 x_1 + \dots + \beta_k x_k + u$
 
-with MLR.1 through MLR.6 satisfied $(u$ is not correlated with any of the independent variables).
+with the relevant OLS assumptions satisfied, including $E[u\mid x_1,\dots,x_k]=0$.
 
 <br>
 
-**Measurement Errors**
+**Measurement error**
 
-The difference between the observed $(y)$ and actual values $y^*$
+Define the difference between the observed value $y$ and the true value $y^*$ as
 
 $e = y-y^*$
 
@@ -337,9 +437,9 @@ $e = y-y^*$
 
 **Estimable Model**
 
-Plugging the second equation into the first equation, your model is 
+Using $y=y^*+e$, the estimable model is
 
-$y =  \beta_0 + \beta_1 x_1 + \dots + \beta_k x_k + v, \;\;\mbox{where}\;\; v = (u + e)$ 
+$y =  \beta_0 + \beta_1 x_1 + \dots + \beta_k x_k + v, \qquad v=u+e$
 
 <br>
 
@@ -350,9 +450,9 @@ What are the conditions under which OLS estimators are unbiased?
 <br>
 <details>
   <summary>Answer</summary>
-$E[e|x_1, \dots, x_k] = 0$
+$E[e\mid x_1, \dots, x_k] = 0$
 
-So, as long as the measurement error is uncorrelated with the independent variables, OLS estimators are still unbiased.
+Together with $E[u\mid x_1,\dots,x_k]=0$, this implies $E[v\mid x_1,\dots,x_k]=0$. Measurement error in the dependent variable then increases noise but does not bias the OLS coefficient estimators.
 </details>
 
 
@@ -363,19 +463,26 @@ So, as long as the measurement error is uncorrelated with the independent variab
 
 #### Setup
 
+<details class="transcript">
+<summary>Lecturer transcript</summary>
+
+Now the explanatory variable is measured imperfectly. The true model uses x-star, but we only observe x, which equals x-star plus error. Solving for x-star and substituting produces an estimable equation in x with a composite error v equal to u minus beta one times e. This is the key difference from outcome measurement error: the same e appears both inside the observed regressor and inside the new error term. The OLS requirement is therefore immediately in danger. We next impose the classical assumptions to see whether that seemingly favorable case solves the problem—it does not.
+
+</details>
+
 **True Model**
 
 Consider the following general model
 
 $y =  \beta_0 + \beta_1 x_1^* + u$ 
 
-with MLR.1 through MLR.6 satisfied.
+with the relevant OLS assumptions satisfied.
 
 <br>
 
-**Measurement Errors**
+**Measurement error**
 
-The difference between the observed $(x_1)$ and actual values $(x_1^*)$
+Define the difference between the observed value $x_1$ and the true value $x_1^*$ as
 
 $e_1 = x_1-x_1^*$ 
 
@@ -383,38 +490,52 @@ $e_1 = x_1-x_1^*$
 
 **Estimable Model**
 
-Plugging the second equation into the first equation,
+Using $x_1^*=x_1-e_1$, the estimable model is
 
-$y =  \beta_0 + \beta_1 x_1 + v, \;\;\mbox{where}\;\; v = (u - \beta e_1)$
+$y =  \beta_0 + \beta_1 x_1 + v, \qquad v=u-\beta_1 e_1$
 
 <br>
 
 **Question**
 
-$E[e_1|x_1] = 0$ needs to be satisfied for the OLS estimators to be unbiased. Does this hold?
+OLS requires $E[v\mid x_1]=0$. Even when $u$ is exogenous, this condition fails if the observed regressor $x_1$ is correlated with its measurement error $e_1$. Does classical measurement error create such a correlation?
 
 #### Classical errors-in-variables (CEV)
 
-:::{.callout-note title="Definition"}
-The correctly observed variable $(x_1^*)$ is uncorrelated with the measurement error $(e_1)$:
+<details class="transcript">
+<summary>Lecturer transcript</summary>
 
-$Cov(x_1^*, e_1) = 0$
+Classical measurement error is mean zero and uncorrelated with the true regressor and the structural error. Even under those strong assumptions, the observed x contains e by construction. Its covariance with e therefore includes the variance of e, which is positive whenever measurement error exists. Because v contains minus beta one times e, observed x is correlated with v. This is the endogeneity result. It can feel surprising: e is unrelated to the true x, yet it is necessarily related to the recorded x because the recorded value literally includes it.
+
+</details>
+
+::: {.callout-note title="Definition"}
+Under classical errors-in-variables assumptions, the measurement error has mean zero and is uncorrelated with both the true regressor and the structural error:
+
+$E[e_1]=0,\qquad \operatorname{Cov}(x_1^*,e_1)=0,\qquad \operatorname{Cov}(u,e_1)=0.$
 :::
 
-Unfortunately, $E[e_1|x_1] = 0$ never holds with CEV. The incorrectly observed variable $(x_1)$ must be correlated with the measurement error $(e_1)$:
+Even though $e_1$ is uncorrelated with $x_1^*$, it is correlated with the observed regressor $x_1=x_1^*+e_1$:
 
 ```{=tex}
 \begin{align*}
-Cov(x_1,e_1) & = E[x_1 e_1]-E[x_1]E[e_1] \\
- & = E[(x_1^*+e_1)e_1]-E[x_1^*+e_1)]E[e_1] \\
- & = E[x_1^*e_1+e_1^2]-E[x_1^*+e_1)]E[e_1] \\
- & = \sigma_{e_1}^2 =\sigma_{e_1}^2 
+\operatorname{Cov}(x_1,e_1)
+&=\operatorname{Cov}(x_1^*+e_1,e_1)\\
+&=\operatorname{Cov}(x_1^*,e_1)+\operatorname{Var}(e_1)\\
+&=\sigma_{e_1}^2>0.
 \end{align*}
 ```
 
-So, the mis-measured variable $(x_1)$ is always correlated with the measurement error $(e_1)$.
+Thus, under the classical assumptions, the mismeasured regressor is correlated with the composite error $v=u-\beta_1e_1$.
 
 #### Direction of bias
+
+<details class="transcript">
+<summary>Lecturer transcript</summary>
+
+In the simple-regression classical case, the probability limit equals the true coefficient multiplied by the reliability ratio lambda. Lambda is the variance of the true signal divided by total observed variance, signal plus measurement-error noise. It lies between zero and one, so the estimate is pulled toward zero. A positive coefficient is biased downward; a negative coefficient is biased upward, meaning less negative. More measurement-error variance produces more attenuation. Remember the scope of this result: it is the classical, single-mismeasured-regressor case. With nonclassical error, multiple regressors, or several mismeasured variables, the direction need not be toward zero.
+
+</details>
 
 **Question**
 
@@ -422,28 +543,27 @@ So, what is the direction of the bias?
 
 <br>
 
-**Note**
-
-The sign of the bias on $x_1$ is the sign of the correlation between $x_1$ and $v = (u - \beta e_1)$. 
-
-<br>
-
 **Direction of bias**
 
-+ Correlation between $x_1$ and $u$ is zero
+Under classical measurement error,
 
-+ The sign of the correlation between $x_1$ and $e_1$ is positive (see the previous slide), which means that the sign of the correlation between $x_1$ and $- \beta e_1$ is the sign of $- \beta$.
-  * if $\beta > 0$, then the sign of the bias is negative 
-  * if $\beta < 0$, then the sign of the bias is positive 
+$$
+\operatorname{plim}(\widehat{\beta}_1)
+=\beta_1\frac{\operatorname{Var}(x_1^*)}
+{\operatorname{Var}(x_1^*)+\operatorname{Var}(e_1)}
+=\lambda\beta_1,
+\qquad 0<\lambda<1.
+$$
+
++ If $\beta_1>0$, the asymptotic bias is negative.
++ If $\beta_1<0$, the asymptotic bias is positive.
 
 <br>
 
-:::{.callout-note title="Attenuation Bias"}
-+ So, the bias is such that your estimate of the coefficient on $x_1$ is biased toward 0. 
+::: {.callout-note title="Attenuation bias"}
++ The coefficient estimator is inconsistent and converges toward zero relative to the true coefficient.
 
-+ In other words, your estimated impact of a mis-measured independent variable will look less influential than it actually is 
-
-(Imagine you mislabeled the treatment status of your experiment)
++ More measurement-error variance makes the attenuation factor $\lambda$ smaller.
 :::
 
 :::
@@ -451,13 +571,3 @@ The sign of the bias on $x_1$ is the sign of the correlation between $x_1$ and $
 
 :::
 <!--end of panel-->
-
-
-
-
-
-
-
-
-
-

@@ -1,52 +1,259 @@
 ---
-format: 
+title: "Course Calendar — Fall 2026"
+format:
   html:
-    fig-width: 7
-    fig-dpi: 300
+    page-layout: full
+    toc: false
 ---
 
 ```{r}
-#| fig-height: 8
-library(lubridate)
-library(dplyr)
-library(data.table)
+#| include: false
 
-dates_data <- 
-  data.table(
-    date = seq( as.Date("2024-01-01"), as.Date("2024-12-31"), by="+1 day")
-  ) %>%
-  .[, day := weekdays(date)]
+# ---------------------------------------------------------------------------
+# Fall 2026 course calendar.
+#
+# Everything below is driven by the `events` table. To change a date, edit the
+# table -- the month grids, the legend, and the key-dates list all follow.
+#
+# UNL Fall 2026 (registrar): classes Aug 24 - Dec 12, Labor Day Sep 7,
+# fall break Oct 19-20, Thanksgiving Nov 25-29, finals Dec 14-18.
+# ---------------------------------------------------------------------------
 
-w_month_data <- dates_data[month(date) == 8,]
+term_start <- as.Date("2026-08-24")
+term_end   <- as.Date("2026-12-12")
 
-imp_dates <- 
-  rep(NA, nrow(w_month_data))
+# Days with no class even though they fall on a normal meeting day
+no_class <- as.Date(c(
+  "2026-09-07", # Labor Day
+  "2026-10-19", # Fall break (Mon)
+  "2026-10-20", # Fall break (Tue)
+  "2026-11-25", # Student holiday
+  "2026-11-26", # Thanksgiving
+  "2026-11-27"  # Thanksgiving break (Fri)
+))
 
-lecture_ind <- 
-  w_month_data[, day %in% c("Monday", "Wednesday") & day(date) >= 19]
-
-lab_ind <- 
-  w_month_data[, day %in% c("Friday") & day(date) >= 19 ]
-
-# Add the events to the desired days
-imp_dates[lecture_ind] <- "Lecture"
-imp_dates[lab_ind] <- "Lab"
-
-# Create a calendar with a legend
-
-temp <- 
-  calendR::calendR(
-    year = 2024, 
-    month = 8, 
-    special.days = imp_dates,
-    special.col = c(
-      "lightcyan2", "tan"),
-    weeknames = c(
-      "Mon", "Tue", "Wed", "Thu",
-      "Fri", "Sat", "Sun"
-    ),
-    mbg.col = "15",
-    months.col = "blue",
-    legend.pos = "bottom"
+new_event <- function(date, time, label, type) {
+  data.frame(
+    date = as.Date(date), time = time, label = label, type = type,
+    stringsAsFactors = FALSE
   )
+}
+
+# --- recurring meetings ----------------------------------------------------
+all_days <- seq(term_start, term_end, by = "day")
+dow <- weekdays(all_days)
+
+# A midterm *is* that day's lecture, so it replaces the routine chip rather
+# than stacking on top of it.
+exam_days <- as.Date(c("2026-10-07", "2026-11-18"))
+
+lecture_days <- all_days[dow %in% c("Monday", "Wednesday") &
+                           !all_days %in% no_class &
+                           !all_days %in% exam_days]
+lab_days     <- all_days[dow == "Friday" & !all_days %in% no_class]
+
+events <- rbind(
+  new_event(lecture_days, "3 PM", "Lecture", "lecture"),
+  new_event(lab_days,     "1 PM", "R Lab",   "lab"),
+
+  # --- exams -------------------------------------------------------------
+  new_event(exam_days[1], "3 PM", "Midterm 1", "exam"),
+  new_event(exam_days[2], "3 PM", "Midterm 2", "exam"),
+
+  # --- final paper milestones --------------------------------------------
+  new_event("2026-10-16", "due", "Topic &amp; data approval", "deadline"),
+  new_event("2026-10-23", "due", "Paper proposal",            "deadline"),
+  new_event("2026-12-18", "due", "Final paper",               "deadline"),
+
+  # --- university calendar ------------------------------------------------
+  new_event("2026-08-24", "",  "First day of classes", "term"),
+  new_event("2026-09-07", "",  "Labor Day — no class", "holiday"),
+  new_event("2026-10-19", "",  "Fall break",           "holiday"),
+  new_event("2026-10-20", "",  "Fall break",           "holiday"),
+  new_event("2026-11-25", "",  "Student holiday",      "holiday"),
+  new_event("2026-11-26", "",  "Thanksgiving",         "holiday"),
+  new_event("2026-11-27", "",  "Thanksgiving break",   "holiday"),
+  new_event("2026-12-11", "",  "Last R Lab",           "term"),
+  new_event("2026-12-14", "",  "Finals week",          "finals"),
+  new_event("2026-12-15", "",  "Finals week",          "finals"),
+  new_event("2026-12-16", "",  "Finals week",          "finals"),
+  new_event("2026-12-17", "",  "Finals week",          "finals"),
+  new_event("2026-12-18", "",  "Finals week",          "finals")
+)
+
+# Chips within a day are ordered by type, not by insertion, so a deadline never
+# hides below the routine lecture chip.
+type_rank <- c(exam = 1, deadline = 2, lecture = 3, lab = 4, term = 5,
+               holiday = 6, finals = 7)
+events <- events[order(events$date, type_rank[events$type]), ]
+
+chip_html <- function(rows) {
+  if (nrow(rows) == 0) return("")
+  paste0(
+    '<div class="cal-chip cal-', rows$type, '">',
+    ifelse(nzchar(rows$time), paste0('<span class="cal-time">', rows$time, '</span> '), ''),
+    rows$label,
+    '</div>',
+    collapse = ""
+  )
+}
+
+month_html <- function(year, month) {
+  first <- as.Date(sprintf("%d-%02d-01", year, month))
+  last  <- seq(first, by = "month", length.out = 2)[2] - 1
+  start <- first - as.integer(format(first, "%w"))          # back to Sunday
+  end   <- last + (6 - as.integer(format(last, "%w")))      # out to Saturday
+  grid  <- seq(start, end, by = "day")
+
+  cells <- vapply(grid, function(d) {
+    d <- as.Date(d, origin = "1970-01-01")
+    in_month <- format(d, "%Y-%m") == format(first, "%Y-%m")
+    day_events <- events[events$date == d, ]
+    paste0(
+      '<div class="cal-day', if (!in_month) " is-out" else "", '">',
+      '<div class="cal-num">',
+      if (format(d, "%d") == "01") format(d, "%b %e") else format(d, "%e"),
+      '</div>',
+      if (in_month) chip_html(day_events) else "",
+      '</div>'
+    )
+  }, character(1))
+
+  paste0(
+    '<section class="cal-month">',
+    '<h2 class="cal-title">', format(first, "%B %Y"), '</h2>',
+    '<div class="cal-grid">',
+    paste0('<div class="cal-dow">',
+           c("Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"),
+           '</div>', collapse = ""),
+    paste0(cells, collapse = ""),
+    '</div></section>'
+  )
+}
+```
+
+```{=html}
+<style>
+/* Palette borrowed from the lecture decks' Notebook theme (lectures/notebook.scss)
+   so the calendar reads as part of the same course, not a bolted-on page. */
+:root {
+  --cal-paper:     #fbf9f3;
+  --cal-ink:       #22201b;
+  --cal-muted:     #5d574a;
+  --cal-rule:      #e2dcd0;
+  --cal-accent:    #1d4e89;
+  --cal-sienna:    #a8552b;
+  --cal-tint:      #eef2f8;
+  --cal-tint-warm: #f6efe6;
+}
+
+.cal-legend {
+  display: flex; flex-wrap: wrap; gap: 0.6rem 1.2rem;
+  margin: 0 0 1.75rem; padding: 0.85rem 1rem;
+  background: var(--cal-paper); border: 1px solid var(--cal-rule);
+  border-radius: 8px; font-size: 0.85rem;
+}
+.cal-legend span { display: inline-flex; align-items: center; gap: 0.45rem; }
+.cal-swatch {
+  /* <i> is inline by default, which ignores width/height and collapses the
+     swatch to a sliver -- inline-block is what makes it a square. */
+  display: inline-block; width: 0.95rem; height: 0.95rem;
+  border-radius: 3px; border-left: 3px solid transparent;
+}
+
+.cal-month { margin: 0 0 2.75rem; }
+.cal-title {
+  font-size: 1.25rem; font-weight: 600; letter-spacing: 0.01em;
+  color: var(--cal-ink); margin: 0 0 0.6rem; padding-bottom: 0.35rem;
+  border-bottom: 2px solid var(--cal-rule);
+}
+
+.cal-grid {
+  display: grid; grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 1px; background: var(--cal-rule);
+  border: 1px solid var(--cal-rule); border-radius: 8px; overflow: hidden;
+}
+
+.cal-dow {
+  background: var(--cal-paper); color: var(--cal-muted);
+  font-size: 0.78rem; font-weight: 600; text-transform: uppercase;
+  letter-spacing: 0.06em; text-align: center; padding: 0.5rem 0.25rem;
+}
+
+.cal-day {
+  background: #fff; min-height: 7.5rem;
+  padding: 0.4rem 0.4rem 0.55rem; display: flex; flex-direction: column;
+}
+.cal-day.is-out { background: #faf9f7; }
+.cal-day.is-out .cal-num { color: #c3bdb2; }
+
+.cal-num {
+  font-size: 0.85rem; font-weight: 600; color: var(--cal-muted);
+  margin-bottom: 0.3rem;
+}
+
+.cal-chip {
+  font-size: 0.74rem; line-height: 1.25; border-radius: 4px;
+  padding: 0.22rem 0.4rem; margin-bottom: 0.22rem;
+  border-left: 3px solid transparent; overflow-wrap: anywhere;
+}
+.cal-time { font-variant-numeric: tabular-nums; opacity: 0.75; }
+
+.cal-lecture  { background: var(--cal-tint-warm); border-left-color: var(--cal-sienna); color: #4a3a2c; }
+.cal-lab      { background: var(--cal-tint);      border-left-color: var(--cal-accent); color: #1d3557; }
+.cal-exam     { background: #f6dfd4; border-left-color: #b3341b; color: #7d2413; font-weight: 600; }
+.cal-deadline { background: var(--cal-sienna); border-left-color: #7d3d1f; color: #fff; font-weight: 600; }
+.cal-deadline .cal-time { opacity: 0.85; }
+.cal-term     { background: #e4efe4; border-left-color: #3f7a46; color: #27502c; }
+.cal-holiday  { background: #ececec; border-left-color: #9a9a9a; color: #4f4f4f; }
+.cal-finals   { background: #f0edf7; border-left-color: #6d28d9; color: #3f2072; }
+
+/* Below tablet width a 7-column grid stops being readable, so the month
+   collapses into a single column and empty leading/trailing days drop out. */
+@media (max-width: 700px) {
+  .cal-grid { grid-template-columns: 1fr; }
+  .cal-dow { display: none; }
+  .cal-day { min-height: 0; flex-direction: row; align-items: baseline; gap: 0.6rem; flex-wrap: wrap; }
+  .cal-day.is-out { display: none; }
+  .cal-num { margin-bottom: 0; min-width: 2.5rem; }
+}
+</style>
+```
+
+Lectures meet **MW 3:00–4:30 PM**; R labs meet **F 1:00–2:30 PM**.
+Semester dates follow the [UNL 2026–2027 academic calendar](https://registrar.unl.edu/calendars/academic-calendar/projected-calendars/academic-calendar-2026-2027/).
+
+```{=html}
+<div class="cal-legend">
+  <span><i class="cal-swatch cal-lecture"></i> Lecture (MW)</span>
+  <span><i class="cal-swatch cal-lab"></i> R Lab (F)</span>
+  <span><i class="cal-swatch cal-exam"></i> Midterm</span>
+  <span><i class="cal-swatch cal-deadline"></i> Final paper milestone</span>
+  <span><i class="cal-swatch cal-term"></i> Term milestone</span>
+  <span><i class="cal-swatch cal-holiday"></i> No class</span>
+  <span><i class="cal-swatch cal-finals"></i> Finals week</span>
+</div>
+```
+
+## Key dates
+
+| Date | Item |
+|:-----------------|:--------------------------------------------------|
+| **Mon, Aug 24**  | First day of classes |
+| **Wed, Oct 7**   | Midterm 1 (in class, open book) |
+| **Fri, Oct 16**  | Research topic and dataset approved by instructor |
+| **Fri, Oct 23**  | Paper proposal due |
+| **Wed, Nov 18**  | Midterm 2 (in class, open book) |
+| **Fri, Dec 11**  | Last R lab |
+| **Fri, Dec 18**  | Final paper due |
+
+: {tbl-colwidths="[22,78]"}
+
+## Month by month
+
+```{r}
+#| echo: false
+#| results: asis
+
+for (m in 8:12) cat(month_html(2026, m))
 ```

@@ -218,6 +218,16 @@ div.overflow-guard div.margin { background-color: $nb-code-bg; }
   color: $nb-ink;
 }
 
+// Safari's native focus outline follows the individual rendered fragments of
+// an inline tab label. When a label contains MathJax (for example
+// `Decompose $y$`), the taller math fragment makes that outline grow a narrow
+// "chimney" above the tab. Draw the keyboard-focus indicator on the tab's box
+// instead, which is stable for both plain-text and math labels.
+.reveal .panel-tabset [role="tab"]:focus-visible {
+  outline: 2px solid $nb-accent;
+  outline-offset: 2px;
+}
+
 .reveal .panel-tabset [role="tab"][aria-selected="true"] {
   background-color: $nb-paper;
   border-color: $nb-rule;
@@ -461,8 +471,15 @@ div.overflow-guard div.margin { background-color: $nb-code-bg; }
 // column too — which is the common case in this course.
 .reveal .side-out .qwebr-interactive-area {
   position: relative;   // anchor for the gutter caret (::after, below)
+  width: 100%;          // override custom.scss's global 90% WebR width cap
+  max-width: 100%;
+  box-sizing: border-box;
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  // Console output is commonly wider than the code that produces it. Give the
+  // output track the spare room instead of forcing a rigid 50/50 division.
+  grid-template-columns:
+    minmax(0, var(--webr-code-track, 5fr))
+    minmax(0, var(--webr-output-track, 7fr));
   // The toolbar belongs to the EDITOR, not to the cell. Spanning it across both
   // columns ("toolbar toolbar", which is what custom.scss's unused
   // .qwebr-side-by-side does) puts a grey Run Code banner over the output half,
@@ -511,6 +528,8 @@ div.overflow-guard div.margin { background-color: $nb-code-bg; }
     // Nothing derived from the row can match it. Both bars are therefore pinned
     // to one shared token, so they cannot drift from each other.
     min-height: $nb-bar-h;
+    width: 100%;
+    min-width: 0;
     box-sizing: border-box;
     display: flex;
     // flex-start, not center: the label is positioned to sit on the same
@@ -547,7 +566,7 @@ div.overflow-guard div.margin { background-color: $nb-code-bg; }
     position: absolute;
     top: 0;
     height: $nb-bar-h;
-    left: calc(50% - 3.5px);          // centre of the 1rem gap between columns
+    left: calc(var(--webr-code-share, 41.667%) - 3.5px);
     display: flex;
     align-items: center;
     color: $nb-accent;
@@ -559,7 +578,25 @@ div.overflow-guard div.margin { background-color: $nb-code-bg; }
     display: contents;
 
     > .qwebr-editor { grid-area: editor; min-width: 0; }
-    > .qwebr-output-code-area { grid-area: output; min-width: 0; }
+    > .qwebr-output-code-area {
+      grid-area: output;
+      width: 100%;
+      min-width: 0;
+      max-width: 100%;
+      box-sizing: border-box;
+
+      // The extension gives console output an intrinsic width. Contain that
+      // width inside the output track so the blue body and its banner align.
+      > pre {
+        width: 100%;
+        min-width: 0;
+        max-width: 100%;
+        box-sizing: border-box;
+        overflow-x: auto;
+        overflow-y: auto;
+        white-space: pre;
+      }
+    }
   }
 
   > .qwebr-output-graph-area {

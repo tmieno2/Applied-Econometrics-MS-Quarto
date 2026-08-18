@@ -94,7 +94,23 @@
     code span.vs { color: #20794d; } /* VerbatimString */
     code span.wa { color: #5e5e5e; font-style: italic; } /* Warning */
   </style>
-  <link rel="stylesheet" href="../../site_libs/revealjs/dist/theme/quarto-efe7f97d24ea27507c65df08cab6e7d6.css">
+  <link rel="stylesheet" href="../../site_libs/revealjs/dist/theme/quarto-db62157d6cf4bc51d0b25352aea75d23.css">
+  <script>window.backupDefine = window.define; window.define = undefined;</script><script src="https://cdn.jsdelivr.net/npm/katex@latest/dist/katex.min.js"></script>
+  <script>document.addEventListener("DOMContentLoaded", function () {
+ var mathElements = document.getElementsByClassName("math");
+ var macros = [];
+ for (var i = 0; i < mathElements.length; i++) {
+  var texText = mathElements[i].firstChild;
+  if (mathElements[i].tagName == "SPAN") {
+   katex.render(texText.data, mathElements[i], {
+    displayMode: mathElements[i].classList.contains('display'),
+    throwOnError: false,
+    macros: macros,
+    fleqn: false
+   });
+}}});
+  </script>
+  <script>window.define = window.backupDefine; window.backupDefine = undefined;</script><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@latest/dist/katex.min.css">
   <link href="../../site_libs/revealjs/plugin/quarto-line-highlight/line-highlight.css" rel="stylesheet">
   <link href="../../site_libs/revealjs/plugin/reveal-menu/menu.css" rel="stylesheet">
   <link href="../../site_libs/revealjs/plugin/reveal-menu/quarto-menu.css" rel="stylesheet">
@@ -187,6 +203,326 @@
       margin-right: 0; 
     }
   </style>
+  <!--
+    Support for collapsible "Lecturer transcript" panels in revealjs decks.
+
+    Include it from a deck's YAML header, with the path relative to the qmd:
+
+        format:
+          revealjs:
+            include-in-header: ../transcript-support.html
+
+    Then add a transcript anywhere inside a slide (or inside a single tab of a
+    tabset, which is the usual case):
+
+        <details class="transcript">
+        <summary>Lecturer transcript</summary>
+
+        What the lecturer says about this tab.
+
+        </details>
+
+    On a tab whose figure fills the whole slide there is no free rectangle to
+    overlay, so add "inline" and the panel joins the flow when opened, pushing the
+    figure down instead of covering it:
+
+        <details class="transcript inline">
+
+    Use it only where it is needed. Measure rather than guess: an open panel must
+    not overlap a ".cell-output-display". The collapsed pill still costs 0px in
+    both variants, which is the property the whole design exists to preserve.
+
+    It must live in the header rather than the body of a qmd: raw HTML placed
+    above the first "##" heading becomes its own untitled slide.
+
+    <details> is a native HTML element, so the collapse/expand works with no
+    JavaScript at all, including in a self-contained (embed-resources) file. The
+    script at the bottom adds one behaviour on top: collapsing an open panel when
+    the reader moves on. Without it everything still works, panels just keep their
+    open state.
+
+    Audience: students reviewing after class. These are not presenter notes -
+    reveal's own ".notes" blocks are the presenter-only mechanism.
+  -->
+  <style>
+  /* The panel is positioned against the slide rather than sitting in its normal
+     flow. That is the whole point: collapsed it costs the slide no vertical
+     space, and opened it overlays the content instead of pushing it off the
+     bottom edge. Each panel lives inside its own tab, and hidden tabs do not
+     render, so only the visible tab's transcript is ever shown. */
+  .reveal details.transcript {
+    position: absolute;
+    top: 0;
+    right: 0;
+    z-index: 20;
+    width: auto;
+    font-size: 0.55em;
+    line-height: 1.45;
+    text-align: left;
+    border-radius: 6px;
+    /* custom.scss styles every bare <details> as an "answer box" (grey border
+       plus padding) for Quarto's folded-code blocks. Opt out of both here so the
+       collapsed pill is not sitting inside a grey rectangle. */
+    border: none;
+    padding: 0;
+  }
+
+  /* Collapsed: a small pill that hugs the top-right corner. */
+  .reveal details.transcript > summary {
+    display: inline-block;
+    cursor: pointer;
+    list-style: none;
+    outline: none;
+    /* custom.scss pulls every bare <summary> with a negative margin; undo it. */
+    margin: 0;
+    padding: 0.15em 0.7em;
+    border: 1px solid #06a666;
+    border-radius: 999px;
+    background: #ffffff;
+    color: #06a666;
+    font-weight: 600;
+    white-space: nowrap;
+    -webkit-user-select: none;
+    user-select: none;
+  }
+  .reveal details.transcript > summary::-webkit-details-marker { display: none; }
+  .reveal details.transcript > summary::before { content: "\25B8\00A0"; }
+  .reveal details.transcript[open] > summary::before { content: "\25BE\00A0"; }
+
+  /* Opened: a tall, narrow panel down the right-hand side, where slide content
+     rarely reaches. It starts below the tab bar so tab names stay clickable
+     while a transcript is open, and runs down to just above the footer.
+
+     Measured as a share of the 700px logical slide. A top-level tab bar ends at
+     12.4-13%, so 21% clears it everywhere.
+
+     A tab bar that sits lower on the slide is cleared HORIZONTALLY instead: the
+     panel occupies x 62-100%, and no tab row measured so far reaches past x 66%.
+     Cases seen, all fine:
+       00-1  nested tabset          18.9%, names reach x 15%
+       00-1  tabset below prose     40.8%, names reach x 59%
+       01-2  nested tabset          29.6%, names reach x 46%
+     So the rule to preserve is not "top clears every tab bar" but "no tab NAME
+     overlaps the panel's rectangle". Re-check that if a deck grows a long tab row
+     sitting low on the slide. */
+  .reveal details.transcript[open] {
+    top: 21%;
+    width: 36%;
+    max-height: 75%;
+    overflow-y: auto;
+    padding: 0.55em 0.85em 0.7em;
+    background: #f4fbf8;
+    border: 1px solid #06a666;
+    box-shadow: 0 6px 22px rgba(0, 0, 0, 0.16);
+  }
+  .reveal details.transcript[open] > summary {
+    display: block;
+    padding: 0 0 0.4em 0;
+    border: none;
+    border-radius: 0;
+    background: transparent;
+  }
+  .reveal details.transcript p { margin: 0.35em 0; }
+
+  /* Opt-out, applied per tab as class="transcript inline".
+     Some figures are rendered at out-width 80% and span x 1.4-98.6% of the slide,
+     running from just under the tab bar down to y ~95%. There is no rectangle
+     left to overlay, so on those tabs the panel joins the normal flow when opened
+     and pushes the figure down; the slide is "scrollable: true", so the figure
+     stays reachable. Note this rule only touches [open]: collapsed, the pill is
+     still absolutely positioned at the top-right corner and still costs 0px. */
+  .reveal details.transcript.inline[open] {
+    position: static;
+    width: auto;
+    max-height: none;
+    overflow-y: visible;
+    margin: 0 0 0.9em 0;
+  }
+
+  /* No .slide-logo rule here: no deck in this course sets a "logo:" in its YAML,
+     so the bottom-right corner the panel would collide with is already free. If
+     a logo is ever added, move it out of the way with
+     .reveal .slide-logo { right: auto !important; left: 56px !important; }
+     where 56px clears reveal's menu button at x 8-43px. */
+  </style>
+
+  <script>
+  // Collapse any open transcript when the reader moves to another slide or
+  // another tab, so a panel left open never reappears over unrelated content.
+  (function () {
+    function closeAll() {
+      document.querySelectorAll("details.transcript[open]")
+        .forEach(function (d) { d.open = false; });
+    }
+
+    // Slide changes come from reveal, which is not ready when this runs.
+    function hookReveal() {
+      if (window.Reveal && typeof Reveal.on === "function") {
+        Reveal.on("slidechanged", closeAll);
+        Reveal.on("overviewshown", closeAll);
+        return true;
+      }
+      return false;
+    }
+    if (!hookReveal()) {
+      var tries = 0;
+      var timer = setInterval(function () {
+        if (hookReveal() || ++tries > 100) clearInterval(timer);
+      }, 100);
+    }
+
+    // Tab changes are plain clicks; capture so this runs before the tab switches.
+    document.addEventListener("click", function (e) {
+      var el = e.target;
+      if (el && el.closest && el.closest('.panel-tabset [role="tab"]')) closeAll();
+    }, true);
+  })();
+  </script>
+  <!-- Adaptive code/output layout for WebR cells in revealjs lecture decks. -->
+  <script>
+  (function () {
+    "use strict";
+
+    var MAX_CODE_LINES = 12;
+    var MAX_CODE_SHARE = 0.58;
+    var MIN_CODE_SHARE = 0.30;
+    var MAX_OUTPUT_SHARE = 0.70;
+
+    function detailsFor(area) {
+      var match = area.id && area.id.match(/qwebr-interactive-area-(\d+)/);
+      if (!match || !globalThis.qwebrCellDetails) return null;
+      return globalThis.qwebrCellDetails[Number(match[1]) - 1] || null;
+    }
+
+    function codeMetrics(code) {
+      var lines = String(code || "").split("\n");
+      var substantive = lines.filter(function (line) {
+        return line.trim() && !/^\s*#/.test(line);
+      });
+      return {
+        lines: substantive.length,
+        maxChars: lines.reduce(function (n, line) {
+          return Math.max(n, line.replace(/\t/g, "  ").length);
+        }, 0)
+      };
+    }
+
+    function setTracks(host, codeShare) {
+      codeShare = Math.max(MIN_CODE_SHARE, Math.min(MAX_CODE_SHARE, codeShare));
+      var outputShare = 1 - codeShare;
+      host.style.setProperty("--webr-code-track", codeShare + "fr");
+      host.style.setProperty("--webr-output-track", outputShare + "fr");
+      host.style.setProperty("--webr-code-share", (codeShare * 100) + "%");
+    }
+
+    function measureRenderedCode(area, host, code, attempt) {
+      if (host.dataset.webrLayout !== "side") return;
+      var sample = area.querySelector(".view-line, .monaco-editor");
+      if (!sample || !area.clientWidth) {
+        if (attempt < 20) setTimeout(function () {
+          measureRenderedCode(area, host, code, attempt + 1);
+        }, 100);
+        return;
+      }
+      var style = getComputedStyle(sample);
+      var canvas = document.createElement("canvas");
+      var context = canvas.getContext("2d");
+      context.font = [style.fontStyle, style.fontWeight, style.fontSize,
+        style.fontFamily].filter(Boolean).join(" ");
+      var widest = String(code || "").split("\n").reduce(function (width, line) {
+        return Math.max(width, context.measureText(line.replace(/\t/g, "  ")).width);
+      }, 0);
+      // Monaco's line-number gutter, padding, and scrollbar need about 76px in
+      // addition to the measured glyph width.
+      var available = Math.max(1, area.clientWidth - 16);
+      setTracks(host, (widest + 76) / available);
+    }
+
+    function stack(host) {
+      if (host.dataset.webrLayoutManual === "true") return;
+      host.classList.remove("side-out");
+      host.dataset.webrLayout = "stacked";
+    }
+
+    function assessOutput(area, host, metrics) {
+      if (host.dataset.webrLayout !== "side") return;
+      var graph = area.querySelector(".qwebr-output-graph-area canvas, .qwebr-output-graph-area img");
+      if (graph) return; // plots scale cleanly within their grid track
+
+      var pre = area.querySelector(".qwebr-output-code-area pre");
+      if (!pre || getComputedStyle(pre).visibility === "hidden") return;
+
+      var codeNeed = Math.max(MIN_CODE_SHARE,
+        Math.min(MAX_CODE_SHARE, (metrics.maxChars + 8) / 150));
+      var available = Math.max(1, area.clientWidth - 16);
+      var outputNeed = Math.min(MAX_OUTPUT_SHARE,
+        Math.max(0.42, (pre.scrollWidth + 24) / available));
+      var outputLines = (pre.innerText || "").split("\n").length;
+
+      // If both measured widths cannot coexist, or the console result is too
+      // tall to read as a right-hand panel, retain WebR's original vertical stack.
+      if (codeNeed + outputNeed > 1 || outputLines > 16 ||
+          pre.scrollHeight > area.ownerDocument.documentElement.clientHeight * 0.62) {
+        stack(host);
+        return;
+      }
+
+      setTracks(host, 1 - outputNeed);
+      requestAnimationFrame(function () {
+        if (pre.scrollWidth > pre.clientWidth * 1.08) stack(host);
+      });
+    }
+
+    function configure(area) {
+      if (area.dataset.webrLayoutChecked === "true") return;
+      area.dataset.webrLayoutChecked = "true";
+
+      var details = detailsFor(area);
+      if (!details || !details.options || details.options.context === "setup") return;
+      var metrics = codeMetrics(details.code);
+      if (!metrics.lines || metrics.lines > MAX_CODE_LINES || metrics.maxChars > 88) return;
+
+      var existingWrapper = area.closest(".side-out");
+      var host = existingWrapper || area.closest(".cell") || area.parentElement;
+      if (!host) return;
+
+      if (existingWrapper) {
+        host.dataset.webrLayoutManual = "true";
+      } else {
+        host.classList.add("side-out");
+      }
+      host.dataset.webrLayout = "side";
+
+      // Estimate an initial split from the longest source line. The output is
+      // intentionally favoured; actual output dimensions refine it after a run.
+      var initialCodeShare = (metrics.maxChars + 10) / 145;
+      setTracks(host, initialCodeShare);
+      measureRenderedCode(area, host, details.code, 0);
+
+      var observer = new MutationObserver(function () {
+        requestAnimationFrame(function () { assessOutput(area, host, metrics); });
+      });
+      observer.observe(area, { childList: true, subtree: true, characterData: true,
+        attributes: true, attributeFilter: ["style", "class"] });
+      requestAnimationFrame(function () { assessOutput(area, host, metrics); });
+    }
+
+    function scan() {
+      document.querySelectorAll(".qwebr-interactive-area").forEach(configure);
+    }
+
+    var pageObserver = new MutationObserver(scan);
+    function start() {
+      scan();
+      pageObserver.observe(document.body, { childList: true, subtree: true });
+    }
+    if (document.readyState === "loading") {
+      document.addEventListener("DOMContentLoaded", start, { once: true });
+    } else {
+      start();
+    }
+  })();
+  </script>
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/monaco-editor@0.47.0/min/vs/editor/editor.main.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
     
@@ -455,7 +791,7 @@
   // Document level settings ----
 
   // Determine if we need to install R packages
-  globalThis.qwebrInstallRPackagesList = ['fixest', 'dplyr', 'data.table', 'ggplot2', 'wooldridge', 'broom', 'lmtest'];
+  globalThis.qwebrInstallRPackagesList = ['fixest', 'dplyr', 'data.table', 'ggplot2', 'wooldridge', 'broom', 'lmtest', 'MASS'];
 
   // Specify possible locations to search for the repository
   globalThis.qwebrPackageRepoURLS = ['https://repo.r-wasm.org/'];
@@ -477,7 +813,7 @@
   };
 
   // Store cell data
-  globalThis.qwebrCellDetails = [{"code":"set.seed(927834)\n\nN <- 1000 # number of observations\nB <- 1000 # number of simulations\n\nb_hat_store <- rep(0, B) # beta hat storage\nt_stat_store <- rep(0, B) # t-stat storage\nc_value <- qt(0.975, N - 2) # critical value\n\nx <- runif(N, 0, 1) # x (fixed across iterations)\n\nfor (i in 1:B){\n  #--- generate data ---#\n  het_u <- 3 * rnorm(N, mean = 0, sd = 2 * x) # heteroskedastic error\n  y <- 1 + het_u # y\n  data_temp <- data.frame(y = y, x = x)\n\n  #--- regression ---#\n  ols_res <- lm(y ~ x, data = data_temp)  \n\n  b_hat <- ols_res$coef['x'] # coef estimate on x\n  b_hat_store[i] <- b_hat # save the coef estimate\n  vcov_ols <- vcov(ols_res) # get variance covariance matrix\n  t_stat_store[i] <- b_hat / sqrt(vcov_ols['x', 'x']) # calculate t-stat\n} ","id":1,"options":{"autorun":"false","classes":"","comment":"","context":"interactive","dpi":72,"editor-font-scale":"0.8","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":5,"fig-width":7,"label":"unnamed-chunk-1","message":"true","out-height":"","out-width":"700px","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"#--- how many times do you reject? ---#\nreject_or_not <- \n  abs(t_stat_store) > c_value\n\nmean(reject_or_not) ","id":2,"options":{"autorun":"false","classes":"","comment":"","context":"interactive","dpi":72,"editor-font-scale":"0.8","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":5,"fig-width":7,"label":"unnamed-chunk-2","message":"true","out-height":"","out-width":"700px","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"#--- import the data ---#\ndata(\"mlb1\", package = \"wooldridge\")\n\n#--- regression ---#\nreg_mlb <- fixest::feols(log(salary) ~ years + bavg, data = mlb1) ","id":3,"options":{"autorun":"true","classes":"","comment":"","context":"interactive","dpi":72,"editor-font-scale":"0.8","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":5,"fig-width":7,"label":"unnamed-chunk-3","message":"true","out-height":"","out-width":"700px","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"#* vcov\nvcov(reg_mlb, vcov = \"hetero\")\n\n#* only the standard errors\nfixest::se(reg_mlb, vcov = \"hetero\")","id":4,"options":{"autorun":"false","classes":"","comment":"","context":"interactive","dpi":72,"editor-font-scale":"0.8","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":5,"fig-width":7,"label":"unnamed-chunk-4","message":"true","out-height":"","out-width":"700px","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"(\n  se_hom <- se(reg_mlb)\n)","id":5,"options":{"autorun":"false","classes":"","comment":"","context":"interactive","dpi":72,"editor-font-scale":"0.8","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":5,"fig-width":7,"label":"unnamed-chunk-5","message":"true","out-height":"","out-width":"700px","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"(\n  se_het <- se(reg_mlb, vcov = \"hetero\")\n)","id":6,"options":{"autorun":"false","classes":"","comment":"","context":"interactive","dpi":72,"editor-font-scale":"0.8","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":5,"fig-width":7,"label":"unnamed-chunk-6","message":"true","out-height":"","out-width":"700px","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"set.seed(478954)\n\n#--- x fixed across iterations ---#\nx <- runif(N,0,1) # x\n\nfor (i in 1:B){\n  #--- generate data ---#\n  het_u <- 3 * rnorm(N, mean = 0, sd = 2 * x) # heteroskedastic error\n  y <- 1 + het_u # y\n  data_temp <- data.frame(y = y, x = x)\n\n  #--- regression ---#\n  ols_res <- feols(y ~ x,data = data_temp)\n  b_hat <- ols_res$coefficient['x'] # coef estimate on x\n  b_hat_store[i] <- b_hat # save the coef estimate\n  se_het <- se(ols_res, vcov = \"hetero\")[\"x\"] # get variance covariance matrix #<<\n  t_stat_store[i] <- b_hat/se_het # calculate t-stat\n}","id":7,"options":{"autorun":"false","cache":"true","classes":"","comment":"","context":"interactive","dpi":72,"editor-font-scale":"0.8","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":5,"fig-width":7,"label":"unnamed-chunk-7","message":"true","out-height":"","out-width":"700px","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"reject_or_not <- \n  abs(t_stat_store) > c_value\n\nmean(reject_or_not)","id":8,"options":{"autorun":"false","cache":"true","classes":"","comment":"","context":"interactive","dpi":72,"editor-font-scale":"0.8","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":5,"fig-width":7,"label":"unnamed-chunk-8","message":"true","out-height":"","out-width":"700px","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"#--- setup ---#\nN <- 2000 # total number of observations\nG <- 50 # number of groups\nNg <- N/G # number of observations per group\n\n#--- error correlated within group ---#\nu <- \n  MASS::mvrnorm(\n    G, mu = rep(0, Ng), \n    Sigma = matrix(10, nrow = Ng, ncol = Ng) + diag(Ng)\n  ) %>% t() %>% c()\n\n#--- x correlated within group ---#\nx <- \n  MASS::mvrnorm(\n    G, mu = rep(0, Ng), \n    Sigma = matrix(1, nrow = Ng, ncol = Ng) + diag(Ng) * .2\n  ) %>% t() %>% c()\n\n#--- other variables ---#\ny <- 1 + 0 * x + u\n\n#--- data.frame ---#\ndata <- data.frame(y = y, x = x, group = rep(1:G, each = Ng))","id":9,"options":{"autorun":"false","classes":"","comment":"","context":"interactive","dpi":72,"editor-font-scale":"0.8","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":5,"fig-width":7,"label":"unnamed-chunk-9","message":"true","out-height":"","out-width":"700px","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"ggplot(data) +\n  geom_point(aes(y = y, x = factor(group)), size = 0.2) +\n  xlab(\"group\") +\n  theme(\n    axis.text.x = element_text(size = 6, angle = 90)\n  )","id":10,"options":{"autorun":"false","classes":"","comment":"","context":"interactive","dpi":72,"editor-font-scale":"0.8","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":5,"fig-width":7,"label":"unnamed-chunk-10","message":"true","out-height":"","out-width":"700px","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"set.seed(58934)\nB <- 1000\nt_stat_store <- rep(0,B)\nN <- 2000 # total number of observations\nG <- 50 # number of groups\nNg <- N/G # number of observations per group\n\nfor (i in 1:B){\n  #--- error correlated within group ---#\n  u <- \n  mvrnorm(\n    G, mu = rep(0, Ng), \n    Sigma = matrix(10, nrow = Ng, ncol = Ng) + diag(Ng)\n  ) %>% t() %>% c()\n\n  #--- x correlated within group ---#\n  x <- \n    mvrnorm(\n      G, mu = rep(0, Ng), \n      Sigma = matrix(1, nrow = Ng, ncol = Ng) + diag(Ng) * .2\n    ) %>% t() %>% c()\n\n  #--- other variables ---#\n  y <- 1 + 0 * x + u\n\n  #--- data.frame ---#\n  data <- data.frame(y = y, x = x, group = rep(1:G, each = Ng))\n\n  #--- OLS ---#\n  reg <- feols(y ~ x, data = data)\n\n  #--- get vcov ---#\n  se_default <- se(reg)[\"x\"]\n\n  #--- calculate t-stat ---#\n  t_stat <- reg$coefficient['x']/se_default\n  t_stat_store[i] <- t_stat\n} ","id":11,"options":{"autorun":"false","classes":"","comment":"","context":"interactive","dpi":72,"editor-font-scale":"0.8","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":5,"fig-width":7,"label":"cluster-MC","message":"true","out-height":"","out-width":"700px","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"c_value <- qt(0.975, N - 2)\n\n#--- how often do you reject the null ---#\nmean(abs(t_stat_store) > c_value) ","id":12,"options":{"autorun":"false","classes":"","comment":"","context":"interactive","dpi":72,"editor-font-scale":"0.8","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":5,"fig-width":7,"label":"unnamed-chunk-12","message":"true","out-height":"","out-width":"700px","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"dplyr::select(mlb1, salary, years, bavg, nl) %>% head()","id":13,"options":{"autorun":"false","classes":"","comment":"","context":"interactive","dpi":72,"editor-font-scale":"0.8","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":5,"fig-width":7,"label":"unnamed-chunk-13","message":"true","out-height":"","out-width":"700px","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"reg_mlb <- feols(log(salary) ~ years + bavg, data = mlb1) ","id":14,"options":{"autorun":"false","classes":"","comment":"","context":"interactive","dpi":72,"editor-font-scale":"0.8","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":5,"fig-width":7,"label":"unnamed-chunk-14","message":"true","out-height":"","out-width":"700px","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"#* vcov clustered by nl\nvcov(reg_mlb, cluster = ~ nl)\n\n#* se clustered by nl\nse(reg_mlb, cluster = ~ nl)","id":15,"options":{"autorun":"false","classes":"","comment":"","context":"interactive","dpi":72,"editor-font-scale":"0.8","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":5,"fig-width":7,"label":"unnamed-chunk-15","message":"true","out-height":"","out-width":"700px","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"se(reg_mlb) ","id":16,"options":{"autorun":"false","classes":"","comment":"","context":"interactive","dpi":72,"editor-font-scale":"0.8","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":5,"fig-width":7,"label":"unnamed-chunk-16","message":"true","out-height":"","out-width":"700px","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"se(reg_mlb, cluster = ~ nl) ","id":17,"options":{"autorun":"false","classes":"","comment":"","context":"interactive","dpi":72,"editor-font-scale":"0.8","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":5,"fig-width":7,"label":"unnamed-chunk-17","message":"true","out-height":"","out-width":"700px","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"reg_mlb <- feols(log(salary) ~ years + bavg, cluster = ~ nl, data = mlb1) \n\ntidy(reg_mlb)","id":18,"options":{"autorun":"false","classes":"","comment":"","context":"interactive","dpi":72,"editor-font-scale":"0.8","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":5,"fig-width":7,"label":"unnamed-chunk-18","message":"true","out-height":"","out-width":"700px","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"set.seed(58934)\nB <- 1000\nt_stat_store <- rep(0,B)\nN <- 2000 # number of observations per cluster\nG <- 50 # number of groups\nNg <- N/G # number of observations per group\n\nfor (i in 1:B){\n  #--- error correlated within group ---#\n  u <- \n  mvrnorm(\n    G, mu = rep(0, Ng), \n    Sigma = matrix(10, nrow = Ng, ncol = Ng) + diag(Ng)\n  ) %>% t() %>% c()\n\n  #--- x correlated within group ---#\n  x <- \n    mvrnorm(\n      G, mu = rep(0, Ng), \n      Sigma = matrix(1, nrow = Ng, ncol = Ng) + diag(Ng) * .2\n    ) %>% t() %>% c()\n\n  #--- other variables ---#\n  y <- 1 + 0 * x + u\n\n  #--- data.frame ---#\n  data <- data.frame(y = y, x = x, group = rep(1:G, each = Ng))\n\n  #--- OLS with cluster-robust se---#\n  reg <- feols(y ~ x, data = data, cluster = ~ group) #<<\n\n  #--- get vcov ---#\n  se_cl <- se(reg)[\"x\"]\n\n  #--- calculate t-stat ---#\n  t_stat <- reg$coefficient['x']/se_cl\n  t_stat_store[i] <- t_stat\n}","id":19,"options":{"autorun":"false","classes":"","comment":"","context":"interactive","dpi":72,"editor-font-scale":"0.8","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":5,"fig-width":7,"label":"cl-MC-robust","message":"true","out-height":"","out-width":"700px","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"#--- critical value ---#\nc_value <- qt(0.95, N-2)\n\n#--- how often do you reject the null ---#\nmean(abs(t_stat_store) > c_value)","id":20,"options":{"autorun":"false","classes":"","comment":"","context":"interactive","dpi":72,"editor-font-scale":"0.8","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":5,"fig-width":7,"label":"unnamed-chunk-20","message":"true","out-height":"","out-width":"700px","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"set.seed(58934)\nB <- 1000\nt_stat_store <- rep(0,B)\nN <- 20000 # total number of observations\nG <- 1000 # number of groups #<<\nNg <- N/G # number of observations per group\n\nfor (i in 1:B){\n  #--- error correlated within group ---#\n  u <- \n  mvrnorm(\n    G, mu = rep(0, Ng), \n    Sigma = matrix(10, nrow = Ng, ncol = Ng) + diag(Ng)\n  ) %>% t() %>% c()\n\n  #--- x correlated within group ---#\n  x <- \n    mvrnorm(\n      G, mu = rep(0, Ng), \n      Sigma = matrix(1, nrow = Ng, ncol = Ng) + diag(Ng) * .2\n    ) %>% t() %>% c()\n\n  #--- other variables ---#\n  y <- 1 + 0 * x + u\n\n  #--- data.frame ---#\n  data <- data.frame(y = y, x = x, group = rep(1:G, each = Ng))\n\n  #--- OLS with cluster-robust se---#\n  reg <- feols(y ~ x, data = data, cluster = ~ group)\n\n  #--- get vcov ---#\n  se_cl <- se(reg)[\"x\"]\n\n  #--- calculate t-stat ---#\n  t_stat <- reg$coefficient['x']/se_cl\n  t_stat_store[i] <- t_stat\n}","id":21,"options":{"autorun":"false","classes":"","comment":"","context":"interactive","dpi":72,"editor-font-scale":"0.8","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":5,"fig-width":7,"label":"cl-MC-robust-more-groups","message":"true","out-height":"","out-width":"700px","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"#--- critical value ---#\nc_value <- qt(0.95, N-2)\n\n#--- how often do you reject the null ---#\nmean(abs(t_stat_store) > c_value)","id":22,"options":{"autorun":"false","classes":"","comment":"","context":"interactive","dpi":72,"editor-font-scale":"0.8","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":5,"fig-width":7,"label":"unnamed-chunk-22","message":"true","out-height":"","out-width":"700px","output":"true","read-only":"false","results":"markup","warning":"true"}}];
+  globalThis.qwebrCellDetails = [{"code":"set.seed(927834)\n\nN <- 1000 # number of observations\nB <- 1000 # number of simulations\n\nb_hat_store <- rep(0, B) # beta hat storage\nt_stat_store <- rep(0, B) # t-stat storage\nc_value <- qt(0.975, N - 2) # critical value\n\nx <- runif(N, 0, 1) # x (fixed across iterations)\n\nfor (i in 1:B){\n  #--- generate data ---#\n  het_u <- 3 * rnorm(N, mean = 0, sd = 2 * x) # heteroskedastic error\n  y <- 1 + het_u # y\n  data_temp <- data.frame(y = y, x = x)\n\n  #--- regression ---#\n  ols_res <- lm(y ~ x, data = data_temp)  \n\n  b_hat <- ols_res$coef['x'] # coef estimate on x\n  b_hat_store[i] <- b_hat # save the coef estimate\n  vcov_ols <- vcov(ols_res) # get variance covariance matrix\n  t_stat_store[i] <- b_hat / sqrt(vcov_ols['x', 'x']) # calculate t-stat\n} ","id":1,"options":{"autorun":"true","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.8","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"4.5","fig-width":"7","label":"unnamed-chunk-1","message":"true","out-height":"","out-width":"55%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"#--- how many times do you reject? ---#\nreject_or_not <- \n  abs(t_stat_store) > c_value\n\nmean(reject_or_not) ","id":2,"options":{"autorun":"false","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.8","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"4.5","fig-width":"7","label":"unnamed-chunk-2","message":"true","out-height":"","out-width":"55%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"#--- import the data ---#\ndata(\"mlb1\", package = \"wooldridge\")\n\n#--- regression ---#\nreg_mlb <- fixest::feols(log(salary) ~ years + bavg, data = mlb1) ","id":3,"options":{"autorun":"true","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.8","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"4.5","fig-width":"7","label":"unnamed-chunk-3","message":"true","out-height":"","out-width":"55%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"#* vcov\nvcov(reg_mlb, vcov = \"hetero\")\n\n#* only the standard errors\nfixest::se(reg_mlb, vcov = \"hetero\")","id":4,"options":{"autorun":"false","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.8","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"4.5","fig-width":"7","label":"unnamed-chunk-4","message":"true","out-height":"","out-width":"55%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"(\n  se_hom <- se(reg_mlb)\n)","id":5,"options":{"autorun":"false","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.8","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"4.5","fig-width":"7","label":"unnamed-chunk-5","message":"true","out-height":"","out-width":"55%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"(\n  se_het <- se(reg_mlb, vcov = \"hetero\")\n)","id":6,"options":{"autorun":"false","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.8","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"4.5","fig-width":"7","label":"unnamed-chunk-6","message":"true","out-height":"","out-width":"55%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"set.seed(478954)\n\n#--- x fixed across iterations ---#\nx <- runif(N, 0, 1) # x\n\nfor (i in 1:B){\n  #--- generate data ---#\n  het_u <- 3 * rnorm(N, mean = 0, sd = 2 * x) # heteroskedastic error\n  y <- 1 + het_u # y\n  data_temp <- data.frame(y = y, x = x)\n\n  #--- regression ---#\n  ols_res <- feols(y ~ x,data = data_temp)\n  b_hat <- ols_res$coefficient['x'] # coef estimate on x\n  b_hat_store[i] <- b_hat # save the coef estimate\n  se_het <- se(ols_res, vcov = \"hetero\")[\"x\"] # heteroskedasticity-robust se #<<\n  t_stat_store[i] <- b_hat/se_het # calculate t-stat\n}","id":7,"options":{"autorun":"true","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.8","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"4.5","fig-width":"7","label":"unnamed-chunk-7","message":"true","out-height":"","out-width":"55%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"reject_or_not <- \n  abs(t_stat_store) > c_value\n\nmean(reject_or_not)","id":8,"options":{"autorun":"false","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.8","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"4.5","fig-width":"7","label":"unnamed-chunk-8","message":"true","out-height":"","out-width":"55%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"#--- setup ---#\nN <- 2000 # total number of observations\nG <- 50 # number of groups\nNg <- N/G # number of observations per group\n\n#--- error correlated within group ---#\nu <- \n  MASS::mvrnorm(\n    G, mu = rep(0, Ng), \n    Sigma = matrix(10, nrow = Ng, ncol = Ng) + diag(Ng)\n  ) %>% t() %>% c()\n\n#--- x correlated within group ---#\nx <- \n  MASS::mvrnorm(\n    G, mu = rep(0, Ng), \n    Sigma = matrix(1, nrow = Ng, ncol = Ng) + diag(Ng) * .2\n  ) %>% t() %>% c()\n\n#--- other variables ---#\ny <- 1 + 0 * x + u\n\n#--- data.frame ---#\ndata <- data.frame(y = y, x = x, group = rep(1:G, each = Ng))","id":9,"options":{"autorun":"true","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.8","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"4.5","fig-width":"7","label":"unnamed-chunk-9","message":"true","out-height":"","out-width":"55%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"ggplot(data) +\n  geom_point(aes(y = y, x = factor(group)), size = 0.2) +\n  xlab(\"group\") +\n  theme_bw(base_size = 30) +\n  theme(\n    axis.text.x = element_text(size = 6, angle = 90)\n  )","id":10,"options":{"autorun":"false","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.8","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"4.5","fig-width":"7","label":"unnamed-chunk-10","message":"true","out-height":"","out-width":"55%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"set.seed(58934)\nB <- 1000\nt_stat_store <- rep(0,B)\nN <- 2000 # total number of observations\nG <- 50 # number of groups\nNg <- N/G # number of observations per group\n\nfor (i in 1:B){\n  #--- error correlated within group ---#\n  u <- \n  MASS::mvrnorm(\n    G, mu = rep(0, Ng), \n    Sigma = matrix(10, nrow = Ng, ncol = Ng) + diag(Ng)\n  ) %>% t() %>% c()\n\n  #--- x correlated within group ---#\n  x <- \n    MASS::mvrnorm(\n      G, mu = rep(0, Ng), \n      Sigma = matrix(1, nrow = Ng, ncol = Ng) + diag(Ng) * .2\n    ) %>% t() %>% c()\n\n  #--- other variables ---#\n  y <- 1 + 0 * x + u\n\n  #--- data.frame ---#\n  data <- data.frame(y = y, x = x, group = rep(1:G, each = Ng))\n\n  #--- OLS ---#\n  reg <- feols(y ~ x, data = data)\n\n  #--- get vcov ---#\n  se_default <- se(reg)[\"x\"]\n\n  #--- calculate t-stat ---#\n  t_stat <- reg$coefficient['x']/se_default\n  t_stat_store[i] <- t_stat\n} ","id":11,"options":{"autorun":"false","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.8","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"4.5","fig-width":"7","label":"cluster-MC","message":"true","out-height":"","out-width":"55%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"c_value <- qt(0.975, N - 2)\n\n#--- how often do you reject the null ---#\nmean(abs(t_stat_store) > c_value) ","id":12,"options":{"autorun":"false","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.8","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"4.5","fig-width":"7","label":"unnamed-chunk-12","message":"true","out-height":"","out-width":"55%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"dplyr::select(mlb1, salary, years, bavg, nl) %>% head()","id":13,"options":{"autorun":"false","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.8","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"4.5","fig-width":"7","label":"unnamed-chunk-13","message":"true","out-height":"","out-width":"55%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"reg_mlb <- feols(log(salary) ~ years + bavg, data = mlb1) ","id":14,"options":{"autorun":"true","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.8","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"4.5","fig-width":"7","label":"unnamed-chunk-14","message":"true","out-height":"","out-width":"55%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"#* vcov clustered by nl\nvcov(reg_mlb, cluster = ~ nl)\n\n#* se clustered by nl\nse(reg_mlb, cluster = ~ nl)","id":15,"options":{"autorun":"false","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.8","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"4.5","fig-width":"7","label":"unnamed-chunk-15","message":"true","out-height":"","out-width":"55%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"se(reg_mlb) ","id":16,"options":{"autorun":"false","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.8","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"4.5","fig-width":"7","label":"unnamed-chunk-16","message":"true","out-height":"","out-width":"55%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"se(reg_mlb, cluster = ~ nl) ","id":17,"options":{"autorun":"false","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.8","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"4.5","fig-width":"7","label":"unnamed-chunk-17","message":"true","out-height":"","out-width":"55%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"reg_mlb <- feols(log(salary) ~ years + bavg, cluster = ~ nl, data = mlb1) \n\ntidy(reg_mlb)","id":18,"options":{"autorun":"false","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.8","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"4.5","fig-width":"7","label":"unnamed-chunk-18","message":"true","out-height":"","out-width":"55%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"set.seed(58934)\nB <- 1000\nt_stat_store <- rep(0,B)\nN <- 2000 # total number of observations\nG <- 50 # number of groups\nNg <- N/G # number of observations per group\n\nfor (i in 1:B){\n  #--- error correlated within group ---#\n  u <- \n  MASS::mvrnorm(\n    G, mu = rep(0, Ng), \n    Sigma = matrix(10, nrow = Ng, ncol = Ng) + diag(Ng)\n  ) %>% t() %>% c()\n\n  #--- x correlated within group ---#\n  x <- \n    MASS::mvrnorm(\n      G, mu = rep(0, Ng), \n      Sigma = matrix(1, nrow = Ng, ncol = Ng) + diag(Ng) * .2\n    ) %>% t() %>% c()\n\n  #--- other variables ---#\n  y <- 1 + 0 * x + u\n\n  #--- data.frame ---#\n  data <- data.frame(y = y, x = x, group = rep(1:G, each = Ng))\n\n  #--- OLS with cluster-robust se---#\n  reg <- feols(y ~ x, data = data, cluster = ~ group) #<<\n\n  #--- get vcov ---#\n  se_cl <- se(reg)[\"x\"]\n\n  #--- calculate t-stat ---#\n  t_stat <- reg$coefficient['x']/se_cl\n  t_stat_store[i] <- t_stat\n}","id":19,"options":{"autorun":"false","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.8","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"4.5","fig-width":"7","label":"cl-MC-robust","message":"true","out-height":"","out-width":"55%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"#--- critical value (two-sided test, so 0.975) ---#\nc_value <- qt(0.975, G - 1) # cluster-level reference degrees of freedom\n\n#--- how often do you reject the null ---#\nmean(abs(t_stat_store) > c_value)","id":20,"options":{"autorun":"false","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.8","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"4.5","fig-width":"7","label":"unnamed-chunk-20","message":"true","out-height":"","out-width":"55%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"set.seed(58934)\nB <- 1000\nt_stat_store <- rep(0,B)\nN <- 20000 # total number of observations\nG <- 1000 # number of groups #<<\nNg <- N/G # number of observations per group\n\nfor (i in 1:B){\n  #--- error correlated within group ---#\n  u <- \n  MASS::mvrnorm(\n    G, mu = rep(0, Ng), \n    Sigma = matrix(10, nrow = Ng, ncol = Ng) + diag(Ng)\n  ) %>% t() %>% c()\n\n  #--- x correlated within group ---#\n  x <- \n    MASS::mvrnorm(\n      G, mu = rep(0, Ng), \n      Sigma = matrix(1, nrow = Ng, ncol = Ng) + diag(Ng) * .2\n    ) %>% t() %>% c()\n\n  #--- other variables ---#\n  y <- 1 + 0 * x + u\n\n  #--- data.frame ---#\n  data <- data.frame(y = y, x = x, group = rep(1:G, each = Ng))\n\n  #--- OLS with cluster-robust se---#\n  reg <- feols(y ~ x, data = data, cluster = ~ group)\n\n  #--- get vcov ---#\n  se_cl <- se(reg)[\"x\"]\n\n  #--- calculate t-stat ---#\n  t_stat <- reg$coefficient['x']/se_cl\n  t_stat_store[i] <- t_stat\n}","id":21,"options":{"autorun":"false","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.8","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"4.5","fig-width":"7","label":"cl-MC-robust-more-groups","message":"true","out-height":"","out-width":"55%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"#--- critical value (two-sided test, so 0.975) ---#\nc_value <- qt(0.975, G - 1) # cluster-level reference degrees of freedom\n\n#--- how often do you reject the null ---#\nmean(abs(t_stat_store) > c_value)","id":22,"options":{"autorun":"false","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.8","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"4.5","fig-width":"7","label":"unnamed-chunk-22","message":"true","out-height":"","out-width":"55%","output":"true","read-only":"false","results":"markup","warning":"true"}}];
 
   </script>
   <script type="module">
@@ -1988,6 +2324,12 @@ globalThis.qwebrCreateMonacoEditorInstance = function (cellData) {
 <ul id="tabset-5" class="panel-tabset-tabby"><li><a data-tabby-default="" href="#tabset-5-1">Review</a></li><li><a href="#tabset-5-2">Visualization</a></li><li><a href="#tabset-5-3">Central Questions</a></li><li><a href="#tabset-5-4">Coefficient estimators</a></li><li><a href="#tabset-5-5">Variance of the coefficient estimators</a></li></ul>
 <div class="tab-content">
 <div id="tabset-5-1">
+<details class="transcript">
+<summary>
+Lecturer transcript
+</summary>
+<p>Two definitions, and the whole lecture turns on the difference between them. Homoskedasticity says the variance of the error, conditional on x, is a constant: the same number wherever you look. Heteroskedasticity says it is a function of x, so the spread of the errors changes as x changes. Read the three bullets underneath, because they tell you where this fits. This is MLR five, the assumption every standard error in lecture 05 rested on, and it also came free with the normality assumption there. Today we ask what breaks when it fails.</p>
+</details>
 <div title="Homoskedasticity">
 <div class="callout callout-note no-icon callout-titled callout-style-default">
 <div class="callout-body">
@@ -1995,7 +2337,7 @@ globalThis.qwebrCreateMonacoEditorInstance = function (cellData) {
 <p><strong>Homoskedasticity</strong></p>
 </div>
 <div class="callout-content">
-<p><span class="math inline">\(Var(u|x) = \sigma^2\)</span></p>
+<p><span class="math inline">Var(u|x) = \sigma^2</span></p>
 </div>
 </div>
 </div>
@@ -2008,28 +2350,47 @@ globalThis.qwebrCreateMonacoEditorInstance = function (cellData) {
 <p><strong>Heteroskedasticity</strong></p>
 </div>
 <div class="callout-content">
-<p><span class="math inline">\(Var(u|x) = f(x)\)</span></p>
+<p><span class="math inline">Var(u|x) = f(x)</span></p>
 </div>
 </div>
 </div>
 </div>
+<p><br></p>
+<p>Read the difference: under homoskedasticity the spread of the error is the <span style="color: blue;">same number</span> whatever <span class="math inline">x</span> is. Under heteroskedasticity it is a <span style="color: red;">function</span> of <span class="math inline">x</span>.</p>
+<ul>
+<li>this is MLR.5, and every standard error in lecture 05 rested on it</li>
+<li>it also came free with the normality assumption there, because independence of <span class="math inline">u</span> from <span class="math inline">x</span> implies a constant conditional variance</li>
+<li>so this lecture is about what happens to that testing machinery when the assumption fails</li>
+</ul>
 </div>
 <div id="tabset-5-2">
+<details class="transcript inline">
+<summary>
+Lecturer transcript
+</summary>
+<p>Two panels of simulated data, both from the same true line. On the left, homoskedastic errors: the cloud of points has the same vertical thickness at every value of x. On the right, heteroskedastic: it fans out, narrow on the left and wide on the right. Both fitted lines run through the middle of their clouds, and that is the first thing to notice. Heteroskedasticity does not tilt the line. What it changes is how confident you should be about where the line sits, and that is a statement about standard errors, not coefficients.</p>
+</details>
 <div class="cell">
 <div class="cell-output-display">
 <div>
 <figure>
-<p><img data-src="06-se-estimation_files/figure-revealjs/unnamed-chunk-1-1.png" width="4000"></p>
+<p><img data-src="06-se-estimation_files/figure-revealjs/unnamed-chunk-1-1.png" width="4800"></p>
 </figure>
 </div>
 </div>
 </div>
 </div>
 <div id="tabset-5-3">
+<details class="transcript">
+<summary>
+Lecturer transcript
+</summary>
+<p>Two questions, and it matters that we ask them separately, because they get different answers. Does heteroskedasticity break your coefficient estimates? Does it break your estimate of how uncertain those coefficients are? People often lump these together and assume that if an assumption fails, everything downstream is ruined. That is not what happens here. Keep the two apart in your head as we go, because the practical advice at the end of the lecture depends entirely on one of them being fine and the other not.</p>
+</details>
 <p>What are the consequences of assuming the error is homoskedastic when it is heteroskedastic in reality?</p>
 <ul>
-<li>Estimation of coefficients <span class="math inline">\((\widehat{\beta}_j)\)</span>?</li>
-<li>Estimation of the variance of <span class="math inline">\(\widehat{\beta}_j\)</span>?</li>
+<li>Estimation of coefficients <span class="math inline">(\widehat{\beta}_j)</span>?</li>
+<li>Estimation of the variance of <span class="math inline">\widehat{\beta}_j</span>?</li>
 </ul>
 </div>
 <div id="tabset-5-4">
@@ -2037,9 +2398,21 @@ globalThis.qwebrCreateMonacoEditorInstance = function (cellData) {
 <ul id="tabset-1" class="panel-tabset-tabby"><li><a data-tabby-default="" href="#tabset-1-1">Question</a></li><li><a href="#tabset-1-2">Answer</a></li></ul>
 <div class="tab-content">
 <div id="tabset-1-1">
+<details class="transcript">
+<summary>
+Lecturer transcript
+</summary>
+<p>Take the first question on its own. Are the OLS estimators of the coefficients unbiased when the error is heteroskedastic? Think back to lecture 01-3, where we actually proved unbiasedness, and ask which assumptions that proof used. Go through them: the model is linear in parameters, the sample is random, there is variation in x, and the expected value of u given x is zero. Was homoskedasticity anywhere in that argument? Answer before you click, because the answer is the reason this lecture is a repair job rather than a demolition.</p>
+</details>
 <p>Are OLS estimators unbiased when error is heteroskedastic?</p>
 </div>
 <div id="tabset-1-2">
+<details class="transcript">
+<summary>
+Lecturer transcript
+</summary>
+<p>Yes, still unbiased, and read the reason: the proof never used homoskedasticity. MLR five came in later, only when we wanted a formula for the variance. So heteroskedasticity leaves your coefficient estimates exactly where they were. That is genuinely good news, and it shapes everything that follows. Nothing in this lecture will ask you to change a coefficient. The entire fix is about the second question, and specifically about replacing one formula for the standard error with another.</p>
+</details>
 <p>Yes. We do not need to use the homoskedasticity assumption to prove that the OLS estimator is unbiased.</p>
 </div>
 </div>
@@ -2048,13 +2421,19 @@ globalThis.qwebrCreateMonacoEditorInstance = function (cellData) {
 </div>
 <div id="tabset-5-5">
 <div class="panel-tabset">
-<ul id="tabset-4" class="panel-tabset-tabby"><li><a data-tabby-default="" href="#tabset-4-1">homeskedastic error</a></li><li><a href="#tabset-4-2">heteroskedastic error</a></li><li><a href="#tabset-4-3">Consequences</a></li></ul>
+<ul id="tabset-4" class="panel-tabset-tabby"><li><a data-tabby-default="" href="#tabset-4-1">homoskedastic error</a></li><li><a href="#tabset-4-2">heteroskedastic error</a></li><li><a href="#tabset-4-3">Consequences</a></li></ul>
 <div class="tab-content">
 <div id="tabset-4-1">
+<details class="transcript">
+<summary>
+Lecturer transcript
+</summary>
+<p>Here is the variance formula we have been carrying since lecture 02, and the estimator we built from it in lecture 05: replace the unknown sigma squared with sigma-hat squared, the average squared residual. Now read the callout, because it is the practical fact that makes this lecture necessary. This is what R gives you by default. Every standard error you have seen printed in a regression table so far came from this formula, and this formula is only correct when the errors are homoskedastic.</p>
+</details>
 <p>We learned that when the homoskedasticity assumption holds, then,</p>
-<p><span class="math inline">\(Var(\widehat{\beta}_j) = \frac{\sigma^2}{SST_x(1-R^2_j)}\)</span></p>
-<p>We used the following as the estimator of <span class="math inline">\(Var(\widehat{\beta}_j)\)</span></p>
-<p><span class="math inline">\(\frac{\widehat{\sigma}^2}{SST_x(1-R^2_j)}\)</span> where <span class="math inline">\(\widehat{\sigma}^2 = \frac{\sum_{i=1}^{N} \widehat{u}_i^2}{N-k-1}\)</span></p>
+<p><span class="math inline">Var(\widehat{\beta}_j) = \frac{\sigma^2}{SST_x(1-R^2_j)}</span></p>
+<p>We used the following as the estimator of <span class="math inline">Var(\widehat{\beta}_j)</span></p>
+<p><span class="math inline">\frac{\widehat{\sigma}^2}{SST_x(1-R^2_j)}</span> where <span class="math inline">\widehat{\sigma}^2 = \frac{\sum_{i=1}^{N} \widehat{u}_i^2}{N-k-1}</span></p>
 <p><br></p>
 <div class="callout callout-important no-icon callout-titled callout-style-default">
 <div class="callout-body">
@@ -2062,22 +2441,34 @@ globalThis.qwebrCreateMonacoEditorInstance = function (cellData) {
 <p><strong>Important</strong></p>
 </div>
 <div class="callout-content">
-<p><span style="color: blue;"> By default </span>, R and other statistical software uses this formula to get estimates of the variance of <span class="math inline">\(\widehat{\beta}_j\)</span>.</p>
+<p><span style="color: blue;">By default</span>, R and other statistical software use this formula to get estimates of the variance of <span class="math inline">\widehat{\beta}_j</span>.</p>
 </div>
 </div>
 </div>
 </div>
 <div id="tabset-4-2">
 <p>But, under heteroskedasticity,</p>
-<p><span class="math inline">\(Var(\widehat{\beta}_j) \ne \frac{\sigma^2}{SST_x(1-R^2_j)}\)</span></p>
+<p><span class="math inline">Var(\widehat{\beta}_j) \ne \frac{\sigma^2}{SST_x(1-R^2_j)}</span></p>
 <p><br></p>
 <div class="panel-tabset">
 <ul id="tabset-2" class="panel-tabset-tabby"><li><a data-tabby-default="" href="#tabset-2-1">Question</a></li><li><a href="#tabset-2-2">Answer</a></li></ul>
 <div class="tab-content">
 <div id="tabset-2-1">
-<p>Is <span class="math inline">\(E[\widehat{Var(\widehat{\beta}_j)}_{default}] \equiv E\Big[\frac{\widehat{\sigma}^2}{SST_x(1-R^2_j)}\Big]=Var(\widehat{\beta}_j)\)</span> under heteroskedasticity?</p>
+<details class="transcript">
+<summary>
+Lecturer transcript
+</summary>
+<p>The precise question, written formally. If we keep using the default estimator when the errors are actually heteroskedastic, does it still get the right answer on average? That is what the expression asks: is the expected value of the default variance estimator equal to the true variance of beta-hat? Notice how carefully this is posed. We are not asking whether the formula looks wrong, we are asking whether it is unbiased for the thing we want, which is the only question that matters for testing.</p>
+</details>
+<p>Is <span class="math inline">E[\widehat{Var(\widehat{\beta}_j)}_{default}] \equiv E\Big[\frac{\widehat{\sigma}^2}{SST_x(1-R^2_j)}\Big]=Var(\widehat{\beta}_j)</span> under heteroskedasticity?</p>
 </div>
 <div id="tabset-2-2">
+<details class="transcript">
+<summary>
+Lecturer transcript
+</summary>
+<p>No.&nbsp;The default estimator is not unbiased for the true variance once the errors are heteroskedastic, and that is the whole problem. Note what the answer does not say: it does not say the estimator is too big or too small. The direction depends on how the variance of the error relates to x in your particular data, which is why the deck says later that the direction of bias is ambiguous in general. What we can say is that it is wrong, and the next tab says what wrong costs you.</p>
+</details>
 <p>No.</p>
 </div>
 </div>
@@ -2085,17 +2476,29 @@ globalThis.qwebrCreateMonacoEditorInstance = function (cellData) {
 <!--end of panel-->
 </div>
 <div id="tabset-4-3">
-<p>So, what are the consequences of using <span class="math inline">\(\widehat{Var(\widehat{\beta}_j)}=\frac{\widehat{\sigma}^2}{SST_x(1-R^2_j)}\)</span> under heteroskedasticity?</p>
-<p><span class="math inline">\(\;\;\;\;\downarrow\)</span></p>
-<p><span style="color: blue;"> Your hypothesis testing is going to be biased!! </span></p>
+<p>So, what are the consequences of using <span class="math inline">\widehat{Var(\widehat{\beta}_j)}=\frac{\widehat{\sigma}^2}{SST_x(1-R^2_j)}</span> under heteroskedasticity?</p>
+<p><span class="math inline">\;\;\;\;\downarrow</span></p>
+<p><span style="color: blue;"> Your hypothesis tests will generally have the wrong rejection rate. </span></p>
 <p><br></p>
 <div class="panel-tabset">
 <ul id="tabset-3" class="panel-tabset-tabby"><li><a data-tabby-default="" href="#tabset-3-1">Question</a></li><li><a href="#tabset-3-2">Answer</a></li></ul>
 <div class="tab-content">
 <div id="tabset-3-1">
+<details class="transcript">
+<summary>
+Lecturer transcript
+</summary>
+<p>A question about vocabulary that is worth pinning down, because people say biased testing loosely. Your standard errors are wrong, so your t-statistics are wrong, so your decisions to reject or not reject are wrong. But wrong in what sense? A test is not a number you can be off by. Think about what the significance level was supposed to guarantee, and what it would mean for that guarantee to fail. That is the precise sense in which a test can be biased.</p>
+</details>
 <p>What does it mean to have hypothesis testing biased?</p>
 </div>
 <div id="tabset-3-2">
+<details class="transcript">
+<summary>
+Lecturer transcript
+</summary>
+<p>You over-reject or under-reject relative to what you intended. Recall that the five percent significance level was a promise: if the null is true, you will wrongly reject it five percent of the time. That promise was computed using the default variance formula. Break the formula and the promise breaks with it. You might be rejecting ten percent of the time while believing you are at five, which means every p-value you report is misleading. The next slide measures exactly this with a simulation.</p>
+</details>
 <p>Roughly speaking, it means that you over-reject/under-reject the hypothesis than you intend to.</p>
 </div>
 </div>
@@ -2119,23 +2522,35 @@ globalThis.qwebrCreateMonacoEditorInstance = function (cellData) {
 <p>Let’s run MC simulations to see the consequence of ignoring heteroskedasticity.</p>
 <p><br></p>
 <p><strong>Model</strong></p>
-<p><span class="math inline">\(y = 1 + \beta x + u\)</span>, where <span class="math inline">\(\beta = 0\)</span></p>
+<p><span class="math inline">y = 1 + \beta x + u</span>, where <span class="math inline">\beta = 0</span></p>
 <p><br></p>
 <p><strong>Test of interest</strong></p>
 <ul>
-<li><span class="math inline">\(H_0:\)</span> <span class="math inline">\(\beta=0\)</span></li>
-<li><span class="math inline">\(H_1:\)</span> <span class="math inline">\(\beta \ne 0\)</span></li>
+<li><span class="math inline">H_0:</span> <span class="math inline">\beta=0</span></li>
+<li><span class="math inline">H_1:</span> <span class="math inline">\beta \ne 0</span></li>
 </ul>
 <p><br></p>
 <div class="panel-tabset">
 <ul id="tabset-6" class="panel-tabset-tabby"><li><a data-tabby-default="" href="#tabset-6-1">Question</a></li><li><a href="#tabset-6-2">Answer</a></li></ul>
 <div class="tab-content">
 <div id="tabset-6-1">
-<p>If you test the null hypothesis at the <span class="math inline">\(5\%\)</span> significance level, what should be the probability that you reject the null hypothesis when it is actually true?</p>
-<p><span class="math inline">\(Pr(\mbox{reject} \;\; H_0|H_0 \;\; \mbox{is true})=?\)</span></p>
+<details class="transcript">
+<summary>
+Lecturer transcript
+</summary>
+<p>A quick check that you have the definition straight, because the simulation is only meaningful if you know what number to expect. We are about to test the null that beta equals zero, at the five percent level, in data where beta genuinely is zero. So the null is true every single time. How often should we reject it? Answer before clicking. If you have to hesitate, go back to the significance level tab in lecture 05, because this is exactly what that level means.</p>
+</details>
+<p>If you test the null hypothesis at the <span class="math inline">5\%</span> significance level, what should be the probability that you reject the null hypothesis when it is actually true?</p>
+<p><span class="math inline">Pr(\text{reject} \;\; H_0|H_0 \;\; \text{is true})=?</span></p>
 </div>
 <div id="tabset-6-2">
-<p><span class="math inline">\(5\%\)</span></p>
+<details class="transcript">
+<summary>
+Lecturer transcript
+</summary>
+<p>Five percent, by construction. That is what choosing a five percent significance level buys you: a five percent chance of rejecting a true null. So in a thousand simulations we should reject about fifty times. Write that number down, because the whole point of the next few tabs is to run the simulation and see whether we get it. If we do not, the discrepancy is not bad luck, it is the cost of using the wrong variance formula.</p>
+</details>
+<p><span class="math inline">5\%</span></p>
 </div>
 </div>
 </div>
@@ -2146,22 +2561,40 @@ globalThis.qwebrCreateMonacoEditorInstance = function (cellData) {
 <ul id="tabset-7" class="panel-tabset-tabby"><li><a data-tabby-default="" href="#tabset-7-1">conceptual steps</a></li><li><a href="#tabset-7-2">R implementation</a></li><li><a href="#tabset-7-3">Results</a></li></ul>
 <div class="tab-content">
 <div id="tabset-7-1">
+<details class="transcript">
+<summary>
+Lecturer transcript
+</summary>
+<p>The recipe, and it is the same Monte Carlo structure from lecture 03 pointed at a new question. Generate data where the coefficient on x is genuinely zero. Estimate the model, get the coefficient and its standard error. Form the t-statistic and decide whether to reject. Repeat a thousand times. Then count. Notice what is being simulated here: not the distribution of an estimator, but the behaviour of a <em>test</em>. We are checking whether a procedure keeps its promise, which is a different kind of question.</p>
+</details>
 <ul>
-<li>generate a dataset so that <span class="math inline">\(\beta_1\)</span> (the coefficient on <span class="math inline">\(x\)</span>) is zero</li>
+<li>generate a dataset so that <span class="math inline">\beta_1</span> (the coefficient on <span class="math inline">x</span>) is zero</li>
 </ul>
-<p><span class="math display">\[y=\beta_0+\beta_1 x + v\]</span></p>
+<p><span class="math display">y=\beta_0+\beta_1 x + u</span></p>
 <ul>
-<li>estimate the model and find <span class="math inline">\(\widehat{\beta}_1\)</span> and <span class="math inline">\(\widehat{se(\widehat{\beta}_1)}\)</span></li>
-<li>calculate <span class="math inline">\(t\)</span>-statistic <span class="math inline">\((\widehat{\beta}_x-0)/\widehat{se(\widehat{\beta}_x)}\)</span> and decide whether you reject the null or not</li>
+<li>estimate the model and find <span class="math inline">\widehat{\beta}_1</span> and <span class="math inline">\widehat{se(\widehat{\beta}_1)}</span></li>
+<li>calculate <span class="math inline">t</span>-statistic <span class="math inline">(\widehat{\beta}_x-0)/\widehat{se(\widehat{\beta}_x)}</span> and decide whether you reject the null or not</li>
 <li>repeat the above 1000 times</li>
 <li>check how often you reject the null (should be close to 50 times)</li>
 </ul>
 </div>
 <div id="tabset-7-2">
+<details class="transcript">
+<summary>
+Lecturer transcript
+</summary>
+<p>Read the loop, and note the one line that makes this heteroskedastic. Inside <code>rnorm</code>, the standard deviation argument is <code>2 * x</code> rather than a constant, so the error’s spread grows with x by construction. Then y is one plus that error, with no x term, so beta really is zero. The regression is a plain <code>lm</code>, and the t-statistic uses <code>vcov</code>, which is the default homoskedasticity-based formula. So we are deliberately using the wrong estimator on data we built to break it.</p>
+</details>
 <div id="qwebr-insertion-location-1"></div>
 <noscript>Please enable JavaScript to experience the dynamic code cell content on this page.</noscript>
 </div>
 <div id="tabset-7-3">
+<details class="transcript">
+<summary>
+Lecturer transcript
+</summary>
+<p>Count how often the absolute t-statistic exceeded the critical value, and read the number in the callout. We rejected about eleven percent of the time when we should have rejected five. So you are roughly twice as likely to declare a significant effect as you intended, on data where the true effect is exactly zero. Then work through the question in the middle: over-rejecting means the t-statistics were too big, which means the standard errors were too small, which means the default formula under-estimated the true variance. Open the answer to check.</p>
+</details>
 <div id="qwebr-insertion-location-2"></div>
 <noscript>Please enable JavaScript to experience the dynamic code cell content on this page.</noscript>
 <p><br></p>
@@ -2172,11 +2605,19 @@ globalThis.qwebrCreateMonacoEditorInstance = function (cellData) {
 <p><strong>Consequence of ignoring heteroskedasticity</strong></p>
 </div>
 <div class="callout-content">
-<p>We rejected the null hypothesis 10.8% of the time, instead of <span class="math inline">\(5\%\)</span>.</p>
+<p>We rejected the null hypothesis 10.8% of the time, instead of <span class="math inline">5\%</span>.</p>
 <ul>
-<li><p>So, in this case, you are more likely to claim that <span class="math inline">\(x\)</span> has a statistically significant impact than you are supposed to.</p></li>
-<li><p>The use of the formula <span class="math inline">\(\frac{\widehat{\sigma}^2}{SST_x(1-R^2_j)}\)</span> seemed to (over/under)-estimate the true variance of the OLS estimators?</p></li>
-<li><p>In general, the direction of bias is ambiguous.</p></li>
+<li><p>So, in this case, you are more likely to claim that <span class="math inline">x</span> has a statistically significant impact than you are supposed to.</p></li>
+<li><p>The use of the formula <span class="math inline">\frac{\widehat{\sigma}^2}{SST_x(1-R^2_j)}</span> seemed to (over/under)-estimate the true variance of the OLS estimators?</p></li>
+</ul>
+<details>
+<summary>
+Answer
+</summary>
+<span style="color: red;">Under</span>-estimate. Too small a variance means too small a standard error, which means too large a t-statistic, which means rejecting too often. That is exactly the over-rejection we just measured.
+</details>
+<ul>
+<li>In general, the direction of bias is ambiguous.</li>
 </ul>
 </div>
 </div>
@@ -2197,8 +2638,14 @@ globalThis.qwebrCreateMonacoEditorInstance = function (cellData) {
 <ul id="tabset-9" class="panel-tabset-tabby"><li><a data-tabby-default="" href="#tabset-9-1">What to do?</a></li><li><a href="#tabset-9-2">Robust estimator of se</a></li><li><a href="#tabset-9-3">In practice</a></li></ul>
 <div class="tab-content">
 <div id="tabset-9-1">
+<details class="transcript">
+<summary>
+Lecturer transcript
+</summary>
+<p>Where we have got to: the default variance estimator is biased under heteroskedasticity, and that invalidates every test built on it. So can we estimate the variance credibly instead? Yes, and read the callout, particularly the phrase in red. Of unknown form. You do not have to model how the variance depends on x, or guess a functional form, or test for a particular pattern. That is what makes this estimator so useful in practice: it works without you having to understand the heteroskedasticity you have.</p>
+</details>
 <p>Now, we understand the consequence of heteroskedasticity:</p>
-<p><span class="math inline">\(\frac{\widehat{\sigma}^2}{SST_x(1-R^2_j)}\)</span> is a biased estimator of <span class="math inline">\(Var(\widehat{\beta})\)</span>, which makes any kind of testings based on it invalid.</p>
+<p><span class="math inline">\frac{\widehat{\sigma}^2}{SST_x(1-R^2_j)}</span> is a biased estimator of <span class="math inline">Var(\widehat{\beta})</span>, which makes any kind of testings based on it invalid.</p>
 <p>Can we credibly estimate the variance of the OLS estimators?</p>
 <p><br></p>
 <div title="White-Huber-Eicker heteroskedasticity-robust standard error estimator">
@@ -2218,12 +2665,18 @@ globalThis.qwebrCreateMonacoEditorInstance = function (cellData) {
 </div>
 </div>
 <div id="tabset-9-2">
+<details class="transcript">
+<summary>
+Lecturer transcript
+</summary>
+<p>Here is the formula, and read the callout in the middle before you read the formula, because it tells you what to do with it. We spend no time deriving this expression. What you actually need is the three bullets underneath: know why heteroskedasticity is a problem, know that a large-sample-consistent estimator addresses it, and know how to invoke it in R. Notice the denominator is the sum of squared residuals <em>squared</em>, which is easy to misread.</p>
+</details>
 <p><strong>Heteroskedasticity-robust standard error estimator</strong></p>
-<p><span class="math inline">\(\widehat{Var(\widehat{\beta}_j)} = \frac{\sum_{i=1}^n \widehat{r}^2_{i,j} \widehat{u}^2_i}{SSR^2_j}\)</span></p>
+<p><span class="math inline">\widehat{Var(\widehat{\beta}_j)} = \frac{\sum_{i=1}^n \widehat{r}^2_{i,j} \widehat{u}^2_i}{(SSR_j)^2}</span></p>
 <ul>
-<li><span class="math inline">\(\widehat{u}_i\)</span>: residual from regressing <span class="math inline">\(y\)</span> on all the independent variables</li>
-<li><span class="math inline">\(\widehat{r}_{i,j}\)</span>: residual from regressing <span class="math inline">\(x_j\)</span> on all other independent variables for <span class="math inline">\(i\)</span>th observation</li>
-<li><span class="math inline">\(SSR^2_j\)</span>: the sum of squared residuals from regressing <span class="math inline">\(x_j\)</span> on all other independent variables</li>
+<li><span class="math inline">\widehat{u}_i</span>: residual from regressing <span class="math inline">y</span> on all the independent variables</li>
+<li><span class="math inline">\widehat{r}_{i,j}</span>: residual from regressing <span class="math inline">x_j</span> on all other independent variables for <span class="math inline">i</span>th observation</li>
+<li><span class="math inline">SSR_j = \sum_{i=1}^n \widehat{r}^2_{i,j}</span>: the sum of squared residuals from regressing <span class="math inline">x_j</span> on all other independent variables (the denominator is its <span style="color: red;">square</span>)</li>
 </ul>
 <div class="callout callout-note no-icon callout-titled callout-style-default">
 <div class="callout-body">
@@ -2239,10 +2692,16 @@ globalThis.qwebrCreateMonacoEditorInstance = function (cellData) {
 <ul>
 <li>understand the consequence of heteroskedasticity</li>
 <li>know there is an estimator that is appropriate under heteroskedasticity, meaning that it will give you the correct estimate of the variance of the OLS estimator</li>
-<li>know how to use the heteroskedasticity-robust standard error estimator in practice using <span class="math inline">\(R\)</span> (or some other software)</li>
+<li>know how to use the heteroskedasticity-robust standard error estimator in practice using <span class="math inline">R</span> (or some other software)</li>
 </ul>
 </div>
 <div id="tabset-9-3">
+<details class="transcript">
+<summary>
+Lecturer transcript
+</summary>
+<p>The working procedure, and it is short. Estimate by OLS as usual, with no changes. Assume the errors are heteroskedastic and use the robust variance estimator. Swap the default standard errors for the robust ones when you test. And read the last bullet, which is the one people get wrong: you never replace the coefficient estimates, because those were never broken. Note also the middle bullets about Breusch-Pagan and White tests. They exist, almost nobody runs them, and we will not learn them, because the answer would not change what you do.</p>
+</details>
 <p>Here is the well-accepted procedure in econometric analysis:</p>
 <ul>
 <li><p>Estimate the model using OLS (you do nothing special here)</p></li>
@@ -2252,7 +2711,7 @@ globalThis.qwebrCreateMonacoEditorInstance = function (cellData) {
 <li>In practice, almost nobody bothers to conduct these tests</li>
 <li>We do not learn how to run these tests</li>
 </ul></li>
-<li><p>Replace the estimates from <span class="math inline">\(\widehat{Var(\widehat{\beta})}_{default}\)</span> with those from <span class="math inline">\(\widehat{Var(\widehat{\beta})}_{robust}\)</span> for testing</p></li>
+<li><p>Replace the estimates from <span class="math inline">\widehat{Var(\widehat{\beta})}_{default}</span> with those from <span class="math inline">\widehat{Var(\widehat{\beta})}_{robust}</span> for testing</p></li>
 <li><p>But, we do not replace coefficient estimates (remember, coefficient estimation is still unbiased under heteroskedasticity)</p></li>
 </ul>
 </div>
@@ -2270,19 +2729,31 @@ globalThis.qwebrCreateMonacoEditorInstance = function (cellData) {
 <ul id="tabset-10" class="panel-tabset-tabby"><li><a data-tabby-default="" href="#tabset-10-1">Preparation</a></li><li><a href="#tabset-10-2">Obtaining Heteroskedasticity-robust SE estimates</a></li><li><a href="#tabset-10-3">Compare with the Default</a></li></ul>
 <div class="tab-content">
 <div id="tabset-10-1">
-<p>Let’s run a regression using <code>MLB1.dta</code>.</p>
+<details class="transcript">
+<summary>
+Lecturer transcript
+</summary>
+<p>A real regression to work with: log salary on years in the league and batting average, from the MLB data. This cell runs when the page loads, because everything on this slide and the next uses it. Nothing prints. Notice we are back to the same data we used for the F-test in lecture 05, which is convenient: you already have a sense of what these coefficients look like, so the changes we are about to make to their standard errors will stand out.</p>
+</details>
+<p>Let’s run a regression using the <code>mlb1</code> data from the <code>wooldridge</code> package.</p>
 <div id="qwebr-insertion-location-3"></div>
 <noscript>Please enable JavaScript to experience the dynamic code cell content on this page.</noscript>
 </div>
 <div id="tabset-10-2">
+<details class="transcript">
+<summary>
+Lecturer transcript
+</summary>
+<p>Two functions and one argument. <code>vcov</code> gives you the whole variance-covariance matrix, <code>se</code> gives you just the standard errors, and both take a <code>vcov</code> argument specifying which kind you want. Read the general syntax, then run the specific version with <code>vcov = "hetero"</code>. That string is the entire difference between the default and the White-Huber robust estimator. One argument. Given how much trouble the wrong standard errors cause, it is worth noticing how cheap the fix is.</p>
+</details>
 <p>We use</p>
 <ul>
 <li><p>the <code>stats::vcov()</code> function to estimate heteroskedasticity-robust standard errors</p></li>
 <li><p>the <code>fixest::se()</code> function from the <code>fixest</code> package to estimate heteroskedasticity-robust standard errors (you can always get SE from VCOV)</p></li>
-<li><p>the <code>summary()</code> function to do tests of <span class="math inline">\(\beta_j = 0\)</span></p></li>
+<li><p>the <code>summary()</code> function to do tests of <span class="math inline">\beta_j = 0</span></p></li>
 </ul>
 <p><strong>General Syntax</strong></p>
-<p>Here is the general syntax to obtain various types of VCOV (and se) esimaties:</p>
+<p>Here is the general syntax to obtain various types of VCOV (and se) estimates:</p>
 <div class="cell">
 <div class="sourceCode cell-code" id="cb1"><pre class="sourceCode numberSource r number-lines code-with-copy"><code class="sourceCode r"><span id="cb1-1"><a></a><span class="co">#* vcov</span></span>
 <span id="cb1-2"><a></a><span class="fu">vcov</span>(regression result, <span class="at">vcov =</span> <span class="st">"type of vcov"</span>)</span>
@@ -2297,6 +2768,12 @@ globalThis.qwebrCreateMonacoEditorInstance = function (cellData) {
 <noscript>Please enable JavaScript to experience the dynamic code cell content on this page.</noscript>
 </div>
 <div id="tabset-10-3">
+<details class="transcript">
+<summary>
+Lecturer transcript
+</summary>
+<p>Now put the two side by side. Run both cells and compare the numbers term by term. The robust standard errors are noticeably larger here, particularly on the intercept where it roughly doubles. That direction is not guaranteed in general, but it is what happens with this data. And a reminder of what has not changed: run the regression itself and the coefficients are identical either way. We are only ever changing the second number, never the first.</p>
+</details>
 <p><strong>Default</strong></p>
 <div id="qwebr-insertion-location-5"></div>
 <noscript>Please enable JavaScript to experience the dynamic code cell content on this page.</noscript>
@@ -2310,8 +2787,17 @@ globalThis.qwebrCreateMonacoEditorInstance = function (cellData) {
 <!--end of panel-->
 </div>
 <div id="tabset-12-2">
+<details class="transcript inline">
+<summary>
+Lecturer transcript
+</summary>
+<p>When you write this up you want a proper table, so here is how to build one with both sets of standard errors. Pass a list of models and a matching list of VCOV matrices to the <code>vcov</code> argument. Now read the table on the right, and read it down the columns. The coefficients are identical, as promised. The standard errors all differ. And look at <code>bavg</code>: it carries three stars with the default standard errors and a single plus with the robust ones. That is a variable moving from overwhelming significance to marginal, purely from changing the variance formula.</p>
+</details>
 <p>In presenting the regression results in a nicely formatted table, we used <code>modelsummary::msummary()</code>.</p>
-<p>We can easily swap the default se with the heteroskedasticity-robust se using the <code>statistic_override</code> option in <code>msummary()</code>.</p>
+<p>We can easily swap the default se with the heteroskedasticity-robust se using the <code>vcov</code> option in <code>msummary()</code>.</p>
+<ul>
+<li>pass a <span style="color: blue;">list</span> of VCOV matrices, one per model in the table</li>
+</ul>
 <p><br></p>
 <div class="columns">
 <div class="column" style="width:50%;">
@@ -2321,7 +2807,7 @@ globalThis.qwebrCreateMonacoEditorInstance = function (cellData) {
 <span id="cb2-3"><a></a></span>
 <span id="cb2-4"><a></a>modelsummary<span class="sc">::</span><span class="fu">msummary</span>(</span>
 <span id="cb2-5"><a></a>  <span class="fu">list</span>(reg_mlb, reg_mlb),</span>
-<span id="cb2-6"><a></a>  <span class="at">statistic_override =</span> <span class="fu">list</span>(vcov_het, vcov_homo),</span>
+<span id="cb2-6"><a></a>  <span class="at">vcov =</span> <span class="fu">list</span>(vcov_het, vcov_homo),</span>
 <span id="cb2-7"><a></a>  <span class="co"># keep these options as they are</span></span>
 <span id="cb2-8"><a></a>  <span class="at">stars =</span> <span class="cn">TRUE</span>,</span>
 <span id="cb2-9"><a></a>  <span class="at">gof_omit =</span> <span class="st">"IC|Log|Adj|F|Pseudo|Within"</span></span>
@@ -2433,7 +2919,7 @@ globalThis.qwebrCreateMonacoEditorInstance = function (cellData) {
                 </tr>
                 <tr>
                   <td></td>
-                  <td>(0.343)</td>
+                  <td>(0.704)</td>
                   <td>(0.343)</td>
                 </tr>
                 <tr>
@@ -2443,17 +2929,17 @@ globalThis.qwebrCreateMonacoEditorInstance = function (cellData) {
                 </tr>
                 <tr>
                   <td></td>
-                  <td>(0.013)</td>
+                  <td>(0.018)</td>
                   <td>(0.013)</td>
                 </tr>
                 <tr>
                   <td>bavg</td>
-                  <td>0.005***</td>
+                  <td>0.005+</td>
                   <td>0.005***</td>
                 </tr>
                 <tr>
                   <td></td>
-                  <td>(0.001)</td>
+                  <td>(0.003)</td>
                   <td>(0.001)</td>
                 </tr>
                 <tr>
@@ -2473,8 +2959,8 @@ globalThis.qwebrCreateMonacoEditorInstance = function (cellData) {
                 </tr>
                 <tr>
                   <td>Std.Errors</td>
-                  <td>IID</td>
-                  <td>IID</td>
+                  <td>Custom</td>
+                  <td>Custom</td>
                 </tr>
         </tbody>
       </table>
@@ -2485,8 +2971,20 @@ globalThis.qwebrCreateMonacoEditorInstance = function (cellData) {
 </div><!--end of the 2nd column-->
 </div>
 <!--end of the columns-->
+<p>Column (1) uses the robust VCOV, column (2) the default. Read down the two columns:</p>
+<ul>
+<li>every <span style="color: blue;">coefficient</span> is identical, exactly as promised — heteroskedasticity does not bias <span class="math inline">\widehat{\beta}</span></li>
+<li>every <span style="color: red;">standard error</span> differs, and the intercept’s roughly doubles</li>
+<li><code>bavg</code> falls from <code>***</code> to <code>+</code>: batting average goes from overwhelmingly significant to marginal <span style="color: red;">purely</span> because we stopped assuming homoskedasticity</li>
+</ul>
 </div>
 <div id="tabset-12-3">
+<details class="transcript inline">
+<summary>
+Lecturer transcript
+</summary>
+<p>A cleaner way, and the one I would use. Put the <code>vcov</code> argument inside <code>feols</code> itself, and the regression object carries its robust standard errors around with it. Everything downstream, the summary, the table, the confidence intervals, then uses them automatically with no further intervention. That matters because the failure mode with the previous approach is silent: forget the override on one table and you have published default standard errors while believing they were robust. Setting it once at the source removes that possibility.</p>
+</details>
 <p>Alternatively, you could add the <code>vcov</code> option like below inside <code>fixest::feols()</code>. Then, you do not need <code>statistic_override</code> option to override the default VCOV estimates.</p>
 <p><br></p>
 <div class="columns">
@@ -2659,14 +3157,30 @@ globalThis.qwebrCreateMonacoEditorInstance = function (cellData) {
 <ul id="tabset-11" class="panel-tabset-tabby"><li><a data-tabby-default="" href="#tabset-11-1">MC simulation</a></li><li><a href="#tabset-11-2">MC simulation results</a></li></ul>
 <div class="tab-content">
 <div id="tabset-11-1">
+<details class="transcript">
+<summary>
+Lecturer transcript
+</summary>
+<p>Does the robust estimator actually deliver? Same test as before, so we can compare directly. The data generating process is identical, heteroskedastic errors and a true beta of zero. The regression is identical. The only change is on the highlighted line: the standard error now comes from <code>se</code> with <code>vcov = "hetero"</code> instead of the default. One line different from the simulation that over-rejected, so any change in the result is attributable to that line alone.</p>
+</details>
 <p>Does the heteroskedasticity-robust se estimator really work? Let’s see using MC simulations:</p>
 <div id="qwebr-insertion-location-7"></div>
 <noscript>Please enable JavaScript to experience the dynamic code cell content on this page.</noscript>
 </div>
 <div id="tabset-11-2">
+<details class="transcript">
+<summary>
+Lecturer transcript
+</summary>
+<p>And there is the payoff. About five percent, against about eleven percent with the default estimator, and five percent is exactly what we were aiming for. Read the second bullet, because it is the sentence to take away from this whole half of the lecture. Nothing about the estimation changed. Same data, same OLS, same coefficient estimates, same everything except the formula used to compute one number. The test went from badly broken to essentially correct on the strength of that alone.</p>
+</details>
 <div id="qwebr-insertion-location-8"></div>
 <noscript>Please enable JavaScript to experience the dynamic code cell content on this page.</noscript>
-<p>Okay, not perfect. But, certainly better.</p>
+<p>We reject 5.3% of the time, against the 10.8% we got with the default estimator and the 5% we are aiming for.</p>
+<ul>
+<li>not perfect, but the problem is essentially gone</li>
+<li>note that <span style="color: blue;">nothing about the estimation changed</span> — same data, same OLS, same coefficient estimates. Only the formula for the standard error changed</li>
+</ul>
 </div>
 </div>
 </div>
@@ -2700,8 +3214,14 @@ globalThis.qwebrCreateMonacoEditorInstance = function (cellData) {
 <ul id="tabset-13" class="panel-tabset-tabby"><li><a data-tabby-default="" href="#tabset-13-1">Example 1</a></li><li><a href="#tabset-13-2">Example 2</a></li></ul>
 <div class="tab-content">
 <div id="tabset-13-1">
+<details class="transcript">
+<summary>
+Lecturer transcript
+</summary>
+<p>A different failure of the usual error assumptions, and it is worth seeing a concrete case first. You have students’ GPAs from many colleges, and you regress college GPA on income and high-school GPA. Now think about what is left in the error term: everything about a college you did not measure, and grading policy is the obvious one. Two students at the same college share that unmeasured leniency, so their errors move together. The errors are not independent draws any more, and zero correlation across observations is one condition the default variance formula requires.</p>
+</details>
 <p>College GPA: cluster by college</p>
-<p><span class="math inline">\(GPA_{col} = \beta_0 + \beta_1 income + \beta_2 GPA_{hs} + u\)</span></p>
+<p><span class="math inline">GPA_{col} = \beta_0 + \beta_1 income + \beta_2 GPA_{hs} + u</span></p>
 <ul>
 <li>Your observations consist of students’ GPA scores across many colleges</li>
 <li>Because of some unobserved (omitted) school characteristics, error terms for the individuals in the same college might be correlated.
@@ -2711,7 +3231,13 @@ globalThis.qwebrCreateMonacoEditorInstance = function (cellData) {
 </ul>
 </div>
 <div id="tabset-13-2">
-<p>Eduction Impacts on Income: cluster by individual</p>
+<details class="transcript">
+<summary>
+Lecturer transcript
+</summary>
+<p>The same structure with a different grouping, and this one you will meet constantly. Five hundred individuals, each observed over ten years, so five thousand observations. But the ten observations for one person are not ten independent pieces of evidence, because that person’s innate ability sits in the error term in every one of those years. The cluster here is the individual, not the year. This shape, the same unit observed repeatedly, is what the panel data lecture is entirely about, so hold on to it.</p>
+</details>
+<p>Education Impacts on Income: cluster by individual</p>
 <ul>
 <li><p>Your observations consist of 500 individuals with each individual tracked over 10 years</p></li>
 <li><p>Because of some unobserved (omitted) individual characteristics, error terms for time-series observations within an individual might be correlated.</p>
@@ -2729,27 +3255,45 @@ globalThis.qwebrCreateMonacoEditorInstance = function (cellData) {
 <ul id="tabset-14" class="panel-tabset-tabby"><li><a data-tabby-default="" href="#tabset-14-1">Question 1</a></li><li><a href="#tabset-14-2">Question 2</a></li><li><a href="#tabset-14-3">Question 3</a></li></ul>
 <div class="tab-content">
 <div id="tabset-14-1">
+<details class="transcript">
+<summary>
+Lecturer transcript
+</summary>
+<p>The same first question we asked about heteroskedasticity, and you should be able to answer it by the same reasoning. Are the coefficient estimates biased when the errors are correlated within groups? Go back to what unbiasedness actually required: the expected value of u given x is zero. Does correlation <em>among the errors</em> violate that? Read the answer once you have decided, and note how precisely it distinguishes the two things: correlation between x and u is fatal, correlation among the u’s is not.</p>
+</details>
 <p>Are the OLS estimators of the coefficients biased in the presence of clustered error?</p>
 <br>
 <details>
 <summary>
 Answer
 </summary>
-No, the correlation between <span class="math inline">\(x\)</span> and <span class="math inline">\(u\)</span> would hurt you, but not correlation among <span class="math inline">\(u\)</span>.
+No, the correlation between <span class="math inline">x</span> and <span class="math inline">u</span> would hurt you, but not correlation among <span class="math inline">u</span>.
 </details>
 <p><br></p>
 </div>
 <div id="tabset-14-2">
-<p>Are <span class="math inline">\(\widehat{Var(\widehat{\beta})}_{default}\)</span> unbiased estimators of <span class="math inline">\(Var(\widehat{\beta})\)</span>?</p>
+<details class="transcript">
+<summary>
+Lecturer transcript
+</summary>
+<p>And the second question, also familiar. Is the default variance estimator valid under clustering? The usual formula requires both constant conditional variance and zero conditional covariance between different observations’ errors. Homoskedasticity supplies the first condition; independent sampling supplies the second. Clustering violates the second by putting non-zero off-diagonal terms in the error variance-covariance matrix, so the usual formula estimates the wrong thing.</p>
+</details>
+<p>Are <span class="math inline">\widehat{Var(\widehat{\beta})}_{default}</span> unbiased estimators of <span class="math inline">Var(\widehat{\beta})</span>?</p>
 <br>
 <details>
 <summary>
 Answer
 </summary>
-No, <span class="math inline">\(\widehat{Var(\widehat{\beta})}_{default}\)</span> is unbiased only under homoskedasticity assumption, which assumes no correlation between errors.
+No.&nbsp;The usual variance estimator requires both homoskedasticity and no correlation between different observations’ errors. Homoskedasticity alone concerns the diagonal variances; it does not imply that the off-diagonal covariances are zero.
 </details>
 </div>
 <div id="tabset-14-3">
+<details class="transcript">
+<summary>
+Lecturer transcript
+</summary>
+<p>The intuition question, and it is the one worth sitting with. Which carries more information, two independent errors or two correlated ones? Think of it as asking how much you learn from the second observation given the first. If they are independent, everything; if they are correlated, less, because you could partly have predicted it. So a dataset with clustered errors contains less information than its sample size suggests. Then answer the two fill-in-the-blanks below and check yourself against the answer.</p>
+</details>
 <p>Which has more information?</p>
 <ul>
 <li>two errors that are independent</li>
@@ -2757,9 +3301,16 @@ No, <span class="math inline">\(\widehat{Var(\widehat{\beta})}_{default}\)</span
 </ul>
 <p><strong>Consequences</strong></p>
 <ul>
-<li><p>If you were to use <span class="math inline">\(\widehat{Var(\widehat{\beta})}_{default}\)</span> to estimate <span class="math inline">\(Var(\widehat{\beta})\)</span> in the presence of clustered error, you would (under/over)-estimate the true <span class="math inline">\(Var(\widehat{\beta})\)</span>.</p></li>
+<li><p>If you were to use <span class="math inline">\widehat{Var(\widehat{\beta})}_{default}</span> to estimate <span class="math inline">Var(\widehat{\beta})</span> in the presence of clustered error, you would (under/over)-estimate the true <span class="math inline">Var(\widehat{\beta})</span>.</p></li>
 <li><p>This would lead to rejecting null hypothesis (more/less) often than you are supposed to.</p></li>
 </ul>
+<br>
+<details>
+<summary>
+Answer
+</summary>
+Two independent errors carry more information than two correlated ones: if you already know the first, the second tells you less. So the default estimator, which assumes independence, believes it has more information than it really does. It <span style="color: red;">under</span>-estimates <span class="math inline">Var(\widehat{\beta})</span>, and you therefore reject <span style="color: red;">more</span> often than you intend.
+</details>
 </div>
 </div>
 </div>
@@ -2770,35 +3321,65 @@ No, <span class="math inline">\(\widehat{Var(\widehat{\beta})}_{default}\)</span
 <ul id="tabset-15" class="panel-tabset-tabby"><li><a data-tabby-default="" href="#tabset-15-1">Conceptual steps</a></li><li><a href="#tabset-15-2">Data Generating Process (R)</a></li><li><a href="#tabset-15-3">Visualization of clustered error</a></li><li><a href="#tabset-15-4">MC simulation (R)</a></li><li><a href="#tabset-15-5">Results</a></li></ul>
 <div class="tab-content">
 <div id="tabset-15-1">
+<details class="transcript">
+<summary>
+Lecturer transcript
+</summary>
+<p>The same Monte Carlo design as the heteroskedasticity case, so the results will be directly comparable. Generate data where the errors are correlated within clusters and beta is genuinely zero. Estimate, form the t-statistic using the default standard error, and record whether you reject. Repeat a thousand times and count. Since the null is true every time, we should reject about fifty times. Keep that number in mind, because what actually happens is far more dramatic than the heteroskedasticity case was.</p>
+</details>
 <p>Here are the conceptual steps of the MC simulations to see the consequence of clustered error.</p>
 <ul>
-<li>generate data according to the generating process in which the error terms <span class="math inline">\((u)\)</span> within the cluster (two clusters in this example) is correlated and <span class="math inline">\(\beta_1\)</span> is set to 0 in the model below:</li>
+<li>generate data according to the generating process in which the error terms <span class="math inline">(u)</span> within the cluster (two clusters in this example) is correlated and <span class="math inline">\beta_1</span> is set to 0 in the model below:</li>
 </ul>
-<p><span class="math display">\[
+<p><span class="math display">
 \begin{aligned}
 y = \beta_0 + \beta_1 x + u
 \end{aligned}
-\]</span></p>
+</span></p>
 <ul>
-<li>estimate the model and find <span class="math inline">\(\widehat{\beta}_x\)</span> and <span class="math inline">\(\widehat{se(\widehat{\beta}_x)}\)</span></li>
-<li>calculate <span class="math inline">\(t\)</span>-statistic <span class="math inline">\((\widehat{\beta}_x/\widehat{se(\widehat{\beta}_x)})\)</span> for the (correct) null hypothesis of <span class="math inline">\(\beta_1 = 0\)</span></li>
+<li>estimate the model and find <span class="math inline">\widehat{\beta}_x</span> and <span class="math inline">\widehat{se(\widehat{\beta}_x)}</span></li>
+<li>calculate <span class="math inline">t</span>-statistic <span class="math inline">(\widehat{\beta}_x/\widehat{se(\widehat{\beta}_x)})</span> for the (correct) null hypothesis of <span class="math inline">\beta_1 = 0</span></li>
 <li>repeat steps 1-3 for 1000 times</li>
-<li>see how many times out of 1000 times you reject the null hypothesis: <span class="math inline">\(H_0:\)</span> <span class="math inline">\(\beta_x=0\)</span></li>
+<li>see how many times out of 1000 times you reject the null hypothesis: <span class="math inline">H_0:</span> <span class="math inline">\beta_x=0</span></li>
 </ul>
 </div>
 <div id="tabset-15-2">
+<details class="transcript">
+<summary>
+Lecturer transcript
+</summary>
+<p>Read how the correlation is manufactured. <code>mvrnorm</code> draws from a multivariate Normal, and the covariance matrix is a matrix of tens plus an identity. So every pair of errors within a group has covariance ten, while each has variance eleven. That is very strong within-group correlation. The same construction is applied to x, more weakly. Two thousand observations in fifty groups of forty. And y is one plus zero times x plus u, so beta is zero by construction, exactly as before.</p>
+</details>
 <div id="qwebr-insertion-location-9"></div>
 <noscript>Please enable JavaScript to experience the dynamic code cell content on this page.</noscript>
 </div>
 <div id="tabset-15-3">
+<details class="transcript">
+<summary>
+Lecturer transcript
+</summary>
+<p>Worth running, because clustering is easier to see than to describe. Each column of points is one group. If the errors were independent you would see a uniform band across the whole picture. Instead whole columns sit high or low together: a group with a large positive shared component has all forty of its observations pushed up. That vertical displacement of entire groups is the clustering. And notice how few effectively independent pieces of information there really are here: closer to fifty than to two thousand.</p>
+</details>
 <div id="qwebr-insertion-location-10"></div>
 <noscript>Please enable JavaScript to experience the dynamic code cell content on this page.</noscript>
 </div>
 <div id="tabset-15-4">
+<details class="transcript">
+<summary>
+Lecturer transcript
+</summary>
+<p>The loop, with the data generation from two tabs ago inside it. The regression is plain OLS with no cluster argument, and <code>se(reg)</code> therefore returns the default standard error, which is what we are testing. Everything else follows the usual pattern: form the t-statistic, store it, repeat a thousand times. This will take a moment to run because each iteration draws two multivariate Normal samples. Predict the rejection rate before you look at the next tab.</p>
+</details>
 <div id="qwebr-insertion-location-11"></div>
 <noscript>Please enable JavaScript to experience the dynamic code cell content on this page.</noscript>
 </div>
 <div id="tabset-15-5">
+<details class="transcript">
+<summary>
+Lecturer transcript
+</summary>
+<p>Around seventy-five percent. Not five, not eleven, but seventy-five. Three times out of four you would declare a statistically significant effect for a variable whose true coefficient is exactly zero. Read the callout: the default estimator badly under-estimates the true variance, because it thinks it has two thousand independent observations when it effectively has about fifty. Compare this against the heteroskedasticity case. Clustering is by far the more dangerous of the two problems, and it is also the easier one to fail to notice.</p>
+</details>
 <div id="qwebr-insertion-location-12"></div>
 <noscript>Please enable JavaScript to experience the dynamic code cell content on this page.</noscript>
 <p><br></p>
@@ -2825,10 +3406,16 @@ y = \beta_0 + \beta_1 x + u
 <ul id="tabset-16" class="panel-tabset-tabby"><li><a data-tabby-default="" href="#tabset-16-1">Cluster-robust SE estimation</a></li><li><a href="#tabset-16-2">R implementation</a></li><li><a href="#tabset-16-3">R Demonstration</a></li><li><a href="#tabset-16-4">Compare</a></li><li><a href="#tabset-16-5">Alternatively (Recommended)</a></li></ul>
 <div class="tab-content">
 <div id="tabset-16-1">
-<p>There exist estimators of <span class="math inline">\(Var(\widehat{\beta})\)</span> that take into account the possibility that errors are clustered.</p>
+<details class="transcript">
+<summary>
+Lecturer transcript
+</summary>
+<p>The fix, and the shape of it is the same as before. There are estimators of the variance that allow for correlation within clusters, and we call the standard errors from them cluster-robust. Read the sentence in blue: we neither derive nor display them, for the same reason as the heteroskedasticity case. And read the third bullet in the callout carefully, because it is a practical convenience worth knowing. These estimators handle heteroskedasticity at the same time, so you do not have to choose between the two fixes.</p>
+</details>
+<p>There exist estimators of <span class="math inline">Var(\widehat{\beta})</span> that take into account the possibility that errors are clustered.</p>
 <ul>
-<li><p>We call such estimators <span style="color: blue;"> cluster-robust variance covariance estimator </span> denoted as <span class="math inline">\((\widehat{Var(\widehat{\beta})}_{cl})\)</span></p></li>
-<li><p>We call standart error estimates from such estimators cluster-robust standard error estimates</p></li>
+<li><p>We call such estimators <span style="color: blue;"> cluster-robust variance covariance estimator </span> denoted as <span class="math inline">(\widehat{Var(\widehat{\beta})}_{cl})</span></p></li>
+<li><p>We call standard error estimates from such estimators cluster-robust standard error estimates</p></li>
 </ul>
 <p><span style="color: blue;"> I neither derive nor show the mathematical expressions of these estimators. </span></p>
 <p><br></p>
@@ -2843,7 +3430,7 @@ y = \beta_0 + \beta_1 x + u
 <li><p>understand the consequence of clustered errors</p></li>
 <li><p>know there are estimators that are appropriate under clustered error</p></li>
 <li><p>know that the estimators we will learn take care of heteroskedasticity at the same time (so, they really are cluster- and heteroskedasticity-robust standard error estimators)</p></li>
-<li><p>know how to use the estimators in <span class="math inline">\(R\)</span> (or some other software)</p></li>
+<li><p>know how to use the estimators in <span class="math inline">R</span> (or some other software)</p></li>
 </ul>
 </div>
 </div>
@@ -2851,6 +3438,12 @@ y = \beta_0 + \beta_1 x + u
 </div>
 </div>
 <div id="tabset-16-2">
+<details class="transcript">
+<summary>
+Lecturer transcript
+</summary>
+<p>Before the demonstration, look at the data. The <code>nl</code> variable is one for the National League and zero for the American League, and that is what we will cluster on. Run the cell and look at a few rows. Now notice something about this choice that we will come back to at the end: clustering on <code>nl</code> means two clusters. Two. Hold that thought, because the cluster-robust estimator needs many groups to behave, and two is nowhere near many.</p>
+</details>
 <p><strong>Cluster-robust standard error</strong></p>
 <p>Similar with the <code>vcov</code> option for White-Huber heteroskedasticity-robust se, we can use the <code>cluster</code> option to get cluster-robust se.</p>
 <p><br></p>
@@ -2863,6 +3456,12 @@ y = \beta_0 + \beta_1 x + u
 </ul>
 </div>
 <div id="tabset-16-3">
+<details class="transcript">
+<summary>
+Lecturer transcript
+</summary>
+<p>Two steps and the syntax mirrors the heteroskedasticity case exactly. Run the regression as normal, then apply <code>vcov</code> or <code>se</code> with a <code>cluster</code> argument. Note the argument is a formula, with a tilde before the variable name, not a bare column. That trips people up. Everything else is identical to what you did with <code>vcov = "hetero"</code>, which is the point: the interface for both robust estimators is the same, so once you can do one you can do the other.</p>
+</details>
 <p><strong>Step 1</strong></p>
 <p>Run a regression</p>
 <div id="qwebr-insertion-location-14"></div>
@@ -2874,6 +3473,12 @@ y = \beta_0 + \beta_1 x + u
 <noscript>Please enable JavaScript to experience the dynamic code cell content on this page.</noscript>
 </div>
 <div id="tabset-16-4">
+<details class="transcript">
+<summary>
+Lecturer transcript
+</summary>
+<p>Run both and compare. The cluster-robust standard errors differ from the defaults, though with only two clusters you should not put much weight on the specific numbers. What matters is the mechanism: the estimator is accounting for the fact that players in the same league share unmeasured league-level factors, so their errors are not independent. Whether it does that <em>well</em> depends on the number of clusters, which is the caveat we return to at the end of the lecture.</p>
+</details>
 <p><strong>Default</strong></p>
 <div id="qwebr-insertion-location-16"></div>
 <noscript>Please enable JavaScript to experience the dynamic code cell content on this page.</noscript>
@@ -2883,11 +3488,17 @@ y = \beta_0 + \beta_1 x + u
 <noscript>Please enable JavaScript to experience the dynamic code cell content on this page.</noscript>
 </div>
 <div id="tabset-16-5">
+<details class="transcript">
+<summary>
+Lecturer transcript
+</summary>
+<p>The same recommendation as for heteroskedasticity, and for the same reason. Put the <code>cluster</code> argument inside <code>feols</code> and the regression object carries its clustered standard errors everywhere. Read the syntax, then run the example and tidy the result. Setting it at the source rather than at each table means you cannot accidentally report default standard errors while believing they were clustered, which is a mistake that is completely invisible in the output.</p>
+</details>
 <p>Or, you could add the <code>cluster</code> option inside <code>fixest::feols()</code>.</p>
 <p><br></p>
 <p><strong>Syntax</strong></p>
 <div class="cell">
-<div class="sourceCode cell-code" id="cb4"><pre class="sourceCode numberSource r number-lines code-with-copy"><code class="sourceCode r"><span id="cb4-1"><a></a>fixes<span class="sc">::</span><span class="fu">feols</span>(y <span class="sc">~</span> x, <span class="at">cluster =</span> <span class="sc">~</span> variable to cluster by, <span class="at">data =</span> data)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode cell-code" id="cb4"><pre class="sourceCode numberSource r number-lines code-with-copy"><code class="sourceCode r"><span id="cb4-1"><a></a>fixest<span class="sc">::</span><span class="fu">feols</span>(y <span class="sc">~</span> x, <span class="at">cluster =</span> <span class="sc">~</span> variable_to_cluster_by, <span class="at">data =</span> data)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 </div>
 <p><br></p>
 <p><strong>Example</strong></p>
@@ -2900,11 +3511,17 @@ y = \beta_0 + \beta_1 x + u
 <!--end of panel-->
 </div>
 <div id="tabset-17-5">
+<details class="transcript">
+<summary>
+Lecturer transcript
+</summary>
+<p>The procedure, and it is deliberately identical in shape to the heteroskedasticity version several slides back. Estimate by OLS unchanged. Assume the errors are clustered and heteroskedastic. Swap in the cluster-robust standard errors for testing. Never touch the coefficients. If those four lines feel repetitive, that is the point: the two problems in this lecture are different in cause and identical in treatment, and the last slide draws that parallel out explicitly.</p>
+</details>
 <p>Just like the heteroskedasticity-present case before,</p>
 <ul>
 <li><p>Estimate the model using OLS (you do nothing special here)</p></li>
-<li><p>Assume the error term is clustered and/or heteroskedastic, and estimate the variance of the OLS estimators <span class="math inline">\((Var(\widehat{\beta}))\)</span> using cluster-robust standard error estimators</p></li>
-<li><p>Replace the estimates from <span class="math inline">\(\widehat{Var(\widehat{\beta})}_{default}\)</span> with those from <span class="math inline">\(\widehat{Var(\widehat{\beta})}_{cl}\)</span> for testing</p></li>
+<li><p>Assume the error term is clustered and/or heteroskedastic, and estimate the variance of the OLS estimators <span class="math inline">(Var(\widehat{\beta}))</span> using cluster-robust standard error estimators</p></li>
+<li><p>Replace the estimates from <span class="math inline">\widehat{Var(\widehat{\beta})}_{default}</span> with those from <span class="math inline">\widehat{Var(\widehat{\beta})}_{cl}</span> for testing</p></li>
 <li><p>But, we do not replace coefficient estimates.</p></li>
 </ul>
 </div>
@@ -2916,17 +3533,29 @@ y = \beta_0 + \beta_1 x + u
 <h2>But does it really work?</h2>
 <p>Let’s run MC simulations to see if the use of the cluster-robust standard error estimation method works</p>
 <div class="panel-tabset">
-<ul id="tabset-18" class="panel-tabset-tabby"><li><a data-tabby-default="" href="#tabset-18-1">MC simulation (R)</a></li><li><a href="#tabset-18-2">MC simulation results</a></li><li><a href="#tabset-18-3">More groups</a></li><li><a href="#tabset-18-4">MC simulation results</a></li></ul>
+<ul id="tabset-18" class="panel-tabset-tabby"><li><a data-tabby-default="" href="#tabset-18-1">MC simulation: 50 groups</a></li><li><a href="#tabset-18-2">Results: 50 groups</a></li><li><a href="#tabset-18-3">MC simulation: 1000 groups</a></li><li><a href="#tabset-18-4">Results: 1000 groups</a></li></ul>
 <div class="tab-content">
 <div id="tabset-18-1">
+<details class="transcript">
+<summary>
+Lecturer transcript
+</summary>
+<p>The same test as before, so we can compare directly. Identical data-generating process, identical everything, except the highlighted line where <code>feols</code> now gets a <code>cluster</code> argument. There are fifty groups. That is enough to illustrate improvement but not enough to invoke a universal cutoff—cluster-robust accuracy also depends on cluster sizes, leverage, balance, and dependence strength. Run it and predict the answer first, without expecting exact five-percent size.</p>
+</details>
 <div id="qwebr-insertion-location-19"></div>
 <noscript>Please enable JavaScript to experience the dynamic code cell content on this page.</noscript>
 </div>
 <div id="tabset-18-2">
+<details class="transcript">
+<summary>
+Lecturer transcript
+</summary>
+<p>Around nine percent, against seventy-five with the default. That is an enormous improvement and still not the five percent we want. Both things are worth saying. The estimator has taken a test that was useless and made it roughly usable, and it has not made it correct. The reason is in the callout: cluster-robust estimators are asymptotic in the number of <em>groups</em>, not the number of observations. Fifty groups is not many, and two thousand observations does not help.</p>
+</details>
 <div id="qwebr-insertion-location-20"></div>
 <noscript>Please enable JavaScript to experience the dynamic code cell content on this page.</noscript>
 <p><br></p>
-<p>Well, we are still rejecting too often than we should, but it is much better than the default VCOV estimator that rejected 74% of the time.</p>
+<p>Well, we are still rejecting more often than we should, but it is a different world from the 75.1% we got with the default estimator.</p>
 <p><br></p>
 <div class="callout callout-important no-icon callout-titled callout-style-default">
 <div class="callout-body">
@@ -2937,21 +3566,141 @@ y = \beta_0 + \beta_1 x + u
 <ul>
 <li>Cluster-robust standard error estimation gets better as the number of groups gets larger</li>
 <li>The number of groups of 2 is too small (the MLB case)</li>
-<li>As a rule of thumb, # of groups larger than 50 is sufficiently large, but we just saw we still over-rejected the null of <span class="math inline">\(\beta = 0\)</span> three times more than we should.</li>
+<li>There is no universal number of groups that guarantees accurate inference; performance also depends on leverage, balance, cluster size, and the strength of within-cluster dependence.</li>
 </ul>
 </div>
 </div>
 </div>
 </div>
 <div id="tabset-18-3">
+<details class="transcript">
+<summary>
+Lecturer transcript
+</summary>
+<p>Same code with one number changed: a thousand groups instead of fifty. Read the note, because this cell is genuinely slow in the browser and it has not crashed. While it runs, think about what we are testing. If the problem at fifty groups was that the asymptotics had not kicked in, then more groups should improve things. If it were something else, more groups would not help. This is a diagnostic, not just a bigger simulation.</p>
+</details>
+<p>The only change from the previous simulation is <code>G</code>: 1000 groups instead of 50.</p>
+<div title="This one takes a while">
+<div class="callout callout-note no-icon callout-titled callout-style-default">
+<div class="callout-body">
+<div class="callout-title">
+<p><strong>This one takes a while</strong></p>
+</div>
+<div class="callout-content">
+<p>1000 iterations on 20,000 observations runs in about half a minute in desktop R, so expect a few minutes in the browser. It has not hung.</p>
+</div>
+</div>
+</div>
+</div>
 <div id="qwebr-insertion-location-21"></div>
 <noscript>Please enable JavaScript to experience the dynamic code cell content on this page.</noscript>
 </div>
 <div id="tabset-18-4">
+<details class="transcript">
+<summary>
+Lecturer transcript
+</summary>
+<p>Better, and still not exactly five percent. So the diagnosis was right: the remaining over-rejection really is a small-number-of-groups problem, and it shrinks as the groups multiply. Read the last line, which is the honest summary of this whole section. Cluster-robust standard errors are not a guarantee of correctness. They are a large improvement over an estimator that was catastrophically wrong, and in applied work that is what you get to have.</p>
+</details>
 <div id="qwebr-insertion-location-22"></div>
 <noscript>Please enable JavaScript to experience the dynamic code cell content on this page.</noscript>
 <p><br></p>
 <p>Better. But, we are still over-rejecting. Don’t forget it is certainly better than using the default!</p>
+</div>
+</div>
+</div>
+<!--end of panel-->
+</section>
+<section id="two-problems-one-story" class="slide level2">
+<h2>Two problems, one story</h2>
+<div class="panel-tabset">
+<ul id="tabset-19" class="panel-tabset-tabby"><li><a data-tabby-default="" href="#tabset-19-1">The same three steps twice</a></li><li><a href="#tabset-19-2">What to actually do</a></li></ul>
+<div class="tab-content">
+<div id="tabset-19-1">
+<details class="transcript">
+<summary>
+Lecturer transcript
+</summary>
+<p>Both halves of this lecture on one table, and read it across rather than down. Two different assumption failures, one caused by variance depending on x and one by errors being correlated within groups. In both, the coefficients survive untouched. In both, the default variance estimator breaks. In both, the fix is one argument to <code>feols</code>. Then compare the two rejection-rate rows, eleven percent against seventy-five. In this simulation design, clustering creates the larger distortion. That ranking is not universal; it depends on the form and strength of heteroskedasticity and within-group correlation.</p>
+</details>
+<p>Heteroskedasticity and clustered errors violate different parts of the usual error variance-covariance structure, but the practical response is similar:</p>
+<table class="caption-top">
+<colgroup>
+<col style="width: 33%">
+<col style="width: 33%">
+<col style="width: 33%">
+</colgroup>
+<thead>
+<tr class="header">
+<th></th>
+<th>Heteroskedasticity</th>
+<th>Clustered error</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>What breaks</td>
+<td><span class="math inline">Var(u\|x)</span> depends on <span class="math inline">x</span></td>
+<td>errors are correlated within a group</td>
+</tr>
+<tr class="even">
+<td><span class="math inline">\widehat{\beta}_j</span></td>
+<td><span style="color: blue;">still unbiased</span></td>
+<td><span style="color: blue;">still unbiased</span></td>
+</tr>
+<tr class="odd">
+<td><span class="math inline">\widehat{Var(\widehat{\beta}_j)}_{default}</span></td>
+<td>biased</td>
+<td>biased, usually badly</td>
+</tr>
+<tr class="even">
+<td>Rejection rate at the 5% level</td>
+<td>~11%</td>
+<td>~75%</td>
+</tr>
+<tr class="odd">
+<td>The fix</td>
+<td><code>vcov = "hetero"</code></td>
+<td><code>cluster = ~ group</code></td>
+</tr>
+<tr class="even">
+<td>Rejection rate after the fix</td>
+<td>~5%</td>
+<td>~9%</td>
+</tr>
+</tbody>
+</table>
+<ul>
+<li>in <span style="color: red;">neither</span> case do you touch the coefficient estimates: nothing about OLS itself has gone wrong</li>
+<li>what is broken is the <span style="color: red;">standard error</span>, and therefore every t-statistic, p-value and confidence interval from lecture 05</li>
+<li>compare the two rejection-rate rows: clustering creates the larger distortion in this simulation, although the relative severity is specific to the data-generating processes used here</li>
+</ul>
+</div>
+<div id="tabset-19-2">
+<details class="transcript">
+<summary>
+Lecturer transcript
+</summary>
+<p>Four rules, and they are what I would want you to still be doing in five years. Use heteroskedasticity-robust standard errors by default in large samples. They may differ from conventional standard errors in finite samples, even under homoskedasticity, but they protect inference against unknown heteroskedasticity. If your data has groups, cluster at a level justified by the sampling or treatment-assignment process. Do not bother testing for heteroskedasticity first, since the result would not change your decision. And never swap the coefficients. Then read the callout, which is honest about the limits and points forward: both fixes are asymptotic, which is where lecture 08 begins.</p>
+</details>
+<ul>
+<li><p><strong>Use heteroskedasticity-robust standard errors by default in large samples.</strong> They protect inference against unknown heteroskedasticity. In finite samples they can differ from conventional standard errors even when the errors are homoskedastic, so “robust” does not mean literally costless. The <code>hetero</code> option in <code>feols()</code> is one argument.</p></li>
+<li><p><strong>If errors may be correlated within groups, cluster at a defensible level.</strong> The choice should follow the sampling or treatment-assignment process; clustering at the level at which treatment is assigned is a common rule of thumb. Clustering by a group with only two levels, as in the MLB league example, is not enough — you need many groups for conventional cluster-robust inference to behave well.</p></li>
+<li><p><strong>Do not test for heteroskedasticity first.</strong> The tests exist (Breusch-Pagan, White), but almost nobody runs them, because the answer changes nothing: you would use robust standard errors either way.</p></li>
+<li><p><strong>Never swap the coefficients.</strong> Only the standard errors change.</p></li>
+</ul>
+<div title="Why cluster-robust was still over-rejecting">
+<div class="callout callout-important no-icon callout-titled callout-style-default">
+<div class="callout-body">
+<div class="callout-title">
+<p><strong>Why cluster-robust was still over-rejecting</strong></p>
+</div>
+<div class="callout-content">
+<p>Both robust estimators are <span style="color: blue;">asymptotic</span>: they are correct as the sample (or the number of groups) grows, not in any finite sample. With 50 groups we rejected about 9% instead of 5%; with 1000 groups it improved again. That is a preview of lecture 08, where large-sample arguments replace the exact finite-sample results we have been relying on.</p>
+</div>
+</div>
+</div>
+</div>
 </div>
 </div>
 </div>
@@ -2979,7 +3728,6 @@ y = \beta_0 + \beta_1 x + u
   <script src="../../site_libs/revealjs/plugin/notes/notes.js"></script>
   <script src="../../site_libs/revealjs/plugin/search/search.js"></script>
   <script src="../../site_libs/revealjs/plugin/zoom/zoom.js"></script>
-  <script src="../../site_libs/revealjs/plugin/math/math.js"></script>
   <script>window.define = window.backupDefine; window.backupDefine = undefined;</script>
 
   <script>
@@ -3147,27 +3895,9 @@ y = \beta_0 + \beta_1 x + u
         // Factor of the display size that should remain empty around the content
         margin: 0.1,
 
-        math: {
-          mathjax: 'https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.9/MathJax.js',
-          config: 'TeX-AMS_HTML-full',
-          tex2jax: {
-            inlineMath: [['\\(','\\)']],
-            displayMath: [['\\[','\\]']],
-            balanceBraces: true,
-            processEscapes: false,
-            processRefs: true,
-            processEnvironments: true,
-            preview: 'TeX',
-            skipTags: ['script','noscript','style','textarea','pre','code'],
-            ignoreClass: 'tex2jax_ignore',
-            processClass: 'tex2jax_process'
-          },
-        },
-
         // reveal.js plugins
         plugins: [QuartoLineHighlight, PdfExport, RevealMenu, QuartoSupport,
 
-          RevealMath,
           RevealNotes,
           RevealSearch,
           RevealZoom

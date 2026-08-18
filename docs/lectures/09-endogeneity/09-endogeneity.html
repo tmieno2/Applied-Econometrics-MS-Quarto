@@ -28,7 +28,23 @@
       vertical-align: middle;
     }
   </style>
-  <link rel="stylesheet" href="../../site_libs/revealjs/dist/theme/quarto-efe7f97d24ea27507c65df08cab6e7d6.css">
+  <link rel="stylesheet" href="../../site_libs/revealjs/dist/theme/quarto-db62157d6cf4bc51d0b25352aea75d23.css">
+  <script>window.backupDefine = window.define; window.define = undefined;</script><script src="https://cdn.jsdelivr.net/npm/katex@latest/dist/katex.min.js"></script>
+  <script>document.addEventListener("DOMContentLoaded", function () {
+ var mathElements = document.getElementsByClassName("math");
+ var macros = [];
+ for (var i = 0; i < mathElements.length; i++) {
+  var texText = mathElements[i].firstChild;
+  if (mathElements[i].tagName == "SPAN") {
+   katex.render(texText.data, mathElements[i], {
+    displayMode: mathElements[i].classList.contains('display'),
+    throwOnError: false,
+    macros: macros,
+    fleqn: false
+   });
+}}});
+  </script>
+  <script>window.define = window.backupDefine; window.backupDefine = undefined;</script><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@latest/dist/katex.min.css">
   <link href="../../site_libs/revealjs/plugin/quarto-line-highlight/line-highlight.css" rel="stylesheet">
   <link href="../../site_libs/revealjs/plugin/reveal-menu/menu.css" rel="stylesheet">
   <link href="../../site_libs/revealjs/plugin/reveal-menu/quarto-menu.css" rel="stylesheet">
@@ -121,6 +137,181 @@
       margin-right: 0; 
     }
   </style>
+  <!--
+    Support for collapsible "Lecturer transcript" panels in revealjs decks.
+
+    Include it from a deck's YAML header, with the path relative to the qmd:
+
+        format:
+          revealjs:
+            include-in-header: ../transcript-support.html
+
+    Then add a transcript anywhere inside a slide (or inside a single tab of a
+    tabset, which is the usual case):
+
+        <details class="transcript">
+        <summary>Lecturer transcript</summary>
+
+        What the lecturer says about this tab.
+
+        </details>
+
+    On a tab whose figure fills the whole slide there is no free rectangle to
+    overlay, so add "inline" and the panel joins the flow when opened, pushing the
+    figure down instead of covering it:
+
+        <details class="transcript inline">
+
+    Use it only where it is needed. Measure rather than guess: an open panel must
+    not overlap a ".cell-output-display". The collapsed pill still costs 0px in
+    both variants, which is the property the whole design exists to preserve.
+
+    It must live in the header rather than the body of a qmd: raw HTML placed
+    above the first "##" heading becomes its own untitled slide.
+
+    <details> is a native HTML element, so the collapse/expand works with no
+    JavaScript at all, including in a self-contained (embed-resources) file. The
+    script at the bottom adds one behaviour on top: collapsing an open panel when
+    the reader moves on. Without it everything still works, panels just keep their
+    open state.
+
+    Audience: students reviewing after class. These are not presenter notes -
+    reveal's own ".notes" blocks are the presenter-only mechanism.
+  -->
+  <style>
+  /* The panel is positioned against the slide rather than sitting in its normal
+     flow. That is the whole point: collapsed it costs the slide no vertical
+     space, and opened it overlays the content instead of pushing it off the
+     bottom edge. Each panel lives inside its own tab, and hidden tabs do not
+     render, so only the visible tab's transcript is ever shown. */
+  .reveal details.transcript {
+    position: absolute;
+    top: 0;
+    right: 0;
+    z-index: 20;
+    width: auto;
+    font-size: 0.55em;
+    line-height: 1.45;
+    text-align: left;
+    border-radius: 6px;
+    /* custom.scss styles every bare <details> as an "answer box" (grey border
+       plus padding) for Quarto's folded-code blocks. Opt out of both here so the
+       collapsed pill is not sitting inside a grey rectangle. */
+    border: none;
+    padding: 0;
+  }
+
+  /* Collapsed: a small pill that hugs the top-right corner. */
+  .reveal details.transcript > summary {
+    display: inline-block;
+    cursor: pointer;
+    list-style: none;
+    outline: none;
+    /* custom.scss pulls every bare <summary> with a negative margin; undo it. */
+    margin: 0;
+    padding: 0.15em 0.7em;
+    border: 1px solid #06a666;
+    border-radius: 999px;
+    background: #ffffff;
+    color: #06a666;
+    font-weight: 600;
+    white-space: nowrap;
+    -webkit-user-select: none;
+    user-select: none;
+  }
+  .reveal details.transcript > summary::-webkit-details-marker { display: none; }
+  .reveal details.transcript > summary::before { content: "\25B8\00A0"; }
+  .reveal details.transcript[open] > summary::before { content: "\25BE\00A0"; }
+
+  /* Opened: a tall, narrow panel down the right-hand side, where slide content
+     rarely reaches. It starts below the tab bar so tab names stay clickable
+     while a transcript is open, and runs down to just above the footer.
+
+     Measured as a share of the 700px logical slide. A top-level tab bar ends at
+     12.4-13%, so 21% clears it everywhere.
+
+     A tab bar that sits lower on the slide is cleared HORIZONTALLY instead: the
+     panel occupies x 62-100%, and no tab row measured so far reaches past x 66%.
+     Cases seen, all fine:
+       00-1  nested tabset          18.9%, names reach x 15%
+       00-1  tabset below prose     40.8%, names reach x 59%
+       01-2  nested tabset          29.6%, names reach x 46%
+     So the rule to preserve is not "top clears every tab bar" but "no tab NAME
+     overlaps the panel's rectangle". Re-check that if a deck grows a long tab row
+     sitting low on the slide. */
+  .reveal details.transcript[open] {
+    top: 21%;
+    width: 36%;
+    max-height: 75%;
+    overflow-y: auto;
+    padding: 0.55em 0.85em 0.7em;
+    background: #f4fbf8;
+    border: 1px solid #06a666;
+    box-shadow: 0 6px 22px rgba(0, 0, 0, 0.16);
+  }
+  .reveal details.transcript[open] > summary {
+    display: block;
+    padding: 0 0 0.4em 0;
+    border: none;
+    border-radius: 0;
+    background: transparent;
+  }
+  .reveal details.transcript p { margin: 0.35em 0; }
+
+  /* Opt-out, applied per tab as class="transcript inline".
+     Some figures are rendered at out-width 80% and span x 1.4-98.6% of the slide,
+     running from just under the tab bar down to y ~95%. There is no rectangle
+     left to overlay, so on those tabs the panel joins the normal flow when opened
+     and pushes the figure down; the slide is "scrollable: true", so the figure
+     stays reachable. Note this rule only touches [open]: collapsed, the pill is
+     still absolutely positioned at the top-right corner and still costs 0px. */
+  .reveal details.transcript.inline[open] {
+    position: static;
+    width: auto;
+    max-height: none;
+    overflow-y: visible;
+    margin: 0 0 0.9em 0;
+  }
+
+  /* No .slide-logo rule here: no deck in this course sets a "logo:" in its YAML,
+     so the bottom-right corner the panel would collide with is already free. If
+     a logo is ever added, move it out of the way with
+     .reveal .slide-logo { right: auto !important; left: 56px !important; }
+     where 56px clears reveal's menu button at x 8-43px. */
+  </style>
+
+  <script>
+  // Collapse any open transcript when the reader moves to another slide or
+  // another tab, so a panel left open never reappears over unrelated content.
+  (function () {
+    function closeAll() {
+      document.querySelectorAll("details.transcript[open]")
+        .forEach(function (d) { d.open = false; });
+    }
+
+    // Slide changes come from reveal, which is not ready when this runs.
+    function hookReveal() {
+      if (window.Reveal && typeof Reveal.on === "function") {
+        Reveal.on("slidechanged", closeAll);
+        Reveal.on("overviewshown", closeAll);
+        return true;
+      }
+      return false;
+    }
+    if (!hookReveal()) {
+      var tries = 0;
+      var timer = setInterval(function () {
+        if (hookReveal() || ++tries > 100) clearInterval(timer);
+      }, 100);
+    }
+
+    // Tab changes are plain clicks; capture so this runs before the tab switches.
+    document.addEventListener("click", function (e) {
+      var el = e.target;
+      if (el && el.closest && el.closest('.panel-tabset [role="tab"]')) closeAll();
+    }, true);
+  })();
+  </script>
 <meta property="og:title" content="09: Endogeneity – Applied Econometrics (AECN 896-004)">
 <meta property="og:site_name" content="Applied Econometrics (AECN 896-004)">
 </head>
@@ -137,11 +328,18 @@
 </section>
 <section id="endogeneity" class="slide level2">
 <h2>Endogeneity</h2>
+<details class="transcript">
+<summary>
+Lecturer transcript
+</summary>
+<p>Endogeneity is the central threat to causal interpretation in an OLS regression. The zero-conditional-mean assumption says that, after conditioning on every included explanatory variable, the remaining error should have mean zero. When that condition fails, at least one regressor contains information about the unobserved part of the outcome. OLS then mixes the effect of that regressor with the effect of whatever is hiding in the error term. The four labels at the bottom are common routes to this problem. They overlap conceptually: selection is often an omitted-variable problem, and reverse causality is another mechanism that creates correlation between a regressor and the error.</p>
+</details>
 <p><strong>Endogeneity</strong></p>
-<p><span class="math inline">\(E[u|x_k] \ne 0\)</span> (the error term is not correlated with any of the independent variables)</p>
+<p><span class="math inline">E[u\mid x_1,\dots,x_k] \ne 0</span></p>
+<p>The zero-conditional-mean assumption fails: the error term is systematically related to at least one explanatory variable.</p>
 <p><br></p>
 <p><strong>Endogenous independent variable</strong></p>
-<p>If the error term is, <span style="color: red;">for whatever reason</span>, correlated with the independent variable <span class="math inline">\(x_k\)</span>, then we say that <span class="math inline">\(x_k\)</span> is an endogenous independent variable.</p>
+<p>If an explanatory variable <span class="math inline">x_k</span> is, <span style="color: red;">for whatever reason</span>, correlated with the error term, we call <span class="math inline">x_k</span> an endogenous explanatory variable.</p>
 <p><br></p>
 <p><strong>Sources of endogeneity</strong></p>
 <ul>
@@ -153,11 +351,17 @@
 </section>
 <section id="omitted-variable" class="slide level2">
 <h2>Omitted Variable</h2>
+<details class="transcript">
+<summary>
+Lecturer transcript
+</summary>
+<p>Use the wage equation to see exactly where omitted-variable bias comes from. The true model includes education, experience, and ability. If ability is unavailable and we leave it out, it does not disappear; its contribution moves into the composite error, which I call v. Education is likely related to ability, so education is now correlated with v. The estimated education coefficient therefore captures both the return to education and part of ability’s association with wages. The sign of the bias depends on two signs: how ability affects wages and how ability is related to education. This is why merely saying that a variable was omitted is not enough to determine the direction of bias.</p>
+</details>
 <p><strong>True Model</strong></p>
-<p><span class="math inline">\(log(wage) = \beta_0 + \beta_1 educ + \beta_2 exper + \beta_3 ablility + u\)</span></p>
+<p><span class="math inline">\log(wage) = \beta_0 + \beta_1 educ + \beta_2 exper + \beta_3 ability + u</span></p>
 <p><br></p>
 <p><strong>Incorrectly specified (your) model</strong></p>
-<p><span class="math inline">\(log(wage) = \beta_0 + \beta_1 educ + \beta_2 exper  + v \;\;(u + \beta_3 ablility)\)</span></p>
+<p><span class="math inline">\log(wage) = \beta_0 + \beta_1 educ + \beta_2 exper + v, \qquad v=u+\beta_3 ability</span></p>
 </section>
 <section id="bias-from-self-selection" class="slide level2">
 <h2>Bias from self-selection</h2>
@@ -165,6 +369,12 @@
 <ul id="tabset-1" class="panel-tabset-tabby"><li><a data-tabby-default="" href="#tabset-1-1">Context</a></li><li><a href="#tabset-1-2">Adoption decision</a></li><li><a href="#tabset-1-3">Common factors</a></li><li><a href="#tabset-1-4">So,</a></li><li><a href="#tabset-1-5">Omitted variable bias</a></li></ul>
 <div class="tab-content">
 <div id="tabset-1-1">
+<details class="transcript">
+<summary>
+Lecturer transcript
+</summary>
+<p>This sensor example turns the abstract definition into a research design. We would like beta one to measure how adopting a sensor changes irrigation. But these are observational data: farmers decide whether to adopt. Ask what the error term contains—soil, management skill, water prices, conservation preferences, and many other determinants of irrigation that are not in this simple equation. If any of those factors also influence adoption, sensor and u will be correlated. Before running a regression, the useful habit is to describe the decision that generated the explanatory variable. That decision often reveals the likely confounders.</p>
+</details>
 <p><strong>Research Question</strong></p>
 <p>Does a soil moisture sensor reduce water use for farmers?</p>
 <p><br></p>
@@ -172,60 +382,84 @@
 <p>Observational (non-experimental) data on soil moisture sensor adoption and irrigation amount</p>
 <p><br></p>
 <p><strong>Model of interest</strong></p>
-<p><span class="math inline">\(irrigation  = \beta_0 + \beta_1 sensor + u\)</span></p>
+<p><span class="math inline">irrigation  = \beta_0 + \beta_1 sensor + u</span></p>
 <ul>
-<li><span class="math inline">\(irrigation\)</span>: the amount of irrigation by the farmer</li>
-<li><span class="math inline">\(sensor\)</span>: dummy variable that indicates whether the farmer has adopted soil moisture sensor or not</li>
+<li><span class="math inline">irrigation</span>: the amount of irrigation by the farmer</li>
+<li><span class="math inline">sensor</span>: indicator equal to 1 if the farmer adopted a soil-moisture sensor</li>
 </ul>
 <p><br></p>
 <p><strong>Question</strong></p>
-<p>Is <span class="math inline">\(sensor\)</span> endogenous (is <span class="math inline">\(sensor\)</span> correlated with the error term)?</p>
+<p>Is <span class="math inline">sensor</span> endogenous (is <span class="math inline">sensor</span> correlated with the error term)?</p>
 </div>
 <div id="tabset-1-2">
-<p>Farmers do not just randomly adopt a soil moisture sensor, they consider available information to determine it is beneficial for them to adopt it or not.</p>
+<details class="transcript">
+<summary>
+Lecturer transcript
+</summary>
+<p>Think of adoption as an outcome with its own equation. Farmers combine observed and unobserved information to decide whether a sensor is worthwhile. Possible inputs include soil type, farm size, crop mix, water cost, prior drought experience, technical ability, and conservation preferences. Now compare that list with the determinants of irrigation demand. The overlap is the problem. For example, high water prices can make a sensor more attractive and independently reduce water use. A farmer’s conservation preferences can encourage adoption and reduce irrigation even without the technology. Those common causes make adopters and non-adopters systematically different before we ever observe their water use.</p>
+</details>
+<p>Farmers do not adopt soil-moisture sensors randomly. They use available information to decide whether adoption would benefit them.</p>
 <p><br></p>
 <p><strong>Adoption (selection) equation</strong></p>
-<p><span class="math inline">\(sensor  = \beta_0 + \beta_1 x_2 + \dots + \beta_k x_k + v\)</span></p>
+<p><span class="math inline">sensor  = \alpha_0 + \alpha_1 x_1 + \dots + \alpha_k x_k + v</span></p>
 <p><br></p>
 <p><strong>Question</strong></p>
-<p>What would be variables that farmers look at when they decide whether they should get a soil moisture sensor or not?</p>
+<p>What variables might farmers consider when deciding whether to adopt a soil-moisture sensor?</p>
 <p><br></p>
 <p><strong>Question</strong></p>
-<p>Are any of the variables listed above also affect irrigation demand?</p>
+<p>Do any of the variables listed above also affect irrigation demand?</p>
 </div>
 <div id="tabset-1-3">
+<details class="transcript">
+<summary>
+Lecturer transcript
+</summary>
+<p>Soil type is a concrete common factor. Sandy soil drains quickly, which can raise irrigation requirements. The same feature can make real-time moisture information more valuable, raising the probability of sensor adoption. If soil type is not measured, its effect on irrigation sits in the regression error. Because sensor adoption also responds to soil type, the sensor indicator becomes correlated with that error. Notice that this argument does not require farmers to make mistakes or researchers to use bad data. Rational self-selection into treatment is enough to generate endogeneity in an observational comparison.</p>
+</details>
 <p><strong>Example</strong></p>
 <p>Soil quality/type (hard to accurately measure)</p>
 <ul>
-<li>farmers whose fields are sandy are more likely to adopt a soil moisture sensor (this is just a conjecture)</li>
-<li>farmers whose fields are sandy are likely to use more water</li>
+<li>Farmers whose fields are sandy may be more likely to adopt a soil-moisture sensor.</li>
+<li>Sandy fields may require more irrigation.</li>
 </ul>
 <p><br></p>
 <p><strong>Key</strong></p>
-<p>Soil quality/type affect <span style="color: red;"> both </span> the decision of soil moisture sensor adoption and irrigation.</p>
+<p>Soil quality or type affects <span style="color: red;">both</span> sensor adoption and irrigation.</p>
 <ul>
-<li><span class="math inline">\(sensor\)</span> is a function of soil quality/type</li>
-<li><span class="math inline">\(irrigation\)</span> is a function of soil quality/type, which is in the error term uncontrolled for</li>
+<li><span class="math inline">sensor</span> is a function of soil quality/type</li>
+<li><span class="math inline">irrigation</span> is also a function of soil quality/type, which enters the error term when it is not controlled for</li>
 </ul>
 </div>
 <div id="tabset-1-4">
-<p><span class="math display">\[
+<details class="transcript">
+<summary>
+Lecturer transcript
+</summary>
+<p>Here is the same argument written directly in the outcome equation. The parenthetical expression is the composite error when soil type is omitted. Sensor adoption varies with soil type, and soil type appears inside that composite error, so the covariance between sensor and the error is not zero. OLS cannot distinguish water use caused by the sensor from water use associated with different soils. Depending on the relationships, the estimated sensor effect can be too positive, too negative, or even have the wrong sign. The important conclusion is not just that adopters differ; it is that they differ along a factor that also affects the outcome.</p>
+</details>
+<p><span class="math display">
 \begin{aligned}
-irrigation  = \beta_0 + \beta_1 sensor(\mbox{soil type}) + u\;\;(= \beta_s \mbox{soil type} + v)
+irrigation  = \beta_0 + \beta_1 sensor + (\beta_s\,\text{soil type}+v)
 \end{aligned}
-\]</span> where <span class="math inline">\(v\)</span> include all the unobservable variables except soil type.</p>
+</span> where <span class="math inline">v</span> includes all other unobserved determinants of irrigation.</p>
 <div class="callout callout-note no-icon callout-titled callout-style-default">
 <div class="callout-body">
 <div class="callout-title">
 <p><strong>Note</strong></p>
 </div>
 <div class="callout-content">
-<p>So, <span class="math inline">\(sensor\)</span> and the error term in the irrigation model are correlated through soil type, leading to biased estimation of the impact of a sensor.</p>
+<p>So, <span class="math inline">sensor</span> and the error term in the irrigation model are correlated through soil type, leading to biased estimation of the impact of a sensor.</p>
 </div>
 </div>
 </div>
 </div>
 <div id="tabset-1-5">
+<details class="transcript">
+<summary>
+Lecturer transcript
+</summary>
+<p>Selection bias can sometimes be addressed by controlling for the variables that jointly determine treatment and outcome. If soil type is measured well and included in the irrigation equation, its contribution no longer sits in the error term. Comparisons are then made among farms with the same included soil measure. But the conclusion is conditional: this fixes the problem only if the measure is accurate, the functional form is adequate, and no other relevant confounders remain. Adding controls mechanically is not a guarantee of causality. We need a substantive argument that treatment is as good as randomly assigned after conditioning on those controls.</p>
+</details>
 <div class="callout callout-note no-icon callout-titled callout-style-default">
 <div class="callout-body">
 <div class="callout-title">
@@ -239,12 +473,12 @@ irrigation  = \beta_0 + \beta_1 sensor(\mbox{soil type}) + u\;\;(= \beta_s \mbox
 <p><br></p>
 <p>If you accurately measure the common factors in the two equations, you can simply include them explicitly in the main model.</p>
 <p>For example,</p>
-<p><span class="math display">\[
+<p><span class="math display">
 \begin{aligned}
-irrigation  = \beta_0 + \beta_1 sensor(\mbox{soil type}) + \beta_s \mbox{soil type} + u
+irrigation  = \beta_0 + \beta_1 sensor + \beta_s\,\text{soil type} + v
 \end{aligned}
-\]</span></p>
-<p>This will get the common factor (soil type) out of the error in the main model, which means the adoption variable and the error term are no longer correlated in the main model.</p>
+</span></p>
+<p>If soil type is measured accurately and there are no other confounders, including it removes this source of correlation between sensor adoption and the error term.</p>
 </div>
 </div>
 </div>
@@ -256,73 +490,108 @@ irrigation  = \beta_0 + \beta_1 sensor(\mbox{soil type}) + \beta_s \mbox{soil ty
 <ul id="tabset-3" class="panel-tabset-tabby"><li><a data-tabby-default="" href="#tabset-3-1">Context</a></li><li><a href="#tabset-3-2">Treatment decision</a></li><li><a href="#tabset-3-3">Reverse causality</a></li><li><a href="#tabset-3-4">Another example</a></li></ul>
 <div class="tab-content">
 <div id="tabset-3-1">
+<details class="transcript">
+<summary>
+Lecturer transcript
+</summary>
+<p>Now consider treatment and health. The simple cross-sectional regression compares currently treated and untreated patients. Doctors did not assign treatment randomly, and current health is not a before-and-after change. The error contains severity, prognosis, access to care, and other determinants of current health. Because those factors can also affect who receives treatment, a raw comparison may make an effective treatment look ineffective—or harmful—simply because the sickest patients are most likely to receive it. This is the classic reason observational medical comparisons require a careful account of the treatment-assignment process.</p>
+</details>
 <p><strong>Research Question</strong></p>
 <p>Does a particular type of medical treatment improve health?</p>
 <p><br></p>
 <p><strong>Data</strong></p>
-<p>Observational (non-experimental) <span style="color: red;"> cross-sectional </span> data on a particular type of medical treatment and health. Whether patients get the treatment or not is not randomized, rather it is determined by doctors (like in the real world).</p>
+<p>Observational (non-experimental) <span style="color: red;">cross-sectional</span> data on a particular type of medical treatment and current health. Treatment is chosen by doctors rather than randomly assigned.</p>
 <p><br></p>
 <p><strong>Model</strong></p>
-<p><span class="math inline">\(health  = \beta_0 + \beta_1 treatment + u\)</span></p>
+<p><span class="math inline">health  = \beta_0 + \beta_1 treatment + u</span></p>
 <ul>
-<li><span class="math inline">\(health\)</span>: indicator of the health of patients</li>
-<li><span class="math inline">\(treatment\)</span>: dummy variable that indicates whether the patient is treated or not</li>
+<li><span class="math inline">health</span>: measure of a patient’s current health</li>
+<li><span class="math inline">treatment</span>: indicator equal to 1 if the patient receives treatment</li>
 </ul>
-<p>This model basically compares the health of patients who have and have not had the treatment (no before-after comparison, yes this is dumb).</p>
+<p>This model compares the health of treated and untreated patients at a point in time; it does not make a before-and-after comparison.</p>
 <p><br></p>
 <p><strong>Question</strong></p>
-<p>Is <span class="math inline">\(treatment\)</span> endogenous? (Is <span class="math inline">\(treatment\)</span> correlated with the error term?)</p>
+<p>Is <span class="math inline">treatment</span> endogenous? (Is <span class="math inline">treatment</span> correlated with the error term?)</p>
 </div>
 <div id="tabset-3-2">
+<details class="transcript">
+<summary>
+Lecturer transcript
+</summary>
+<p>Doctors use health information when choosing treatment. In the stylized selection equation, health helps predict treatment; if poorer health means a greater chance of treatment, alpha one would be negative when higher values mean better health. The equation is intentionally simple, but the logic is general. Treatment status reflects information about the outcome, including information the analyst may not observe. That makes treated and untreated patients incomparable without additional assumptions or a different design. Keep the timing straight: if doctors respond to baseline health, this is selection on a pre-treatment condition. If current health and current treatment jointly influence each other, we have simultaneous or reverse causality.</p>
+</details>
 <p><strong>Question</strong></p>
-<p>How do doctors decide whether to put their patients under a medical treatment?</p>
+<p>How do doctors decide whether to place their patients under medical treatment?</p>
 <p><strong>Answer</strong></p>
-<p>Patients’ health condition!!!</p>
+<p>Their patients’ health conditions.</p>
 <p><br></p>
 <p><strong>Selection (treatment decision) model</strong></p>
-<p><span class="math inline">\(\mbox{treatment}  = \alpha_0 + \alpha_1 \mbox{health} + u\)</span></p>
+<p><span class="math inline">treatment  = \alpha_0 + \alpha_1 health + v</span></p>
 <p>Less healthy people are more likely to be treated.</p>
 </div>
 <div id="tabset-3-3">
+<details class="transcript">
+<summary>
+Lecturer transcript
+</summary>
+<p>These two equations show a feedback system. Treatment affects health in the first equation, while health affects treatment in the second. A health shock contained in u changes health and thereby changes treatment. Treatment is consequently related to u, violating the condition needed for OLS in the health equation. Calling the problem reverse causality highlights that the arrow is not only from treatment to health; it also runs from health to treatment. In an application, the exact label depends on timing. A treatment response to earlier health is selection on baseline health, while contemporaneous feedback is genuine simultaneity. Either way, the one-equation OLS coefficient is not automatically causal.</p>
+</details>
 <p><strong>Consequence</strong></p>
-<p><span class="math inline">\(health  = \beta_0 + \beta_1 treatment( = \alpha_0 + \alpha_1 \mbox{health} + u) + u\)</span></p>
-<p><span class="math inline">\(treatment\)</span> is endogenous because it is a function of health itself (<span class="math inline">\(treatment\)</span> is a function of <span class="math inline">\(u\)</span>, so correlated with the error term)!</p>
+<p><span class="math display">
+\begin{aligned}
+health &amp;= \beta_0 + \beta_1 treatment + u,\\
+treatment &amp;= \alpha_0 + \alpha_1 health + v.
+\end{aligned}
+</span></p>
+<p>A shock in <span class="math inline">u</span> changes health, and health in turn affects treatment. Consequently, <span class="math inline">treatment</span> is correlated with <span class="math inline">u</span> and is endogenous in the health equation.</p>
 <p><br></p>
 <p><strong>Reverse Causality</strong></p>
-<p>This type of endogeneity problem is called <span style="color: red;"> reverse causality </span> because the independent variable of interest is causally affected by the dependent variable even though your interest is in the estimation of the impact of the independent variable on the dependent variable.</p>
+<p>This endogeneity problem is called <span style="color: red;">reverse causality</span>: the proposed outcome also affects the explanatory variable of interest. If treatment is chosen using <em>pre-treatment</em> health instead, the problem is more precisely described as selection on baseline health.</p>
 </div>
 <div id="tabset-3-4">
 <div class="panel-tabset">
 <ul id="tabset-2" class="panel-tabset-tabby"><li><a data-tabby-default="" href="#tabset-2-1">Context</a></li><li><a href="#tabset-2-2">Reverse causality</a></li></ul>
 <div class="tab-content">
 <div id="tabset-2-1">
+<details class="transcript">
+<summary>
+Lecturer transcript
+</summary>
+<p>Environmental enforcement provides another setting where policy responds to the outcome it is supposed to improve. Regulators observe discharge quality and target inspections, penalties, or other actions toward facilities with serious violations. We then observe facility-level outcomes and enforcement over time. A naive regression asks whether facilities receiving more enforcement have better water quality. But those facilities were often selected precisely because their water quality was worse. The institutional rule that directs enforcement is therefore part of the econometric model, not background detail.</p>
+</details>
 <p><strong>Context</strong></p>
 <ul>
-<li><p>Under the Clean Water Act, some of those who discharge wastes into water (e.g., oil refinery) need to comply with water quality criteria of their discharges set under the law.</p></li>
-<li><p>EPA (Environmental Protection Agency) can take enforcement actions (e.g., financial penalties) to those who violate the requirements.</p></li>
+<li><p>Under the Clean Water Act, facilities that discharge waste into water (e.g., oil refineries) must comply with applicable discharge requirements.</p></li>
+<li><p>The Environmental Protection Agency (EPA) can take enforcement actions (e.g., financial penalties) against facilities that violate those requirements.</p></li>
 </ul>
 <p><strong>Research Question</strong></p>
-<p>Are enforcement actions effective in improving the water quality of waster discharges?</p>
+<p>Are enforcement actions effective in improving the quality of wastewater discharges?</p>
 <p><br></p>
 <p><strong>Data</strong></p>
 <p>Annual data on</p>
 <ul>
-<li>water quality measures of waster discharges by individual firms</li>
-<li>enforcement actions taken on firms by EPA</li>
+<li>wastewater-discharge quality measures for individual facilities</li>
+<li>enforcement actions taken against facilities by the EPA</li>
 </ul>
 </div>
 <div id="tabset-2-2">
+<details class="transcript">
+<summary>
+Lecturer transcript
+</summary>
+<p>The two arrows are explicit here. Enforcement may improve water quality, which is the causal effect we want. At the same time, poor water quality triggers enforcement. As a result, enforcement actions are correlated with unobserved shocks to water quality. A negative association could mean enforcement harms quality, but it could also mean regulators correctly target deteriorating facilities. Even a positive association can be difficult to interpret without knowing the targeting process. We need exogenous variation in enforcement, a credible panel design, or another identification strategy to separate policy response from policy impact.</p>
+</details>
 <p><strong>Model of Interest</strong></p>
-<p><span class="math inline">\(\mbox{water quality}  = \beta_0 + \beta_1 \mbox{enforcement actions} + u\)</span></p>
+<p><span class="math inline">\text{water quality}  = \beta_0 + \beta_1 \text{enforcement actions} + u</span></p>
 <p><br></p>
 <p><strong>Selection (enforcement decision) model</strong></p>
-<p><span class="math inline">\(\mbox{enforcement actions}  = \beta_0 + \beta_1 \mbox{water quality} + u\)</span></p>
+<p><span class="math inline">\text{enforcement actions}  = \alpha_0 + \alpha_1 \text{water quality} + v</span></p>
 <ul>
 <li>water quality is affected by enforcement actions</li>
-<li>enforcement actions is affected by water quality</li>
+<li>enforcement actions are affected by water quality</li>
 </ul>
 <p><strong>Consequence</strong></p>
-<p>enforcement actions is endogenous because it is a function of water quality itself!</p>
+<p>Enforcement actions are endogenous because they respond to water quality itself.</p>
 </div>
 </div>
 </div>
@@ -338,12 +607,18 @@ irrigation  = \beta_0 + \beta_1 sensor(\mbox{soil type}) + \beta_s \mbox{soil ty
 <ul id="tabset-5" class="panel-tabset-tabby"><li><a data-tabby-default="" href="#tabset-5-1">What is it?</a></li><li><a href="#tabset-5-2">ME in the Dependent Variable</a></li><li><a href="#tabset-5-3">ME in Independent Variables</a></li></ul>
 <div class="tab-content">
 <div id="tabset-5-1">
+<details class="transcript">
+<summary>
+Lecturer transcript
+</summary>
+<p>Measurement error means the recorded variable is not the underlying quantity the model intends to use. Survey respondents may round or misreport income, farmers may recall yields imperfectly, and spatial interpolation gives an estimate rather than the exact weather at a field. The consequences depend critically on which variable is measured with error and how that error is related to the true variable, the regressors, and the structural disturbance. There is no general rule that measurement error always biases every coefficient toward zero. We will first examine error in the dependent variable and then the classical case for an explanatory variable.</p>
+</details>
 <p><strong>Definition</strong></p>
-<p>Inaccuracy in the values observed as opposed to the actual values</p>
+<p>The observed value of a variable differs from its true value.</p>
 <p><br></p>
 <p><strong>Examples</strong></p>
 <ul>
-<li>reporting errors (any kind of survey has the potential of mis-reporting)
+<li>reporting errors (any survey has the potential for misreporting)
 <ul>
 <li>household survey on income and savings</li>
 <li>survey on rice yield by farmers in developing countries</li>
@@ -355,20 +630,26 @@ irrigation  = \beta_0 + \beta_1 sensor(\mbox{soil type}) + \beta_s \mbox{soil ty
 </ul></li>
 </ul>
 <p><strong>Question</strong></p>
-<p>What are the consequences of having measurement errors in variables you use in regression?</p>
+<p>What are the consequences of measurement error in variables used in a regression?</p>
 </div>
 <div id="tabset-5-2">
+<details class="transcript">
+<summary>
+Lecturer transcript
+</summary>
+<p>Start with the true outcome y-star and define the recording error e as observed minus true. Substituting the observed outcome into the model simply adds e to the original disturbance. OLS remains unbiased and consistent if that measurement error has conditional mean zero given all regressors. Intuitively, the observed points become noisier around the same conditional mean, so estimates become less precise but do not systematically tilt. This is a condition, not an automatic result. If reporting error varies systematically with x—for example, high-income households underreport by more—the composite error can be correlated with the regressors and coefficients can be biased.</p>
+</details>
 <p><strong>True Model</strong></p>
-<p><span class="math inline">\(y^*=  \beta_0 + \beta_1 x_1 + \dots + \beta_k x_k + u\)</span></p>
-<p>with MLR.1 through MLR.6 satisfied <span class="math inline">\((u\)</span> is not correlated with any of the independent variables).</p>
+<p><span class="math inline">y^*=  \beta_0 + \beta_1 x_1 + \dots + \beta_k x_k + u</span></p>
+<p>with the relevant OLS assumptions satisfied, including <span class="math inline">E[u\mid x_1,\dots,x_k]=0</span>.</p>
 <p><br></p>
-<p><strong>Measurement Errors</strong></p>
-<p>The difference between the observed <span class="math inline">\((y)\)</span> and actual values <span class="math inline">\(y^*\)</span></p>
-<p><span class="math inline">\(e = y-y^*\)</span></p>
+<p><strong>Measurement error</strong></p>
+<p>Define the difference between the observed value <span class="math inline">y</span> and the true value <span class="math inline">y^*</span> as</p>
+<p><span class="math inline">e = y-y^*</span></p>
 <p><br></p>
 <p><strong>Estimable Model</strong></p>
-<p>Plugging the second equation into the first equation, your model is</p>
-<p><span class="math inline">\(y =  \beta_0 + \beta_1 x_1 + \dots + \beta_k x_k + v, \;\;\mbox{where}\;\; v = (u + e)\)</span></p>
+<p>Using <span class="math inline">y=y^*+e</span>, the estimable model is</p>
+<p><span class="math inline">y =  \beta_0 + \beta_1 x_1 + \dots + \beta_k x_k + v, \qquad v=u+e</span></p>
 <p><br></p>
 <p><strong>Question</strong></p>
 <p>What are the conditions under which OLS estimators are unbiased?</p>
@@ -377,8 +658,8 @@ irrigation  = \beta_0 + \beta_1 sensor(\mbox{soil type}) + \beta_s \mbox{soil ty
 <summary>
 Answer
 </summary>
-<p><span class="math inline">\(E[e|x_1, \dots, x_k] = 0\)</span></p>
-So, as long as the measurement error is uncorrelated with the independent variables, OLS estimators are still unbiased.
+<p><span class="math inline">E[e\mid x_1, \dots, x_k] = 0</span></p>
+Together with <span class="math inline">E[u\mid x_1,\dots,x_k]=0</span>, this implies <span class="math inline">E[v\mid x_1,\dots,x_k]=0</span>. Measurement error in the dependent variable then increases noise but does not bias the OLS coefficient estimators.
 </details>
 </div>
 <div id="tabset-5-3">
@@ -386,23 +667,35 @@ So, as long as the measurement error is uncorrelated with the independent variab
 <ul id="tabset-4" class="panel-tabset-tabby"><li><a data-tabby-default="" href="#tabset-4-1">Setup</a></li><li><a href="#tabset-4-2">Classical errors-in-variables (CEV)</a></li><li><a href="#tabset-4-3">Direction of bias</a></li></ul>
 <div class="tab-content">
 <div id="tabset-4-1">
+<details class="transcript">
+<summary>
+Lecturer transcript
+</summary>
+<p>Now the explanatory variable is measured imperfectly. The true model uses x-star, but we only observe x, which equals x-star plus error. Solving for x-star and substituting produces an estimable equation in x with a composite error v equal to u minus beta one times e. This is the key difference from outcome measurement error: the same e appears both inside the observed regressor and inside the new error term. The OLS requirement is therefore immediately in danger. We next impose the classical assumptions to see whether that seemingly favorable case solves the problem—it does not.</p>
+</details>
 <p><strong>True Model</strong></p>
 <p>Consider the following general model</p>
-<p><span class="math inline">\(y =  \beta_0 + \beta_1 x_1^* + u\)</span></p>
-<p>with MLR.1 through MLR.6 satisfied.</p>
+<p><span class="math inline">y =  \beta_0 + \beta_1 x_1^* + u</span></p>
+<p>with the relevant OLS assumptions satisfied.</p>
 <p><br></p>
-<p><strong>Measurement Errors</strong></p>
-<p>The difference between the observed <span class="math inline">\((x_1)\)</span> and actual values <span class="math inline">\((x_1^*)\)</span></p>
-<p><span class="math inline">\(e_1 = x_1-x_1^*\)</span></p>
+<p><strong>Measurement error</strong></p>
+<p>Define the difference between the observed value <span class="math inline">x_1</span> and the true value <span class="math inline">x_1^*</span> as</p>
+<p><span class="math inline">e_1 = x_1-x_1^*</span></p>
 <p><br></p>
 <p><strong>Estimable Model</strong></p>
-<p>Plugging the second equation into the first equation,</p>
-<p><span class="math inline">\(y =  \beta_0 + \beta_1 x_1 + v, \;\;\mbox{where}\;\; v = (u - \beta e_1)\)</span></p>
+<p>Using <span class="math inline">x_1^*=x_1-e_1</span>, the estimable model is</p>
+<p><span class="math inline">y =  \beta_0 + \beta_1 x_1 + v, \qquad v=u-\beta_1 e_1</span></p>
 <p><br></p>
 <p><strong>Question</strong></p>
-<p><span class="math inline">\(E[e_1|x_1] = 0\)</span> needs to be satisfied for the OLS estimators to be unbiased. Does this hold?</p>
+<p>OLS requires <span class="math inline">E[v\mid x_1]=0</span>. Even when <span class="math inline">u</span> is exogenous, this condition fails if the observed regressor <span class="math inline">x_1</span> is correlated with its measurement error <span class="math inline">e_1</span>. Does classical measurement error create such a correlation?</p>
 </div>
 <div id="tabset-4-2">
+<details class="transcript">
+<summary>
+Lecturer transcript
+</summary>
+<p>Classical measurement error is mean zero and uncorrelated with the true regressor and the structural error. Even under those strong assumptions, the observed x contains e by construction. Its covariance with e therefore includes the variance of e, which is positive whenever measurement error exists. Because v contains minus beta one times e, observed x is correlated with v. This is the endogeneity result. It can feel surprising: e is unrelated to the true x, yet it is necessarily related to the recorded x because the recorded value literally includes it.</p>
+</details>
 <div title="Definition">
 <div class="callout callout-note no-icon callout-titled callout-style-default">
 <div class="callout-body">
@@ -410,50 +703,56 @@ So, as long as the measurement error is uncorrelated with the independent variab
 <p><strong>Definition</strong></p>
 </div>
 <div class="callout-content">
-<p>The correctly observed variable <span class="math inline">\((x_1^*)\)</span> is uncorrelated with the measurement error <span class="math inline">\((e_1)\)</span>:</p>
-<p><span class="math inline">\(Cov(x_1^*, e_1) = 0\)</span></p>
+<p>Under classical errors-in-variables assumptions, the measurement error has mean zero and is uncorrelated with both the true regressor and the structural error:</p>
+<p><span class="math inline">E[e_1]=0,\qquad \operatorname{Cov}(x_1^*,e_1)=0,\qquad \operatorname{Cov}(u,e_1)=0.</span></p>
 </div>
 </div>
 </div>
 </div>
-<p>Unfortunately, <span class="math inline">\(E[e_1|x_1] = 0\)</span> never holds with CEV. The incorrectly observed variable <span class="math inline">\((x_1)\)</span> must be correlated with the measurement error <span class="math inline">\((e_1)\)</span>:</p>
-<span class="math display">\[\begin{align*}
-Cov(x_1,e_1) &amp; = E[x_1 e_1]-E[x_1]E[e_1] \\
-&amp; = E[(x_1^*+e_1)e_1]-E[x_1^*+e_1)]E[e_1] \\
-&amp; = E[x_1^*e_1+e_1^2]-E[x_1^*+e_1)]E[e_1] \\
-&amp; = \sigma_{e_1}^2 =\sigma_{e_1}^2
-\end{align*}\]</span>
-<p>So, the mis-measured variable <span class="math inline">\((x_1)\)</span> is always correlated with the measurement error <span class="math inline">\((e_1)\)</span>.</p>
+<p>Even though <span class="math inline">e_1</span> is uncorrelated with <span class="math inline">x_1^*</span>, it is correlated with the observed regressor <span class="math inline">x_1=x_1^*+e_1</span>:</p>
+<span class="math display">\begin{align*}
+\operatorname{Cov}(x_1,e_1)
+&amp;=\operatorname{Cov}(x_1^*+e_1,e_1)\\
+&amp;=\operatorname{Cov}(x_1^*,e_1)+\operatorname{Var}(e_1)\\
+&amp;=\sigma_{e_1}^2&gt;0.
+\end{align*}</span>
+<p>Thus, under the classical assumptions, the mismeasured regressor is correlated with the composite error <span class="math inline">v=u-\beta_1e_1</span>.</p>
 </div>
 <div id="tabset-4-3">
+<details class="transcript">
+<summary>
+Lecturer transcript
+</summary>
+<p>In the simple-regression classical case, the probability limit equals the true coefficient multiplied by the reliability ratio lambda. Lambda is the variance of the true signal divided by total observed variance, signal plus measurement-error noise. It lies between zero and one, so the estimate is pulled toward zero. A positive coefficient is biased downward; a negative coefficient is biased upward, meaning less negative. More measurement-error variance produces more attenuation. Remember the scope of this result: it is the classical, single-mismeasured-regressor case. With nonclassical error, multiple regressors, or several mismeasured variables, the direction need not be toward zero.</p>
+</details>
 <p><strong>Question</strong></p>
 <p>So, what is the direction of the bias?</p>
 <p><br></p>
-<p><strong>Note</strong></p>
-<p>The sign of the bias on <span class="math inline">\(x_1\)</span> is the sign of the correlation between <span class="math inline">\(x_1\)</span> and <span class="math inline">\(v = (u - \beta e_1)\)</span>.</p>
-<p><br></p>
 <p><strong>Direction of bias</strong></p>
+<p>Under classical measurement error,</p>
+<p><span class="math display">
+\operatorname{plim}(\widehat{\beta}_1)
+=\beta_1\frac{\operatorname{Var}(x_1^*)}
+{\operatorname{Var}(x_1^*)+\operatorname{Var}(e_1)}
+=\lambda\beta_1,
+\qquad 0&lt;\lambda&lt;1.
+</span></p>
 <ul>
-<li><p>Correlation between <span class="math inline">\(x_1\)</span> and <span class="math inline">\(u\)</span> is zero</p></li>
-<li><p>The sign of the correlation between <span class="math inline">\(x_1\)</span> and <span class="math inline">\(e_1\)</span> is positive (see the previous slide), which means that the sign of the correlation between <span class="math inline">\(x_1\)</span> and <span class="math inline">\(- \beta e_1\)</span> is the sign of <span class="math inline">\(- \beta\)</span>.</p>
-<ul>
-<li>if <span class="math inline">\(\beta &gt; 0\)</span>, then the sign of the bias is negative</li>
-<li>if <span class="math inline">\(\beta &lt; 0\)</span>, then the sign of the bias is positive</li>
-</ul></li>
+<li>If <span class="math inline">\beta_1&gt;0</span>, the asymptotic bias is negative.</li>
+<li>If <span class="math inline">\beta_1&lt;0</span>, the asymptotic bias is positive.</li>
 </ul>
 <p><br></p>
-<div title="Attenuation Bias">
+<div title="Attenuation bias">
 <div class="callout callout-note no-icon callout-titled callout-style-default">
 <div class="callout-body">
 <div class="callout-title">
-<p><strong>Attenuation Bias</strong></p>
+<p><strong>Attenuation bias</strong></p>
 </div>
 <div class="callout-content">
 <ul>
-<li><p>So, the bias is such that your estimate of the coefficient on <span class="math inline">\(x_1\)</span> is biased toward 0.</p></li>
-<li><p>In other words, your estimated impact of a mis-measured independent variable will look less influential than it actually is</p></li>
+<li><p>The coefficient estimator is inconsistent and converges toward zero relative to the true coefficient.</p></li>
+<li><p>More measurement-error variance makes the attenuation factor <span class="math inline">\lambda</span> smaller.</p></li>
 </ul>
-<p>(Imagine you mislabeled the treatment status of your experiment)</p>
 </div>
 </div>
 </div>
@@ -489,7 +788,6 @@ Cov(x_1,e_1) &amp; = E[x_1 e_1]-E[x_1]E[e_1] \\
   <script src="../../site_libs/revealjs/plugin/notes/notes.js"></script>
   <script src="../../site_libs/revealjs/plugin/search/search.js"></script>
   <script src="../../site_libs/revealjs/plugin/zoom/zoom.js"></script>
-  <script src="../../site_libs/revealjs/plugin/math/math.js"></script>
   <script>window.define = window.backupDefine; window.backupDefine = undefined;</script>
 
   <script>
@@ -657,27 +955,9 @@ Cov(x_1,e_1) &amp; = E[x_1 e_1]-E[x_1]E[e_1] \\
         // Factor of the display size that should remain empty around the content
         margin: 0.1,
 
-        math: {
-          mathjax: 'https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.9/MathJax.js',
-          config: 'TeX-AMS_HTML-full',
-          tex2jax: {
-            inlineMath: [['\\(','\\)']],
-            displayMath: [['\\[','\\]']],
-            balanceBraces: true,
-            processEscapes: false,
-            processRefs: true,
-            processEnvironments: true,
-            preview: 'TeX',
-            skipTags: ['script','noscript','style','textarea','pre','code'],
-            ignoreClass: 'tex2jax_ignore',
-            processClass: 'tex2jax_process'
-          },
-        },
-
         // reveal.js plugins
         plugins: [QuartoLineHighlight, PdfExport, RevealMenu, QuartoSupport,
 
-          RevealMath,
           RevealNotes,
           RevealSearch,
           RevealZoom

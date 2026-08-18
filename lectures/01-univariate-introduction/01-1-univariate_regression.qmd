@@ -1,7 +1,8 @@
 ---
 title: "01-1: Univariate Regression: Introduction"
 format: 
-  revealjs: 
+  revealjs:
+    html-math-method: katex
     theme: [default, ../custom.scss, ../notebook.scss]
     fontsize: 1.2em
     callout-icon: false
@@ -22,12 +23,12 @@ library(dplyr)
 library(ggplot2)
 
 theme_lecture <- 
-  theme_bw() +
+  theme_bw(base_size = 30) +
   theme(
-    axis.text = element_text(size = 20),
-    axis.title = element_text(size = 20),
-    legend.text = element_text(size = 16),
-    legend.title = element_text(size = 16)
+    axis.text = element_text(size = 30),
+    axis.title = element_text(size = 30),
+    legend.text = element_text(size = 27),
+    legend.title = element_text(size = 27)
   )
 ```
 
@@ -192,7 +193,7 @@ That is, $y$ changes by $\beta_1$.
 <details class="transcript">
 <summary>Lecturer transcript</summary>
 
-Beta-zero is the easy one, algebraically. Set x to zero and set u to zero, and the equation collapses to y equals beta-zero. So it is the intercept, and because the error averages to zero, it is the average value of y among those with x equal to zero. Now read the note, because this is where the intercept gets oversold. In a wage-on-education regression, beta-zero is the average wage of a person with zero years of schooling, and there is no such person in your data. It still has to be in the model, because including it is what forces the error term to average to zero. Just do not tell a story about it.
+Beta-zero is the easy one algebraically. Set x to zero and set u to zero, and the equation collapses to y equals beta-zero, so it is the intercept. Under the zero conditional mean condition introduced later, the average error among observations with x equal to zero is also zero. Only under that condition does beta-zero equal the average value of y at x equal to zero. Now read the note, because this is where the intercept gets oversold. If zero is outside the observed range of x, beta-zero is an extrapolation and may have little useful interpretation. We normally retain an intercept so the model is not unnecessarily constrained to pass through the origin.
 
 </details>
 
@@ -212,10 +213,10 @@ y=\beta_0
 
 So, $\beta_0$ represents the intercept.
 
-Since we will always have $E[u]=0$ (see the <span style = "color: blue;"> Crucial condition </span> tab in the next section), this says $\beta_0 = E[y|x=0]$: the average value of $y$ among those with $x=0$.
+Under the zero conditional mean condition $E[u|x]=0$ (see the <span style = "color: blue;"> Crucial condition </span> tab in the next section), $\beta_0 = E[y|x=0]$: the average value of $y$ among those with $x=0$.
 
 :::{.callout-note}
-$\beta_0$ is only <span style = "color: blue;"> interpretable </span> when $x=0$ is a value that actually occurs. In a wage-education regression, $\beta_0$ is the average wage of someone with zero years of education, which is nobody in your data. The intercept still needs to be in the model (it is what makes $E[u]=0$ true), but do not try to tell a story about it.
+$\beta_0$ is most useful when $x=0$ is substantively meaningful and within the observed range. Otherwise it is an extrapolation. The intercept should normally remain in the model so the regression is not forced through the origin, but it may not deserve a substantive story.
 :::
 
 ### Visualized
@@ -339,8 +340,8 @@ Here are two quantities written side by side, and the gap between them is the wh
 
 Let's say your ability score is $6$ out of $10$ (the higher, the better),
 
-$$\mbox{(1)}\;\; E[inc|A] -E[inc|B] \;\;\; \mbox{(the raw difference in the table)}$$
-$$\mbox{(2)}\;\; E[inc|A,ability=6] -E[inc|B,ability=6]$$
+$$\text{(1)}\;\; E[inc|A] -E[inc|B] \;\;\; \text{(the raw difference in the table)}$$
+$$\text{(2)}\;\; E[inc|A,ability=6] -E[inc|B,ability=6]$$
 
 Which one would you like to know?
 
@@ -470,7 +471,7 @@ How could we possibly find the **ceteris paribus** impact of fertilizer on yield
 <details class="transcript">
 <summary>Lecturer transcript</summary>
 
-Here is the answer, and it is one line: the expected value of u given x is zero. Read the Why block underneath it. You never have to observe the unobservables. You only need them to be unrelated to x, so that when you look at fields with more fertilizer, everything else about them averages out the same as on fields with less. If that holds, any difference in yield across fertilizer rates is attributable to fertilizer, because nothing else changed systematically. That is how you hold fixed what you cannot see. The two practical bullets are what you will actually check: is the error correlated with x, and is there an intercept in the model.
+Here is the answer, and it is one line: the expected value of u given x is zero. Read the Why block underneath it. You need the conditional average of the unobservables not to change with x, so that when you look at fields with more fertilizer, everything else about them averages out the same as on fields with less. If that holds, differences in expected yield across fertilizer rates trace the regression function. Interpreting that relationship causally also requires x to represent a well-defined intervention and the model to be correctly specified. Remember that merely having zero correlation is weaker, and including an intercept only normalizes the unconditional average error; neither fact by itself establishes zero conditional mean.
 
 </details>
 
@@ -482,12 +483,12 @@ $E(u|x) = 0$
 
 **Why this is the condition.** $\beta_1$ is a ceteris paribus effect, so it is only recoverable if the rest of the world does not move when $x$ does. $E[u|x]=0$ says exactly that: whatever value of $x$ you look at, the unobservables average out to the same thing. Any difference in $y$ across values of $x$ is then attributable to $x$ alone.
 
-This is satisfied when $E[u|x]=E[u]$ and $E[u] = 0$. Practically (and roughly) speaking, this condition is satisfied if
+This is satisfied when $E[u|x]=E[u]$ and the intercept normalization gives $E[u]=0$. Two distinctions matter:
 
 
 :::{.callout-important}
-+ <span style = "color: blue;"> the error term ($u$) is not correlated with $x$ </span>  
-+ an intercept ($\beta_0$) is included in the model (which we almost always do by default)
++ $E[u|x]=0$ implies that $u$ is uncorrelated with $x$, but zero correlation alone does <span style = "color: red;">not</span> imply zero conditional mean
++ including an intercept can normalize $E[u]=0$, but it does <span style = "color: red;">not</span> make $E[u|x]=0$ true
 :::
 
 ### Condition satisfied?
@@ -557,8 +558,8 @@ Mean independence of $u$ and $x$ implies no correlation. But, no correlation doe
     Cov(u,x)= & E[(u-E[u])(x-E[x])] \\\\
     = & E[ux]-E[u]E[x]-E[u]E[x]+E[u]E[x]\\\\
     = & E[ux]-E[u]E[x] \\\\
-    = & E[ux] \;\; \mbox{(since } E[u]=0 \mbox{)} \\\\
-    = & E_x\big[x\,E_u[u|x]\big] \;\; \mbox{(law of iterated expectations)}
+    = & E[ux] \;\; \text{(since } E[u]=0 \text{)} \\\\
+    = & E_x\big[x\,E_u[u|x]\big] \;\; \text{(law of iterated expectations)}
 \end{aligned}
 ```
 
@@ -583,7 +584,7 @@ Expected value of the error term is 0 $(E(u)=0)$.
 
 This is always satisfied as long as an intercept is included in the model:
 
-$$y = \beta_0 + \beta_1 x + u_1,\;\; \mbox{where}\;\; E(u_1)=\alpha$$
+$$y = \beta_0 + \beta_1 x + u_1,\;\; \text{where}\;\; E(u_1)=\alpha$$
 
 Rewriting the model,
 
@@ -740,6 +741,3 @@ Before the next lecture, do this for a question of your own, and I do mean your 
 + construct a simple linear model
 + identify what is in the error term
 + check if they are correlated with the explanatory variable or not
-
-
-

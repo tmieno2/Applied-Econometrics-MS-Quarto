@@ -99,7 +99,23 @@
     code span.vs { color: #20794d; } /* VerbatimString */
     code span.wa { color: #5e5e5e; font-style: italic; } /* Warning */
   </style>
-  <link rel="stylesheet" href="../../site_libs/revealjs/dist/theme/quarto-efe7f97d24ea27507c65df08cab6e7d6.css">
+  <link rel="stylesheet" href="../../site_libs/revealjs/dist/theme/quarto-db62157d6cf4bc51d0b25352aea75d23.css">
+  <script>window.backupDefine = window.define; window.define = undefined;</script><script src="https://cdn.jsdelivr.net/npm/katex@latest/dist/katex.min.js"></script>
+  <script>document.addEventListener("DOMContentLoaded", function () {
+ var mathElements = document.getElementsByClassName("math");
+ var macros = [];
+ for (var i = 0; i < mathElements.length; i++) {
+  var texText = mathElements[i].firstChild;
+  if (mathElements[i].tagName == "SPAN") {
+   katex.render(texText.data, mathElements[i], {
+    displayMode: mathElements[i].classList.contains('display'),
+    throwOnError: false,
+    macros: macros,
+    fleqn: false
+   });
+}}});
+  </script>
+  <script>window.define = window.backupDefine; window.backupDefine = undefined;</script><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@latest/dist/katex.min.css">
   <link href="../../site_libs/revealjs/plugin/quarto-line-highlight/line-highlight.css" rel="stylesheet">
   <link href="../../site_libs/revealjs/plugin/reveal-menu/menu.css" rel="stylesheet">
   <link href="../../site_libs/revealjs/plugin/reveal-menu/quarto-menu.css" rel="stylesheet">
@@ -192,6 +208,326 @@
       margin-right: 0; 
     }
   </style>
+  <!--
+    Support for collapsible "Lecturer transcript" panels in revealjs decks.
+
+    Include it from a deck's YAML header, with the path relative to the qmd:
+
+        format:
+          revealjs:
+            include-in-header: ../transcript-support.html
+
+    Then add a transcript anywhere inside a slide (or inside a single tab of a
+    tabset, which is the usual case):
+
+        <details class="transcript">
+        <summary>Lecturer transcript</summary>
+
+        What the lecturer says about this tab.
+
+        </details>
+
+    On a tab whose figure fills the whole slide there is no free rectangle to
+    overlay, so add "inline" and the panel joins the flow when opened, pushing the
+    figure down instead of covering it:
+
+        <details class="transcript inline">
+
+    Use it only where it is needed. Measure rather than guess: an open panel must
+    not overlap a ".cell-output-display". The collapsed pill still costs 0px in
+    both variants, which is the property the whole design exists to preserve.
+
+    It must live in the header rather than the body of a qmd: raw HTML placed
+    above the first "##" heading becomes its own untitled slide.
+
+    <details> is a native HTML element, so the collapse/expand works with no
+    JavaScript at all, including in a self-contained (embed-resources) file. The
+    script at the bottom adds one behaviour on top: collapsing an open panel when
+    the reader moves on. Without it everything still works, panels just keep their
+    open state.
+
+    Audience: students reviewing after class. These are not presenter notes -
+    reveal's own ".notes" blocks are the presenter-only mechanism.
+  -->
+  <style>
+  /* The panel is positioned against the slide rather than sitting in its normal
+     flow. That is the whole point: collapsed it costs the slide no vertical
+     space, and opened it overlays the content instead of pushing it off the
+     bottom edge. Each panel lives inside its own tab, and hidden tabs do not
+     render, so only the visible tab's transcript is ever shown. */
+  .reveal details.transcript {
+    position: absolute;
+    top: 0;
+    right: 0;
+    z-index: 20;
+    width: auto;
+    font-size: 0.55em;
+    line-height: 1.45;
+    text-align: left;
+    border-radius: 6px;
+    /* custom.scss styles every bare <details> as an "answer box" (grey border
+       plus padding) for Quarto's folded-code blocks. Opt out of both here so the
+       collapsed pill is not sitting inside a grey rectangle. */
+    border: none;
+    padding: 0;
+  }
+
+  /* Collapsed: a small pill that hugs the top-right corner. */
+  .reveal details.transcript > summary {
+    display: inline-block;
+    cursor: pointer;
+    list-style: none;
+    outline: none;
+    /* custom.scss pulls every bare <summary> with a negative margin; undo it. */
+    margin: 0;
+    padding: 0.15em 0.7em;
+    border: 1px solid #06a666;
+    border-radius: 999px;
+    background: #ffffff;
+    color: #06a666;
+    font-weight: 600;
+    white-space: nowrap;
+    -webkit-user-select: none;
+    user-select: none;
+  }
+  .reveal details.transcript > summary::-webkit-details-marker { display: none; }
+  .reveal details.transcript > summary::before { content: "\25B8\00A0"; }
+  .reveal details.transcript[open] > summary::before { content: "\25BE\00A0"; }
+
+  /* Opened: a tall, narrow panel down the right-hand side, where slide content
+     rarely reaches. It starts below the tab bar so tab names stay clickable
+     while a transcript is open, and runs down to just above the footer.
+
+     Measured as a share of the 700px logical slide. A top-level tab bar ends at
+     12.4-13%, so 21% clears it everywhere.
+
+     A tab bar that sits lower on the slide is cleared HORIZONTALLY instead: the
+     panel occupies x 62-100%, and no tab row measured so far reaches past x 66%.
+     Cases seen, all fine:
+       00-1  nested tabset          18.9%, names reach x 15%
+       00-1  tabset below prose     40.8%, names reach x 59%
+       01-2  nested tabset          29.6%, names reach x 46%
+     So the rule to preserve is not "top clears every tab bar" but "no tab NAME
+     overlaps the panel's rectangle". Re-check that if a deck grows a long tab row
+     sitting low on the slide. */
+  .reveal details.transcript[open] {
+    top: 21%;
+    width: 36%;
+    max-height: 75%;
+    overflow-y: auto;
+    padding: 0.55em 0.85em 0.7em;
+    background: #f4fbf8;
+    border: 1px solid #06a666;
+    box-shadow: 0 6px 22px rgba(0, 0, 0, 0.16);
+  }
+  .reveal details.transcript[open] > summary {
+    display: block;
+    padding: 0 0 0.4em 0;
+    border: none;
+    border-radius: 0;
+    background: transparent;
+  }
+  .reveal details.transcript p { margin: 0.35em 0; }
+
+  /* Opt-out, applied per tab as class="transcript inline".
+     Some figures are rendered at out-width 80% and span x 1.4-98.6% of the slide,
+     running from just under the tab bar down to y ~95%. There is no rectangle
+     left to overlay, so on those tabs the panel joins the normal flow when opened
+     and pushes the figure down; the slide is "scrollable: true", so the figure
+     stays reachable. Note this rule only touches [open]: collapsed, the pill is
+     still absolutely positioned at the top-right corner and still costs 0px. */
+  .reveal details.transcript.inline[open] {
+    position: static;
+    width: auto;
+    max-height: none;
+    overflow-y: visible;
+    margin: 0 0 0.9em 0;
+  }
+
+  /* No .slide-logo rule here: no deck in this course sets a "logo:" in its YAML,
+     so the bottom-right corner the panel would collide with is already free. If
+     a logo is ever added, move it out of the way with
+     .reveal .slide-logo { right: auto !important; left: 56px !important; }
+     where 56px clears reveal's menu button at x 8-43px. */
+  </style>
+
+  <script>
+  // Collapse any open transcript when the reader moves to another slide or
+  // another tab, so a panel left open never reappears over unrelated content.
+  (function () {
+    function closeAll() {
+      document.querySelectorAll("details.transcript[open]")
+        .forEach(function (d) { d.open = false; });
+    }
+
+    // Slide changes come from reveal, which is not ready when this runs.
+    function hookReveal() {
+      if (window.Reveal && typeof Reveal.on === "function") {
+        Reveal.on("slidechanged", closeAll);
+        Reveal.on("overviewshown", closeAll);
+        return true;
+      }
+      return false;
+    }
+    if (!hookReveal()) {
+      var tries = 0;
+      var timer = setInterval(function () {
+        if (hookReveal() || ++tries > 100) clearInterval(timer);
+      }, 100);
+    }
+
+    // Tab changes are plain clicks; capture so this runs before the tab switches.
+    document.addEventListener("click", function (e) {
+      var el = e.target;
+      if (el && el.closest && el.closest('.panel-tabset [role="tab"]')) closeAll();
+    }, true);
+  })();
+  </script>
+  <!-- Adaptive code/output layout for WebR cells in revealjs lecture decks. -->
+  <script>
+  (function () {
+    "use strict";
+
+    var MAX_CODE_LINES = 12;
+    var MAX_CODE_SHARE = 0.58;
+    var MIN_CODE_SHARE = 0.30;
+    var MAX_OUTPUT_SHARE = 0.70;
+
+    function detailsFor(area) {
+      var match = area.id && area.id.match(/qwebr-interactive-area-(\d+)/);
+      if (!match || !globalThis.qwebrCellDetails) return null;
+      return globalThis.qwebrCellDetails[Number(match[1]) - 1] || null;
+    }
+
+    function codeMetrics(code) {
+      var lines = String(code || "").split("\n");
+      var substantive = lines.filter(function (line) {
+        return line.trim() && !/^\s*#/.test(line);
+      });
+      return {
+        lines: substantive.length,
+        maxChars: lines.reduce(function (n, line) {
+          return Math.max(n, line.replace(/\t/g, "  ").length);
+        }, 0)
+      };
+    }
+
+    function setTracks(host, codeShare) {
+      codeShare = Math.max(MIN_CODE_SHARE, Math.min(MAX_CODE_SHARE, codeShare));
+      var outputShare = 1 - codeShare;
+      host.style.setProperty("--webr-code-track", codeShare + "fr");
+      host.style.setProperty("--webr-output-track", outputShare + "fr");
+      host.style.setProperty("--webr-code-share", (codeShare * 100) + "%");
+    }
+
+    function measureRenderedCode(area, host, code, attempt) {
+      if (host.dataset.webrLayout !== "side") return;
+      var sample = area.querySelector(".view-line, .monaco-editor");
+      if (!sample || !area.clientWidth) {
+        if (attempt < 20) setTimeout(function () {
+          measureRenderedCode(area, host, code, attempt + 1);
+        }, 100);
+        return;
+      }
+      var style = getComputedStyle(sample);
+      var canvas = document.createElement("canvas");
+      var context = canvas.getContext("2d");
+      context.font = [style.fontStyle, style.fontWeight, style.fontSize,
+        style.fontFamily].filter(Boolean).join(" ");
+      var widest = String(code || "").split("\n").reduce(function (width, line) {
+        return Math.max(width, context.measureText(line.replace(/\t/g, "  ")).width);
+      }, 0);
+      // Monaco's line-number gutter, padding, and scrollbar need about 76px in
+      // addition to the measured glyph width.
+      var available = Math.max(1, area.clientWidth - 16);
+      setTracks(host, (widest + 76) / available);
+    }
+
+    function stack(host) {
+      if (host.dataset.webrLayoutManual === "true") return;
+      host.classList.remove("side-out");
+      host.dataset.webrLayout = "stacked";
+    }
+
+    function assessOutput(area, host, metrics) {
+      if (host.dataset.webrLayout !== "side") return;
+      var graph = area.querySelector(".qwebr-output-graph-area canvas, .qwebr-output-graph-area img");
+      if (graph) return; // plots scale cleanly within their grid track
+
+      var pre = area.querySelector(".qwebr-output-code-area pre");
+      if (!pre || getComputedStyle(pre).visibility === "hidden") return;
+
+      var codeNeed = Math.max(MIN_CODE_SHARE,
+        Math.min(MAX_CODE_SHARE, (metrics.maxChars + 8) / 150));
+      var available = Math.max(1, area.clientWidth - 16);
+      var outputNeed = Math.min(MAX_OUTPUT_SHARE,
+        Math.max(0.42, (pre.scrollWidth + 24) / available));
+      var outputLines = (pre.innerText || "").split("\n").length;
+
+      // If both measured widths cannot coexist, or the console result is too
+      // tall to read as a right-hand panel, retain WebR's original vertical stack.
+      if (codeNeed + outputNeed > 1 || outputLines > 16 ||
+          pre.scrollHeight > area.ownerDocument.documentElement.clientHeight * 0.62) {
+        stack(host);
+        return;
+      }
+
+      setTracks(host, 1 - outputNeed);
+      requestAnimationFrame(function () {
+        if (pre.scrollWidth > pre.clientWidth * 1.08) stack(host);
+      });
+    }
+
+    function configure(area) {
+      if (area.dataset.webrLayoutChecked === "true") return;
+      area.dataset.webrLayoutChecked = "true";
+
+      var details = detailsFor(area);
+      if (!details || !details.options || details.options.context === "setup") return;
+      var metrics = codeMetrics(details.code);
+      if (!metrics.lines || metrics.lines > MAX_CODE_LINES || metrics.maxChars > 88) return;
+
+      var existingWrapper = area.closest(".side-out");
+      var host = existingWrapper || area.closest(".cell") || area.parentElement;
+      if (!host) return;
+
+      if (existingWrapper) {
+        host.dataset.webrLayoutManual = "true";
+      } else {
+        host.classList.add("side-out");
+      }
+      host.dataset.webrLayout = "side";
+
+      // Estimate an initial split from the longest source line. The output is
+      // intentionally favoured; actual output dimensions refine it after a run.
+      var initialCodeShare = (metrics.maxChars + 10) / 145;
+      setTracks(host, initialCodeShare);
+      measureRenderedCode(area, host, details.code, 0);
+
+      var observer = new MutationObserver(function () {
+        requestAnimationFrame(function () { assessOutput(area, host, metrics); });
+      });
+      observer.observe(area, { childList: true, subtree: true, characterData: true,
+        attributes: true, attributeFilter: ["style", "class"] });
+      requestAnimationFrame(function () { assessOutput(area, host, metrics); });
+    }
+
+    function scan() {
+      document.querySelectorAll(".qwebr-interactive-area").forEach(configure);
+    }
+
+    var pageObserver = new MutationObserver(scan);
+    function start() {
+      scan();
+      pageObserver.observe(document.body, { childList: true, subtree: true });
+    }
+    if (document.readyState === "loading") {
+      document.addEventListener("DOMContentLoaded", start, { once: true });
+    } else {
+      start();
+    }
+  })();
+  </script>
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/monaco-editor@0.47.0/min/vs/editor/editor.main.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
     
@@ -482,7 +818,7 @@
   };
 
   // Store cell data
-  globalThis.qwebrCellDetails = [{"code":"#--- Preparation ---#\nB <- 1000 # the number of iterations\nN_list <- c(100, 1000, 10000) # sample size\nN_len <- length(N_list)\nestimate_storage <- matrix(0, B, 3) # estimates storage\n\nfor (j in 1:N_len) {\n  temp_N <- N_list[j]\n  for (i in 1:B) {\n    #--- generate data ---#\n    x <- rnorm(temp_N) # indep var 1\n    u <- rnorm(temp_N) * 0.2 # error\n    y <- 1 + x + u # dependent variable 1\n    data <- data.frame(y = y, x = x)\n\n    #--- OLS ---#\n    reg <- lm(y ~ x, data = data) # OLS\n\n    #--- store coef estimates ---#\n    estimate_storage[i, j] <- reg$coef[2]\n  }\n}","id":1,"options":{"autorun":"false","classes":"","comment":"","context":"interactive","dpi":72,"editor-font-scale":"0.8","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":5,"fig-width":7,"label":"unnamed-chunk-1","message":"true","out-height":"","out-width":"700px","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"plot_data <- melt(data.frame(estimate_storage))\n\n#--- create a figure ---#\ng_co_ex <-\n  ggplot(data = plot_data) +\n  geom_density(aes(x = value, fill = variable), alpha = 0.4) +\n  geom_vline(xintercept = 1) +\n  xlim(0.9, 1.1) +\n  scale_fill_discrete(\n    name = \"Sample Size\",\n    labels = c(\"N=100 \", \"N=1,000 \", \"N=10,000\")\n  ) +\n  theme(\n    legend.position = \"bottom\"\n  )\n\ng_co_ex","id":2,"options":{"autorun":"false","classes":"","comment":"","context":"interactive","dpi":72,"editor-font-scale":"0.8","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":5,"fig-width":7,"label":"unnamed-chunk-2","message":"true","out-height":"","out-width":"700px","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"#--- Preparation ---#\nN_list <- c(100, 1000, 10000) # sample size\nN_len <- length(N_list)\nestimate_storage <- matrix(0, B, 3) # estimates storage\n\nfor (j in 1:N_len) {\n  temp_N <- N_list[j]\n  for (i in 1:B) {\n    #--- generate data ---#\n    mu <- rnorm(temp_N) # shared term between x and u #<<\n    x <- rnorm(temp_N) + 0.5 * mu # <<\n    u <- rnorm(temp_N) + 0.5 * mu # <<\n    y <- 1 + x + u # dependent variable\n    data <- data.frame(y = y, x = x)\n\n    #--- OLS ---#\n    reg <- lm(y ~ x, data = data) # OLS\n\n    #--- store coef estimates ---#\n    estimate_storage[i, j] <- reg$coef[2]\n  }\n}","id":3,"options":{"autorun":"false","classes":"","comment":"","context":"interactive","dpi":72,"editor-font-scale":"0.8","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":5,"fig-width":7,"label":"unnamed-chunk-3","message":"true","out-height":"","out-width":"700px","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"#--- wide to long format ---#\nplot_data <- melt(data.frame(estimate_storage))\n\n#--- create a figure ---#\ng_inco_ex <- ggplot(data = plot_data) +\n  geom_density(aes(x = value, fill = variable), alpha = 0.4) +\n  geom_vline(xintercept = 1) +\n  scale_fill_discrete(\n    name = \"Sample Size\",\n    labels = c(\"N=100 \", \"N=1,000 \", \"N=10,000\")\n  ) +\n  theme(\n    legend.position = \"bottom\"\n  )\n\ng_inco_ex","id":4,"options":{"autorun":"false","classes":"","comment":"","context":"interactive","dpi":72,"editor-font-scale":"0.8","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":5,"fig-width":7,"label":"unnamed-chunk-4","message":"true","out-height":"","out-width":"700px","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"(\nx <- runif(10) < 0.3\n)\n\nsqrt(10) * (mean(x) - 0.3)","id":5,"options":{"autorun":"true","classes":"","comment":"","context":"interactive","dpi":72,"editor-font-scale":"0.8","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":5,"fig-width":7,"label":"unnamed-chunk-5","message":"true","out-height":"","out-width":"700px","output":"true","read-only":"false","results":"markup","warning":"true"}}];
+  globalThis.qwebrCellDetails = [{"code":"#--- Preparation ---#\nB <- 1000 # the number of iterations\nN_list <- c(100, 1000, 10000) # sample size\nN_len <- length(N_list)\nestimate_storage <- matrix(0, B, N_len) # estimates storage\n\nfor (j in 1:N_len) {\n  temp_N <- N_list[j]\n  for (i in 1:B) {\n    #--- generate data ---#\n    x <- rnorm(temp_N) # independent variable\n    u <- rnorm(temp_N) * 0.2 # error\n    y <- 1 + x + u # dependent variable 1\n    data <- data.frame(y = y, x = x)\n\n    #--- OLS ---#\n    reg <- lm(y ~ x, data = data) # OLS\n\n    #--- store coef estimates ---#\n    estimate_storage[i, j] <- reg$coef[2]\n  }\n}","id":1,"options":{"autorun":"false","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.8","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"4.5","fig-width":"7","label":"unnamed-chunk-1","message":"true","out-height":"","out-width":"55%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"plot_data <- melt(as.data.table(estimate_storage), measure.vars = 1:N_len)\n\n#--- create a figure ---#\ng_co_ex <-\n  ggplot(data = plot_data) +\n  geom_density(aes(x = value, fill = variable), alpha = 0.4) +\n  geom_vline(xintercept = 1) +\n  xlim(0.9, 1.1) +\n  scale_fill_discrete(\n    name = \"Sample Size\",\n    labels = c(\"N=100 \", \"N=1,000 \", \"N=10,000\")\n  ) +\n  theme_bw(base_size = 30) +\n  theme(\n    legend.position = \"bottom\"\n  )\n\ng_co_ex","id":2,"options":{"autorun":"false","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.8","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"4.5","fig-width":"7","label":"unnamed-chunk-2","message":"true","out-height":"","out-width":"55%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"#--- Preparation ---#\nB <- 1000 # the number of iterations\nN_list <- c(100, 1000, 10000) # sample size\nN_len <- length(N_list)\nestimate_storage <- matrix(0, B, N_len) # estimates storage\n\nfor (j in 1:N_len) {\n  temp_N <- N_list[j]\n  for (i in 1:B) {\n    #--- generate data ---#\n    mu <- rnorm(temp_N) # shared term between x and u #<<\n    x <- rnorm(temp_N) + 0.5 * mu # <<\n    u <- rnorm(temp_N) + 0.5 * mu # <<\n    y <- 1 + x + u # dependent variable\n    data <- data.frame(y = y, x = x)\n\n    #--- OLS ---#\n    reg <- lm(y ~ x, data = data) # OLS\n\n    #--- store coef estimates ---#\n    estimate_storage[i, j] <- reg$coef[2]\n  }\n}","id":3,"options":{"autorun":"false","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.8","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"4.5","fig-width":"7","label":"unnamed-chunk-3","message":"true","out-height":"","out-width":"55%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"#--- wide to long format ---#\nplot_data <- melt(as.data.table(estimate_storage), measure.vars = 1:N_len)\n\n#--- create a figure ---#\ng_inco_ex <- ggplot(data = plot_data) +\n  geom_density(aes(x = value, fill = variable), alpha = 0.4) +\n  geom_vline(xintercept = 1, linetype = \"dashed\") +\n  geom_vline(xintercept = 1.2) +\n  scale_fill_discrete(\n    name = \"Sample Size\",\n    labels = c(\"N=100 \", \"N=1,000 \", \"N=10,000\")\n  ) +\n  theme_bw(base_size = 30) +\n  theme(\n    legend.position = \"bottom\"\n  )\n\ng_inco_ex","id":4,"options":{"autorun":"false","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.8","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"4.5","fig-width":"7","label":"unnamed-chunk-4","message":"true","out-height":"","out-width":"55%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"(\nx <- rbinom(10, size = 1, prob = 0.3)\n)\n\nsqrt(10) * (mean(x) - 0.3)","id":5,"options":{"autorun":"true","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.8","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"4.5","fig-width":"7","label":"unnamed-chunk-5","message":"true","out-height":"","out-width":"55%","output":"true","read-only":"false","results":"markup","warning":"true"}}];
 
   </script>
   <script type="module">
@@ -1979,10 +2315,16 @@ globalThis.qwebrCreateMonacoEditorInstance = function (cellData) {
 </section>
 <section id="ols-asymptotics" class="slide level2">
 <h2>OLS Asymptotics</h2>
+<details class="transcript">
+<summary>
+Lecturer transcript
+</summary>
+<p>This lecture changes the question we ask about OLS. Everything so far has been a finite-sample statement: under the Gauss-Markov assumptions the estimator is unbiased and efficient at any sample size, however small. Asymptotic properties ask something different, namely what happens as the sample grows without bound. That may sound like a purely theoretical exercise, but it is the practical foundation for most applied work, because it is what lets us do inference when the normality assumption fails. Two results matter here: consistency, which concerns where the estimator settles, and asymptotic normality, which concerns the shape of its distribution.</p>
+</details>
 <p><strong>Large Sample Properties of OLS</strong></p>
 <ul>
-<li><p>Properties of OLS that hold only when the sample size is infinite</p></li>
-<li><p>(loosely put) How OLS estimators behave when the number of observations goes <span style="color: blue;"> infinite (really large) </span></p></li>
+<li><p>Properties that describe the limiting behavior of OLS as the sample size grows</p></li>
+<li><p>These limiting results often provide useful approximations when the sample is <span style="color: blue;">large</span></p></li>
 </ul>
 <p><br></p>
 <p><strong>Small Sample Properties of OLS</strong></p>
@@ -1991,7 +2333,7 @@ globalThis.qwebrCreateMonacoEditorInstance = function (cellData) {
 <li>OLS estimators are unbiased</li>
 <li>OLS estimators are efficient</li>
 </ul>
-<p>These hold <span style="color: blue;"> whatever the sample size is </span>.</p>
+<p>These are finite-sample properties: when their assumptions hold, they apply <span style="color: blue;">regardless of sample size</span>.</p>
 </section>
 <section>
 <section id="consistency" class="title-slide slide level1 center">
@@ -2001,40 +2343,73 @@ globalThis.qwebrCreateMonacoEditorInstance = function (cellData) {
 <section id="consistency-1" class="slide level2">
 <h2>Consistency</h2>
 <div class="panel-tabset">
-<ul id="tabset-3" class="panel-tabset-tabby"><li><a data-tabby-default="" href="#tabset-3-1">Definition</a></li><li><a href="#tabset-3-2">MC simulation</a></li><li><a href="#tabset-3-3">MC simualation: Inconsistency</a></li></ul>
+<ul id="tabset-3" class="panel-tabset-tabby"><li><a data-tabby-default="" href="#tabset-3-1">Definition</a></li><li><a href="#tabset-3-2">MC simulation</a></li><li><a href="#tabset-3-3">MC simulation: Inconsistency</a></li></ul>
 <div class="tab-content">
 <div id="tabset-3-1">
-<p><strong>Verbally (and very loosely)</strong></p>
-<p>An estimator is <span style="color: blue;"> consistent </span> if the probability that the estimator produces the true parameter is 1 when sample size is infinite.</p>
+<details class="transcript">
+<summary>
+Lecturer transcript
+</summary>
+<p>Consistency is a statement about a sequence of estimators indexed by sample size. Fix any tolerance epsilon, however small. Consistency says the probability that the estimate lands within epsilon of the truth approaches one as n grows. Note what it does not say. It does not promise the estimator is unbiased at any particular n, and it does not promise that the estimate you have in hand is close to the truth. Unbiasedness and consistency are logically distinct: an estimator can be unbiased at every n yet inconsistent, and biased at every n yet consistent.</p>
+</details>
+<p><strong>Verbally</strong></p>
+<p>An estimator is <span style="color: blue;">consistent</span> if it becomes arbitrarily close to the true parameter with probability approaching 1 as the sample size grows.</p>
+<p><strong>Formally</strong></p>
+<p>For every <span class="math inline">\varepsilon&gt;0</span>,</p>
+<p><span class="math display">P\left(\left|\widehat{\theta}_n-\theta\right|&lt;\varepsilon\right)\longrightarrow 1.</span></p>
+<p>We write <span class="math inline">\widehat{\theta}_n\overset{p}{\longrightarrow}\theta</span>.</p>
 </div>
 <div id="tabset-3-2">
 <div class="panel-tabset">
 <ul id="tabset-1" class="panel-tabset-tabby"><li><a data-tabby-default="" href="#tabset-1-1">Setup</a></li><li><a href="#tabset-1-2">Conceptual steps (Pseudo Code)</a></li><li><a href="#tabset-1-3">R code</a></li><li><a href="#tabset-1-4">Results</a></li></ul>
 <div class="tab-content">
 <div id="tabset-1-1">
-<p>OLS estimator of the coefficient on <span class="math inline">\(x\)</span> in the following model with all <span class="math inline">\(MLR.1\)</span> through <span class="math inline">\(MLR.4\)</span> satisfied:</p>
-<p><span class="math display">\[y_i = \beta_0 + \beta_1 x_i + u_i\]</span></p>
-<p>with all the conditions necessary for the unbiasedness property of OLS satisfied.</p>
+<details class="transcript">
+<summary>
+Lecturer transcript
+</summary>
+<p>The simulation setup is deliberately minimal: one regressor, an intercept, and an error that satisfies the zero conditional mean assumption by construction. Because we generate the data ourselves, we know the true beta one is exactly one, and that is the whole advantage of a Monte Carlo experiment. In real data you never see the truth, so you can never check whether your estimator landed near it. Here we can, and we can watch what changes as the sample size grows.</p>
+</details>
+<p>Consider the OLS estimator of the coefficient on <span class="math inline">x</span> in the following model, with <span class="math inline">MLR.1</span> through <span class="math inline">MLR.4</span> satisfied:</p>
+<p><span class="math display">y_i = \beta_0 + \beta_1 x_i + u_i</span></p>
 </div>
 <div id="tabset-1-2">
+<details class="transcript">
+<summary>
+Lecturer transcript
+</summary>
+<p>The pseudo-code is worth reading before the R code. We draw a sample, estimate, and store one coefficient; then we repeat a thousand times to trace out the sampling distribution; and then we do the whole thing again at three different sample sizes. That last step is the one that reveals consistency. A single sampling distribution tells you nothing about limiting behavior. You need to see how the distribution changes as n grows.</p>
+</details>
 <ul>
-<li>Generate data according to <span class="math inline">\(y_i = \beta_0 + \beta_1 x_i + u_i\)</span></li>
+<li>Generate data according to <span class="math inline">y_i = \beta_0 + \beta_1 x_i + u_i</span></li>
 <li>Estimate the coefficients and store them</li>
 <li>Repeat the above experiment 1000 times</li>
 <li>Examine how the coefficient estimates are distributed</li>
 </ul>
 <p><strong>What you should see is</strong></p>
-<p>As <span class="math inline">\(N\)</span> gets larger (more observations), the distribution of <span class="math inline">\(\widehat{\beta}_1\)</span> get more tightly centered around its true value (here, <span class="math inline">\(1\)</span>). Eventually, it becomes so tight that the probability you get the true value becomes 1.</p>
+<p>As <span class="math inline">N</span> gets larger, the distribution of <span class="math inline">\widehat{\beta}_1</span> becomes more tightly concentrated around its true value (here, <span class="math inline">1</span>). For any fixed margin around 1, the probability that <span class="math inline">\widehat{\beta}_1</span> falls inside that margin approaches 1.</p>
 </div>
 <div id="tabset-1-3">
+<details class="transcript">
+<summary>
+Lecturer transcript
+</summary>
+<p>The nested loops implement exactly that. The outer loop walks through the sample sizes and the inner loop runs the thousand replications at each one. Note that we regenerate x and u inside the inner loop, so every replication is a genuinely fresh sample rather than a resampling of one dataset. The storage matrix has one column per sample size, which is the shape the plotting code on the next tab expects.</p>
+</details>
 <div id="qwebr-insertion-location-1"></div>
 <noscript>Please enable JavaScript to experience the dynamic code cell content on this page.</noscript>
 </div>
 <div id="tabset-1-4">
+<details class="transcript inline">
+<summary>
+Lecturer transcript
+</summary>
+<p>Three densities, one per sample size, all centered on the true value of one. What changes is the spread: it tightens as n grows, and it keeps tightening without limit. You can read consistency directly off this picture. Pick any interval around one, however narrow, and the share of the distribution inside it approaches one as the sample grows. Notice also that unbiasedness alone would have given us three densities centered at one with no requirement that they narrow. Consistency is the extra statement about collapsing.</p>
+</details>
 <div id="qwebr-insertion-location-2"></div>
 <noscript>Please enable JavaScript to experience the dynamic code cell content on this page.</noscript>
 <p><strong>Consistency of OLS estimators</strong></p>
-<p>Under <span class="math inline">\(MLR.1\)</span> through <span class="math inline">\(MLR.4\)</span>, OLS estimators are consistent</p>
+<p>Under <span class="math inline">MLR.1</span> through <span class="math inline">MLR.4</span>, OLS estimators are consistent.</p>
 </div>
 </div>
 </div>
@@ -2045,23 +2420,49 @@ globalThis.qwebrCreateMonacoEditorInstance = function (cellData) {
 <ul id="tabset-2" class="panel-tabset-tabby"><li><a data-tabby-default="" href="#tabset-2-1">Conceptual steps (Pseudo Code)</a></li><li><a href="#tabset-2-2">R code</a></li><li><a href="#tabset-2-3">Results</a></li></ul>
 <div class="tab-content">
 <div id="tabset-2-1">
+<details class="transcript">
+<summary>
+Lecturer transcript
+</summary>
+<p>Now we break the key assumption on purpose and ask whether more data can rescue us. The question on this slide is one students often get wrong, because a good deal of informal advice suggests that large samples cure most problems. They do not cure this one. Commit to an answer before running the code, then check it against the picture.</p>
+</details>
 <p><strong>Pseudo Code</strong></p>
 <ul>
-<li>generate data (<span class="math inline">\(N\)</span> observations) according to <span class="math inline">\(y_i = \beta_0 + \beta_1 x_i + u_i\)</span> with <span class="math inline">\(E[u_i|x_i]\ne 0\)</span></li>
+<li>Generate data (<span class="math inline">N</span> observations) according to <span class="math inline">y_i = \beta_0 + \beta_1 x_i + u_i</span> with <span class="math inline">E[u_i\mid x_i]\ne 0</span></li>
 <li>Estimate the coefficients and store them</li>
-<li>repeat the above experiment 1000 times</li>
-<li>examine how the coefficient estimates are distributed</li>
+<li>Repeat the above experiment 1000 times</li>
+<li>Examine how the coefficient estimates are distributed</li>
 </ul>
 <p><strong>Question</strong></p>
-<p>Would the bias disappear as N gets larger?</p>
+<p>Does the bias disappear as <span class="math inline">N</span> gets larger?</p>
 </div>
 <div id="tabset-2-2">
+<details class="transcript">
+<summary>
+Lecturer transcript
+</summary>
+<p>The mechanism is the shared component mu, which enters both x and u. That is what makes x endogenous: it carries information about the error term. Everything else about the simulation is unchanged from the consistent case. Because we built the correlation ourselves, we can compute exactly what the estimator converges to, which is what the results tab reports.</p>
+</details>
 <div id="qwebr-insertion-location-3"></div>
 <noscript>Please enable JavaScript to experience the dynamic code cell content on this page.</noscript>
 </div>
 <div id="tabset-2-3">
+<details class="transcript inline">
+<summary>
+Lecturer transcript
+</summary>
+<p>The distributions narrow just as before, but they narrow around one point two rather than around one. The dashed line is the truth and the solid line is the probability limit, which works out to one plus the covariance of x and u over the variance of x, or one plus zero point two five over one point two five. This is the central lesson of the section: more data buys precision, not correctness. A large sample gives you a very tight confidence interval around the wrong number.</p>
+</details>
 <div id="qwebr-insertion-location-4"></div>
 <noscript>Please enable JavaScript to experience the dynamic code cell content on this page.</noscript>
+<p>The dashed line is the true coefficient, <span class="math inline">\beta_1=1</span>. The solid line is the probability limit:</p>
+<p><span class="math display">
+\operatorname{plim}(\widehat{\beta}_1)
+=1+\frac{Cov(x,u)}{Var(x)}
+=1+\frac{0.25}{1.25}
+=1.2.
+</span></p>
+<p>As <span class="math inline">N</span> grows, the sampling distribution becomes narrower around 1.2—not around the true value of 1. More data reduce sampling variation but do not remove this endogeneity bias.</p>
 </div>
 </div>
 </div>
@@ -2087,22 +2488,34 @@ globalThis.qwebrCreateMonacoEditorInstance = function (cellData) {
 <ul id="tabset-6" class="panel-tabset-tabby"><li><a data-tabby-default="" href="#tabset-6-1">Normality assumption</a></li><li><a href="#tabset-6-2">Central Limit Theorem (CLT)</a></li><li><a href="#tabset-6-3">Demonstration</a></li><li><a href="#tabset-6-4">OLS estimator</a></li></ul>
 <div class="tab-content">
 <div id="tabset-6-1">
+<details class="transcript">
+<summary>
+Lecturer transcript
+</summary>
+<p>Recall where MLR.6 was actually used. It was not needed for unbiasedness, and it was not needed for the Gauss-Markov theorem. It was needed to claim that the t-statistic follows an exact t distribution in a finite sample. Normality of the error is a strong assumption, and for outcomes such as wages or firm sales it is plainly false. So the question is whether inference survives without it. The answer is yes, asymptotically, and the central limit theorem is what delivers that.</p>
+</details>
 <p>When we talked about hypothesis testing, we made the following assumption:</p>
 <p><br></p>
 <p><strong>Normality assumption</strong></p>
-<p>The population error <span class="math inline">\(u\)</span> is <span style="color: blue;">independent</span> of the explanatory variables <span class="math inline">\(x_1,\dots,x_k\)</span> and is <span style="color: blue;">normally</span> distributed with zero mean and variance <span class="math inline">\(\sigma^2\)</span>:</p>
-<p><span class="math inline">\(u\sim Normal(0,\sigma^2)\)</span></p>
+<p>The population error <span class="math inline">u</span> is <span style="color: blue;">independent</span> of the explanatory variables <span class="math inline">x_1,\dots,x_k</span> and is <span style="color: blue;">normally</span> distributed with zero mean and variance <span class="math inline">\sigma^2</span>:</p>
+<p><span class="math inline">u\sim N(0,\sigma^2)</span></p>
 <p><br></p>
 <p><strong>Remember</strong></p>
 <ul>
-<li><p>If the normality assumption is violated, t-statistic and F-statistic we constructed before are no longer distributed as t-distribution and F-distribution, respectively</p></li>
-<li><p>So, whenever <span class="math inline">\(MLR.6\)</span> is violated, our t- and F-tests are invalid</p></li>
+<li><p>Without the normality assumption, the t- and F-statistics constructed earlier do not have exact t and F distributions in finite samples</p></li>
+<li><p>Therefore, their exact finite-sample tests are no longer justified</p></li>
 </ul>
 <p><br></p>
 <p><strong>Fortunately</strong></p>
-<p>You can continue to use t- and F-tests because (slightly transformed) OLS estimators are <span style="color: blue;">approximately</span> normally distributed when the sample size is <span style="color: blue;">large enough</span>.</p>
+<p>Under the assumptions developed below, suitably standardized OLS estimators are <span style="color: blue;">approximately</span> normally distributed when the sample size is <span style="color: blue;">large enough</span>. This supports approximate large-sample inference without <span class="math inline">MLR.6</span>.</p>
 </div>
 <div id="tabset-6-2">
+<details class="transcript">
+<summary>
+Lecturer transcript
+</summary>
+<p>The central limit theorem says a suitably standardized sample mean converges in distribution to a normal, whatever the distribution of the underlying draws, provided the variance is finite. Both operations in the standardization matter. Centering at mu removes the location, and multiplying by root n counteracts the fact that the sample mean’s variance shrinks at rate one over n.&nbsp;Without the root n scaling, the distribution would simply collapse to a point and there would be no shape left to describe.</p>
+</details>
 <div title="Central Limit Theorem">
 <div class="callout callout-note no-icon callout-titled callout-style-default">
 <div class="callout-body">
@@ -2110,32 +2523,38 @@ globalThis.qwebrCreateMonacoEditorInstance = function (cellData) {
 <p><strong>Central Limit Theorem</strong></p>
 </div>
 <div class="callout-content">
-<p>Suppose <span class="math inline">\(\{x_1,x_2,\dots\}\)</span> is a sequence of idetically independently distributed random variables with <span class="math inline">\(E[x_i]=\mu\)</span> and <span class="math inline">\(Var[x_i]=\sigma^2&lt;\infty\)</span>. Then, as <span class="math inline">\(n\)</span> approaches infinity,</p>
-<p><span class="math display">\[\sqrt{n}(\frac{1}{n} \sum_{i=1}^n x_i-\mu)\overset{d}{\longrightarrow} N(0,\sigma^2)\]</span></p>
+<p>Suppose <span class="math inline">\{x_1,x_2,\dots\}</span> is a sequence of independent and identically distributed random variables with <span class="math inline">E[x_i]=\mu</span> and <span class="math inline">Var(x_i)=\sigma^2&lt;\infty</span>. Then, as <span class="math inline">n</span> approaches infinity,</p>
+<p><span class="math display">\sqrt{n}\left(\frac{1}{n} \sum_{i=1}^n x_i-\mu\right)\overset{d}{\longrightarrow} N(0,\sigma^2).</span></p>
 </div>
 </div>
 </div>
 </div>
 <p><br></p>
 <p><strong>Verbally</strong></p>
-<p>Sample mean less its expected value multiplied by <span class="math inline">\(\sqrt{n}\)</span> (square root of the sample size) is going to be distributed as Normal distribution as <span class="math inline">\(n\)</span> goes infinity where its expected value is 0 and variance is the variance of <span class="math inline">\(x\)</span>.</p>
+<p>After centering the sample mean at <span class="math inline">\mu</span> and scaling it by <span class="math inline">\sqrt{n}</span>, its distribution approaches a normal distribution with mean 0 and variance <span class="math inline">\sigma^2</span>.</p>
 </div>
 <div id="tabset-6-3">
 <div class="panel-tabset">
 <ul id="tabset-4" class="panel-tabset-tabby"><li><a data-tabby-default="" href="#tabset-4-1">Example</a></li><li><a href="#tabset-4-2">Demonstration</a></li></ul>
 <div class="tab-content">
 <div id="tabset-4-1">
+<details class="transcript">
+<summary>
+Lecturer transcript
+</summary>
+<p>Bernoulli draws make the point vividly, because nothing could look less normal than a variable taking only the values zero and one. The mean is p and the variance is p times one minus p, which is zero point two one here. Run the small cell to see ten draws and the transformed sample mean for a single replication. One number tells you nothing; the demonstration on the next tab repeats it five thousand times.</p>
+</details>
 <div class="columns">
 <div class="column" style="width:50%;">
 <p><strong>Setup</strong></p>
-<p>Conside a random variable (<span class="math inline">\(x\)</span>) that follows Bernouli distribution with <span class="math inline">\(p = 0.3\)</span>. That is, it takes 0 and 1 with probability of 0.7 and 0.3, respectively.</p>
-<p><span class="math inline">\(x_i \sim Bern(p = 0.3)\)</span></p>
+<p>Consider a random variable <span class="math inline">x</span> that follows a Bernoulli distribution with <span class="math inline">p=0.3</span>. It equals 1 with probability 0.3 and 0 with probability 0.7.</p>
+<p><span class="math inline">x_i \sim \operatorname{Bernoulli}(p=0.3)</span></p>
 <ul>
-<li><span class="math inline">\(\mu = E[x_i] = p = 0.3\)</span></li>
-<li><span class="math inline">\(\sigma^2 \equiv Var[x_i] = p(1-p) = 0.21\)</span></li>
+<li><span class="math inline">\mu = E[x_i] = p = 0.3</span></li>
+<li><span class="math inline">\sigma^2 \equiv Var[x_i] = p(1-p) = 0.21</span></li>
 </ul>
 </div><!--end of the 1st column--><div class="column" style="width:50%;">
-<p>This is what 10 random draws and the transformed version of their sum look like:</p>
+<p>This is what 10 random draws and the transformed sample mean look like:</p>
 <div id="qwebr-insertion-location-5"></div>
 <noscript>Please enable JavaScript to experience the dynamic code cell content on this page.</noscript>
 </div><!--end of the 2nd column-->
@@ -2143,13 +2562,19 @@ globalThis.qwebrCreateMonacoEditorInstance = function (cellData) {
 <!--end of the columns-->
 <p><br></p>
 <p><strong>According to CLT</strong></p>
-<p><span class="math inline">\(\sqrt{n}(\frac{1}{n} \sum_{i=1}^n x_i-\mu)\overset{d}{\longrightarrow} N(0,\sigma^2)\)</span></p>
+<p><span class="math inline">\sqrt{n}\left(\frac{1}{n} \sum_{i=1}^n x_i-\mu\right)\overset{d}{\longrightarrow} N(0,\sigma^2)</span></p>
 <p><br></p>
 <p><strong>So,</strong></p>
-<p><span class="math inline">\(\sqrt{n}(\frac{1}{n} \sum_{i=1}^n x_i-0.3)\overset{d}{\longrightarrow} N(0,0.21)\)</span></p>
+<p><span class="math inline">\sqrt{n}\left(\frac{1}{n} \sum_{i=1}^n x_i-0.3\right)\overset{d}{\longrightarrow} N(0,0.21)</span></p>
 </div>
 <div id="tabset-4-2">
-<p>In each of the 5000 iterations, this application draws the number of samples you specify (<span class="math inline">\(N\)</span>) from <span class="math inline">\(x_i \sim Bern(p=0.3)\)</span> and then calculate <span class="math inline">\(\sqrt{N}(\frac{1}{N} \sum_{i=1}^N x_i-0.3)\)</span>. Then the histogram of the 5000 values is presented.</p>
+<details class="transcript inline">
+<summary>
+Lecturer transcript
+</summary>
+<p>Move the sample size slider and watch the histogram. At very small N the transformed mean takes only a handful of discrete values and looks nothing like the red normal curve. As N grows, the gaps fill in and the histogram settles onto the limiting density. Notice that the limiting variance never changes with N; it stays fixed at zero point two one. Convergence here is about the shape of the distribution, not about it becoming narrower.</p>
+</details>
+<p>In each of 5000 iterations, this application draws the number of observations you specify (<span class="math inline">N</span>) from <span class="math inline">x_i\sim\operatorname{Bernoulli}(0.3)</span> and calculates <span class="math inline">\sqrt{N}(\bar{x}-0.3)</span>. The histogram shows the resulting 5000 values; the red curve is the limiting <span class="math inline">N(0,0.21)</span> density.</p>
 <p><br></p>
 <div class="sourceCode" id="cb1" data-engine="r"><pre class="sourceCode numberSource shinylive-r number-lines code-with-copy"><code class="sourceCode"><span id="cb1-1"><a></a>#| '!! shinylive warning !!': |</span>
 <span id="cb1-2"><a></a>#|   shinylive does not work in self-contained HTML documents.</span>
@@ -2167,7 +2592,7 @@ globalThis.qwebrCreateMonacoEditorInstance = function (cellData) {
 <span id="cb1-14"><a></a>  sidebar = sidebar(</span>
 <span id="cb1-15"><a></a>    numericInput("n_samples",</span>
 <span id="cb1-16"><a></a>        "Number of samples:",</span>
-<span id="cb1-17"><a></a>        min = 1, max = 100000, value = 10, step = 100</span>
+<span id="cb1-17"><a></a>        min = 1, max = 100000, value = 10, step = 10</span>
 <span id="cb1-18"><a></a>      ),</span>
 <span id="cb1-19"><a></a>    br(),</span>
 <span id="cb1-20"><a></a>    actionButton("simulate", "Simulate"),</span>
@@ -2183,39 +2608,33 @@ globalThis.qwebrCreateMonacoEditorInstance = function (cellData) {
 <span id="cb1-30"><a></a>      N &lt;- input$n_samples # number of observations #&lt;&lt;</span>
 <span id="cb1-31"><a></a>      B &lt;- 5000 # number of iterations</span>
 <span id="cb1-32"><a></a>      p &lt;- 0.3 # mean of the Bernoulli distribution</span>
-<span id="cb1-33"><a></a>      storage &lt;- rep(0, B)</span>
-<span id="cb1-34"><a></a></span>
-<span id="cb1-35"><a></a>      for (i in 1:B) {</span>
-<span id="cb1-36"><a></a>        #--- draw from Bern[0.3] (x distributed as Bern[0.3]) ---#</span>
-<span id="cb1-37"><a></a>        x_seq &lt;- runif(N) &lt;= p</span>
-<span id="cb1-38"><a></a></span>
-<span id="cb1-39"><a></a>        #--- sample mean ---#</span>
-<span id="cb1-40"><a></a>        x_mean &lt;- mean(x_seq)</span>
-<span id="cb1-41"><a></a></span>
-<span id="cb1-42"><a></a>        #--- normalize ---#</span>
-<span id="cb1-43"><a></a>        lhs &lt;- sqrt(N) * (x_mean - p)</span>
-<span id="cb1-44"><a></a></span>
-<span id="cb1-45"><a></a>        #--- save lhs to storage ---#</span>
-<span id="cb1-46"><a></a>        storage[i] &lt;- lhs</span>
-<span id="cb1-47"><a></a>      }</span>
-<span id="cb1-48"><a></a></span>
-<span id="cb1-49"><a></a>      #--- create a figure to present ---#</span>
-<span id="cb1-50"><a></a>      ggplot() +</span>
-<span id="cb1-51"><a></a>        geom_histogram(</span>
-<span id="cb1-52"><a></a>          data = data.frame(x = storage),</span>
-<span id="cb1-53"><a></a>          aes(x = x),</span>
-<span id="cb1-54"><a></a>          color = "blue",</span>
-<span id="cb1-55"><a></a>          fill = "gray"</span>
-<span id="cb1-56"><a></a>        ) +</span>
-<span id="cb1-57"><a></a>        xlab("Transformed version of sample mean") +</span>
-<span id="cb1-58"><a></a>        ylab("Count") +</span>
-<span id="cb1-59"><a></a>        theme_bw()</span>
-<span id="cb1-60"><a></a>    })</span>
-<span id="cb1-61"><a></a>  })</span>
-<span id="cb1-62"><a></a>}</span>
-<span id="cb1-63"><a></a></span>
-<span id="cb1-64"><a></a># Run the application</span>
-<span id="cb1-65"><a></a>shinyApp(ui = ui, server = server)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<span id="cb1-33"><a></a>      successes &lt;- rbinom(B, size = N, prob = p)</span>
+<span id="cb1-34"><a></a>      storage &lt;- sqrt(N) * (successes / N - p)</span>
+<span id="cb1-35"><a></a></span>
+<span id="cb1-36"><a></a>      #--- create a figure to present ---#</span>
+<span id="cb1-37"><a></a>      ggplot() +</span>
+<span id="cb1-38"><a></a>        geom_histogram(</span>
+<span id="cb1-39"><a></a>          data = data.frame(x = storage),</span>
+<span id="cb1-40"><a></a>          aes(x = x, y = after_stat(density)),</span>
+<span id="cb1-41"><a></a>          bins = 30,</span>
+<span id="cb1-42"><a></a>          color = "navy",</span>
+<span id="cb1-43"><a></a>          fill = "gray80"</span>
+<span id="cb1-44"><a></a>        ) +</span>
+<span id="cb1-45"><a></a>        geom_function(</span>
+<span id="cb1-46"><a></a>          fun = dnorm,</span>
+<span id="cb1-47"><a></a>          args = list(mean = 0, sd = sqrt(p * (1 - p))),</span>
+<span id="cb1-48"><a></a>          color = "red",</span>
+<span id="cb1-49"><a></a>          linewidth = 1</span>
+<span id="cb1-50"><a></a>        ) +</span>
+<span id="cb1-51"><a></a>        xlab(expression(sqrt(N) * (bar(x) - 0.3))) +</span>
+<span id="cb1-52"><a></a>        ylab("Density") +</span>
+<span id="cb1-53"><a></a>        theme_bw(base_size = 30)</span>
+<span id="cb1-54"><a></a>    })</span>
+<span id="cb1-55"><a></a>  })</span>
+<span id="cb1-56"><a></a>}</span>
+<span id="cb1-57"><a></a></span>
+<span id="cb1-58"><a></a># Run the application</span>
+<span id="cb1-59"><a></a>shinyApp(ui = ui, server = server)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 </div>
 </div>
 </div>
@@ -2223,31 +2642,45 @@ globalThis.qwebrCreateMonacoEditorInstance = function (cellData) {
 </div>
 <div id="tabset-6-4">
 <div class="panel-tabset">
-<ul id="tabset-5" class="panel-tabset-tabby"><li><a data-tabby-default="" href="#tabset-5-1">Asymptotic normality</a></li><li><a href="#tabset-5-2">test-statistic (small v.s. large sample)</a></li></ul>
+<ul id="tabset-5" class="panel-tabset-tabby"><li><a data-tabby-default="" href="#tabset-5-1">Asymptotic normality</a></li><li><a href="#tabset-5-2">Test statistic (small vs.&nbsp;large sample)</a></li></ul>
 <div class="tab-content">
 <div id="tabset-5-1">
-<p>Under assumptions <span class="math inline">\(MLR.1\)</span> through <span class="math inline">\(MLR.5\)</span>, with <span style="color: red;"> any </span> distribution of the error term (the normality assumption of the error term not necessary), OLS estimator is asymptotically normally distributed.</p>
+<details class="transcript">
+<summary>
+Lecturer transcript
+</summary>
+<p>Here is the result applied to OLS. The scaled and centered estimator converges in distribution to a normal whose variance involves sigma squared over a term built from the part of x j that is unrelated to the other regressors. That residual variation term should look familiar: it is the same quantity that governs multicollinearity, which is why a regressor well explained by the others is estimated imprecisely. Crucially, MLR.6 appears nowhere in this result. Normality of the error has been replaced by a limiting argument.</p>
+</details>
+<p>Under assumptions <span class="math inline">MLR.1</span> through <span class="math inline">MLR.5</span>, the OLS estimator is asymptotically normally distributed even when the error is not normally distributed.</p>
 <p><br></p>
 <p><strong>Asymptotic Normality of OLS</strong></p>
-<p><span class="math inline">\(\sqrt{n}(\widehat{\beta}_j-\beta_j)\overset{a}{\longrightarrow} N(0,\sigma^2/\alpha_j^2)\)</span></p>
-<p>where <span class="math inline">\(\alpha_j^2=plim(\frac{1}{n}\sum_{i=1}^n r^2_{i,j})\)</span>, where <span class="math inline">\(r^2_{i,j}\)</span> are the residuals from regressing <span class="math inline">\(x_j\)</span> on the other independent variables.</p>
+<p><span class="math inline">\sqrt{n}(\widehat{\beta}_j-\beta_j)\overset{d}{\longrightarrow} N(0,\sigma^2/\alpha_j^2)</span></p>
+<p>where</p>
+<p><span class="math display">\alpha_j^2=\operatorname{plim}\left(\frac{1}{n}\sum_{i=1}^n r_{ij}^2\right),</span></p>
+<p>and <span class="math inline">r_{ij}</span> is the residual from regressing <span class="math inline">x_j</span> on the other independent variables (and an intercept).</p>
 <p><br></p>
 <p><strong>Consistency</strong></p>
-<p><span class="math inline">\(\widehat{\sigma}^2\equiv \frac{1}{n-k-1}\sum_{i=1}^n \widehat{u}_i^2\)</span> is a consistent estimator of of <span class="math inline">\(\sigma^2\)</span> <span class="math inline">\((Var(u))\)</span></p>
+<p><span class="math inline">\widehat{\sigma}^2\equiv \frac{1}{n-k-1}\sum_{i=1}^n \widehat{u}_i^2</span> is a consistent estimator of <span class="math inline">\sigma^2</span> under <span class="math inline">MLR.1</span> through <span class="math inline">MLR.5</span>.</p>
 </div>
 <div id="tabset-5-2">
+<details class="transcript">
+<summary>
+Lecturer transcript
+</summary>
+<p>This slide is worth memorizing as a pair. In the top block, with the normality assumption, both statements are exact and hold at any sample size, and the second uses the t distribution because we had to estimate sigma. In the bottom block, without normality, both statements are limiting approximations and the t distribution has been replaced by the standard normal. The same formulas, but a different justification and a different scope.</p>
+</details>
 <p><strong>Small sample (any sample size)</strong></p>
-<p>Under <span class="math inline">\(MLR.1\)</span> through <span class="math inline">\(MLR.5\)</span> <span style="color: blue;">and</span> <span class="math inline">\(MLR.6\)</span> <span class="math inline">\((u_i\sim N(0,\sigma^2))\)</span>,</p>
+<p>Under <span class="math inline">MLR.1</span> through <span class="math inline">MLR.5</span> <span style="color: blue;">and</span> <span class="math inline">MLR.6</span>,</p>
 <ul>
-<li><span class="math inline">\((\widehat{\beta}_j-\beta_j)/se(\widehat{\beta}_j) \sim N(0,1)\)</span></li>
-<li><span class="math inline">\((\widehat{\beta}_j-\beta_j)/\widehat{se(\widehat{\beta}_j)} \sim t_{n-k-1}\)</span></li>
+<li><span class="math inline">(\widehat{\beta}_j-\beta_j)/\operatorname{sd}(\widehat{\beta}_j\mid X) \sim N(0,1)</span></li>
+<li><span class="math inline">(\widehat{\beta}_j-\beta_j)/\widehat{\operatorname{se}}(\widehat{\beta}_j) \sim t_{n-k-1}</span></li>
 </ul>
 <p><br></p>
-<p><strong>Large sample (when <span class="math inline">\(n\)</span> goes infinity)</strong></p>
-<p>Under <span class="math inline">\(MLR.1\)</span> through <span class="math inline">\(MLR.5\)</span> <span style="color: blue;">without</span> <span class="math inline">\(MLR.6\)</span>,</p>
+<p><strong>Large sample (as <span class="math inline">n\to\infty</span>)</strong></p>
+<p>Under <span class="math inline">MLR.1</span> through <span class="math inline">MLR.5</span> <span style="color: blue;">without</span> <span class="math inline">MLR.6</span>,</p>
 <ul>
-<li><span class="math inline">\((\widehat{\beta}_j-\beta_j)/se(\widehat{\beta}_j) \overset{a}{\longrightarrow} N(0,1)\)</span></li>
-<li><span class="math inline">\((\widehat{\beta}_j-\beta_j)/\widehat{se(\widehat{\beta}_j)} \overset{a}{\longrightarrow} N(0,1)\)</span></li>
+<li><span class="math inline">(\widehat{\beta}_j-\beta_j)/\operatorname{sd}(\widehat{\beta}_j\mid X) \overset{d}{\longrightarrow} N(0,1)</span></li>
+<li><span class="math inline">(\widehat{\beta}_j-\beta_j)/\widehat{\operatorname{se}}(\widehat{\beta}_j) \overset{d}{\longrightarrow} N(0,1)</span></li>
 </ul>
 </div>
 </div>
@@ -2261,20 +2694,32 @@ globalThis.qwebrCreateMonacoEditorInstance = function (cellData) {
 <section id="testing-under-large-sample" class="slide level2">
 <h2>Testing under large sample</h2>
 <div class="panel-tabset">
-<ul id="tabset-7" class="panel-tabset-tabby"><li><a data-tabby-default="" href="#tabset-7-1">How?</a></li><li><a href="#tabset-7-2">t-distribution and normal distribution</a></li><li><a href="#tabset-7-3">non-homosketastic error case</a></li></ul>
+<ul id="tabset-7" class="panel-tabset-tabby"><li><a data-tabby-default="" href="#tabset-7-1">How?</a></li><li><a href="#tabset-7-2">t-distribution and normal distribution</a></li><li><a href="#tabset-7-3">Heteroskedastic errors</a></li></ul>
 <div class="tab-content">
 <div id="tabset-7-1">
+<details class="transcript">
+<summary>
+Lecturer transcript
+</summary>
+<p>The practical procedure is unchanged: form the t-statistic exactly as before and compare it with a critical value. What has changed is where the critical value comes from in principle. Asymptotic theory calls for a standard normal, whereas the finite-sample theory called for a t. The natural question is whether that difference matters in practice, and the next tab answers it.</p>
+</details>
 <p><strong>It turns out,</strong></p>
-<p>You can proceed exactly the same way as you did before (practically speaking)!!</p>
+<p>For a two-sided test of <span class="math inline">H_0:\beta_j=\beta_{j,0}</span>, you can proceed much as before:</p>
 <ul>
-<li><p>calculate <span class="math inline">\((\widehat{\beta}_j-\beta_j)/\widehat{se(\widehat{\beta}_j)}\)</span></p></li>
-<li><p>check if the obtained value is greater than (in magnitude) the critical value for the specified significance level under <span class="math inline">\(t_{n-k-1}\)</span></p></li>
+<li><p>Calculate <span class="math inline">t_j=(\widehat{\beta}_j-\beta_{j,0})/\widehat{\operatorname{se}}(\widehat{\beta}_j)</span>.</p></li>
+<li><p>Reject at significance level <span class="math inline">\alpha</span> if <span class="math inline">|t_j|</span> exceeds the <span class="math inline">1-\alpha/2</span> critical value.</p></li>
 </ul>
 <p><br></p>
 <p><strong>But,</strong></p>
-<p>Shouldn’t we use <span class="math inline">\(N(0,1)\)</span> when you find the critical value?</p>
+<p>Shouldn’t we use <span class="math inline">N(0,1)</span> to find the critical value?</p>
 </div>
 <div id="tabset-7-2">
+<details class="transcript inline">
+<summary>
+Lecturer transcript
+</summary>
+<p>The figure answers it. At two degrees of freedom the t distribution has visibly fatter tails than the normal, but by thirty degrees of freedom the curves are nearly indistinguishable, and by fifty you cannot separate them by eye. So in any sample large enough for the asymptotic argument to be credible, the t critical value your software prints is effectively the normal one. In practice you simply read the p-values the software gives you.</p>
+</details>
 <div class="cell">
 <div class="cell-output-display">
 <div>
@@ -2285,19 +2730,18 @@ globalThis.qwebrCreateMonacoEditorInstance = function (cellData) {
 </div>
 </div>
 <p><br></p>
-<p>Since <span class="math inline">\(t_{n-k-1}\)</span> and <span class="math inline">\(N(0,1)\)</span> are almost identical when <span class="math inline">\(n\)</span> is large, there is very little error in using <span class="math inline">\(t_{n-k-1}\)</span> instead of <span class="math inline">\(N(0,1)\)</span> to find the critical value.</p>
+<p>The asymptotic theory calls for a standard-normal critical value. Because <span class="math inline">t_{n-k-1}</span> approaches <span class="math inline">N(0,1)</span> as its degrees of freedom grow, using the corresponding t critical value makes very little difference in a large sample.</p>
 </div>
 <div id="tabset-7-3">
-<div class="columns">
-<div class="column" style="width:70%;">
-<p>The consistency of the default estimation of <span class="math inline">\(\widehat{Var(\widehat{\beta})}\)</span> <span style="color: red;"> DOES </span> require the homoskedasticity assumption (MLR.5).</p>
-<p>In other words, the problem of using the default variance estimator under the hteroskedasticity does not go away even when the sample size is large.</p>
-<p>So, we should use heteroskedasticity-robust or cluster-robust standard error estimators even when the sample size is large</p>
-</div><!--end of the 1st column--><div class="column" style="width:30%;">
-
-</div><!--end of the 2nd column-->
-</div>
-<!--end of the columns-->
+<details class="transcript">
+<summary>
+Lecturer transcript
+</summary>
+<p>One warning to close on. Asymptotics rescues you from the normality assumption, but not from the homoskedasticity assumption. The default variance estimator is built on MLR.5, and if the errors are heteroskedastic that estimator stays inconsistent no matter how much data you collect. This is not a small-sample problem that fades away; it is the wrong formula. So use heteroskedasticity-robust standard errors as your default, and cluster them when observations are dependent within groups.</p>
+</details>
+<p>The consistency of the default estimator of <span class="math inline">Var(\widehat{\beta})</span> <span style="color: red;">does</span> require the homoskedasticity assumption (<span class="math inline">MLR.5</span>).</p>
+<p>In other words, using the default variance estimator under heteroskedasticity remains a problem even when the sample size is large.</p>
+<p>Use heteroskedasticity-robust standard errors with independent observations. When observations may be dependent within groups, use standard errors clustered at the appropriate level.</p>
 </div>
 </div>
 </div>
@@ -2325,7 +2769,6 @@ globalThis.qwebrCreateMonacoEditorInstance = function (cellData) {
   <script src="../../site_libs/revealjs/plugin/notes/notes.js"></script>
   <script src="../../site_libs/revealjs/plugin/search/search.js"></script>
   <script src="../../site_libs/revealjs/plugin/zoom/zoom.js"></script>
-  <script src="../../site_libs/revealjs/plugin/math/math.js"></script>
   <script>window.define = window.backupDefine; window.backupDefine = undefined;</script>
 
   <script>
@@ -2493,27 +2936,9 @@ globalThis.qwebrCreateMonacoEditorInstance = function (cellData) {
         // Factor of the display size that should remain empty around the content
         margin: 0.1,
 
-        math: {
-          mathjax: 'https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.9/MathJax.js',
-          config: 'TeX-AMS_HTML-full',
-          tex2jax: {
-            inlineMath: [['\\(','\\)']],
-            displayMath: [['\\[','\\]']],
-            balanceBraces: true,
-            processEscapes: false,
-            processRefs: true,
-            processEnvironments: true,
-            preview: 'TeX',
-            skipTags: ['script','noscript','style','textarea','pre','code'],
-            ignoreClass: 'tex2jax_ignore',
-            processClass: 'tex2jax_process'
-          },
-        },
-
         // reveal.js plugins
         plugins: [QuartoLineHighlight, PdfExport, RevealMenu, QuartoSupport,
 
-          RevealMath,
           RevealNotes,
           RevealSearch,
           RevealZoom

@@ -2,20 +2,28 @@
 title: "07: Econometric Modeling"
 format: 
   revealjs: 
+    html-math-method: katex
     theme: [default, ../custom.scss, ../notebook.scss]
     fontsize: 1.2em
     callout-icon: false
     scrollable: true
     echo: true
     fig-dpi: 400
+    include-in-header:
+      - ../transcript-support.html
+      - ../webr-layout.html
     footer: "[back to course website with lecture slides](https://tmieno2.github.io/Applied-Econometrics-MS-Quarto/lectures/)"
 execute:
   echo: true
-  out-width: 80%
+  out-width: 55%
 webr:
-  packages: ['fixest', 'dplyr', 'data.table', 'ggplot2', 'wooldridge', 'car']
+  packages: ['fixest', 'dplyr', 'data.table', 'ggplot2', 'wooldridge', 'car', 'broom']
   cell-options:
     editor-font-scale: 0.8
+    dpi: 216
+    fig-width: 7
+    fig-height: 4.5
+    out-width: 55%
 filters:
   - webr
 ---
@@ -31,11 +39,8 @@ library(fixest)
 library(ggplot2)
 library(data.table)
 library(dplyr)
-library(margins)
-library(patchwork)
 library(modelsummary)
 library(car)
-library(lmtest)
 ```
 
 ## Functional form
@@ -43,6 +48,13 @@ library(lmtest)
 ::: {.panel-tabset}
 
 ### Introduction
+
+<details class="transcript">
+<summary>Lecturer transcript</summary>
+
+Transformation is the tool that lets a linear model describe a nonlinear relationship. The phrase to hold onto is linear in parameters. We can take logs, square a regressor, or multiply two variables together, and every result we have proved so far still applies, because the model remains a linear combination of unknown coefficients. What changes is the interpretation. A coefficient no longer answers the question how much does y change when x rises by one unit; the answer now depends on the transformation, and sometimes on where you are along the x axis. The four models on this slide are the ones we will work through.
+
+</details>
 
 + Transformation of variables is allowed without disturbing our analytical framework as long as the model is linear in <span style = "color: blue;"> parameter </span>.
 
@@ -83,6 +95,13 @@ $y_i= \beta_0 + \beta_1 x_i + \beta_2 x_i^2 + u_i$
 
 ### Linear or Non-linear?
 
+<details class="transcript">
+<summary>Lecturer transcript</summary>
+
+Students reasonably object at this point: the pictures are curved, so how can we call these linear models. The resolution is that linear refers to how the parameters enter, not how the variables enter. In the two examples at the bottom, a coefficient appears as an exponent and inside a denominator. No amount of rewriting turns those into a linear combination of betas, so ordinary least squares does not apply and we would need nonlinear estimation. Contrast that with a squared regressor: education squared is just another column of numbers, and its coefficient enters additively. That model is linear in parameters and OLS is fine.
+
+</details>
+
 + In the models we just saw, the dependent variable and independent variable are non-linearly related, how come are these models called simple <span style = "color: blue;"> linear </span> model?
 
 + <span style = "color: blue;"> "linear" </span> in simple <span style = "color: blue;"> linear </span> model means that the model is linear in <span style = "color: blue;"> parameter </span>, but not in <span style = "color: blue;"> variable </span>
@@ -105,11 +124,18 @@ Transformation of the dependent and independent variables would not affect the p
 
 ### Why bother?
 
+<details class="transcript">
+<summary>Lecturer transcript</summary>
+
+This is the practical motivation. The fertilizer equation says the tenth pound of nitrogen raises yield by exactly as much as the hundredth pound. No agronomist believes that. Yields flatten out and can eventually decline. If we insist on a straight line, the estimated slope becomes an average over a range where the true response is steep at one end and flat at the other, and any recommendation we derive from it will be wrong at both ends. Functional form is not decoration. It encodes what you already know about the process, and getting it wrong biases the answer to the question you actually care about.
+
+</details>
+
 Consider a following model:
 
 ```{=tex}
 \begin{align*}
-\mbox{corn yield} = \beta_0 + \beta_1 \cdot \mbox{fertilizer} + \mu
+\text{corn yield} = \beta_0 + \beta_1 \cdot \text{fertilizer} + \mu
 \end{align*}
 ```
 
@@ -136,6 +162,13 @@ It assumes that fertilizer affects corn yield the same way no matter how much fe
 
 #### Basics
 
+<details class="transcript">
+<summary>Lecturer transcript</summary>
+
+Take logs of the dependent variable only. Differentiating both sides with respect to x, the chain rule puts one over y on the left, so beta one equals the proportional change in y per one-unit change in x. Multiply by one hundred and you have a percentage. The wording matters: a one-unit increase in x is associated with a beta-one-times-one-hundred percent change in y, not a beta-one-unit change. This approximation is good for small beta one; for larger coefficients the exact percentage is one hundred times the quantity exponential of beta one minus one.
+
+</details>
+
 **Model**
 ```{=tex}
 \begin{align}
@@ -158,6 +191,13 @@ Differentiating the both sides wrt $x_i$,
 $\beta_1$ measures a percentage change in $y_i$ (once multiplied by 100) when $x_i$ is increased by one unit
 
 #### Visualization
+
+<details class="transcript inline">
+<summary>Lecturer transcript</summary>
+
+The two curves show what the log-linear form imposes. Both are exponential in x, because undoing the log means exponentiating. With a positive coefficient the curve rises at an accelerating rate; with a negative one it decays toward zero but never crosses it. That last property is often the reason to choose this form. Wages, prices, and yields cannot be negative, and a log-linear specification cannot predict a negative value no matter how far you extrapolate. A model that is linear in the level offers no such guarantee.
+
+</details>
 
 ```{r }
 #| echo: false
@@ -190,11 +230,18 @@ g_log_linear <-
   theme(
     legend.position = "bottom"
   ) +
-  theme_bw()
+  theme_bw(base_size = 30)
 )
 ```
 
 #### Example
+
+<details class="transcript">
+<summary>Lecturer transcript</summary>
+
+Applying the same algebra to the wage equation gives the interpretation you will use constantly in labor economics. Beta one is the proportional change in wage per additional year of schooling, so multiplying by one hundred gives the return to education in percent. This is why log wage rather than wage is the standard left-hand-side variable in this literature. A percentage return is comparable across countries, decades, and wage levels, whereas a dollar return is not.
+
+</details>
 
 **Model**
 
@@ -220,6 +267,13 @@ If education increases by 1 year $(\Delta educ=1)$, then wage increases by $\bet
 
 #### Estimated model
 
+<details class="transcript inline">
+<summary>Lecturer transcript</summary>
+
+Here is the fitted log-linear equation and what it looks like back in dollar space. The red line comes from regressing wage directly on education; the blue curve is the log-linear fit exponentiated. Notice the shapes differ most at the ends of the education range, which is exactly where a straight line is most likely to mislead. The callout flags a subtlety worth stating once: exponentiating the fitted line gives a predicted median, not a predicted mean, because the expectation of an exponential is not the exponential of an expectation.
+
+</details>
+
 ::: {.columns}
 
 ::: {.column width="40%"}
@@ -239,9 +293,13 @@ Then, the estimated equation is the following:
 
 ```{=tex}
 \begin{align}
-  E[\widehat{wage}]=e^{0.584+0.083 educ} 
+  \widehat{wage}=e^{0.584+0.083 educ}
 \end{align}
 ```
+
+:::{.callout-note title="Careful"}
+Exponentiating the fitted line gives the predicted <span style = "color: blue;">median</span> of $wage$, not its mean. Because $E[e^u]>e^{E[u]}$, recovering $E[wage\mid educ]$ requires an extra retransformation factor.
+:::
 :::
 <!--end of the 1st column-->
 ::: {.column width="60%"}
@@ -259,10 +317,10 @@ col <- c("OLS Regression Line" = "red", "Log Fit" = "blue")
 ggplot(data = wage, aes(y = wage, x = educ)) +
   geom_point(size = 0.7) +
   geom_smooth(method = "lm", se = F, aes(color = "OLS Regression Line")) +
-  geom_line(data = log_fit, aes(y = y, x = x, color = "Log Fit"), size = 1) +
+  geom_line(data = log_fit, aes(y = y, x = x, color = "Log Fit"), linewidth = 1) +
   scale_color_manual(values = col, name = "") +
   ylim(0, 15) +
-  theme_bw()+
+  theme_bw(base_size = 30)+
   theme(
     legend.position = "bottom"
   )
@@ -281,6 +339,13 @@ ggplot(data = wage, aes(y = wage, x = educ)) +
 ::: {.panel-tabset}
 
 #### Basics
+
+<details class="transcript">
+<summary>Lecturer transcript</summary>
+
+Now the transformation is on the right-hand side instead. Differentiating, the derivative of the log puts one over x on the right, so beta one multiplies the proportional change in x. Read the interpretation carefully: a one percent increase in x, meaning delta x over x equals zero point zero one, raises y by beta one times zero point zero one in the units of y. Students routinely misstate this as a one-unit change in x, so slow down here. This form suits a regressor with strongly diminishing returns, such as firm size or income.
+
+</details>
 
 **Model**
 
@@ -302,9 +367,16 @@ Differentiating the both sides wrt $x_i$,
 
 **Interpretation**
 
-When $x$ increases by 0.01 ($1\%$) $y$ increases by $\beta_1 \times 0.01$.
+When $x$ increases by $1\%$ (that is, $\frac{\Delta x_i}{x_i} = 0.01$), $y$ increases by $\beta_1 \times 0.01$ units.
 
 #### Visualization
+
+<details class="transcript inline">
+<summary>Lecturer transcript</summary>
+
+The linear-log curve rises steeply at small x and then flattens, without ever turning over. That is the shape to keep in mind when choosing between this and a quadratic. Linear-log imposes diminishing returns that never become negative; a quadratic allows the relationship to peak and come back down. Which restriction you want is a substantive question about the process, not a statistical one, and you should be able to defend the choice before you look at the fit.
+
+</details>
 
 $$y = \beta_0 + \beta_1 log(x) = 1 + 2 \times log(x)$$
 
@@ -322,13 +394,20 @@ ggplot(data = plot_data) +
   theme(
     legend.position = "bottom"
   ) +
-  theme_bw()
+  theme_bw(base_size = 30)
 ```
 
 :::
 <!--end of panel-->
 
 ### Log-log
+
+<details class="transcript">
+<summary>Lecturer transcript</summary>
+
+Logs on both sides give the constant-elasticity model, which is why this specification appears everywhere in demand and production estimation. Beta one is an elasticity: a one percent change in x produces a beta-one percent change in y, and crucially that percentage is the same everywhere along the curve. That constancy is a real restriction. If you believe demand is more elastic at high prices than at low ones, log-log has assumed the problem away, and you would need interactions or a more flexible form to let the elasticity vary.
+
+</details>
 
 **Model**
 
@@ -371,16 +450,23 @@ y_2_data <- data.table(
 
 g_quad_1 <- ggplot(data = y_1_data) +
   geom_line(aes(y = y, x = x), color = "red") +
-  theme_bw()
+  theme_bw(base_size = 30)
 
 g_quad_2 <- ggplot(data = y_2_data) +
   geom_line(aes(y = y, x = x), color = "red") +
-  theme_bw()
+  theme_bw(base_size = 30)
 ```
 
 ::: {.panel-tabset}
 
 #### Basics
+
+<details class="transcript">
+<summary>Lecturer transcript</summary>
+
+The quadratic adds a squared term and lets the slope vary with x. Differentiating gives beta one plus two times beta two times x, so the marginal effect now depends on where you evaluate it. This is the single most important consequence and it drives the rest of the lecture: there is no longer one number you can report as the effect of x. Note also that beta one on its own is only the marginal effect at x equal to zero, which is often outside the data and rarely interesting by itself.
+
+</details>
 
 **Model**
 
@@ -401,6 +487,13 @@ $\frac{\partial y_i}{\partial x_i} = \beta_1 + 2*\beta_2 x_i\Rightarrow  \Delta 
 When $x$ increases by 1 unit $(\Delta x_i=1)$, $y$ increases by $\beta_1 + 2*\beta_2 x_i$
 
 #### Visualization
+
+<details class="transcript inline">
+<summary>Lecturer transcript</summary>
+
+The two panels show how flexible this form is. On the left both coefficients are positive and the curve accelerates upward. On the right beta two is negative, so the curve rises, peaks, and falls. That turning point sits at minus beta one over two beta two. Always check where the turning point lands relative to your data. If it falls well outside the observed range of x, the quadratic is behaving like a smoothly curved line over the range you care about, and you should not describe your results as if you had estimated a peak.
+
+</details>
 
 Quadratic functional form is quite flexible.
 
@@ -429,9 +522,16 @@ g_quad_2
 
 #### Example
 
-**Education impacts of income**
+<details class="transcript">
+<summary>Lecturer transcript</summary>
 
-The marginal impact of education (the impact of a small change in education on income) may differ what level of education you have had:
+The three questions on this slide are meant to make the constant-slope assumption feel wrong. Two more years of schooling after elementary school, after a bachelor's degree, and midway through a doctorate almost certainly do not carry the same return. Once you accept that, a model forcing one number onto all three cases is misspecified. The quadratic is the simplest way to let the data tell you how the return changes with the level of schooling.
+
+</details>
+
+**Education impacts on income**
+
+The marginal impact of education (the impact of a small change in education on income) may differ depending on the level of education you have had:
 
 + How much does it help to have two more years of education when you have had education until elementary school?
 
@@ -446,6 +546,13 @@ The marginal impact of education (the impact of a small change in education on i
 The marginal impact of education does not seem to be linear.
 
 #### Implementation in R
+
+<details class="transcript">
+<summary>Lecturer transcript</summary>
+
+In R, any transformation of an existing variable goes inside the I function, which tells the formula parser to treat what follows as arithmetic rather than as formula syntax. Without it, the caret has a special meaning in a formula and you would not get the squared term you intended. Run this cell and look at the two education coefficients. The linear term is negative and the squared term is positive, which alone tells you the fitted relationship is U-shaped in education over some range.
+
+</details>
 
 When you want to include a variable that is a transformation of an existing variable, you can use `I()` function in which you write the mathematical expression of the desired transformation.
 
@@ -463,6 +570,13 @@ broom::tidy(quad_reg)
 
 #### Estimated Model
 
+<details class="transcript inline">
+<summary>Lecturer transcript</summary>
+
+The plotted curve holds female at one and traces predicted wage across the education range. The fitted relationship falls slightly at low education and then rises increasingly steeply. Do not over-read the downward portion. Very few people in this sample have only a few years of schooling, so that part of the curve rests on little data and is largely an artifact of forcing a parabola through the whole range. This is a good habit generally: overlay the data before interpreting a fitted curve.
+
+</details>
+
 **Estimated Model**
 
 $wage = 5.60 - 2.12\times female -0.416\times educ + 0.039\times educ^2$
@@ -478,12 +592,19 @@ g_quad_ex <-
   ggplot() +
   geom_point(data = wage1, aes(y = wage, x = educ), size = 0.4) +
   geom_line(data = data, aes(y = y, x = x)) +
-  theme_bw()
+  theme_bw(base_size = 30)
 
 g_quad_ex
 ```
 
 #### Marginal impact of $educ$
+
+<details class="transcript">
+<summary>Lecturer transcript</summary>
+
+Here is the marginal effect written out, along with the two coefficients and their t-statistics. Notice that neither t-statistic answers the question we care about. The first tests whether the coefficient on education alone is zero, which is the marginal effect only at zero years of schooling. The second tests the curvature. What we actually want is whether the whole expression, a combination of two estimated coefficients, differs from zero at a particular education level. That is a different test, and building it is what the next section does.
+
+</details>
 
 According to the estimated model, the marginal impact of $educ$ is:
 
@@ -507,7 +628,14 @@ $\frac{\partial wage}{\partial educ} = -0.416+0.039\times 2\times educ$
 
 ::: {.panel-tabset}
 
-### Marginal impcat
+### Marginal impact
+
+<details class="transcript">
+<summary>Lecturer transcript</summary>
+
+This slide sets up the problem cleanly. In the quadratic model the marginal effect of education is a linear combination of two coefficients whose weights depend on the education level you pick. So the question is the marginal effect statistically significant is incomplete until you say at what value of education. We will first review the easy linear case, where the question has a single answer, and then handle the quadratic case where it does not.
+
+</details>
 
 Let's work with the income model, in which the marginal impact of $educ$ is:
 
@@ -532,6 +660,13 @@ So, is the marginal impact of $educ$ statistically significantly different from 
 
 #### Model and marginal impact
 
+<details class="transcript">
+<summary>Lecturer transcript</summary>
+
+Start with the linear specification as a baseline. Here the marginal effect of education is a single coefficient, about fifty-one cents an hour per year of schooling, and it is the same for everyone regardless of their education level. That constancy is what makes the linear case easy: testing significance of the effect is just the t-test on one coefficient, which the regression output already prints for you. Work through the two questions before moving on, because the contrast with the quadratic case is the whole point.
+
+</details>
+
 **Regression**
 
 ```{webr-r}
@@ -544,13 +679,20 @@ broom::tidy(linear_reg)
 
 **Estimated model**
 
-$wage = 0.62+0.51 \times educ$
+$wage = 0.62 - 2.27 \times female + 0.51 \times educ$
 
 <br>
 
 ::: {.panel-tabset}
 
 ##### Question 1
+
+<details class="transcript">
+<summary>Lecturer transcript</summary>
+
+The marginal effect is the coefficient on education, about zero point five one. In the linear model the answer really is that simple, which is precisely why we tend to forget that it is a special case rather than the general rule.
+
+</details>
 
 What is the marginal impact of $educ$?
 
@@ -561,6 +703,13 @@ What is the marginal impact of $educ$?
 </details>
 
 ##### Question 2
+
+<details class="transcript">
+<summary>Lecturer transcript</summary>
+
+No, and notice that we assumed it away rather than discovering it. By writing education as a single linear term we imposed that an extra year is worth the same to someone with eight years of schooling and someone with eighteen. That is not a finding from the data; it is a restriction we chose when we specified the model, and the quadratic specification is what lets us relax it.
+
+</details>
 
 Does the marginal impact of education vary depending on the level of education? 
 
@@ -575,6 +724,13 @@ No, the model we estimated assumed that the marginal impact of education is cons
 
 #### Testing?
 
+<details class="transcript">
+<summary>Lecturer transcript</summary>
+
+In the linear case, the significance test for the marginal effect is already in the regression output. The coefficient on education is the marginal effect, so its t-statistic and p-value answer the question directly. Nothing extra is required. Hold onto this, because the contrast is coming: as soon as the marginal effect involves more than one coefficient, the printed t-statistics no longer test what you want.
+
+</details>
+
 You can just test if $\hat{\beta}_{educ}$ (the marginal impact of education) is statistically significantly different from $0$, which is just a t-test.
 
 :::
@@ -586,16 +742,30 @@ You can just test if $\hat{\beta}_{educ}$ (the marginal impact of education) is 
 
 #### Issue
 
+<details class="transcript">
+<summary>Lecturer transcript</summary>
+
+Three consequences follow from a varying marginal effect. It changes with the education level, so there is no universal answer to whether education matters. There is no single test that settles significance for everyone. And you therefore need to choose the education levels at which the question is interesting and test at each of them. That choice is substantive: pick values that correspond to real, well-populated cases in your data, not values that happen to give you the answer you wanted.
+
+</details>
+
 With the quadratic specification
 
 + The marginal impact of education varies depending on your education level
 
 + There is no single test that tells you whether the marginal impact of education is statistically significant universally
 
-+ Indeed, you need different tests for different values education levels
++ Indeed, you need different tests for different education levels
 
 
 #### Example 1
+
+<details class="transcript">
+<summary>Lecturer transcript</summary>
+
+We evaluate at four years of schooling. Note carefully what the null says. It is a statement about the population parameters, a single equation combining two of them with weights one and eight. That makes it a test of one linear restriction, which is a t-test, not an F-test of several restrictions. The three-way question on the slide is worth pausing on, because students commonly reach for an F-test whenever they see two coefficients appear in a hypothesis.
+
+</details>
 
 **Marginal impact of education**
 
@@ -605,11 +775,15 @@ $\hat{\beta}_{educ} + \hat{\beta}_{educ^2} \times 2 \times educ$
 
 **Hypothesis testing**
 
-Does additional year of education has a statistically significant impact (positive or negative) if your current education level is 4?    
+Does an additional year of education have a statistically significant impact (positive or negative) if your current education level is 4?
 
-+ $H_0$: $\hat{\beta}_{educ} + \hat{\beta}_{educ^2} \times 2 \times 4 =0$
++ $H_0$: $\beta_{educ} + \beta_{educ^2} \times 2 \times 4 =0$
 
-+ $H_1$: $\hat{\beta}_{educ} + \hat{\beta}_{educ^2} \times 2 \times 4 \ne 0$
++ $H_1$: $\beta_{educ} + \beta_{educ^2} \times 2 \times 4 \ne 0$
+
+:::{.callout-note}
+Hypotheses are statements about the <span style = "color: blue;">population</span> parameters $\beta$, never about the estimates $\hat{\beta}$. We use the estimates to build the test statistic below.
+:::
 
 <br>
 
@@ -619,7 +793,7 @@ Is this
 
 + test of a single coefficient? (t-test)
 + test of a single equation with multiple coefficients? (t-test)
-+ test of multiples equations with multiple coefficients? (F-test)
++ test of multiple equations with multiple coefficients? (F-test)
 
 **t-statistic**
 
@@ -627,15 +801,29 @@ $t = \frac{\hat{\beta}_{educ} + \hat{\beta}_{educ^2} \times 2 \times 4}{se(\hat{
 
 #### R implementation
 
+<details class="transcript">
+<summary>Lecturer transcript</summary>
+
+The linearHypothesis function from the car package takes the restriction as a text string, written exactly as it appears in the null. The trick noted above is that R reports this as an F-statistic on one degree of freedom, and an F on one and n minus k minus one degrees of freedom is just the square of the corresponding t. So the p-value is the one you want. Here it is zero point three nine four, so at four years of schooling we cannot distinguish the marginal effect from zero.
+
+</details>
+
 Remember, a trick to do this test using R is take advantage of the fact that $F_{1, n-k-1} \sim t_{n-k-1}^2$.
 
 ```{webr-r}
 car::linearHypothesis(quad_reg, "educ + 8*I(educ^2)=0")
 ```
 
-Since the p-value is 0.529, we do not reject the null.
+The p-value is $0.394$, so we do not reject the null: at an education level of 4, the marginal impact of education is not statistically distinguishable from zero.
 
 #### Example 2
+
+<details class="transcript">
+<summary>Lecturer transcript</summary>
+
+Now repeat at ten years of schooling. The structure is identical; only the weight changes, from eight to twenty. This is worth doing explicitly rather than describing, because it makes concrete that we are running a genuinely different test, not reinterpreting the same one. Same model, same coefficients, same standard errors, different linear combination, and therefore a different answer.
+
+</details>
 
 **Marginal impact of education**
 
@@ -645,11 +833,11 @@ $\hat{\beta}_{educ} + \hat{\beta}_{educ^2} \times 2 \times educ$
 
 **Hypothesis testing**
 
-Does additional year of education has a statistically significant impact (positive or negative) if your current education level is 10?    
+Does an additional year of education have a statistically significant impact (positive or negative) if your current education level is 10?    
 
-+ $H_0$: $\hat{\beta}_{educ} + \hat{\beta}_{educ^2} \times 2 \times 10 =0$
++ $H_0$: $\beta_{educ} + \beta_{educ^2} \times 2 \times 10 =0$
 
-+ $H_1$: $\hat{\beta}_{educ} + \hat{\beta}_{educ^2} \times 2 \times 10 \ne 0$
++ $H_1$: $\beta_{educ} + \beta_{educ^2} \times 2 \times 10 \ne 0$
 
 **Question**
 
@@ -657,7 +845,7 @@ Is this
 
 + test of a single coefficient? (t-test)
 + test of a single equation with multiple coefficients? (t-test)
-+ test of multiples equations with multiple coefficients? (F-test)
++ test of multiple equations with multiple coefficients? (F-test)
 
 **t-statistic**
 
@@ -665,11 +853,18 @@ $t = \frac{\hat{\beta}_{educ} + \hat{\beta}_{educ^2} \times 2 \times 10}{se(\hat
 
 #### R implementation
 
+<details class="transcript">
+<summary>Lecturer transcript</summary>
+
+The same command with twenty in place of eight. The p-value is now far below one percent, so at ten years of schooling the marginal effect of education is clearly positive and statistically significant. Put the two results side by side: identical model and identical estimates, but at four years we could not reject zero and at ten years we reject decisively. That is the practical payoff of taking the varying marginal effect seriously.
+
+</details>
+
 ```{webr-r}
 car::linearHypothesis(quad_reg, "educ + 20*I(educ^2)=0")
 ```
 
-Since the much lower than is 0.01, we can reject the null at the 1% level.
+The p-value is far below $0.01$, so we reject the null at the 1% level: at an education level of 10, the marginal impact of education is statistically significant.
 
 :::
 <!--end of panel-->
@@ -687,6 +882,13 @@ Since the much lower than is 0.01, we can reject the null at the 1% level.
 
 ### What is it?
 
+<details class="transcript">
+<summary>Lecturer transcript</summary>
+
+An interaction term is simply the product of two variables entered as an additional regressor. The important callout on this slide is a warning about the example itself. To keep the algebra short we have left education out as a standalone term. In your own work, include both main effects whenever you include their product. Omitting one imposes restrictions you almost certainly do not intend, and it is one of the most common specification errors in student papers.
+
+</details>
+
 A variable that is a multiplication of two variables 
 
 <br>
@@ -699,15 +901,28 @@ $educ\times exper$
 
 **A model with an interaction term**
 
-$wage = \beta_0 + \beta_1 exper + \beta_2 educ \times exper + u$ 
+$wage = \beta_0 + \beta_1 exper + \beta_2 educ \times exper + u$
 
 <br>
 
+:::{.callout-important title="A deliberately stripped-down model"}
+Notice that $educ$ does <span style = "color: red;">not</span> enter on its own here. This keeps the algebra on the next slides as simple as possible, but it is <span style = "color: blue;">not</span> what you should do in your own work.
+
+**Rule of thumb:** whenever you include an interaction $x_1 \times x_2$, include $x_1$ and $x_2$ as separate terms too. Omitting a main effect forces the marginal impact of $exper$ to be exactly $\beta_1$ when $educ = 0$ and constrains $educ$ to affect $wage$ only through $exper$ — a restriction you almost never want to impose.
+:::
+
 ### Marginal impact
 
-**Marginal impact of education**:
+<details class="transcript">
+<summary>Lecturer transcript</summary>
 
-$\frac{\partial wage}{\partial exper} = \beta_1+\beta_2\times educ$ 
+Differentiating with respect to experience gives beta one plus beta two times education, so the return to experience now depends on schooling. Read the two coefficients carefully. Beta one is the return to experience for someone with zero years of education, which is an extrapolation well outside the data here. Beta two tells you how much that return changes per additional year of schooling. A positive beta two means experience and education reinforce each other.
+
+</details>
+
+**Marginal impact of experience**:
+
+$\frac{\partial wage}{\partial exper} = \beta_1+\beta_2\times educ$
 
 <br>
 
@@ -720,6 +935,13 @@ The marginal impact of experience depends on education
 + if $\beta_2>0$: additional year of experience is worth more when you have more years of education
 
 ### R implementation
+
+<details class="transcript">
+<summary>Lecturer transcript</summary>
+
+Again the product goes inside the I function so the formula parser multiplies the two columns rather than reading the asterisk as formula shorthand. As an aside, fixest also accepts education times experience directly, which would automatically add both main effects. That would be the better specification in practice, and we are writing it out the long way here only so that the algebra on the previous slide matches the output exactly.
+
+</details>
 
 Just like the quadratic case with $educ^2$, you can use `I()`.
 
@@ -736,6 +958,13 @@ reg_int <- fixest::feols(wage ~ female + exper + I(exper * educ), data = wage1)
 ```
 
 ### Estimated model
+
+<details class="transcript inline">
+<summary>Lecturer transcript</summary>
+
+The left panel plots the estimated marginal effect of experience across the education range, with a horizontal line at zero. It starts negative and crosses zero somewhere in the middle of the range. The right panel shows why you must look at both together: the histogram tells you where the data actually are. A marginal effect estimated at an education level with almost no observations is not something to build a conclusion on, however tight the standard error looks.
+
+</details>
 
 **Estimated Model**
 
@@ -759,16 +988,17 @@ data_exper <- data.table(
 g_marginal <- 
   ggplot(data = data_exper) +
   geom_line(aes(x = x, y = y)) +
-  ylab("marginal impact of experience") +
-  xlab("education") +
+  ylab("Marginal impact\nof experience") +
+  xlab("Education (years)") +
   geom_hline(yintercept = 0) +
-  theme_bw()
+  theme_bw(base_size = 30)
 
 g_hist <- 
   ggplot(data = wage1) +
   geom_histogram(aes(educ)) +
-  xlab("education") +
-  theme_bw()
+  ylab("Count") +
+  xlab("Education (years)") +
+  theme_bw(base_size = 30)
 ```
 
 ::: {.columns}
@@ -776,7 +1006,11 @@ g_hist <-
 ::: {.column width="50%"}
 Marginal impact of $exper$:
 
-```{r echo = F, out.width="90%"}
+```{r}
+#| echo: false
+#| out-width: "90%"
+#| fig-width: 7.5
+#| fig-height: 5.5
 g_marginal
 ```
 :::
@@ -784,7 +1018,11 @@ g_marginal
 ::: {.column width="50%"}
 Histogram of education:
 
-```{r echo = F, out.width="90%"}
+```{r}
+#| echo: false
+#| out-width: "90%"
+#| fig-width: 7.5
+#| fig-height: 5.5
 g_hist
 ```
 :::
@@ -798,6 +1036,13 @@ g_hist
 
 #### Hypothesis
 
+<details class="transcript">
+<summary>Lecturer transcript</summary>
+
+Same logic as the quadratic case. The marginal effect of experience at ten years of schooling is a linear combination of two coefficients, so we are testing one linear restriction on the population parameters. Notice the arithmetic on this slide: at ten years the effect is about one cent an hour, and at fifteen years about eleven cents. Whether either is statistically distinguishable from zero is exactly what the test decides.
+
+</details>
+
 Just like the case of the quadratic specification of education, marginal impact of experience is not constant
 
 We can test if the marginal impact of experience is statistically significant for a given level of education
@@ -807,17 +1052,24 @@ We can test if the marginal impact of experience is statistically significant fo
 
 **Question**
 
-Does additional year of experience has a statistically significant impact (positive or negative) if your current education level is 10
+Does an additional year of experience have a statistically significant impact (positive or negative) if your current education level is 10
 
 <br>
 
 **Hypothesis**
 
-+ $H_0$: $\hat{\beta}_{exper} + \hat{\beta}_{exper\_educ} \times 10=0$
++ $H_0$: $\beta_{exper} + \beta_{exper\_educ} \times 10=0$
 
-+ $H_1$: $\hat{\beta}_{exper} + \hat{\beta}_{exper\_educ} \times 10=0$
++ $H_1$: $\beta_{exper} + \beta_{exper\_educ} \times 10\ne 0$
 
 #### R implementation
+
+<details class="transcript">
+<summary>Lecturer transcript</summary>
+
+The command is the same as before, with the interaction term named exactly as it appears in the regression output. That naming trips people up: the string must match the coefficient label character for character, including the I and the spaces around the asterisk. If R complains that it cannot find the term, print the coefficient names first and copy them.
+
+</details>
 
 ```{webr-r}
 #| autorun: true
@@ -841,6 +1093,13 @@ car::linearHypothesis(reg_int, "exper+10*I(exper * educ)=0")
 
 ### Issue
 
+<details class="transcript">
+<summary>Lecturer transcript</summary>
+
+So far every regressor has been a number. Much of the information we care about is not: sex, marital status, region, degree type, crop, treatment status. The rest of this section is about getting such information into a regression correctly. The distinction that organizes it is between variables with two categories, which need a single indicator, and variables with more than two, which need a set of indicators with one held out.
+
+</details>
+
 **Issue**
 
 How do we include qualitative information as an independent variable?
@@ -862,6 +1121,13 @@ How do we include qualitative information as an independent variable?
 
 #### Dummy variable
 
+<details class="transcript">
+<summary>Lecturer transcript</summary>
+
+A dummy variable takes the value one for one state and zero for the other. That is the whole construction. What makes it powerful is that the coefficient on a zero-one variable has a clean interpretation as a difference in conditional means, which we derive on the next slide. Run the cell and look at the female and married columns to see what these look like in an actual dataset.
+
+</details>
+
 :::{.callout-note title="Dummy variable"}
 + Relevant information in binary variables can be captured by a <span style = "color: red;">zero-one</span> variable that takes the value of $1$ for one state and $0$ for the other state
 
@@ -877,7 +1143,14 @@ dplyr::select(wage1, wage, educ, exper, female, married) %>%
   head()
 ```
 
-#### Model with dummy a variable
+#### Model with a dummy variable
+
+<details class="transcript">
+<summary>Lecturer transcript</summary>
+
+Evaluate the model at female equal to one and at female equal to zero and subtract. Everything except sigma cancels, so sigma is the difference in expected wage between women and men at the same level of education. Two things to note. The comparison holds education fixed, which is what it means to say controlling for education. And the group coded zero, men here, is the baseline, so the coefficient is always a comparison against that group.
+
+</details>
 
 **Model**
 
@@ -905,6 +1178,13 @@ Verbally,
 
 #### R implementation
 
+<details class="transcript">
+<summary>Lecturer transcript</summary>
+
+Run the regression and read the female coefficient as a dollars-per-hour gap at equal education. Be careful with the causal language. This is a conditional mean difference given the variables we included, nothing more. It does not isolate discrimination, because occupation, experience, hours, and many other determinants of pay are still sitting in the error term and may differ systematically between the two groups.
+
+</details>
+
 **R implementation**
 
 ```{webr-r}
@@ -928,8 +1208,17 @@ Female workers make `r reg_df$coefficients["female"]` ($/hour) less than male wo
 
 #### Visualization
 
+<details class="transcript inline">
+<summary>Lecturer transcript</summary>
+
+The picture makes the restriction visible. Two parallel lines, one for each group, separated vertically by sigma. Parallel is the key word: because we included the dummy but not its interaction with education, we have forced the return to education to be identical for both groups and allowed only the intercepts to differ. If you think the return to schooling itself differs by group, this model cannot express that. The interaction section fixes it.
+
+</details>
+
 ```{r}
 #| echo: false
+#| fig-width: 9
+#| fig-height: 6.5
 beta_0 <- reg_df$coefficients[1] # intercept
 sigma_0 <- reg_df$coefficients["female"] # coef on female
 beta_1 <- reg_df$coefficients["educ"] # coef on educ
@@ -949,18 +1238,18 @@ g_comp <- ggplot(data = plot_data) +
   geom_line(aes(x = x, y = y, color = type)) +
   geom_text(
     data = text_data, aes(x, y, label = label),
-    size = 5, parse = TRUE, family = "Times"
+    size = 8, parse = TRUE, family = "Times"
   ) +
   geom_vline(xintercept = 0) +
   geom_hline(yintercept = 0) +
-  ylab("Hourly Wage ($/hour)") +
+  ylab("Hourly Wage ($)") +
   xlab("Education (years)") +
   scale_color_discrete(name = "") +
+  theme_bw(base_size = 30) +
   theme(
-    legend.position = "bottom",
-    text = element_text(size = 12)
+    legend.position = "bottom"
   )
-g_comp + theme_bw()
+g_comp
 ```
 
 :::
@@ -971,6 +1260,13 @@ g_comp + theme_bw()
 ::: {.panel-tabset}
 
 #### Model and theory
+
+<details class="transcript">
+<summary>Lecturer transcript</summary>
+
+Suppose we code male instead of female. Nothing substantive changes. The coefficient flips sign, the baseline switches to women, and every prediction from the model is identical. This is worth demonstrating explicitly because students often worry they have chosen the wrong coding. You have not; you have only chosen which group the comparison is measured against. The important thing is to state clearly in your writeup which category is the baseline.
+
+</details>
 
 **Model**
 
@@ -992,7 +1288,7 @@ $\sigma_m = E[wage|male=1,educ]-E[wage|male=0,educ]$
 
 Verbally,
 
-+ $\sigma_m$ is the difference in the expected wage conditional on education between female and male
++ $\sigma_m$ is the difference in the expected wage conditional on education between male and female
 
 + $\sigma_m$ measures how much more (less) male workers make compared to female workers (<span style = "color: blue;">baseline</span>) if they were to have the same education level 
 
@@ -1001,6 +1297,13 @@ Whichever status that is given the value of $0$ becomes the baseline
 :::
 
 #### Regression results
+
+<details class="transcript">
+<summary>Lecturer transcript</summary>
+
+Here is the same regression with male in place of female. The coefficient has the same magnitude as before with the opposite sign, and the intercept has shifted to absorb the change of baseline. Confirm that against the earlier output yourself rather than taking my word for it.
+
+</details>
 
 **Regression results**
 
@@ -1021,6 +1324,13 @@ Male workers make `r reg_df$coefficients["male"]` ($/hour) more than female work
 
 #### Question
 
+<details class="transcript">
+<summary>Lecturer transcript</summary>
+
+Think about it before opening the answer. Male and female always sum to one, and the intercept is a column of ones, so the three are perfectly collinear. There is no unique set of coefficients that fits the data, and OLS cannot proceed. This is the dummy variable trap, and the rule that follows is simple: with c categories and an intercept, include c minus one indicators.
+
+</details>
+
 What do you think will happen if  we include both male and female dummy variables?
 
 <br>
@@ -1035,7 +1345,14 @@ What do you think will happen if  we include both male and female dummy variable
 
 #### Perfect Collinearity
 
-In the model, $intercept = male + female$, which causes perfec collinearity.
+<details class="transcript">
+<summary>Lecturer transcript</summary>
+
+Rather than just asserting it, run the regression with both dummies and watch what happens. Modern software will not stop with an error; fixest silently drops one of the collinear variables and reports the rest. That silence is the danger. If you do not read the output carefully you may not notice that the model you estimated is not the model you wrote, so always check which variables actually appear in the results table.
+
+</details>
+
+In the model, $intercept = male + female$, which causes perfect collinearity.
 
 Here is what happens if you include both:
 
@@ -1064,6 +1381,13 @@ One of the variables that cause perfect collinearity is automatically dropped.
 
 ### Issue
 
+<details class="transcript">
+<summary>Lecturer transcript</summary>
+
+In the previous model the two groups were forced onto parallel lines. Now we relax that. The question is whether the return to education itself differs between women and men, not merely the level of pay. Answering it requires interacting the dummy with education, which lets each group have its own slope as well as its own intercept.
+
+</details>
+
 + In the previous example, the impact of education on wage was modeled to be exactly the same
 
 + Can we build a more flexible model that allows us to estimate the differential impacts of education on wage between male and female?
@@ -1083,20 +1407,36 @@ For female, education is more effective by $\gamma$ than it is for male.
 
 ### Example using R
 
+<details class="transcript">
+<summary>Lecturer transcript</summary>
+
+Adding the product of female and education gives each group a separate slope. Evaluating the model at female equal to one shows that women's return to education is the coefficient on education plus gamma, while men's is that coefficient alone. Gamma is therefore the difference in returns, which is exactly the quantity the research question is about.
+
+</details>
+
 ```{webr-r}
 (
-reg_di <- fixest::feols(wage ~ female + educ + I(female * educ), data = wage)
+reg_di <- fixest::feols(wage ~ female + educ + I(female * educ), data = wage1)
 )
 ```
 
 
 ### Interpretation
 
+<details class="transcript inline">
+<summary>Lecturer transcript</summary>
+
+The estimated gamma says the return to an additional year of schooling is about nine cents an hour lower for women. In the figure the two lines are no longer parallel: they differ in both intercept and slope, and the gap between them widens with education. Whether gamma is statistically distinguishable from zero is a separate question, and because it is a single coefficient, the regression output answers it directly with a t-test.
+
+</details>
+
 The marginal benefit of education is 0.086 ($/hour) less for females workers than for male workers on average.
 
 ```{r}
 #| echo: false
-reg_di <- fixest::feols(wage ~ female + educ + I(female * educ), data = wage)
+#| fig-width: 9
+#| fig-height: 6.5
+reg_di <- fixest::feols(wage ~ female + educ + I(female * educ), data = wage1)
 
 beta_0 <- reg_di$coefficients[1] # intercept
 sigma_0 <- reg_di$coefficients["female"] # coef on female
@@ -1118,18 +1458,19 @@ g_comp_i <- ggplot(data = plot_data) +
   geom_line(aes(x = x, y = y, color = type)) +
   geom_text(
     data = text_data, aes(x, y, label = label),
-    size = 6, parse = TRUE, family = "Times"
+    size = 8, parse = TRUE, family = "Times"
   ) +
   geom_vline(xintercept = 0) +
   geom_hline(yintercept = 0) +
-  ylab("hourly wage") +
-  xlab("education") +
+  ylab("Hourly Wage ($)") +
+  xlab("Education (years)") +
   scale_color_discrete(name = "") +
+  theme_bw(base_size = 30) +
   theme(
     legend.position = "bottom"
   )
 
-g_comp_i + theme_bw()
+g_comp_i
 ```
 
 
@@ -1143,6 +1484,13 @@ g_comp_i + theme_bw()
 
 ### Issue
 
+<details class="transcript">
+<summary>Lecturer transcript</summary>
+
+Now consider a variable with more than two categories, such as highest degree. The recipe is to build one indicator per category and then include all but one of them. The omitted category becomes the baseline, and every reported coefficient is a comparison against it. If you include all of them together with an intercept, you are back in the dummy variable trap.
+
+</details>
+
 + Consider a variable called $degree$ which has three status values:  college, master, and doctor.
 
 + Unlike a binary variable, there are three status values. 
@@ -1151,7 +1499,7 @@ g_comp_i + theme_bw()
 
 **What do we do about this?**
 
-You can create three dummy variables likes below:
+You can create three dummy variables like below:
 
 + `college`: 1 if the highest degree is college, 0 otherwise
 + `master`: 1 if the highest degree is Master's, 0 otherwise
@@ -1160,6 +1508,13 @@ You can create three dummy variables likes below:
 You then include two (the number of status values - 1) of the three dummy variables:
 
 ### Model
+
+<details class="transcript">
+<summary>Lecturer transcript</summary>
+
+With college omitted, sigma on master is the wage difference between a master's degree holder and a college graduate at the same level of the other regressors, and sigma on doctor is the corresponding comparison for a doctorate. Two cautions. Neither coefficient compares master's with doctorate directly; for that you would test whether the two coefficients are equal. And the choice of baseline is yours, so pick the category that makes your comparisons easiest to read, and say which one it is.
+
+</details>
 
 **Model**
 
@@ -1192,6 +1547,13 @@ The omitted category (here, `college`) becomes the baseline.
 
 ### Definition
 
+<details class="transcript">
+<summary>Lecturer transcript</summary>
+
+Structural difference means the entire relationship differs across groups, not just the level. In the example, every coefficient carries a different symbol for men and women: the intercept, the SAT effect, the high school rank effect, and the credit hours effect. If that is true, a single pooled regression estimates some weighted blend of two different processes and describes neither of them correctly.
+
+</details>
+
 Structural difference refers to the fundamental differences in the model of a phenomenon in the population:
 
 <br>
@@ -1220,6 +1582,13 @@ You do not want to run a single regression that fits a single model for both fem
 
 ### What to do?
 
+<details class="transcript">
+<summary>Lecturer transcript</summary>
+
+The right response is to test the hypothesis rather than assume an answer. The trick is that you can estimate both group-specific models inside one regression by interacting the group dummy with every regressor, including the intercept. The betas are then the male coefficients and the sigmas are the female-minus-male differences. This formulation is convenient precisely because it turns the question into a hypothesis about the sigmas.
+
+</details>
+
 If you suspect that the underlying process of how the dependent variable is determined vary across groups, then you should test that hypothesis!
 
 <br>
@@ -1239,6 +1608,13 @@ $$cumgpa = \beta_0 + \sigma_0 female + \beta_1 sat + \sigma_1 (sat \times female
 
 ### Interpretation
 
+<details class="transcript">
+<summary>Lecturer transcript</summary>
+
+Evaluate the flexible model at female equal to zero and at female equal to one to confirm that it reproduces both group-specific equations exactly. The null of no structural difference is that all four sigmas are zero simultaneously. Four restrictions at once means an F-test, not four separate t-tests. Running four t-tests instead would be both a different hypothesis and a multiple-testing problem.
+
+</details>
+
 Male: $E[cumgpa] = \beta_0 + \beta_1 sat + \beta_2 hsperc + \beta_3 tothrs$
 Female: $E[cumgpa] = (\beta_0 +\sigma_0) + (\beta_1+\sigma_1) sat + (\beta_2+\sigma_2) hsperc + (\beta_3+\sigma_3) tothrs$
 
@@ -1252,7 +1628,7 @@ Female: $E[cumgpa] = (\beta_0 +\sigma_0) + (\beta_1+\sigma_1) sat + (\beta_2+\si
 **Null Hypothesis**
 
 +  (verbally) The model of GPA for male and female students are not structurally different.
-+ (mathematically) $H_0: \;\; \sigma_0=0,\;\; \sigma_1=0, \;\; \sigma_2=0, \;\; \mbox{and} \;\; \sigma_3=0$
++ (mathematically) $H_0: \;\; \sigma_0=0,\;\; \sigma_1=0, \;\; \sigma_2=0, \;\; \text{and} \;\; \sigma_3=0$
 
 **Question**
 
@@ -1265,6 +1641,13 @@ F-test.
 </details>
 
 ### R code
+
+<details class="transcript">
+<summary>Lecturer transcript</summary>
+
+The code builds the three interaction terms explicitly and estimates the unrestricted model. Note the filter dropping missing values, which restricts the sample to the term in which the change in credit hours is observed. Whenever a filter like that changes your sample, say so in your writeup, because it changes the population your results describe.
+
+</details>
 
 Run the unrestricted model with all the interaction terms:
 
@@ -1295,6 +1678,13 @@ reg_full <-
 
 ### What do you see?
 
+<details class="transcript">
+<summary>Lecturer transcript</summary>
+
+Look at the output and notice the trap. None of the female-related terms is individually significant at five percent, and the temptation is to conclude that the groups are the same. That inference does not follow. Individually insignificant coefficients can still be jointly significant, particularly when the interaction terms are correlated with each other, which they usually are. The joint test is the right instrument, and we run it next.
+
+</details>
+
 **Regression results**
 
 ```{webr-r}
@@ -1314,6 +1704,13 @@ summary(reg_full)
 
 
 ### Test of joint significance
+
+<details class="transcript">
+<summary>Lecturer transcript</summary>
+
+Here the four restrictions are passed to linearHypothesis as a vector of strings, and R returns a single F-statistic for the joint null. Compare that conclusion with what you would have concluded from the individual t-statistics alone. This gap between individual and joint significance is a recurring theme, and it is the main reason we spent time on F-tests earlier in the course.
+
+</details>
 
 ```{webr-r}
 #| autorun: true
@@ -1337,12 +1734,19 @@ car::linearHypothesis(
 
 ### Prepare a dataset
 
+<details class="transcript">
+<summary>Lecturer transcript</summary>
+
+A short practical aside. Real datasets rarely arrive as a wall of dummy variables; they arrive with one column holding a category label. This code goes the other way, collapsing eight university indicators into a single university column, so that we can practice the workflow you will actually face. Read the case_when call to see how the mapping is built.
+
+</details>
+
 ```{webr-r}
 #* get big9salary
 data("big9salary", package = "wooldridge")
 
-#* creat a variable that indicates university
-#* this is how the data would like most of the time (instead of having bunch of dummy variables)
+#* create a variable that indicates university
+#* this is how the data would look most of the time (instead of having a bunch of dummy variables)
 big9salary_c <-
   as_tibble(big9salary) %>%
   dplyr::mutate(
@@ -1363,6 +1767,13 @@ big9salary_c <-
 
 ### Data
 
+<details class="transcript inline">
+<summary>Lecturer transcript</summary>
+
+Look at the head and the tail of the reshaped data. The university column now carries the information that was previously spread across eight indicator columns, and it is easier to read, easier to filter, and much less error-prone. Getting your data into this shape first is worth the effort.
+
+</details>
+
 Take a look at the data,
 
 ```{webr-r}
@@ -1372,6 +1783,13 @@ tail(big9salary_c)
 ```
 
 ### `i()`
+
+<details class="transcript">
+<summary>Lecturer transcript</summary>
+
+The i function creates the full set of indicators for you, and the ref argument chooses the baseline explicitly. This beats building dummies by hand for three reasons: you cannot accidentally include every category, the baseline is stated in the code rather than implied by whatever you happened to omit, and adding a category later requires no changes. Read the highlighted coefficient as a salary difference relative to Indiana.
+
+</details>
 
 You can use the `i()` function inside `fixest::feols()` like below:
 
@@ -1390,9 +1808,16 @@ So, for example, the highlighted line means that faculty members at Michigan Sta
 
 **Key**
 
-You do not have to make bunch of dummy variables like the original dataset. Just use `i(catergory_variable)`.
+You do not have to make a bunch of dummy variables like the original dataset. Just use `i(category_variable)`.
 
-### Interactions terms 
+### Interaction terms 
+
+<details class="transcript">
+<summary>Lecturer transcript</summary>
+
+The same function creates interactions between a categorical variable and a continuous one. Passing the continuous variable as the second argument gives you a separate slope on the publication index for each university, again measured relative to the baseline. This is the categorical version of the structural difference test from the previous section, and testing all of these interactions jointly asks whether the return to publications differs across institutions at all.
+
+</details>
 
 You can use `i()` for creating interactions of a categorical variable and a continuous variable.
 
@@ -1410,7 +1835,7 @@ So, the marginal impact of `pubindex` is $436$ greater for those at Michigan Sta
 :::
 <!--end of panel-->
 
-# Other miscellaneous topic
+# Other miscellaneous topics
 
 <html><div style='float:left'></div><hr color='#EB811B' size=1px width=1000px></html>
 
@@ -1420,11 +1845,25 @@ So, the marginal impact of `pubindex` is $436$ greater for those at Michigan Sta
 
 ### $R^2$ does not matter (often)
 
+<details class="transcript">
+<summary>Lecturer transcript</summary>
+
+This will feel like heresy after an introductory course that treats R squared as a report card. In applied causal work it is close to irrelevant. R squared measures how much variation in the outcome your model accounts for; it says nothing about whether the coefficient you care about is unbiased. Those are different questions, and only one of them is usually your question.
+
+</details>
+
 :::{.callout-important}
 Small value of $R^2$ does not mean the end of the world (In fact, we could not care less about it.)
 :::
 
 ### Why?
+
+<details class="transcript">
+<summary>Lecturer transcript</summary>
+
+The eco-labeled apple study makes the point concretely. The researchers set the prices randomly when designing the survey, so the price variables are exogenous by construction and the price coefficient has a clean causal interpretation. Demand also depends on income, taste, household size, and a hundred other things they did not measure, so R squared is small. Both statements are true at the same time. Low explanatory power and clean identification are entirely compatible.
+
+</details>
 
 **Example**
 
@@ -1442,6 +1881,13 @@ $$ecolabs = \beta_0 + \beta_1 regprc + \beta_2 ecoprc$$
 + The (only) objective of the study is to understand the impact of the price of eco-labeled apple on the demand for eco-labeled apples.
 
 ### Regression results
+
+<details class="transcript">
+<summary>Lecturer transcript</summary>
+
+Run it, look at the R squared, then read the question. The answer is no, this is not a problem. The goal was never to predict how many pounds of apples a given family buys; it was to measure how demand responds to price. Randomization at the design stage delivered that, and no amount of additional explanatory power would have made the price coefficient more credible.
+
+</details>
 
 ```{webr-r}
 data(apple, package = "wooldridge")
@@ -1477,6 +1923,13 @@ No.
 
 ### Questions
 
+<details class="transcript">
+<summary>Lecturer transcript</summary>
+
+A practical question that comes up constantly: what happens if you change the units of a variable, from years to months, dollars to thousands of dollars, acres to hectares. Predict the answer for all four quantities before running the code. Getting this wrong is a common source of confusion when comparing results across papers that use different units.
+
+</details>
+
 What happens if you scale up/down variables used in regression? 
 
 + coefficients
@@ -1485,6 +1938,13 @@ What happens if you scale up/down variables used in regression?
 + $R^2$
 
 ### Let's see
+
+<details class="transcript inline">
+<summary>Lecturer transcript</summary>
+
+The two regressions differ only in that education is measured in months rather than years. Compare the outputs line by line. The coefficient and its standard error are both divided by twelve, while the t-statistic and R squared are completely unchanged. That pattern is the answer, and it makes sense: rescaling a regressor cannot change how well the model fits or how many standard errors the estimate sits from zero.
+
+</details>
 
 ::: {.columns}
 
@@ -1518,6 +1978,13 @@ fixest::feols(wage ~ female + I(educ * 12), data = wage1)
 
 ### Interpretation
 
+<details class="transcript">
+<summary>Lecturer transcript</summary>
+
+State each result in words with its units attached and the two models say exactly the same thing. Half a dollar an hour per year of schooling and four point two cents an hour per month of schooling are the same fact, since twelve months make a year. The lesson is that units are a reporting choice, not a modeling one, and you should pick whichever makes your coefficients readable.
+
+</details>
+
 **Interpretation**
 
 + Regression <span style = "color: blue;"> without </span> scaling 
@@ -1537,6 +2004,13 @@ According to the scaled model, hourly wage increases by $0.0422 * 12$ if educati
 That is, the estimated marginal impact of education on wage from the scaled model is the same as that from the non-scaled model.
 
 ### Summary
+
+<details class="transcript">
+<summary>Lecturer transcript</summary>
+
+To summarize: rescaling an independent variable scales its coefficient and standard error by the same factor and leaves the t-statistic and R squared untouched. Nothing about the substance of the model changes. The practical advice is to choose units that make your table readable, avoiding coefficients reported as ten to the minus six, and always to state the units in the table so a reader can judge the magnitude without guessing.
+
+</details>
 
 When an independent variable is scaled, 
 

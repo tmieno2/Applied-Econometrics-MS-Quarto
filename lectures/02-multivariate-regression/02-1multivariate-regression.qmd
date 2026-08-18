@@ -1,19 +1,26 @@
 ---
 title: "02: Multivariate Regression"
 format: 
-  revealjs: 
+  revealjs:
+    html-math-method: katex
     theme: [default, ../custom.scss, ../notebook.scss]
     fontsize: 1.2em
     callout-icon: false
     scrollable: true
     echo: true
     fig-dpi: 400
-    include-in-header: ../transcript-support.html
+    include-in-header:
+      - ../transcript-support.html
+      - ../webr-layout.html
     footer: "[back to course website with lecture slides](https://tmieno2.github.io/Applied-Econometrics-MS-Quarto/lectures/)"
 webr:
   packages: ['fixest', 'dplyr', 'data.table', 'ggplot2', 'modelsummary', 'gt']
   cell-options:
     editor-font-scale: 0.8
+    dpi: 216
+    fig-width: 7
+    fig-height: 4.5
+    out-width: 55%
 filters:
   - webr
 ---
@@ -48,13 +55,13 @@ reg <- feols(y ~ x1 + x2, data = data_sim)
 # NOTE: a webr setup cell draws a loading widget wherever it sits, so keep it
 # inside a content slide rather than on a section divider.
 theme_lecture <-
-  theme_bw() +
+  theme_bw(base_size = 30) +
   theme(
-    axis.text = element_text(size = 16),
-    axis.title = element_text(size = 16),
-    legend.text = element_text(size = 16),
-    legend.title = element_text(size = 16),
-    strip.text = element_text(size = 16)
+    axis.text = element_text(size = 30),
+    axis.title = element_text(size = 30),
+    legend.text = element_text(size = 27),
+    legend.title = element_text(size = 27),
+    strip.text = element_text(size = 30)
   )
 ```
 
@@ -93,8 +100,8 @@ Here is the move written out. On top, the univariate model, where the error term
 
 ```{=tex}
 \begin{align}
-  \mbox{Uni-variate}\;\; wage = & \beta_0 + \beta_1 educ + u_1 (=u_2+\beta_2 exper)\\
-  \mbox{Bi-variate}\;\; wage = & \beta_0 + \beta_1 educ + \beta_2 exper + u_2
+  \text{Uni-variate}\;\; wage = & \beta_0 + \beta_1 educ + u_1 (=u_2+\beta_2 exper)\\
+  \text{Bi-variate}\;\; wage = & \beta_0 + \beta_1 educ + \beta_2 exper + u_2
 \end{align}
 ```
 
@@ -130,7 +137,7 @@ avgscore= & \beta_0+\beta_1 expend +\beta_2 avginc + u_2 \notag
 <details class="transcript">
 <summary>Lecturer transcript</summary>
 
-Now the general version, and I mostly want you to read the two bullets defining the betas, because six words there are doing a great deal of work. Beta-one is the change in y with respect to x-one, holding other factors fixed. Holding other factors fixed. In the univariate model we simply had to hope for that. Here it is delivered by the estimation itself, because x-two is in the model. That phrase is what people mean when they call a coefficient a partial effect, and the last section of this lecture makes precise what the machinery is actually doing.
+Now the general version, and I mostly want you to read the two bullets defining the betas, because six words there are doing a great deal of work. Beta-one describes how the conditional regression function changes with x-one while the included x-two is held fixed. That is what people mean by a partial effect, and the last section makes precise what the machinery is doing. Be careful, though: including x-two creates a conditional comparison; it does not automatically make that comparison causal. We still need the zero conditional mean assumption for the remaining error.
 
 </details>
 
@@ -182,7 +189,7 @@ $y = \beta_0 + \beta_1 x_1 + \beta_2 x_2 + u$,
 <details class="transcript">
 <summary>Lecturer transcript</summary>
 
-Here it is for the wage model. The condition is that the expected value of u given education and experience is zero, and the verbal version tells you what that requires: innate ability must be, on average, unrelated to both schooling and experience. Say that out loud and ask whether you believe it. More able people tend to stay in school longer, so no. Now read the callout, which is the honest summary of this whole lecture. Adding experience took experience out of the error term. Nothing takes ability out, because you never measured it. Regression shrinks the error term; it does not empty it.
+Here it is for the wage model. The condition is that the expected value of u for every combination of education and experience is zero. If innate ability remains in u, this requires its conditional average not to vary across those combinations. Say that out loud and ask whether you believe it. More able people tend to stay in school longer, so probably not. Now read the callout, which is the honest summary of this whole lecture. Adding experience took experience out of the error term. Nothing takes ability out, because you never measured it. Regression changes the contents of the error term; it does not empty it.
 
 </details>
 
@@ -222,7 +229,7 @@ Notice what just happened. Adding $exper$ to the model moved experience <span st
 <details class="transcript">
 <summary>Lecturer transcript</summary>
 
-The extension to k variables involves no new ideas, only longer expressions. The model is y equals beta-zero plus beta-one x-one, out to beta-k x-k, plus u. And the condition for unbiasedness is that the expected value of u given all k of your regressors equals zero. The verbal version is the one to remember, because it is the one you will actually reason with: the error term must be uncorrelated with every single independent variable. Every one. A single bad regressor is enough to contaminate the whole estimate, including the coefficients you did care about.
+The extension to k variables involves no new ideas, only longer expressions. The model is y equals beta-zero plus beta-one x-one, out to beta-k x-k, plus u. And the condition for unbiasedness is that the expected value of u given the entire vector of regressors equals zero. This joint conditional statement is stronger than requiring zero pairwise correlation between u and each regressor. If it fails, the affected coefficient estimates may be biased; which coefficients are affected and by how much depends on the relationships among the regressors and the omitted component.
 
 </details>
 
@@ -359,7 +366,7 @@ Denoting the collection of $\widehat{\beta}$s as $\widehat{\theta} (=\{\widehat{
 \end{align}
 ```
 
-Exactly the univariate problem from lecture 01-2, with $k$ unknowns instead of two.
+Exactly the univariate problem from lecture 01-2, with $k+1$ unknowns instead of two: an intercept and $k$ slope coefficients.
 
 #### The FOCs
 
@@ -387,7 +394,7 @@ Partially differentiate the objective function (sum of squared residuals) with r
 <details class="transcript">
 <summary>Lecturer transcript</summary>
 
-And here is the compact form, which is worth committing to memory because it recurs constantly. The residuals sum to zero, and each x times the residuals sums to zero. That is k plus one equations in k plus one unknowns, which is why the system has a unique solution. Read the last line too, because it is not decoration. Each of those equations spends one degree of freedom. That is exactly where the n minus k minus one comes from when we estimate sigma squared, two tabs from now.
+And here is the compact form, which is worth committing to memory because it recurs constantly. The residuals sum to zero, and each x times the residuals sums to zero. That is k plus one equations in k plus one unknowns. The solution is unique when the regressor matrix has full column rank—the no-perfect-collinearity condition introduced shortly. Read the last line too, because it is not decoration. Estimating those k plus one coefficients uses k plus one degrees of freedom. That is where n minus k minus one comes from when we estimate sigma squared, two tabs from now.
 
 </details>
 
@@ -517,8 +524,8 @@ $$
 + functional form misspecification
 ```{=tex}
 \begin{align}
-  wage = & \beta_0 + \beta_1 log(x_1) + \beta_2 x_2 + u_1 \;\;\mbox{(true)}\\
-  wage = & \beta_0 + \beta_1 x_1 + \beta_2 x_2 + u_2 \;\; \mbox{(yours)},\;\; \mbox{where } u_2 = u_1 + \beta_1[log(x_1)-x_1]
+  wage = & \beta_0 + \beta_1 log(x_1) + \beta_2 x_2 + u_1 \;\;\text{(true)}\\
+  wage = & \beta_0 + \beta_1 x_1 + \beta_2 x_2 + u_2 \;\; \text{(yours)},\;\; \text{where } u_2 = u_1 + \beta_1[log(x_1)-x_1]
 \end{align}
 ```
 + omission of variables that are correlated with any of $x_1,x_2,\dots,x_k$ (<span style = "color: blue;"> more on this soon </span>)
@@ -745,5 +752,3 @@ So here is what to take from the whole section. When you run a multivariate regr
 + Regressing $y$ on all explanatory variables $(x_1$, $x_2$, and $x_3)$ in a multivariate regression is as if you are looking at the impact of a single explanatory variable with the effects of all the other variables partialled out
 
 + In other words, including variables beyond your variable of interest lets you <span style = "color: red;"> control for (remove the effect of) </span> other variables, avoiding confusing the impact of the variable of interest with the impact of other variables. 
-
-

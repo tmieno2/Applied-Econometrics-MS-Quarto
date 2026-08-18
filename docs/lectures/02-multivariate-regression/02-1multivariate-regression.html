@@ -94,7 +94,23 @@
     code span.vs { color: #20794d; } /* VerbatimString */
     code span.wa { color: #5e5e5e; font-style: italic; } /* Warning */
   </style>
-  <link rel="stylesheet" href="../../site_libs/revealjs/dist/theme/quarto-efe7f97d24ea27507c65df08cab6e7d6.css">
+  <link rel="stylesheet" href="../../site_libs/revealjs/dist/theme/quarto-db62157d6cf4bc51d0b25352aea75d23.css">
+  <script>window.backupDefine = window.define; window.define = undefined;</script><script src="https://cdn.jsdelivr.net/npm/katex@latest/dist/katex.min.js"></script>
+  <script>document.addEventListener("DOMContentLoaded", function () {
+ var mathElements = document.getElementsByClassName("math");
+ var macros = [];
+ for (var i = 0; i < mathElements.length; i++) {
+  var texText = mathElements[i].firstChild;
+  if (mathElements[i].tagName == "SPAN") {
+   katex.render(texText.data, mathElements[i], {
+    displayMode: mathElements[i].classList.contains('display'),
+    throwOnError: false,
+    macros: macros,
+    fleqn: false
+   });
+}}});
+  </script>
+  <script>window.define = window.backupDefine; window.backupDefine = undefined;</script><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@latest/dist/katex.min.css">
   <link href="../../site_libs/revealjs/plugin/quarto-line-highlight/line-highlight.css" rel="stylesheet">
   <link href="../../site_libs/revealjs/plugin/reveal-menu/menu.css" rel="stylesheet">
   <link href="../../site_libs/revealjs/plugin/reveal-menu/quarto-menu.css" rel="stylesheet">
@@ -360,6 +376,151 @@
       var el = e.target;
       if (el && el.closest && el.closest('.panel-tabset [role="tab"]')) closeAll();
     }, true);
+  })();
+  </script>
+  <!-- Adaptive code/output layout for WebR cells in revealjs lecture decks. -->
+  <script>
+  (function () {
+    "use strict";
+
+    var MAX_CODE_LINES = 12;
+    var MAX_CODE_SHARE = 0.58;
+    var MIN_CODE_SHARE = 0.30;
+    var MAX_OUTPUT_SHARE = 0.70;
+
+    function detailsFor(area) {
+      var match = area.id && area.id.match(/qwebr-interactive-area-(\d+)/);
+      if (!match || !globalThis.qwebrCellDetails) return null;
+      return globalThis.qwebrCellDetails[Number(match[1]) - 1] || null;
+    }
+
+    function codeMetrics(code) {
+      var lines = String(code || "").split("\n");
+      var substantive = lines.filter(function (line) {
+        return line.trim() && !/^\s*#/.test(line);
+      });
+      return {
+        lines: substantive.length,
+        maxChars: lines.reduce(function (n, line) {
+          return Math.max(n, line.replace(/\t/g, "  ").length);
+        }, 0)
+      };
+    }
+
+    function setTracks(host, codeShare) {
+      codeShare = Math.max(MIN_CODE_SHARE, Math.min(MAX_CODE_SHARE, codeShare));
+      var outputShare = 1 - codeShare;
+      host.style.setProperty("--webr-code-track", codeShare + "fr");
+      host.style.setProperty("--webr-output-track", outputShare + "fr");
+      host.style.setProperty("--webr-code-share", (codeShare * 100) + "%");
+    }
+
+    function measureRenderedCode(area, host, code, attempt) {
+      if (host.dataset.webrLayout !== "side") return;
+      var sample = area.querySelector(".view-line, .monaco-editor");
+      if (!sample || !area.clientWidth) {
+        if (attempt < 20) setTimeout(function () {
+          measureRenderedCode(area, host, code, attempt + 1);
+        }, 100);
+        return;
+      }
+      var style = getComputedStyle(sample);
+      var canvas = document.createElement("canvas");
+      var context = canvas.getContext("2d");
+      context.font = [style.fontStyle, style.fontWeight, style.fontSize,
+        style.fontFamily].filter(Boolean).join(" ");
+      var widest = String(code || "").split("\n").reduce(function (width, line) {
+        return Math.max(width, context.measureText(line.replace(/\t/g, "  ")).width);
+      }, 0);
+      // Monaco's line-number gutter, padding, and scrollbar need about 76px in
+      // addition to the measured glyph width.
+      var available = Math.max(1, area.clientWidth - 16);
+      setTracks(host, (widest + 76) / available);
+    }
+
+    function stack(host) {
+      if (host.dataset.webrLayoutManual === "true") return;
+      host.classList.remove("side-out");
+      host.dataset.webrLayout = "stacked";
+    }
+
+    function assessOutput(area, host, metrics) {
+      if (host.dataset.webrLayout !== "side") return;
+      var graph = area.querySelector(".qwebr-output-graph-area canvas, .qwebr-output-graph-area img");
+      if (graph) return; // plots scale cleanly within their grid track
+
+      var pre = area.querySelector(".qwebr-output-code-area pre");
+      if (!pre || getComputedStyle(pre).visibility === "hidden") return;
+
+      var codeNeed = Math.max(MIN_CODE_SHARE,
+        Math.min(MAX_CODE_SHARE, (metrics.maxChars + 8) / 150));
+      var available = Math.max(1, area.clientWidth - 16);
+      var outputNeed = Math.min(MAX_OUTPUT_SHARE,
+        Math.max(0.42, (pre.scrollWidth + 24) / available));
+      var outputLines = (pre.innerText || "").split("\n").length;
+
+      // If both measured widths cannot coexist, or the console result is too
+      // tall to read as a right-hand panel, retain WebR's original vertical stack.
+      if (codeNeed + outputNeed > 1 || outputLines > 16 ||
+          pre.scrollHeight > area.ownerDocument.documentElement.clientHeight * 0.62) {
+        stack(host);
+        return;
+      }
+
+      setTracks(host, 1 - outputNeed);
+      requestAnimationFrame(function () {
+        if (pre.scrollWidth > pre.clientWidth * 1.08) stack(host);
+      });
+    }
+
+    function configure(area) {
+      if (area.dataset.webrLayoutChecked === "true") return;
+      area.dataset.webrLayoutChecked = "true";
+
+      var details = detailsFor(area);
+      if (!details || !details.options || details.options.context === "setup") return;
+      var metrics = codeMetrics(details.code);
+      if (!metrics.lines || metrics.lines > MAX_CODE_LINES || metrics.maxChars > 88) return;
+
+      var existingWrapper = area.closest(".side-out");
+      var host = existingWrapper || area.closest(".cell") || area.parentElement;
+      if (!host) return;
+
+      if (existingWrapper) {
+        host.dataset.webrLayoutManual = "true";
+      } else {
+        host.classList.add("side-out");
+      }
+      host.dataset.webrLayout = "side";
+
+      // Estimate an initial split from the longest source line. The output is
+      // intentionally favoured; actual output dimensions refine it after a run.
+      var initialCodeShare = (metrics.maxChars + 10) / 145;
+      setTracks(host, initialCodeShare);
+      measureRenderedCode(area, host, details.code, 0);
+
+      var observer = new MutationObserver(function () {
+        requestAnimationFrame(function () { assessOutput(area, host, metrics); });
+      });
+      observer.observe(area, { childList: true, subtree: true, characterData: true,
+        attributes: true, attributeFilter: ["style", "class"] });
+      requestAnimationFrame(function () { assessOutput(area, host, metrics); });
+    }
+
+    function scan() {
+      document.querySelectorAll(".qwebr-interactive-area").forEach(configure);
+    }
+
+    var pageObserver = new MutationObserver(scan);
+    function start() {
+      scan();
+      pageObserver.observe(document.body, { childList: true, subtree: true });
+    }
+    if (document.readyState === "loading") {
+      document.addEventListener("DOMContentLoaded", start, { once: true });
+    } else {
+      start();
+    }
   })();
   </script>
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/monaco-editor@0.47.0/min/vs/editor/editor.main.css">
@@ -652,7 +813,7 @@
   };
 
   // Store cell data
-  globalThis.qwebrCellDetails = [{"code":"# NOTE: a webr setup cell draws a loading widget wherever it sits, so keep it\n# inside a content slide rather than on a section divider.\ntheme_lecture <-\n  theme_bw() +\n  theme(\n    axis.text = element_text(size = 16),\n    axis.title = element_text(size = 16),\n    legend.text = element_text(size = 16),\n    legend.title = element_text(size = 16),\n    strip.text = element_text(size = 16)\n  )","id":1,"options":{"autorun":"true","classes":"","comment":"","context":"setup","dpi":72,"editor-font-scale":"0.8","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":5,"fig-width":7,"label":"unnamed-chunk-1","message":"true","out-height":"","out-width":"700px","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"#--- load the fixest package ---#\nlibrary(fixest)\n\n#--- generate data ---#\nset.seed(2024) # so everyone sees the same numbers\nN <- 100 # sample size\nx1 <- rnorm(N) # independent variable\nx2 <- rnorm(N) # independent variable\nu <- rnorm(N) # error\ny <- 1 + x1 + x2 + u # dependent variable\ndata_sim <- data.frame(y = y, x1 = x1, x2 = x2)\n\n#--- OLS ---#\nreg <- feols(y ~ x1 + x2, data = data_sim)\n\n#* print the results\nreg","id":2,"options":{"autorun":"true","classes":"","comment":"","context":"interactive","dpi":72,"editor-font-scale":"0.8","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":5,"fig-width":7,"label":"unnamed-chunk-2","message":"true","out-height":"","out-width":"700px","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"library(fixest)\n\n#--- simulate data where x1 is correlated with x2 and x3 ---#\nset.seed(4891)\nN <- 200\nx2 <- rnorm(N)\nx3 <- rnorm(N)\nx1 <- 0.5 * x2 - 0.3 * x3 + rnorm(N)\ny <- 1 + 2 * x1 + 3 * x2 - x3 + rnorm(N)\nd <- data.frame(y, x1, x2, x3)\n\n#--- Method 1: regress y on everything at once ---#\nm1 <- feols(y ~ x1 + x2 + x3, data = d)\n\n#--- Method 2: partial x2 and x3 out of both y and x1, then regress ---#\nd$u_y <- resid(feols(y ~ x2 + x3, data = d))\nd$u_x1 <- resid(feols(x1 ~ x2 + x3, data = d))\nm2 <- feols(u_y ~ u_x1, data = d)\n\n#--- compare ---#\nc(method_1 = coef(m1)[\"x1\"], method_2 = coef(m2)[\"u_x1\"])","id":3,"options":{"autorun":"true","classes":"","comment":"","context":"interactive","dpi":72,"editor-font-scale":"0.8","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":5,"fig-width":7,"label":"unnamed-chunk-3","message":"true","out-height":"","out-width":"700px","output":"true","read-only":"false","results":"markup","warning":"true"}}];
+  globalThis.qwebrCellDetails = [{"code":"# NOTE: a webr setup cell draws a loading widget wherever it sits, so keep it\n# inside a content slide rather than on a section divider.\ntheme_lecture <-\n  theme_bw(base_size = 30) +\n  theme(\n    axis.text = element_text(size = 30),\n    axis.title = element_text(size = 30),\n    legend.text = element_text(size = 27),\n    legend.title = element_text(size = 27),\n    strip.text = element_text(size = 30)\n  )","id":1,"options":{"autorun":"true","classes":"","comment":"","context":"setup","dpi":"216","editor-font-scale":"0.8","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"4.5","fig-width":"7","label":"unnamed-chunk-1","message":"true","out-height":"","out-width":"55%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"#--- load the fixest package ---#\nlibrary(fixest)\n\n#--- generate data ---#\nset.seed(2024) # so everyone sees the same numbers\nN <- 100 # sample size\nx1 <- rnorm(N) # independent variable\nx2 <- rnorm(N) # independent variable\nu <- rnorm(N) # error\ny <- 1 + x1 + x2 + u # dependent variable\ndata_sim <- data.frame(y = y, x1 = x1, x2 = x2)\n\n#--- OLS ---#\nreg <- feols(y ~ x1 + x2, data = data_sim)\n\n#* print the results\nreg","id":2,"options":{"autorun":"true","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.8","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"4.5","fig-width":"7","label":"unnamed-chunk-2","message":"true","out-height":"","out-width":"55%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"library(fixest)\n\n#--- simulate data where x1 is correlated with x2 and x3 ---#\nset.seed(4891)\nN <- 200\nx2 <- rnorm(N)\nx3 <- rnorm(N)\nx1 <- 0.5 * x2 - 0.3 * x3 + rnorm(N)\ny <- 1 + 2 * x1 + 3 * x2 - x3 + rnorm(N)\nd <- data.frame(y, x1, x2, x3)\n\n#--- Method 1: regress y on everything at once ---#\nm1 <- feols(y ~ x1 + x2 + x3, data = d)\n\n#--- Method 2: partial x2 and x3 out of both y and x1, then regress ---#\nd$u_y <- resid(feols(y ~ x2 + x3, data = d))\nd$u_x1 <- resid(feols(x1 ~ x2 + x3, data = d))\nm2 <- feols(u_y ~ u_x1, data = d)\n\n#--- compare ---#\nc(method_1 = coef(m1)[\"x1\"], method_2 = coef(m2)[\"u_x1\"])","id":3,"options":{"autorun":"true","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.8","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"4.5","fig-width":"7","label":"unnamed-chunk-3","message":"true","out-height":"","out-width":"55%","output":"true","read-only":"false","results":"markup","warning":"true"}}];
 
   </script>
   <script type="module">
@@ -2172,7 +2333,7 @@ Lecturer transcript
 <p>Let’s start with why we are doing this at all. In the univariate world the zero conditional mean condition is almost certainly violated, and the reason is structural: every variable you did not include is sitting in the error term, and any one of them can be correlated with your x. So the fix suggests itself. Move some of those variables out of the error term and into the model. Each one you include is one fewer thing that can bias you. But read the word in blue carefully. Less severe, not solved. That qualifier is the honest part of the sentence, and we come back to it.</p>
 </details>
 <p><strong>Univariate</strong></p>
-<p>The most important assumption <span class="math inline">\(E[u|x] = 0\)</span> (zero conditional mean) is almost always violated (unless your data comes from randomized experiments) because all the other variables are sitting in the error term, which can be correlated with <span class="math inline">\(x\)</span>.</p>
+<p>The most important assumption <span class="math inline">E[u|x] = 0</span> (zero conditional mean) is almost always violated (unless your data comes from randomized experiments) because all the other variables are sitting in the error term, which can be correlated with <span class="math inline">x</span>.</p>
 <p><br></p>
 <p><strong>Multivariate</strong></p>
 <p>More independent variables mean fewer factors left in the error term, which makes the endogeneity problem <span style="color: blue;"> less </span>severe</p>
@@ -2185,15 +2346,15 @@ Lecturer transcript
 <p>Here is the move written out. On top, the univariate model, where the error term u-one contains experience; look at the parenthesis, u-one equals u-two plus beta-two times experience. Underneath, the bivariate model, where experience has been pulled out and given its own coefficient. Now read the two bullets. In the first model beta-one-hat is biased unless experience happens to be uncorrelated with education, which it certainly is not. In the second you can measure the effect of education holding experience fixed. That is what the phrase in red means: we say experience has been controlled for.</p>
 </details>
 <p><strong>Uni-variate vs.&nbsp;bi-variate</strong></p>
-<span class="math display">\[\begin{align}
-  \mbox{Uni-variate}\;\; wage = &amp; \beta_0 + \beta_1 educ + u_1 (=u_2+\beta_2 exper)\\
-  \mbox{Bi-variate}\;\; wage = &amp; \beta_0 + \beta_1 educ + \beta_2 exper + u_2
-\end{align}\]</span>
+<span class="math display">\begin{align}
+  \text{Uni-variate}\;\; wage = &amp; \beta_0 + \beta_1 educ + u_1 (=u_2+\beta_2 exper)\\
+  \text{Bi-variate}\;\; wage = &amp; \beta_0 + \beta_1 educ + \beta_2 exper + u_2
+\end{align}</span>
 <p><br></p>
 <p><strong>What’s different?</strong></p>
 <ul>
-<li><p><strong>uni-variate</strong>: <span class="math inline">\(\widehat{\beta}_1\)</span> is biased unless experience is uncorrelated with education because experience was in error term</p></li>
-<li><p><strong>bi-variate</strong>: able to measure the effect of education on wage, <span style="color: blue;"> holding experience fixed </span> because experience is modeled explicitly (<span style="color: red;"> We say <span class="math inline">\(exper\)</span> is controlled for. </span>)</p></li>
+<li><p><strong>uni-variate</strong>: <span class="math inline">\widehat{\beta}_1</span> is biased unless experience is uncorrelated with education because experience was in error term</p></li>
+<li><p><strong>bi-variate</strong>: able to measure the effect of education on wage, <span style="color: blue;"> holding experience fixed </span> because experience is modeled explicitly (<span style="color: red;"> We say <span class="math inline">exper</span> is controlled for. </span>)</p></li>
 </ul>
 </div>
 <div id="tabset-1-3">
@@ -2204,26 +2365,26 @@ Lecturer transcript
 <p>Same structure, a different question, and this one is worth carrying around because you will meet it in real policy debates. Does spending more per student raise test scores? Regress score on spending alone and average family income sits in the error term. But richer districts both spend more and have students who score higher for reasons that have nothing to do with the spending. So the naive regression credits the money with what the income did. Put average income into the model and you have controlled for it. Same shape as the wage example, same shape as the firefighters in lecture zero.</p>
 </details>
 <p>The impact of per student spending (<code>expend</code>) on standardized test score (<code>avgscore</code>) at the high school level</p>
-<span class="math display">\[\begin{align}
+<span class="math display">\begin{align}
 avgscore= &amp; \beta_0+\beta_1 expend + u_1 (=u_2+\beta_2 avginc) \notag \\
 avgscore= &amp; \beta_0+\beta_1 expend +\beta_2 avginc + u_2 \notag
-\end{align}\]</span>
+\end{align}</span>
 </div>
 <div id="tabset-1-4">
 <details class="transcript">
 <summary>
 Lecturer transcript
 </summary>
-<p>Now the general version, and I mostly want you to read the two bullets defining the betas, because six words there are doing a great deal of work. Beta-one is the change in y with respect to x-one, holding other factors fixed. Holding other factors fixed. In the univariate model we simply had to hope for that. Here it is delivered by the estimation itself, because x-two is in the model. That phrase is what people mean when they call a coefficient a partial effect, and the last section of this lecture makes precise what the machinery is actually doing.</p>
+<p>Now the general version, and I mostly want you to read the two bullets defining the betas, because six words there are doing a great deal of work. Beta-one describes how the conditional regression function changes with x-one while the included x-two is held fixed. That is what people mean by a partial effect, and the last section makes precise what the machinery is doing. Be careful, though: including x-two creates a conditional comparison; it does not automatically make that comparison causal. We still need the zero conditional mean assumption for the remaining error.</p>
 </details>
 <p>More generally,</p>
-<span class="math display">\[\begin{align}
+<span class="math display">\begin{align}
   y=\beta_0+\beta_1 x_1 + \beta_2 x_2 + u
-\end{align}\]</span>
+\end{align}</span>
 <ul>
-<li><span class="math inline">\(\beta_0\)</span>: intercept</li>
-<li><span class="math inline">\(\beta_1\)</span>: measure the change in <span class="math inline">\(y\)</span> with respect to <span class="math inline">\(x_1\)</span>, holding other factors fixed</li>
-<li><span class="math inline">\(\beta_2\)</span>: measure the change in <span class="math inline">\(y\)</span> with respect to <span class="math inline">\(x_2\)</span>, holding other factors fixed</li>
+<li><span class="math inline">\beta_0</span>: intercept</li>
+<li><span class="math inline">\beta_1</span>: measure the change in <span class="math inline">y</span> with respect to <span class="math inline">x_1</span>, holding other factors fixed</li>
+<li><span class="math inline">\beta_2</span>: measure the change in <span class="math inline">y</span> with respect to <span class="math inline">x_2</span>, holding other factors fixed</li>
 </ul>
 </div>
 </div>
@@ -2243,14 +2404,14 @@ Lecturer transcript
 <p>The condition for unbiasedness generalises in the way you would guess. In the univariate case it was the expected value of u given x equals zero. Now it is the expected value of u given x-one and x-two equals zero. Read the verbal version, because it is a stronger statement than it looks: for any combination of values of x-one and x-two, the unobservables average to zero. Not for each variable separately, but for every pairing of them. Adding regressors moves things out of u, which helps. It also makes the condition you need slightly more demanding to state.</p>
 </details>
 <p><strong>Uni-variate</strong></p>
-<p><span class="math inline">\(y = \beta_0 + \beta_1x + u\)</span>,</p>
-<p><span class="math inline">\(E[u|x]=0\)</span></p>
+<p><span class="math inline">y = \beta_0 + \beta_1x + u</span>,</p>
+<p><span class="math inline">E[u|x]=0</span></p>
 <p><br></p>
 <p><strong>Bi-variate</strong></p>
-<p><span class="math inline">\(y = \beta_0 + \beta_1 x_1 + \beta_2 x_2 + u\)</span>,</p>
+<p><span class="math inline">y = \beta_0 + \beta_1 x_1 + \beta_2 x_2 + u</span>,</p>
 <ul>
-<li>Mathematically: <span class="math inline">\(E[u|x_1,x_2]=0\)</span></li>
-<li>Verbally: for any values of <span class="math inline">\(x_1\)</span> and <span class="math inline">\(x_2\)</span>, the expected value of the unobservables is zero</li>
+<li>Mathematically: <span class="math inline">E[u|x_1,x_2]=0</span></li>
+<li>Verbally: for any values of <span class="math inline">x_1</span> and <span class="math inline">x_2</span>, the expected value of the unobservables is zero</li>
 </ul>
 </div>
 <div id="tabset-2-2">
@@ -2258,16 +2419,16 @@ Lecturer transcript
 <summary>
 Lecturer transcript
 </summary>
-<p>Here it is for the wage model. The condition is that the expected value of u given education and experience is zero, and the verbal version tells you what that requires: innate ability must be, on average, unrelated to both schooling and experience. Say that out loud and ask whether you believe it. More able people tend to stay in school longer, so no. Now read the callout, which is the honest summary of this whole lecture. Adding experience took experience out of the error term. Nothing takes ability out, because you never measured it. Regression shrinks the error term; it does not empty it.</p>
+<p>Here it is for the wage model. The condition is that the expected value of u for every combination of education and experience is zero. If innate ability remains in u, this requires its conditional average not to vary across those combinations. Say that out loud and ask whether you believe it. More able people tend to stay in school longer, so probably not. Now read the callout, which is the honest summary of this whole lecture. Adding experience took experience out of the error term. Nothing takes ability out, because you never measured it. Regression changes the contents of the error term; it does not empty it.</p>
 </details>
 <p>In the following wage model,</p>
-<span class="math display">\[\begin{align*}
+<span class="math display">\begin{align*}
 wage = &amp; \beta_0 + \beta_1 educ + \beta_2 exper + u
-\end{align*}\]</span>
+\end{align*}</span>
 <p>Mean independence condition is</p>
-<span class="math display">\[\begin{align}
+<span class="math display">\begin{align}
   E[u|educ,exper]=0
-\end{align}\]</span>
+\end{align}</span>
 <p><strong>Verbally</strong>:</p>
 <p>This condition would be satisfied if innate ability of students is on average unrelated to education level and experience.</p>
 <div title="The limit of controlling for things">
@@ -2277,7 +2438,7 @@ wage = &amp; \beta_0 + \beta_1 educ + \beta_2 exper + u
 <p><strong>The limit of controlling for things</strong></p>
 </div>
 <div class="callout-content">
-<p>Notice what just happened. Adding <span class="math inline">\(exper\)</span> to the model moved experience <span style="color: blue;"> out </span> of the error term, so it can no longer bias us. But ability is still in there, and no amount of extra regressors will move it out, because <span style="color: red;"> you cannot control for something you do not observe </span>. Multivariate regression shrinks the error term. It does not empty it.</p>
+<p>Notice what just happened. Adding <span class="math inline">exper</span> to the model moved experience <span style="color: blue;"> out </span> of the error term, so it can no longer bias us. But ability is still in there, and no amount of extra regressors will move it out, because <span style="color: red;"> you cannot control for something you do not observe </span>. Multivariate regression shrinks the error term. It does not empty it.</p>
 </div>
 </div>
 </div>
@@ -2288,7 +2449,7 @@ wage = &amp; \beta_0 + \beta_1 educ + \beta_2 exper + u
 <!--end of panel-->
 </section>
 <section id="the-model-with-k-independent-variables" class="slide level2">
-<h2>The model with <span class="math inline">\(k\)</span> independent variables</h2>
+<h2>The model with <span class="math inline">k</span> independent variables</h2>
 <div class="panel-tabset">
 <ul id="tabset-4" class="panel-tabset-tabby"><li><a data-tabby-default="" href="#tabset-4-1">General model</a></li><li><a href="#tabset-4-2">Implementation (R)</a></li><li><a href="#tabset-4-3">Present results</a></li><li><a href="#tabset-4-4">(Math: derive OLS estimator)</a></li></ul>
 <div class="tab-content">
@@ -2297,19 +2458,19 @@ wage = &amp; \beta_0 + \beta_1 educ + \beta_2 exper + u
 <summary>
 Lecturer transcript
 </summary>
-<p>The extension to k variables involves no new ideas, only longer expressions. The model is y equals beta-zero plus beta-one x-one, out to beta-k x-k, plus u. And the condition for unbiasedness is that the expected value of u given all k of your regressors equals zero. The verbal version is the one to remember, because it is the one you will actually reason with: the error term must be uncorrelated with every single independent variable. Every one. A single bad regressor is enough to contaminate the whole estimate, including the coefficients you did care about.</p>
+<p>The extension to k variables involves no new ideas, only longer expressions. The model is y equals beta-zero plus beta-one x-one, out to beta-k x-k, plus u. And the condition for unbiasedness is that the expected value of u given the entire vector of regressors equals zero. This joint conditional statement is stronger than requiring zero pairwise correlation between u and each regressor. If it fails, the affected coefficient estimates may be biased; which coefficients are affected and by how much depends on the relationships among the regressors and the omitted component.</p>
 </details>
 <p><strong>Model</strong></p>
-<span class="math display">\[\begin{align}
+<span class="math display">\begin{align}
   y=\beta_0 + \beta_1 x_1 + \beta_2 x_2 + \dots + \beta_k x_k + u
-\end{align}\]</span>
+\end{align}</span>
 <p><br></p>
 <p><strong>Mean independence assumption?</strong></p>
-<p><span class="math inline">\(\beta_{OLS}\)</span> (OLS estimators of <span class="math inline">\(\beta\)</span>s) is unbiased if,</p>
-<span class="math display">\[\begin{align}
+<p><span class="math inline">\beta_{OLS}</span> (OLS estimators of <span class="math inline">\beta</span>s) is unbiased if,</p>
+<span class="math display">\begin{align}
     E[u|x_1,x_2,\dots,x_k]=0
-\end{align}\]</span>
-<p><strong>Verbally</strong>: this condition would be satisfied if the error term is uncorrelated with any of the independent variables, <span class="math inline">\(x_1,x_2,\dots,x_k\)</span>.</p>
+\end{align}</span>
+<p><strong>Verbally</strong>: this condition would be satisfied if the error term is uncorrelated with any of the independent variables, <span class="math inline">x_1,x_2,\dots,x_k</span>.</p>
 </div>
 <div id="tabset-4-2">
 <details class="transcript">
@@ -2320,7 +2481,7 @@ Lecturer transcript
 </details>
 <div id="qwebr-insertion-location-2"></div>
 <noscript>Please enable JavaScript to experience the dynamic code cell content on this page.</noscript>
-<p>Note the true values: the intercept is <span class="math inline">\(1\)</span>, and both slopes are <span class="math inline">\(1\)</span>. Compare them with what OLS returns.</p>
+<p>Note the true values: the intercept is <span class="math inline">1</span>, and both slopes are <span class="math inline">1</span>. Compare them with what OLS returns.</p>
 </div>
 <div id="tabset-4-3">
 <details class="transcript inline">
@@ -2507,14 +2668,14 @@ Lecturer transcript
 <p>The derivation is the same story as lecture 01-2, just with more unknowns, so this should feel familiar rather than new. We are choosing the whole collection of beta-hats, which I am calling theta-hat to save writing, to minimize the sum of squared residuals. That is the identical criterion. The only change is that the thing inside the bracket now has k terms in it instead of two. If you followed the univariate version you have already followed this one, and the next tab just turns the handle.</p>
 </details>
 <p><strong>OLS</strong></p>
-<p>Find the combination of <span class="math inline">\(\beta\)</span>s that minimizes the sum of squared residuals</p>
+<p>Find the combination of <span class="math inline">\beta</span>s that minimizes the sum of squared residuals</p>
 <p><br></p>
 <p><strong>So,</strong></p>
-<p>Denoting the collection of <span class="math inline">\(\widehat{\beta}\)</span>s as <span class="math inline">\(\widehat{\theta} (=\{\widehat{\beta}_0,\widehat{\beta}_1,\dots,\widehat{\beta}_k\})\)</span>,</p>
-<span class="math display">\[\begin{align}
+<p>Denoting the collection of <span class="math inline">\widehat{\beta}</span>s as <span class="math inline">\widehat{\theta} (=\{\widehat{\beta}_0,\widehat{\beta}_1,\dots,\widehat{\beta}_k\})</span>,</p>
+<span class="math display">\begin{align}
     Min_{\widehat{\theta}} \sum_{i=1}^n \Big[ y_i-(\widehat{\beta}_0+\widehat{\beta}_1 x_{1,i} + \widehat{\beta}_2 x_{2,i} + \dots + \widehat{\beta}_k x_{k,i}) \Big]^2
-\end{align}\]</span>
-<p>Exactly the univariate problem from lecture 01-2, with <span class="math inline">\(k\)</span> unknowns instead of two.</p>
+\end{align}</span>
+<p>Exactly the univariate problem from lecture 01-2, with <span class="math inline">k+1</span> unknowns instead of two: an intercept and <span class="math inline">k</span> slope coefficients.</p>
 </div>
 <div id="tabset-3-2">
 <details class="transcript">
@@ -2523,31 +2684,31 @@ Lecturer transcript
 </summary>
 <p>Turn the handle: differentiate with respect to each of the k plus one unknowns, set every derivative to zero, and divide out the minus two. What you get is k plus one equations. Look at their shape. The first is the sum of the residuals. The second is the sum of x-one times the residuals. And so on down to x-k. Every regressor gets its own equation, and every equation says the same thing, that this regressor must be uncorrelated with what is left over. Which is the sample version of the assumption we just made about the population.</p>
 </details>
-<p>Partially differentiate the objective function (sum of squared residuals) with respect to each of <span class="math inline">\(\widehat{\theta} (=\{\widehat{\beta}_0,\widehat{\beta}_1,\dots,\widehat{\beta}_k\})\)</span> and set each to zero. Dividing each by <span class="math inline">\(-2\)</span> leaves <span class="math inline">\(k+1\)</span> equations:</p>
-<span class="math display">\[\begin{align}
+<p>Partially differentiate the objective function (sum of squared residuals) with respect to each of <span class="math inline">\widehat{\theta} (=\{\widehat{\beta}_0,\widehat{\beta}_1,\dots,\widehat{\beta}_k\})</span> and set each to zero. Dividing each by <span class="math inline">-2</span> leaves <span class="math inline">k+1</span> equations:</p>
+<span class="math display">\begin{align}
   \sum_{i=1}^n \Big[ y_i-(\widehat{\beta}_0+\widehat{\beta}_1 x_{1,i} + \widehat{\beta}_2 x_{2,i} + \dots + \widehat{\beta}_k x_{k,i}) \Big] = &amp; 0 \;\; (\widehat{\beta}_0) \\
   \sum_{i=1}^n x_{i,1}\Big[ y_i-(\widehat{\beta}_0+\widehat{\beta}_1 x_{1,i} + \widehat{\beta}_2 x_{2,i} + \dots + \widehat{\beta}_k x_{k,i}) \Big]= &amp; 0  \;\; (\widehat{\beta}_1) \\
   \sum_{i=1}^n x_{i,2}\Big[ y_i-(\widehat{\beta}_0+\widehat{\beta}_1 x_{1,i} + \widehat{\beta}_2 x_{2,i} + \dots + \widehat{\beta}_k x_{k,i}) \Big]= &amp; 0  \;\; (\widehat{\beta}_2) \\
   \vdots \\
   \sum_{i=1}^n x_{i,k}\Big[ y_i-(\widehat{\beta}_0+\widehat{\beta}_1 x_{1,i} + \widehat{\beta}_2 x_{2,i} + \dots + \widehat{\beta}_k x_{k,i}) \Big]= &amp; 0  \;\; (\widehat{\beta}_k)
-\end{align}\]</span>
+\end{align}</span>
 </div>
 <div id="tabset-3-3">
 <details class="transcript">
 <summary>
 Lecturer transcript
 </summary>
-<p>And here is the compact form, which is worth committing to memory because it recurs constantly. The residuals sum to zero, and each x times the residuals sums to zero. That is k plus one equations in k plus one unknowns, which is why the system has a unique solution. Read the last line too, because it is not decoration. Each of those equations spends one degree of freedom. That is exactly where the n minus k minus one comes from when we estimate sigma squared, two tabs from now.</p>
+<p>And here is the compact form, which is worth committing to memory because it recurs constantly. The residuals sum to zero, and each x times the residuals sums to zero. That is k plus one equations in k plus one unknowns. The solution is unique when the regressor matrix has full column rank—the no-perfect-collinearity condition introduced shortly. Read the last line too, because it is not decoration. Estimating those k plus one coefficients uses k plus one degrees of freedom. That is where n minus k minus one comes from when we estimate sigma squared, two tabs from now.</p>
 </details>
-<p>Every bracket above is just the residual <span class="math inline">\(\widehat{u}_i\)</span>, so the whole system is:</p>
-<span class="math display">\[\begin{align}
+<p>Every bracket above is just the residual <span class="math inline">\widehat{u}_i</span>, so the whole system is:</p>
+<span class="math display">\begin{align}
   \sum_{i=1}^n \widehat{u}_i = &amp; 0 \;\; (\widehat{\beta}_0) \\
   \sum_{i=1}^n x_{i,1}\widehat{u}_i = &amp; 0  \;\; (\widehat{\beta}_1) \\
   \sum_{i=1}^n x_{i,2}\widehat{u}_i = &amp; 0  \;\; (\widehat{\beta}_2) \\
   \vdots \\
   \sum_{i=1}^n x_{i,k}\widehat{u}_i = &amp; 0  \;\; (\widehat{\beta}_k)
-\end{align}\]</span>
-<p><span class="math inline">\(k+1\)</span> equations in <span class="math inline">\(k+1\)</span> unknowns. That count is what costs you <span class="math inline">\(k+1\)</span> degrees of freedom later.</p>
+\end{align}</span>
+<p><span class="math inline">k+1</span> equations in <span class="math inline">k+1</span> unknowns. That count is what costs you <span class="math inline">k+1</span> degrees of freedom later.</p>
 </div>
 </div>
 </div>
@@ -2593,21 +2754,21 @@ Lecturer transcript
 <div class="columns">
 <div class="column" style="width:50%;">
 <p><strong>Condition 1</strong></p>
-<p>Your model is correct (Assumption <span class="math inline">\(MLR.1\)</span>)</p>
+<p>Your model is correct (Assumption <span class="math inline">MLR.1</span>)</p>
 </div><!--end of the 1st column--><div class="column" style="width:50%;">
 <p><strong>Condition 2</strong></p>
-<p>Random sampling (Assumption <span class="math inline">\(MLR.2\)</span>)</p>
+<p>Random sampling (Assumption <span class="math inline">MLR.2</span>)</p>
 </div><!--end of the 2nd column-->
 </div>
 <!--end of the columns-->
 <div class="columns">
 <div class="column" style="width:50%;">
 <p><strong>Condition 3</strong></p>
-<p>No perfect collinearity (Assumption <span class="math inline">\(MLR.3\)</span>)</p>
+<p>No perfect collinearity (Assumption <span class="math inline">MLR.3</span>)</p>
 </div><!--end of the 1st column--><div class="column" style="width:50%;">
 <p><strong>Condition 4</strong></p>
-<p>Zero Conditional Mean (Assumption <span class="math inline">\(MLR.4\)</span>)</p>
-<p><span class="math inline">\(E[u|x_1,x_2,\dots,x_k]=0\)</span></p>
+<p>Zero Conditional Mean (Assumption <span class="math inline">MLR.4</span>)</p>
+<p><span class="math inline">E[u|x_1,x_2,\dots,x_k]=0</span></p>
 </div><!--end of the 2nd column-->
 </div>
 <!--end of the columns-->
@@ -2619,13 +2780,13 @@ Lecturer transcript
 </summary>
 <p>The genuinely new condition. No independent variable may be an exact linear function of the others. The example is deliberately silly: you put education in the model, and then you also put in three times education. There is no way to separate those two effects, because whenever one moves the other moves in lockstep, perfectly predictably. The data simply contains no information about which of the two is responsible. R will not throw an error either; it will quietly drop one and tell you. Where this actually bites is dummy variables, which is a later lecture.</p>
 </details>
-<p><strong>No Perfect Collinearity (<span class="math inline">\(MLR.3\)</span>)</strong></p>
+<p><strong>No Perfect Collinearity (<span class="math inline">MLR.3</span>)</strong></p>
 <p>Any variable cannot be a linear function of the other variables</p>
 <p><br></p>
 <p><strong>Example (silly)</strong></p>
-<span class="math display">\[\begin{align}
+<span class="math display">\begin{align}
   wage = \beta_0 + \beta_1 educ + \beta_2 (3\times educ) + u
-\end{align}\]</span>
+\end{align}</span>
 <p>(<span style="color: blue;"> More on this later when we talk about dummy variables</span>)</p>
 </div>
 <div id="tabset-5-3">
@@ -2642,9 +2803,9 @@ Lecturer transcript
 <p><strong>Endogeneity: Definition</strong></p>
 </div>
 <div class="callout-content">
-<p><span class="math display">\[
+<p><span class="math display">
 E[u|x_1,x_2,\dots,x_k] = f(x_1,x_2,\dots,x_k) \ne 0
-\]</span></p>
+</span></p>
 </div>
 </div>
 </div>
@@ -2654,12 +2815,12 @@ E[u|x_1,x_2,\dots,x_k] = f(x_1,x_2,\dots,x_k) \ne 0
 <ul>
 <li>functional form misspecification</li>
 </ul>
-<span class="math display">\[\begin{align}
-  wage = &amp; \beta_0 + \beta_1 log(x_1) + \beta_2 x_2 + u_1 \;\;\mbox{(true)}\\
-  wage = &amp; \beta_0 + \beta_1 x_1 + \beta_2 x_2 + u_2 \;\; \mbox{(yours)},\;\; \mbox{where } u_2 = u_1 + \beta_1[log(x_1)-x_1]
-\end{align}\]</span>
+<span class="math display">\begin{align}
+  wage = &amp; \beta_0 + \beta_1 log(x_1) + \beta_2 x_2 + u_1 \;\;\text{(true)}\\
+  wage = &amp; \beta_0 + \beta_1 x_1 + \beta_2 x_2 + u_2 \;\; \text{(yours)},\;\; \text{where } u_2 = u_1 + \beta_1[log(x_1)-x_1]
+\end{align}</span>
 <ul>
-<li>omission of variables that are correlated with any of <span class="math inline">\(x_1,x_2,\dots,x_k\)</span> (<span style="color: blue;"> more on this soon </span>)</li>
+<li>omission of variables that are correlated with any of <span class="math inline">x_1,x_2,\dots,x_k</span> (<span style="color: blue;"> more on this soon </span>)</li>
 <li><span style="color: blue;"> other sources of endogeneity later </span></li>
 </ul>
 </div>
@@ -2670,7 +2831,7 @@ E[u|x_1,x_2,\dots,x_k] = f(x_1,x_2,\dots,x_k) \ne 0
 <section id="variance-of-ols-estimators" class="slide level2">
 <h2>Variance of OLS estimators</h2>
 <div class="panel-tabset">
-<ul id="tabset-6" class="panel-tabset-tabby"><li><a data-tabby-default="" href="#tabset-6-1">Homoskedasticity and Variance of <span class="math inline">\(\widehat{\beta}_{OLS}\)</span></a></li><li><a href="#tabset-6-2">Estimating <span class="math inline">\(\sigma^2\)</span></a></li><li><a href="#tabset-6-3">Estimator of <span class="math inline">\(Var(\widehat{\beta}_j)\)</span></a></li></ul>
+<ul id="tabset-6" class="panel-tabset-tabby"><li><a data-tabby-default="" href="#tabset-6-1">Homoskedasticity and Variance of <span class="math inline">\widehat{\beta}_{OLS}</span></a></li><li><a href="#tabset-6-2">Estimating <span class="math inline">\sigma^2</span></a></li><li><a href="#tabset-6-3">Estimator of <span class="math inline">Var(\widehat{\beta}_j)</span></a></li></ul>
 <div class="tab-content">
 <div id="tabset-6-1">
 <details class="transcript">
@@ -2680,39 +2841,39 @@ Lecturer transcript
 <p>Condition five, homoskedasticity, and the variance formula it buys us. Compare this against the univariate formula. The numerator is unchanged, sigma squared, and the denominator has picked up a new factor: it is now SST-j times one minus R-squared-j. Read the callout below, because that new factor is not a technicality. R-squared-j measures how much of x-j the other regressors already explain. As it approaches one the denominator collapses and the variance explodes. That is multicollinearity, and it is the whole of lecture four.</p>
 </details>
 <p><strong>Condition 5</strong></p>
-<p>Error term is homoskedastic (Assumption <span class="math inline">\(MLR.5\)</span>)</p>
-<span class="math display">\[\begin{align}
+<p>Error term is homoskedastic (Assumption <span class="math inline">MLR.5</span>)</p>
+<span class="math display">\begin{align}
 Var(u|x_1,\dots,x_k)=\sigma^2
-\end{align}\]</span>
+\end{align}</span>
 <p><br></p>
-<p>Under conditions <span class="math inline">\(MLR.1\)</span> through <span class="math inline">\(MLR.5\)</span>, conditional on the sample values of the independent variables,</p>
+<p>Under conditions <span class="math inline">MLR.1</span> through <span class="math inline">MLR.5</span>, conditional on the sample values of the independent variables,</p>
 <div title="Variance of $\widehat{\beta}_{OLS}$">
 <div class="callout callout-important no-icon callout-titled callout-style-default">
 <div class="callout-body">
 <div class="callout-title">
-<p><strong>Variance of <span class="math inline">\(\widehat{\beta}_{OLS}\)</span></strong></p>
+<p><strong>Variance of <span class="math inline">\widehat{\beta}_{OLS}</span></strong></p>
 </div>
 <div class="callout-content">
-<span class="math display">\[\begin{align}
+<span class="math display">\begin{align}
     Var(\widehat{\beta}_j)= \frac{\sigma^2}{SST_j(1-R^2_j)},
-\end{align}\]</span>
+\end{align}</span>
 </div>
 </div>
 </div>
 </div>
 <p>where</p>
 <ul>
-<li><span class="math inline">\(SST_j= \sum_{i=1}^n (x_{ji}-\bar{x}_j)^2\)</span></li>
-<li><span class="math inline">\(R_j^2\)</span> is the R-squared from regressing <span class="math inline">\(x_j\)</span> on all other independent variables including an intercept. (<span style="color: blue;"> We will revisit this equation</span>)</li>
+<li><span class="math inline">SST_j= \sum_{i=1}^n (x_{ji}-\bar{x}_j)^2</span></li>
+<li><span class="math inline">R_j^2</span> is the R-squared from regressing <span class="math inline">x_j</span> on all other independent variables including an intercept. (<span style="color: blue;"> We will revisit this equation</span>)</li>
 </ul>
 <div title="Why $R_j^2$ is in there">
 <div class="callout callout-note no-icon callout-titled callout-style-default">
 <div class="callout-body">
 <div class="callout-title">
-<p><strong>Why <span class="math inline">\(R_j^2\)</span> is in there</strong></p>
+<p><strong>Why <span class="math inline">R_j^2</span> is in there</strong></p>
 </div>
 <div class="callout-content">
-<p><span class="math inline">\(R_j^2\)</span> measures how much of <span class="math inline">\(x_j\)</span> the <span style="color: blue;"> other </span> regressors already explain. As it approaches <span class="math inline">\(1\)</span>, the term <span class="math inline">\(1-R_j^2\)</span> approaches <span class="math inline">\(0\)</span> and the variance <span style="color: red;"> explodes </span>. Intuitively: once the others account for nearly all of <span class="math inline">\(x_j\)</span>’s movement, there is almost no independent variation left to identify <span class="math inline">\(\beta_j\)</span> from. That is multicollinearity, and it is the whole of lecture 04.</p>
+<p><span class="math inline">R_j^2</span> measures how much of <span class="math inline">x_j</span> the <span style="color: blue;"> other </span> regressors already explain. As it approaches <span class="math inline">1</span>, the term <span class="math inline">1-R_j^2</span> approaches <span class="math inline">0</span> and the variance <span style="color: red;"> explodes </span>. Intuitively: once the others account for nearly all of <span class="math inline">x_j</span>’s movement, there is almost no independent variation left to identify <span class="math inline">\beta_j</span> from. That is multicollinearity, and it is the whole of lecture 04.</p>
 </div>
 </div>
 </div>
@@ -2725,17 +2886,17 @@ Lecturer transcript
 </summary>
 <p>The same problem as before: the variance formula contains sigma squared, and you do not know it. The same solution too, average the squared residuals. The only thing that changes is the divisor. In the univariate case you divided by n minus two, because two equations were used up on the intercept and the one slope. Here you have k plus one coefficients, so you divide by n minus k minus one. That is the sentence at the bottom of the slide, and it is the degrees-of-freedom count we derived on the FOC tab. Every parameter you estimate costs you one.</p>
 </details>
-<p>Just like uni-variate regression, you need to estimate <span class="math inline">\(\sigma^2\)</span> if you want to estimate the variance (and standard deviation) of the OLS estimators.</p>
+<p>Just like uni-variate regression, you need to estimate <span class="math inline">\sigma^2</span> if you want to estimate the variance (and standard deviation) of the OLS estimators.</p>
 <p><strong>uni-variate regression</strong></p>
-<span class="math display">\[\begin{align}
+<span class="math display">\begin{align}
   \widehat{\sigma}^2=\sum_{i=1}^n \frac{\widehat{u}_i^2}{n-2}
-\end{align}\]</span>
+\end{align}</span>
 <p><strong>multi-variate regression</strong></p>
-<p>A model with <span class="math inline">\(k\)</span> independent variables with intercept.</p>
-<span class="math display">\[\begin{align}
+<p>A model with <span class="math inline">k</span> independent variables with intercept.</p>
+<span class="math display">\begin{align}
   \widehat{\sigma}^2=\sum_{i=1}^n \frac{\widehat{u}_i^2}{n-(k+1)}
-\end{align}\]</span>
-<p>You solved <span class="math inline">\(k+1\)</span> simultaneous equations to get <span class="math inline">\(\widehat{\beta}_j\)</span> <span class="math inline">\((j=0,\dots,k)\)</span>. So, once you know the value of <span class="math inline">\(n-k-1\)</span> of the residuals, you know the rest.</p>
+\end{align}</span>
+<p>You solved <span class="math inline">k+1</span> simultaneous equations to get <span class="math inline">\widehat{\beta}_j</span> <span class="math inline">(j=0,\dots,k)</span>. So, once you know the value of <span class="math inline">n-k-1</span> of the residuals, you know the rest.</p>
 </div>
 <div id="tabset-6-3">
 <details class="transcript">
@@ -2744,7 +2905,7 @@ Lecturer transcript
 </summary>
 <p>Putting the pieces together gives the estimated variance of a coefficient. Substitute sigma-hat squared for the sigma squared you cannot know, and everything on the right-hand side is computable from your data. The square root of this is the standard error printed beside each coefficient in every table you will ever produce. Notice how many things had to go right to get here: four conditions for unbiasedness, homoskedasticity for the formula itself, and a degrees-of-freedom correction so that the estimate of sigma squared is unbiased in its own right.</p>
 </details>
-<p>Using the estimator of <span class="math inline">\(\sigma^2\)</span> in place of <span class="math inline">\(\sigma^2\)</span>, we have the <span style="color: red;"> estimator </span> of the variance of the OLS estimator.</p>
+<p>Using the estimator of <span class="math inline">\sigma^2</span> in place of <span class="math inline">\sigma^2</span>, we have the <span style="color: red;"> estimator </span> of the variance of the OLS estimator.</p>
 <div title="Estimator of the variance of the OLS estimator">
 <div class="callout callout-important no-icon callout-titled callout-style-default">
 <div class="callout-body">
@@ -2752,9 +2913,9 @@ Lecturer transcript
 <p><strong>Estimator of the variance of the OLS estimator</strong></p>
 </div>
 <div class="callout-content">
-<span class="math display">\[\begin{align}
+<span class="math display">\begin{align}
 \widehat{Var(\widehat{\beta}_j)} = \frac{\widehat{\sigma}^2}{SST_j(1-R^2_j)} = \left(\sum_{i=1}^n \frac{\widehat{u}_i^2}{n-k-1}\right) \cdot \frac{1}{SST_j(1-R^2_j)}
-\end{align}\]</span>
+\end{align}</span>
 </div>
 </div>
 </div>
@@ -2783,24 +2944,24 @@ Lecturer transcript
 <p>This section is optional, but I would encourage you to follow it, because it explains what controlling for a variable actually does, mechanically. There are two ways to get the coefficient on x-one. Method one is what you already do: throw everything into a single regression. Method two takes three steps. Regress y on the other variables and keep the residuals. Regress x-one on the other variables and keep those residuals. Then regress the first set of residuals on the second. The theorem says the two routes give exactly the same number. Not approximately the same.</p>
 </details>
 <p>Consider the following simple model,</p>
-<span class="math display">\[\begin{align}
+<span class="math display">\begin{align}
   y_i = \beta_0 + \beta_1 x_{1,i} + \beta_2 x_{2,i} + \beta_3 x_{3,i} + u_i
-\end{align}\]</span>
-<p>Suppose you are interested in estimating only <span class="math inline">\(\beta_1\)</span>.</p>
+\end{align}</span>
+<p>Suppose you are interested in estimating only <span class="math inline">\beta_1</span>.</p>
 <p>Let’s consider the following two methods,</p>
 <p><br></p>
 <p><strong>Method 1: Regular OLS</strong></p>
-<p>Regress <span class="math inline">\(y\)</span> on <span class="math inline">\(x_1\)</span>, <span class="math inline">\(x_2\)</span>, and <span class="math inline">\(x_3\)</span> with an intercept to estimate <span class="math inline">\(\beta_0\)</span>, <span class="math inline">\(\beta_1\)</span>, <span class="math inline">\(\beta_2\)</span>, <span class="math inline">\(\beta_3\)</span> at the same time (just like you normally do)</p>
+<p>Regress <span class="math inline">y</span> on <span class="math inline">x_1</span>, <span class="math inline">x_2</span>, and <span class="math inline">x_3</span> with an intercept to estimate <span class="math inline">\beta_0</span>, <span class="math inline">\beta_1</span>, <span class="math inline">\beta_2</span>, <span class="math inline">\beta_3</span> at the same time (just like you normally do)</p>
 <p><br></p>
 <p><strong>Method 2: 3-step</strong></p>
 <ul>
-<li>regress <span class="math inline">\(y\)</span> on <span class="math inline">\(x_2\)</span> and <span class="math inline">\(x_3\)</span> with an intercept and get residuals, which we call <span class="math inline">\(\widehat{u}_y\)</span></li>
-<li>regress <span class="math inline">\(x_1\)</span> on <span class="math inline">\(x_2\)</span> and <span class="math inline">\(x_3\)</span> with an intercept and get residuals, which we call <span class="math inline">\(\widehat{u}_{x_1}\)</span></li>
-<li>regress <span class="math inline">\(\widehat{u}_y\)</span> on <span class="math inline">\(\widehat{u}_{x_1}\)</span> <span class="math inline">\((\widehat{u}_y=\alpha_1 \widehat{u}_{x_1}+v_3)\)</span></li>
+<li>regress <span class="math inline">y</span> on <span class="math inline">x_2</span> and <span class="math inline">x_3</span> with an intercept and get residuals, which we call <span class="math inline">\widehat{u}_y</span></li>
+<li>regress <span class="math inline">x_1</span> on <span class="math inline">x_2</span> and <span class="math inline">x_3</span> with an intercept and get residuals, which we call <span class="math inline">\widehat{u}_{x_1}</span></li>
+<li>regress <span class="math inline">\widehat{u}_y</span> on <span class="math inline">\widehat{u}_{x_1}</span> <span class="math inline">(\widehat{u}_y=\alpha_1 \widehat{u}_{x_1}+v_3)</span></li>
 </ul>
 <p><strong>Frisch-Waugh–Lovell theorem</strong></p>
-<p>Methods 1 and 2 produce the same coefficient estimate on <span class="math inline">\(x_1\)</span></p>
-<p><span class="math display">\[\widehat{\beta}_1 = \widehat{\alpha_1}\]</span></p>
+<p>Methods 1 and 2 produce the same coefficient estimate on <span class="math inline">x_1</span></p>
+<p><span class="math display">\widehat{\beta}_1 = \widehat{\alpha_1}</span></p>
 </section>
 <section id="frischwaughlovell-see-it-happen" class="slide level2">
 <h2>Frisch–Waugh–Lovell: see it happen</h2>
@@ -2813,7 +2974,7 @@ Lecturer transcript
 <p>Do not take it on faith. Run both methods on the same simulated data and compare.</p>
 <div id="qwebr-insertion-location-3"></div>
 <noscript>Please enable JavaScript to experience the dynamic code cell content on this page.</noscript>
-<p>Not merely close: identical to machine precision. The difference is about <span class="math inline">\(-4\times 10^{-16}\)</span>, which is rounding, not disagreement.</p>
+<p>Not merely close: identical to machine precision. The difference is about <span class="math inline">-4\times 10^{-16}</span>, which is rounding, not disagreement.</p>
 </section>
 <section id="partialing-out-interpretation-from-method-2" class="slide level2">
 <h2>Partialing out Interpretation from Method 2</h2>
@@ -2824,17 +2985,17 @@ Lecturer transcript
 <p>Now let’s read those three steps for meaning rather than mechanics. Step one gives you the part of y that x-two and x-three cannot explain, y with their influence stripped out. Step two does the same thing to x-one, leaving the part of x-one that is unrelated to the others. Step three regresses one leftover on the other. So the coefficient on x-one is computed only from variation in x-one that the other regressors could not account for. Everything they could account for has been removed from both sides before the comparison is made.</p>
 </details>
 <p><strong>Step 1</strong></p>
-<p>Regress <span class="math inline">\(y\)</span> on <span class="math inline">\(x_2\)</span> and <span class="math inline">\(x_3\)</span> with an intercept and get residuals, which we call <span class="math inline">\(\widehat{u}_y\)</span></p>
+<p>Regress <span class="math inline">y</span> on <span class="math inline">x_2</span> and <span class="math inline">x_3</span> with an intercept and get residuals, which we call <span class="math inline">\widehat{u}_y</span></p>
 <ul>
-<li><span class="math inline">\(\widehat{u}_y\)</span> is void of the impact of <span class="math inline">\(x_2\)</span> and <span class="math inline">\(x_3\)</span> on <span class="math inline">\(y\)</span></li>
+<li><span class="math inline">\widehat{u}_y</span> is void of the impact of <span class="math inline">x_2</span> and <span class="math inline">x_3</span> on <span class="math inline">y</span></li>
 </ul>
 <p><strong>Step 2</strong></p>
-<p>Regress <span class="math inline">\(x_1\)</span> on <span class="math inline">\(x_2\)</span> and <span class="math inline">\(x_3\)</span> with an intercept and get residuals, which we call <span class="math inline">\(\widehat{u}_{x_1}\)</span></p>
+<p>Regress <span class="math inline">x_1</span> on <span class="math inline">x_2</span> and <span class="math inline">x_3</span> with an intercept and get residuals, which we call <span class="math inline">\widehat{u}_{x_1}</span></p>
 <ul>
-<li><span class="math inline">\(\widehat{u}_{x_1}\)</span> is void of the impact of <span class="math inline">\(x_2\)</span> and <span class="math inline">\(x_3\)</span> on <span class="math inline">\(x_1\)</span></li>
+<li><span class="math inline">\widehat{u}_{x_1}</span> is void of the impact of <span class="math inline">x_2</span> and <span class="math inline">x_3</span> on <span class="math inline">x_1</span></li>
 </ul>
 <p><strong>Step 3</strong></p>
-<p>Regress <span class="math inline">\(\widehat{u}_y\)</span> on <span class="math inline">\(\widehat{u}_{x_1}\)</span>, which produces an estimate of <span class="math inline">\(\beta_1\)</span> identical to the one you get from regressing <span class="math inline">\(y\)</span> on <span class="math inline">\(x_1\)</span>, <span class="math inline">\(x_2\)</span>, and <span class="math inline">\(x_3\)</span></p>
+<p>Regress <span class="math inline">\widehat{u}_y</span> on <span class="math inline">\widehat{u}_{x_1}</span>, which produces an estimate of <span class="math inline">\beta_1</span> identical to the one you get from regressing <span class="math inline">y</span> on <span class="math inline">x_1</span>, <span class="math inline">x_2</span>, and <span class="math inline">x_3</span></p>
 </section>
 <section id="interpretation" class="slide level2">
 <h2>Interpretation</h2>
@@ -2845,7 +3006,7 @@ Lecturer transcript
 <p>So here is what to take from the whole section. When you run a multivariate regression, the coefficient on your variable of interest comes from the variation that the other variables cannot explain. That is what controlling for something means, mechanically. Read the second bullet, which is the payoff: including a variable stops you confusing its effect with the effect you actually want. And now recall the caveat from earlier in the lecture. This works beautifully for the variables you include, and does nothing whatever for the ones you never measured.</p>
 </details>
 <ul>
-<li><p>Regressing <span class="math inline">\(y\)</span> on all explanatory variables <span class="math inline">\((x_1\)</span>, <span class="math inline">\(x_2\)</span>, and <span class="math inline">\(x_3)\)</span> in a multivariate regression is as if you are looking at the impact of a single explanatory variable with the effects of all the other variables partialled out</p></li>
+<li><p>Regressing <span class="math inline">y</span> on all explanatory variables <span class="math inline">(x_1</span>, <span class="math inline">x_2</span>, and <span class="math inline">x_3)</span> in a multivariate regression is as if you are looking at the impact of a single explanatory variable with the effects of all the other variables partialled out</p></li>
 <li><p>In other words, including variables beyond your variable of interest lets you <span style="color: red;"> control for (remove the effect of) </span> other variables, avoiding confusing the impact of the variable of interest with the impact of other variables.</p></li>
 </ul>
 
@@ -2871,7 +3032,6 @@ Lecturer transcript
   <script src="../../site_libs/revealjs/plugin/notes/notes.js"></script>
   <script src="../../site_libs/revealjs/plugin/search/search.js"></script>
   <script src="../../site_libs/revealjs/plugin/zoom/zoom.js"></script>
-  <script src="../../site_libs/revealjs/plugin/math/math.js"></script>
   <script>window.define = window.backupDefine; window.backupDefine = undefined;</script>
 
   <script>
@@ -3039,27 +3199,9 @@ Lecturer transcript
         // Factor of the display size that should remain empty around the content
         margin: 0.1,
 
-        math: {
-          mathjax: 'https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.9/MathJax.js',
-          config: 'TeX-AMS_HTML-full',
-          tex2jax: {
-            inlineMath: [['\\(','\\)']],
-            displayMath: [['\\[','\\]']],
-            balanceBraces: true,
-            processEscapes: false,
-            processRefs: true,
-            processEnvironments: true,
-            preview: 'TeX',
-            skipTags: ['script','noscript','style','textarea','pre','code'],
-            ignoreClass: 'tex2jax_ignore',
-            processClass: 'tex2jax_process'
-          },
-        },
-
         // reveal.js plugins
         plugins: [QuartoLineHighlight, PdfExport, RevealMenu, QuartoSupport,
 
-          RevealMath,
           RevealNotes,
           RevealSearch,
           RevealZoom

@@ -28,7 +28,23 @@
       vertical-align: middle;
     }
   </style>
-  <link rel="stylesheet" href="../../site_libs/revealjs/dist/theme/quarto-efe7f97d24ea27507c65df08cab6e7d6.css">
+  <link rel="stylesheet" href="../../site_libs/revealjs/dist/theme/quarto-db62157d6cf4bc51d0b25352aea75d23.css">
+  <script>window.backupDefine = window.define; window.define = undefined;</script><script src="https://cdn.jsdelivr.net/npm/katex@latest/dist/katex.min.js"></script>
+  <script>document.addEventListener("DOMContentLoaded", function () {
+ var mathElements = document.getElementsByClassName("math");
+ var macros = [];
+ for (var i = 0; i < mathElements.length; i++) {
+  var texText = mathElements[i].firstChild;
+  if (mathElements[i].tagName == "SPAN") {
+   katex.render(texText.data, mathElements[i], {
+    displayMode: mathElements[i].classList.contains('display'),
+    throwOnError: false,
+    macros: macros,
+    fleqn: false
+   });
+}}});
+  </script>
+  <script>window.define = window.backupDefine; window.backupDefine = undefined;</script><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@latest/dist/katex.min.css">
   <link href="../../site_libs/revealjs/plugin/quarto-line-highlight/line-highlight.css" rel="stylesheet">
   <link href="../../site_libs/revealjs/plugin/reveal-menu/menu.css" rel="stylesheet">
   <link href="../../site_libs/revealjs/plugin/reveal-menu/quarto-menu.css" rel="stylesheet">
@@ -294,6 +310,151 @@
       var el = e.target;
       if (el && el.closest && el.closest('.panel-tabset [role="tab"]')) closeAll();
     }, true);
+  })();
+  </script>
+  <!-- Adaptive code/output layout for WebR cells in revealjs lecture decks. -->
+  <script>
+  (function () {
+    "use strict";
+
+    var MAX_CODE_LINES = 12;
+    var MAX_CODE_SHARE = 0.58;
+    var MIN_CODE_SHARE = 0.30;
+    var MAX_OUTPUT_SHARE = 0.70;
+
+    function detailsFor(area) {
+      var match = area.id && area.id.match(/qwebr-interactive-area-(\d+)/);
+      if (!match || !globalThis.qwebrCellDetails) return null;
+      return globalThis.qwebrCellDetails[Number(match[1]) - 1] || null;
+    }
+
+    function codeMetrics(code) {
+      var lines = String(code || "").split("\n");
+      var substantive = lines.filter(function (line) {
+        return line.trim() && !/^\s*#/.test(line);
+      });
+      return {
+        lines: substantive.length,
+        maxChars: lines.reduce(function (n, line) {
+          return Math.max(n, line.replace(/\t/g, "  ").length);
+        }, 0)
+      };
+    }
+
+    function setTracks(host, codeShare) {
+      codeShare = Math.max(MIN_CODE_SHARE, Math.min(MAX_CODE_SHARE, codeShare));
+      var outputShare = 1 - codeShare;
+      host.style.setProperty("--webr-code-track", codeShare + "fr");
+      host.style.setProperty("--webr-output-track", outputShare + "fr");
+      host.style.setProperty("--webr-code-share", (codeShare * 100) + "%");
+    }
+
+    function measureRenderedCode(area, host, code, attempt) {
+      if (host.dataset.webrLayout !== "side") return;
+      var sample = area.querySelector(".view-line, .monaco-editor");
+      if (!sample || !area.clientWidth) {
+        if (attempt < 20) setTimeout(function () {
+          measureRenderedCode(area, host, code, attempt + 1);
+        }, 100);
+        return;
+      }
+      var style = getComputedStyle(sample);
+      var canvas = document.createElement("canvas");
+      var context = canvas.getContext("2d");
+      context.font = [style.fontStyle, style.fontWeight, style.fontSize,
+        style.fontFamily].filter(Boolean).join(" ");
+      var widest = String(code || "").split("\n").reduce(function (width, line) {
+        return Math.max(width, context.measureText(line.replace(/\t/g, "  ")).width);
+      }, 0);
+      // Monaco's line-number gutter, padding, and scrollbar need about 76px in
+      // addition to the measured glyph width.
+      var available = Math.max(1, area.clientWidth - 16);
+      setTracks(host, (widest + 76) / available);
+    }
+
+    function stack(host) {
+      if (host.dataset.webrLayoutManual === "true") return;
+      host.classList.remove("side-out");
+      host.dataset.webrLayout = "stacked";
+    }
+
+    function assessOutput(area, host, metrics) {
+      if (host.dataset.webrLayout !== "side") return;
+      var graph = area.querySelector(".qwebr-output-graph-area canvas, .qwebr-output-graph-area img");
+      if (graph) return; // plots scale cleanly within their grid track
+
+      var pre = area.querySelector(".qwebr-output-code-area pre");
+      if (!pre || getComputedStyle(pre).visibility === "hidden") return;
+
+      var codeNeed = Math.max(MIN_CODE_SHARE,
+        Math.min(MAX_CODE_SHARE, (metrics.maxChars + 8) / 150));
+      var available = Math.max(1, area.clientWidth - 16);
+      var outputNeed = Math.min(MAX_OUTPUT_SHARE,
+        Math.max(0.42, (pre.scrollWidth + 24) / available));
+      var outputLines = (pre.innerText || "").split("\n").length;
+
+      // If both measured widths cannot coexist, or the console result is too
+      // tall to read as a right-hand panel, retain WebR's original vertical stack.
+      if (codeNeed + outputNeed > 1 || outputLines > 16 ||
+          pre.scrollHeight > area.ownerDocument.documentElement.clientHeight * 0.62) {
+        stack(host);
+        return;
+      }
+
+      setTracks(host, 1 - outputNeed);
+      requestAnimationFrame(function () {
+        if (pre.scrollWidth > pre.clientWidth * 1.08) stack(host);
+      });
+    }
+
+    function configure(area) {
+      if (area.dataset.webrLayoutChecked === "true") return;
+      area.dataset.webrLayoutChecked = "true";
+
+      var details = detailsFor(area);
+      if (!details || !details.options || details.options.context === "setup") return;
+      var metrics = codeMetrics(details.code);
+      if (!metrics.lines || metrics.lines > MAX_CODE_LINES || metrics.maxChars > 88) return;
+
+      var existingWrapper = area.closest(".side-out");
+      var host = existingWrapper || area.closest(".cell") || area.parentElement;
+      if (!host) return;
+
+      if (existingWrapper) {
+        host.dataset.webrLayoutManual = "true";
+      } else {
+        host.classList.add("side-out");
+      }
+      host.dataset.webrLayout = "side";
+
+      // Estimate an initial split from the longest source line. The output is
+      // intentionally favoured; actual output dimensions refine it after a run.
+      var initialCodeShare = (metrics.maxChars + 10) / 145;
+      setTracks(host, initialCodeShare);
+      measureRenderedCode(area, host, details.code, 0);
+
+      var observer = new MutationObserver(function () {
+        requestAnimationFrame(function () { assessOutput(area, host, metrics); });
+      });
+      observer.observe(area, { childList: true, subtree: true, characterData: true,
+        attributes: true, attributeFilter: ["style", "class"] });
+      requestAnimationFrame(function () { assessOutput(area, host, metrics); });
+    }
+
+    function scan() {
+      document.querySelectorAll(".qwebr-interactive-area").forEach(configure);
+    }
+
+    var pageObserver = new MutationObserver(scan);
+    function start() {
+      scan();
+      pageObserver.observe(document.body, { childList: true, subtree: true });
+    }
+    if (document.readyState === "loading") {
+      document.addEventListener("DOMContentLoaded", start, { once: true });
+    } else {
+      start();
+    }
   })();
   </script>
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/monaco-editor@0.47.0/min/vs/editor/editor.main.css">
@@ -586,7 +747,7 @@
   };
 
   // Store cell data
-  globalThis.qwebrCellDetails = [{"code":"runif(5) # default is min=0 and max=1","id":1,"options":{"autorun":"false","classes":"","comment":"","context":"interactive","dpi":72,"editor-font-scale":"0.8","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":5,"fig-width":7,"label":"unnamed-chunk-1","message":"true","out-height":"","out-width":"700px","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"x <- runif(10000)\nhist(x)","id":2,"options":{"autorun":"false","classes":"","comment":"","context":"interactive","dpi":72,"editor-font-scale":"0.8","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":5,"fig-width":7,"label":"unnamed-chunk-2","message":"true","out-height":"","out-width":"700px","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"set.seed(2387438)\nrunif(5)","id":3,"options":{"autorun":"false","classes":"","comment":"","context":"interactive","dpi":72,"editor-font-scale":"0.8","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":5,"fig-width":7,"label":"unnamed-chunk-3","message":"true","out-height":"","out-width":"700px","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"# default is mean = 0,sd = 1\nx <- rnorm(10000)\nhist(x)","id":4,"options":{"autorun":"false","classes":"","comment":"","context":"interactive","dpi":72,"editor-font-scale":"0.8","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":5,"fig-width":7,"label":"unnamed-chunk-4","message":"true","out-height":"","out-width":"700px","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"# N(mean, variance), so sd = sqrt(4) = 2\nx <- rnorm(10000, mean = 2, sd = 2)\nhist(x)","id":5,"options":{"autorun":"false","classes":"","comment":"","context":"interactive","dpi":72,"editor-font-scale":"0.8","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":5,"fig-width":7,"label":"unnamed-chunk-5","message":"true","out-height":"","out-width":"700px","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"x <- seq(-3, 3, length = 1000)\npdf <- dnorm(x)\nplot_data <- data.table(y = pdf, x = x)\nggplot() +\n  geom_line(data = plot_data, aes(y = y, x = x), color = \"red\") +\n  geom_point(\n    data = data.table(y = dnorm(2), x = 2),\n    aes(y = y, x = x),\n    color = \"blue\", size = 2\n  ) +\n  annotate(\n    \"text\",\n    label = paste0(\"dnorm(-1) = \", round(dnorm(-1), digits = 2)),\n    y = 0.25, x = -2,\n    size = 3\n  ) +\n  geom_line(\n    data = data.table(y = seq(0, dnorm(-1), length = 20), x = -1),\n    aes(y = y, x = x),\n    linetype = 2\n  ) +\n  geom_point(\n    data = data.table(y = dnorm(-1), x = -1),\n    aes(y = y, x = x),\n    color = \"blue\", size = 2\n  ) +\n  annotate(\n    \"text\",\n    label = paste0(\"dnorm(2) = \", round(dnorm(2), digits = 2)),\n    y = 0.1, x = 2.5,\n    size = 3\n  ) +\n  geom_line(\n    data = data.table(y = seq(0, dnorm(2), length = 20), x = 2),\n    aes(y = y, x = x),\n    linetype = 2\n  ) +\n  geom_hline(yintercept = 0) +\n  geom_vline(xintercept = 0) +\n  theme_bw()","id":6,"options":{"autorun":"true","classes":"","comment":"","context":"output","dpi":72,"editor-font-scale":"0.8","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":5,"fig-width":7,"label":"unnamed-chunk-6","message":"true","out-height":"","out-width":"700px","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"ggplot() +\n  geom_line(data = plot_data, aes(y = y, x = x), color = \"red\") +\n  geom_ribbon(\n    data = plot_data[x <= -1, ],\n    aes(ymax = y, ymin = 0, x = x),\n    fill = \"blue\",\n    alpha = 0.4\n  ) +\n  annotate(\n    \"text\",\n    label = paste0(\"pnorm(-1) = \", round(pnorm(-1), digits = 2)),\n    y = 0.05, x = 0,\n    size = 3\n  ) +\n  geom_hline(yintercept = 0) +\n  geom_vline(xintercept = 0) +\n  theme_bw()","id":7,"options":{"autorun":"true","classes":"","comment":"","context":"output","dpi":72,"editor-font-scale":"0.8","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":5,"fig-width":7,"label":"unnamed-chunk-7","message":"true","out-height":"","out-width":"700px","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"ggplot() +\n  geom_line(data = plot_data, aes(y = y, x = x), color = \"red\") +\n  geom_ribbon(\n    data = plot_data[x <= 2, ],\n    aes(ymax = y, ymin = 0, x = x),\n    fill = \"blue\",\n    alpha = 0.4\n  ) +\n  annotate(\n    \"text\",\n    label = paste0(\"pnorm(2) = \", round(pnorm(2), digits = 2)),\n    y = 0.05, x = 0,\n    size = 3\n  ) +\n  geom_hline(yintercept = 0) +\n  geom_vline(xintercept = 0) +\n  theme_bw()","id":8,"options":{"autorun":"true","classes":"","comment":"","context":"output","dpi":72,"editor-font-scale":"0.8","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":5,"fig-width":7,"label":"unnamed-chunk-8","message":"true","out-height":"","out-width":"700px","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"","id":9,"options":{"autorun":"false","classes":"","comment":"","context":"interactive","dpi":72,"editor-font-scale":"0.8","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":5,"fig-width":7,"label":"unnamed-chunk-9","message":"true","out-height":"","out-width":"700px","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"pnorm(1, mean = 1, sd = 2)","id":10,"options":{"autorun":"false","classes":"","comment":"","context":"interactive","dpi":72,"editor-font-scale":"0.8","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":5,"fig-width":7,"label":"unnamed-chunk-10","message":"true","out-height":"","out-width":"700px","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"x <- seq(-3, 3, length = 1000)\npdf <- dnorm(x)\nplot_data <- data.table(y = pdf, x = x)\nggplot() +\n  geom_line(data = plot_data, aes(y = y, x = x), color = \"red\") +\n  geom_ribbon(data = plot_data[x < 1.64, ], aes(ymax = y, ymin = 0, x = x), fill = \"green\", alpha = 0.3) +\n  annotate(\n    \"text\",\n    label = \"qnorm(0.95)=1.64\",\n    x = 2.2, y = 0.3,\n    size = 3\n  ) +\n  geom_point(aes(y = 0, x = 1.64)) +\n  annotate(\n    \"text\",\n    label = \"1.64\",\n    x = 1.64, y = 0.03,\n    size = 3\n  ) +\n  geom_hline(yintercept = 0) +\n  geom_vline(xintercept = 0) +\n  theme_bw()","id":11,"options":{"autorun":"true","classes":"","comment":"","context":"output","dpi":72,"editor-font-scale":"0.8","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":5,"fig-width":7,"label":"unnamed-chunk-11","message":"true","out-height":"","out-width":"700px","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"","id":12,"options":{"autorun":"false","classes":"","comment":"","context":"interactive","dpi":72,"editor-font-scale":"0.8","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":5,"fig-width":7,"label":"unnamed-chunk-12","message":"true","out-height":"","out-width":"700px","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"qnorm(0.88, mean = 0, sd = 9)","id":13,"options":{"autorun":"false","classes":"","comment":"","context":"interactive","dpi":72,"editor-font-scale":"0.8","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":5,"fig-width":7,"label":"unnamed-chunk-13","message":"true","out-height":"","out-width":"700px","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"#--- steps 1 and 2:  ---#\n# specify the data generating process and generate data\nx <- runif(100) # Here, E[x]=0.5\n\n#--- step 3 ---#\n# calculate sample mean\nmean_x <- mean(x)\nmean_x","id":14,"options":{"autorun":"false","classes":"","comment":"","context":"interactive","dpi":72,"editor-font-scale":"0.8","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":5,"fig-width":7,"label":"unnamed-chunk-14","message":"true","out-height":"","out-width":"700px","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"#--- the number of iterations ---#\nB <- 1000\n\n#--- repeat steps 1-3 B times ---#\nfor (i in 1:B) {\n  print(i) # print i\n}","id":15,"options":{"autorun":"false","classes":"","comment":"","context":"interactive","dpi":72,"editor-font-scale":"0.8","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":5,"fig-width":7,"label":"unnamed-chunk-15","message":"true","out-height":"","out-width":"700px","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"#--- the number of iterations ---#\nB <- 1000\n\n#--- create a storage that stores estimates ---#\nestimate_storage_mean <- rep(0, B)\n\n#--- repeat steps 1-3 B times ---#\nfor (i in 1:B) {\n  #--- steps 1 and 2:  ---#\n  # specify the data generating process and generate data\n  x <- runif(100) # Here, E[x]=0.5\n\n  #--- step 3 ---#\n  # calculate sample mean\n  mean_x <- mean(x)\n  estimate_storage_mean[i] <- mean_x\n}","id":16,"options":{"autorun":"true","classes":"","comment":"","context":"interactive","dpi":72,"editor-font-scale":"0.8","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":5,"fig-width":7,"label":"unnamed-chunk-16","message":"true","out-height":"","out-width":"700px","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"mean(estimate_storage_mean)\n\nhist(estimate_storage_mean, breaks = 30, main = \"1000 sample means\")\nabline(v = 0.5, col = \"blue\", lwd = 2) # the truth\nabline(v = mean(estimate_storage_mean), col = \"red\", lty = 2, lwd = 2) # average estimate","id":17,"options":{"autorun":"false","classes":"","comment":"","context":"interactive","dpi":72,"editor-font-scale":"0.8","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":5,"fig-width":7,"label":"unnamed-chunk-17","message":"true","out-height":"","out-width":"700px","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"#--- Preparation ---#\nB <- 1000 # the number of iterations\nN <- 100 # sample size\nestimate_storage <- rep(0, B) # estimates storage\n\n#--- repeat steps 1-3 B times ---#\nfor (i in 1:B) {\n  #--- steps 1 and 2:  ---#\n  mu <- rnorm(N) # the common term shared by both x and u\n  x <- rnorm(N) + mu # independent variable\n  u <- rnorm(N) + mu # error\n  y <- 1 + x + u # dependent variable\n  data <- data.frame(y = y, x = x)\n\n  #--- OLS ---#\n  reg <- fixest::feols(y ~ x, data = data) # OLS\n  estimate_storage[i] <- reg$coefficient[\"x\"]\n}","id":18,"options":{"autorun":"false","classes":"","comment":"","context":"interactive","dpi":72,"editor-font-scale":"0.8","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":5,"fig-width":7,"label":"unnamed-chunk-18","message":"true","out-height":"","out-width":"700px","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"mean(estimate_storage)\n\nhist(estimate_storage, breaks = 30, main = \"1000 estimates of beta_1\")\nabline(v = 1, col = \"blue\", lwd = 2) # the truth\nabline(v = 1.5, col = \"red\", lwd = 2) # where the estimates actually center","id":19,"options":{"autorun":"false","classes":"","comment":"","context":"interactive","dpi":72,"editor-font-scale":"0.8","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":5,"fig-width":7,"label":"unnamed-chunk-19","message":"true","out-height":"","out-width":"700px","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"set.seed(903478)\n\n#--- Preparation ---#\nB <- 10000 # the number of iterations\nN <- 100 # sample size\nbeta_storage <- rep(0, B) # estimates storage for beta\nV_beta_storage <- rep(0, B) # estimates storage for V(beta)\nx <- rnorm(N) # x values are the same for every iteration\nSST_X <- sum((x - mean(x))^2)\n\n#--- repeat steps 1-3 B times ---#\nfor (i in 1:B) {\n  #--- steps 1 and 2:  ---#\n  u <- 2 * rnorm(N) # error\n  y <- 1 + x + u # dependent variable\n  data <- data.frame(y = y, x = x)\n\n  #--- OLS ---#\n  reg <- fixest::feols(y ~ x, data = data) # OLS\n  beta_storage[i] <- reg$coefficient[\"x\"]\n  #* store estimated variance of beta_1_hat\n  V_beta_storage[i] <- vcov(reg)[\"x\", \"x\"]\n}","id":20,"options":{"autorun":"false","classes":"","comment":"","context":"interactive","dpi":72,"editor-font-scale":"0.8","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":5,"fig-width":7,"label":"unnamed-chunk-20","message":"true","out-height":"","out-width":"700px","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"mean(V_beta_storage)","id":21,"options":{"autorun":"false","classes":"","comment":"","context":"interactive","dpi":72,"editor-font-scale":"0.8","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":5,"fig-width":7,"label":"unnamed-chunk-21","message":"true","out-height":"","out-width":"700px","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"ggplot(data = data.frame(x = V_beta_storage)) +\n  geom_density(aes(x = x)) +\n  geom_vline(xintercept = round(4 / SST_X, digits = 4))","id":22,"options":{"autorun":"false","classes":"","comment":"","context":"interactive","dpi":72,"editor-font-scale":"0.8","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":5,"fig-width":7,"label":"unnamed-chunk-22","message":"true","out-height":"","out-width":"700px","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"#--- Preparation ---#\nB <- 1000 # the number of iterations\nN <- 100 # sample size\nestimate_storage <- matrix(0, B, 2) # estimates storage\n\nfor (i in 1:B) {\n  #--- generate data ---#\n  x_1 <- rnorm(N, sd = 1) # indep var 1\n  x_2 <- rnorm(N, sd = 3) # indep var 2\n  u <- rnorm(N) # error\n  y_1 <- 1 + x_1 + u # dependent variable 1\n  y_2 <- 1 + x_2 + u # dependent variable 2\n  data <- data.table::data.table(y_1 = y_1, y_2 = y_2, x_1 = x_1, x_2 = x_2)\n\n  #--- OLS ---#\n  reg_1 <- fixest::feols(y_1 ~ x_1, data = data) # OLS\n  reg_2 <- fixest::feols(y_2 ~ x_2, data = data) # OLS\n\n  #--- store coef estimates ---#\n  estimate_storage[i, 1] <- reg_1$coefficient[\"x_1\"] # equation 1\n  estimate_storage[i, 2] <- reg_2$coefficient[\"x_2\"] # equation 2\n}\n\n#--- assign new names ---#\nbeta_1s <- estimate_storage[, 1]\nbeta_2s <- estimate_storage[, 2]\n\n#--- mean ---#\nmean(beta_1s)\nmean(beta_2s)\n\n#--- sd ---#\nsd(beta_1s)\nsd(beta_2s)","id":23,"options":{"autorun":"false","classes":"","comment":"","context":"interactive","dpi":72,"editor-font-scale":"0.8","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":5,"fig-width":7,"label":"unnamed-chunk-23","message":"true","out-height":"","out-width":"700px","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"plot_data_1 <- data.table(x = beta_1s, type = \"Equation 1\")\nplot_data_2 <- data.table(x = beta_2s, type = \"Equation 2\")\nplot_data <- rbind(plot_data_1, plot_data_2)\nggplot(data = plot_data) +\n  geom_density(aes(x = x, fill = type), alpha = 0.5) +\n  scale_fill_discrete(name = \"\") +\n  xlab(\"Coefficient Estimate\") +\n  theme(\n    legend.position = \"bottom\"\n  )","id":24,"options":{"autorun":"false","classes":"","comment":"","context":"interactive","dpi":72,"editor-font-scale":"0.8","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":5,"fig-width":7,"label":"unnamed-chunk-24","message":"true","out-height":"","out-width":"700px","output":"true","read-only":"false","results":"markup","warning":"true"}}];
+  globalThis.qwebrCellDetails = [{"code":"runif(5) # default is min=0 and max=1","id":1,"options":{"autorun":"false","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.8","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"4.5","fig-width":"7","label":"unnamed-chunk-1","message":"true","out-height":"","out-width":"55%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"x <- runif(10000)\nhist(x)","id":2,"options":{"autorun":"false","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.8","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"4.5","fig-width":"7","label":"unnamed-chunk-2","message":"true","out-height":"","out-width":"55%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"set.seed(2387438)\nrunif(5)","id":3,"options":{"autorun":"false","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.8","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"4.5","fig-width":"7","label":"unnamed-chunk-3","message":"true","out-height":"","out-width":"55%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"# default is mean = 0,sd = 1\nx <- rnorm(10000)\nhist(x)","id":4,"options":{"autorun":"false","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.8","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"4.5","fig-width":"7","label":"unnamed-chunk-4","message":"true","out-height":"","out-width":"55%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"# N(mean, variance), so sd = sqrt(4) = 2\nx <- rnorm(10000, mean = 2, sd = 2)\nhist(x)","id":5,"options":{"autorun":"false","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.8","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"4.5","fig-width":"7","label":"unnamed-chunk-5","message":"true","out-height":"","out-width":"55%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"x <- seq(-3, 3, length = 1000)\npdf <- dnorm(x)\nplot_data <- data.table(y = pdf, x = x)\nggplot() +\n  geom_line(data = plot_data, aes(y = y, x = x), color = \"red\") +\n  geom_point(\n    data = data.table(y = dnorm(2), x = 2),\n    aes(y = y, x = x),\n    color = \"blue\", size = 2\n  ) +\n  annotate(\n    \"text\",\n    label = paste0(\"dnorm(-1) = \", round(dnorm(-1), digits = 2)),\n    y = 0.25, x = -2,\n    size = 8\n  ) +\n  geom_line(\n    data = data.table(y = seq(0, dnorm(-1), length = 20), x = -1),\n    aes(y = y, x = x),\n    linetype = 2\n  ) +\n  geom_point(\n    data = data.table(y = dnorm(-1), x = -1),\n    aes(y = y, x = x),\n    color = \"blue\", size = 2\n  ) +\n  annotate(\n    \"text\",\n    label = paste0(\"dnorm(2) = \", round(dnorm(2), digits = 2)),\n    y = 0.1, x = 2.5,\n    size = 8\n  ) +\n  geom_line(\n    data = data.table(y = seq(0, dnorm(2), length = 20), x = 2),\n    aes(y = y, x = x),\n    linetype = 2\n  ) +\n  geom_hline(yintercept = 0) +\n  geom_vline(xintercept = 0) +\n  theme_bw(base_size = 30)","id":6,"options":{"autorun":"true","classes":"","comment":"","context":"output","dpi":"216","editor-font-scale":"0.8","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"4.5","fig-width":"7","label":"unnamed-chunk-6","message":"true","out-height":"","out-width":"55%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"ggplot() +\n  geom_line(data = plot_data, aes(y = y, x = x), color = \"red\") +\n  geom_ribbon(\n    data = plot_data[x <= -1, ],\n    aes(ymax = y, ymin = 0, x = x),\n    fill = \"blue\",\n    alpha = 0.4\n  ) +\n  annotate(\n    \"text\",\n    label = paste0(\"pnorm(-1) = \", round(pnorm(-1), digits = 2)),\n    y = 0.05, x = 0,\n    size = 8\n  ) +\n  geom_hline(yintercept = 0) +\n  geom_vline(xintercept = 0) +\n  theme_bw(base_size = 30)","id":7,"options":{"autorun":"true","classes":"","comment":"","context":"output","dpi":"216","editor-font-scale":"0.8","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"4.5","fig-width":"7","label":"unnamed-chunk-7","message":"true","out-height":"","out-width":"55%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"ggplot() +\n  geom_line(data = plot_data, aes(y = y, x = x), color = \"red\") +\n  geom_ribbon(\n    data = plot_data[x <= 2, ],\n    aes(ymax = y, ymin = 0, x = x),\n    fill = \"blue\",\n    alpha = 0.4\n  ) +\n  annotate(\n    \"text\",\n    label = paste0(\"pnorm(2) = \", round(pnorm(2), digits = 2)),\n    y = 0.05, x = 0,\n    size = 8\n  ) +\n  geom_hline(yintercept = 0) +\n  geom_vline(xintercept = 0) +\n  theme_bw(base_size = 30)","id":8,"options":{"autorun":"true","classes":"","comment":"","context":"output","dpi":"216","editor-font-scale":"0.8","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"4.5","fig-width":"7","label":"unnamed-chunk-8","message":"true","out-height":"","out-width":"55%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"","id":9,"options":{"autorun":"false","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.8","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"4.5","fig-width":"7","label":"unnamed-chunk-9","message":"true","out-height":"","out-width":"55%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"pnorm(1, mean = 1, sd = 2)","id":10,"options":{"autorun":"false","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.8","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"4.5","fig-width":"7","label":"unnamed-chunk-10","message":"true","out-height":"","out-width":"55%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"x <- seq(-3, 3, length = 1000)\npdf <- dnorm(x)\nplot_data <- data.table(y = pdf, x = x)\nggplot() +\n  geom_line(data = plot_data, aes(y = y, x = x), color = \"red\") +\n  geom_ribbon(data = plot_data[x < 1.64, ], aes(ymax = y, ymin = 0, x = x), fill = \"green\", alpha = 0.3) +\n  annotate(\n    \"text\",\n    label = \"qnorm(0.95)=1.64\",\n    x = 2.2, y = 0.3,\n    size = 8\n  ) +\n  geom_point(aes(y = 0, x = 1.64)) +\n  annotate(\n    \"text\",\n    label = \"1.64\",\n    x = 1.64, y = 0.03,\n    size = 8\n  ) +\n  geom_hline(yintercept = 0) +\n  geom_vline(xintercept = 0) +\n  theme_bw(base_size = 30)","id":11,"options":{"autorun":"true","classes":"","comment":"","context":"output","dpi":"216","editor-font-scale":"0.8","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"4.5","fig-width":"7","label":"unnamed-chunk-11","message":"true","out-height":"","out-width":"55%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"","id":12,"options":{"autorun":"false","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.8","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"4.5","fig-width":"7","label":"unnamed-chunk-12","message":"true","out-height":"","out-width":"55%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"qnorm(0.88, mean = 0, sd = 9)","id":13,"options":{"autorun":"false","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.8","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"4.5","fig-width":"7","label":"unnamed-chunk-13","message":"true","out-height":"","out-width":"55%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"#--- steps 1 and 2:  ---#\n# specify the data generating process and generate data\nx <- runif(100) # Here, E[x]=0.5\n\n#--- step 3 ---#\n# calculate sample mean\nmean_x <- mean(x)\nmean_x","id":14,"options":{"autorun":"false","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.8","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"4.5","fig-width":"7","label":"unnamed-chunk-14","message":"true","out-height":"","out-width":"55%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"#--- the number of iterations ---#\nB <- 1000\n\n#--- repeat steps 1-3 B times ---#\nfor (i in 1:B) {\n  print(i) # print i\n}","id":15,"options":{"autorun":"false","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.8","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"4.5","fig-width":"7","label":"unnamed-chunk-15","message":"true","out-height":"","out-width":"55%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"#--- the number of iterations ---#\nB <- 1000\n\n#--- create a storage that stores estimates ---#\nestimate_storage_mean <- rep(0, B)\n\n#--- repeat steps 1-3 B times ---#\nfor (i in 1:B) {\n  #--- steps 1 and 2:  ---#\n  # specify the data generating process and generate data\n  x <- runif(100) # Here, E[x]=0.5\n\n  #--- step 3 ---#\n  # calculate sample mean\n  mean_x <- mean(x)\n  estimate_storage_mean[i] <- mean_x\n}","id":16,"options":{"autorun":"true","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.8","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"4.5","fig-width":"7","label":"unnamed-chunk-16","message":"true","out-height":"","out-width":"55%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"mean(estimate_storage_mean)\n\nhist(estimate_storage_mean, breaks = 30, main = \"1000 sample means\")\nabline(v = 0.5, col = \"blue\", lwd = 2) # the truth\nabline(v = mean(estimate_storage_mean), col = \"red\", lty = 2, lwd = 2) # average estimate","id":17,"options":{"autorun":"false","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.8","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"4.5","fig-width":"7","label":"unnamed-chunk-17","message":"true","out-height":"","out-width":"55%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"#--- Preparation ---#\nB <- 1000 # the number of iterations\nN <- 100 # sample size\nestimate_storage <- rep(0, B) # estimates storage\n\n#--- repeat steps 1-3 B times ---#\nfor (i in 1:B) {\n  #--- steps 1 and 2:  ---#\n  mu <- rnorm(N) # the common term shared by both x and u\n  x <- rnorm(N) + mu # independent variable\n  u <- rnorm(N) + mu # error\n  y <- 1 + x + u # dependent variable\n  data <- data.frame(y = y, x = x)\n\n  #--- OLS ---#\n  reg <- fixest::feols(y ~ x, data = data) # OLS\n  estimate_storage[i] <- reg$coefficient[\"x\"]\n}","id":18,"options":{"autorun":"false","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.8","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"4.5","fig-width":"7","label":"unnamed-chunk-18","message":"true","out-height":"","out-width":"55%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"mean(estimate_storage)\n\nhist(estimate_storage, breaks = 30, main = \"1000 estimates of beta_1\")\nabline(v = 1, col = \"blue\", lwd = 2) # the truth\nabline(v = 1.5, col = \"red\", lwd = 2) # where the estimates actually center","id":19,"options":{"autorun":"false","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.8","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"4.5","fig-width":"7","label":"unnamed-chunk-19","message":"true","out-height":"","out-width":"55%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"set.seed(903478)\n\n#--- Preparation ---#\nB <- 10000 # the number of iterations\nN <- 100 # sample size\nbeta_storage <- rep(0, B) # estimates storage for beta\nV_beta_storage <- rep(0, B) # estimates storage for V(beta)\nx <- rnorm(N) # x values are the same for every iteration\nSST_X <- sum((x - mean(x))^2)\n\n#--- repeat steps 1-3 B times ---#\nfor (i in 1:B) {\n  #--- steps 1 and 2:  ---#\n  u <- 2 * rnorm(N) # error\n  y <- 1 + x + u # dependent variable\n  data <- data.frame(y = y, x = x)\n\n  #--- OLS ---#\n  reg <- fixest::feols(y ~ x, data = data) # OLS\n  beta_storage[i] <- reg$coefficient[\"x\"]\n  #* store estimated variance of beta_1_hat\n  V_beta_storage[i] <- vcov(reg)[\"x\", \"x\"]\n}","id":20,"options":{"autorun":"false","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.8","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"4.5","fig-width":"7","label":"unnamed-chunk-20","message":"true","out-height":"","out-width":"55%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"mean(V_beta_storage)","id":21,"options":{"autorun":"false","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.8","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"4.5","fig-width":"7","label":"unnamed-chunk-21","message":"true","out-height":"","out-width":"55%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"ggplot(data = data.frame(x = V_beta_storage)) +\n  geom_density(aes(x = x)) +\n  geom_vline(xintercept = round(4 / SST_X, digits = 4)) +\n  theme_bw(base_size = 30)","id":22,"options":{"autorun":"false","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.8","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"4.5","fig-width":"7","label":"unnamed-chunk-22","message":"true","out-height":"","out-width":"55%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"#--- Preparation ---#\nB <- 1000 # the number of iterations\nN <- 100 # sample size\nestimate_storage <- matrix(0, B, 2) # estimates storage\n\nfor (i in 1:B) {\n  #--- generate data ---#\n  x_1 <- rnorm(N, sd = 1) # indep var 1\n  x_2 <- rnorm(N, sd = 3) # indep var 2\n  u <- rnorm(N) # error\n  y_1 <- 1 + x_1 + u # dependent variable 1\n  y_2 <- 1 + x_2 + u # dependent variable 2\n  data <- data.table::data.table(y_1 = y_1, y_2 = y_2, x_1 = x_1, x_2 = x_2)\n\n  #--- OLS ---#\n  reg_1 <- fixest::feols(y_1 ~ x_1, data = data) # OLS\n  reg_2 <- fixest::feols(y_2 ~ x_2, data = data) # OLS\n\n  #--- store coef estimates ---#\n  estimate_storage[i, 1] <- reg_1$coefficient[\"x_1\"] # equation 1\n  estimate_storage[i, 2] <- reg_2$coefficient[\"x_2\"] # equation 2\n}\n\n#--- assign new names ---#\nbeta_1s <- estimate_storage[, 1]\nbeta_2s <- estimate_storage[, 2]\n\n#--- mean ---#\nmean(beta_1s)\nmean(beta_2s)\n\n#--- sd ---#\nsd(beta_1s)\nsd(beta_2s)","id":23,"options":{"autorun":"false","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.8","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"4.5","fig-width":"7","label":"unnamed-chunk-23","message":"true","out-height":"","out-width":"55%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"plot_data_1 <- data.table(x = beta_1s, type = \"Equation 1\")\nplot_data_2 <- data.table(x = beta_2s, type = \"Equation 2\")\nplot_data <- rbind(plot_data_1, plot_data_2)\nggplot(data = plot_data) +\n  geom_density(aes(x = x, fill = type), alpha = 0.5) +\n  scale_fill_discrete(name = \"\") +\n  xlab(\"Coefficient Estimate\") +\n  theme_bw(base_size = 30) +\n  theme(\n    legend.position = \"bottom\"\n  )","id":24,"options":{"autorun":"false","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.8","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"6.5","fig-width":"9","label":"unnamed-chunk-24","message":"true","out-height":"","out-width":"55%","output":"true","read-only":"false","results":"markup","warning":"true"}}];
 
   </script>
   <script type="module">
@@ -2109,7 +2270,7 @@ Lecturer transcript
 <ul>
 <li>confirm econometric theory numerically
 <ul>
-<li>OLS estimators are unbiased if <span class="math inline">\(E[u|x]=0\)</span> along with other conditions (theory)</li>
+<li>OLS estimators are unbiased if <span class="math inline">E[u|x]=0</span> along with other conditions (theory)</li>
 <li>I know the above theory is right, but let’s check if it is true numerically</li>
 </ul></li>
 <li>You kind of sense that something in your data may cause problems, but there is no proven econometric theory about what’s gonna happen (I used MC simulation for this purpose a lot)</li>
@@ -2123,7 +2284,7 @@ Lecturer transcript
 </summary>
 <p>Here is the question that motivates everything. You want to know what happens to OLS when the zero conditional mean condition fails. Could you just take real data and check? Open the answer and read it, then think about why it is so damning. With real data you never see the error term, so you cannot tell whether it is correlated with x. And you never see the true beta, so even if you got an estimate you would have nothing to compare it against. Both halves of the comparison are invisible. That is precisely what simulation gives back to you.</p>
 </details>
-<p>Suppose you are interested in checking what happens to OLS estimators if <span class="math inline">\(E[u|x]=0\)</span> (the error term and <span class="math inline">\(x\)</span> are not correlated) is violated.</p>
+<p>Suppose you are interested in checking what happens to OLS estimators if <span class="math inline">E[u|x]=0</span> (the error term and <span class="math inline">x</span> are not correlated) is violated.</p>
 <div title="Question">
 <div class="callout callout-note no-icon callout-titled callout-style-default">
 <div class="callout-body">
@@ -2142,7 +2303,7 @@ Lecturer transcript
 <summary>
 Answer
 </summary>
-No because you will never observe either error term or true value of <span class="math inline">\(\beta\)</span>s.
+No because you will never observe either error term or true value of <span class="math inline">\beta</span>s.
 </details>
 </div>
 <div id="tabset-1-3">
@@ -2172,7 +2333,7 @@ Lecturer transcript
 <summary>
 Lecturer transcript
 </summary>
-<p>Before we simulate anything we need to be able to generate data, which means random numbers. Note the word in blue: approximate. A computer cannot produce truly random numbers; it runs a deterministic algorithm whose output has the statistical properties of randomness. For our purposes that is entirely good enough. Run the first cell. Runif of 5 gives you five draws from a uniform distribution between zero and one, which is the default. Then run the second, which draws ten thousand and plots a histogram. Look at the shape: flat, because every value between zero and one is equally likely.</p>
+<p>Before we simulate anything we need to generate random-looking numbers. The standard generators used by statistical software are pseudorandom: a deterministic algorithm produces a sequence designed to have the statistical properties of random draws. Hardware sources of physical randomness do exist, but simulation normally uses pseudorandom generators because they are fast and reproducible. Run the first cell. <code>runif(5)</code> gives five draws from a uniform distribution between zero and one. Then run the second, which draws ten thousand and plots a histogram. Look at the approximately flat shape, because equal-length intervals between zero and one have equal probability.</p>
 </details>
 <p><strong>Pseudo random number generators (Pseudo RNG)</strong></p>
 <p>Algorithms for generating a sequence of numbers whose properties <span style="color: blue;"> approximate </span> the properties of sequences of random numbers</p>
@@ -2213,11 +2374,11 @@ Lecturer transcript
 </details>
 <div class="columns">
 <div class="column" style="width:50%;">
-<p><span class="math inline">\(x \sim N(0, 1)\)</span></p>
+<p><span class="math inline">x \sim N(0, 1)</span></p>
 <div id="qwebr-insertion-location-4"></div>
 <noscript>Please enable JavaScript to experience the dynamic code cell content on this page.</noscript>
 </div><!--end of the 1st column--><div class="column" style="width:50%;">
-<p><span class="math inline">\(x \sim N(2, 4)\)</span></p>
+<p><span class="math inline">x \sim N(2, 4)</span></p>
 <div id="qwebr-insertion-location-5"></div>
 <noscript>Please enable JavaScript to experience the dynamic code cell content on this page.</noscript>
 </div><!--end of the 2nd column-->
@@ -2271,13 +2432,13 @@ Lecturer transcript
 </summary>
 <p>Dnorm gives you the height of the density curve at a point, and the figure shows exactly that. The red curve is the standard Normal density. The two blue dots are dnorm at minus one and dnorm at two, with dashed lines dropping to the axis so you can see where each is measured. Read the numbers: about zero point two four at minus one, and about zero point zero five at two, because two is further out in the tail. One warning that matters later. This height is not a probability. Probabilities are areas under the curve, which is the next tab.</p>
 </details>
-<p><code>dnorm(x)</code> gives you the height of the density function at <span class="math inline">\(x\)</span>.</p>
+<p><code>dnorm(x)</code> gives you the height of the density function at <span class="math inline">x</span>.</p>
 <p><code>dnorm(-1)</code> and <code>dnorm(2)</code></p>
 <div id="qwebr-insertion-location-6"></div>
 <noscript>Please enable JavaScript to experience the dynamic code cell content on this page.</noscript>
 </div>
 <div id="tabset-5-3">
-<p><code>pnorm(x)</code> gives you the probability that a single random draw is <span style="color: red;"> less </span> than <span class="math inline">\(x\)</span>.</p>
+<p><code>pnorm(x)</code> gives you the probability that a single random draw is <span style="color: red;"> less </span> than <span class="math inline">x</span>.</p>
 <div class="panel-tabset">
 <ul id="tabset-3" class="panel-tabset-tabby"><li><a data-tabby-default="" href="#tabset-3-1">pnorm(-1)</a></li><li><a href="#tabset-3-2">pnorm(2)</a></li><li><a href="#tabset-3-3">Exercise</a></li></ul>
 <div class="tab-content">
@@ -2336,11 +2497,11 @@ Lecturer transcript
 </summary>
 <p>The q prefix reverses the question you have been asking. Pnorm took a value and returned a probability. Qnorm takes a probability and returns the value. Read the definition on screen: qnorm of x gives you the number q such that a draw falls below q with probability x. That is why the second bullet says it is the inverse of pnorm, and why running one inside the other gives you back what you started with. The default is again mean zero and standard deviation one, so unless you say otherwise you are getting quantiles of the standard Normal.</p>
 </details>
-<p><code>qnorm(x)</code>, where <span class="math inline">\(0 &lt; x &lt; 1\)</span>, gives you the number <span class="math inline">\(q\)</span> such that a single random draw is less than <span class="math inline">\(q\)</span> with probability <span class="math inline">\(x\)</span>.</p>
+<p><code>qnorm(x)</code>, where <span class="math inline">0 &lt; x &lt; 1</span>, gives you the number <span class="math inline">q</span> such that a single random draw is less than <span class="math inline">q</span> with probability <span class="math inline">x</span>.</p>
 <ul>
-<li>it is the <span style="color: red;"> inverse </span> of <code>pnorm()</code>: <code>pnorm(qnorm(x))</code> <span class="math inline">\(= x\)</span></li>
+<li>it is the <span style="color: red;"> inverse </span> of <code>pnorm()</code>: <code>pnorm(qnorm(x))</code> <span class="math inline">= x</span></li>
 </ul>
-<p>We call the output of <code>qnorm(x)</code> the <span class="math inline">\(100x\%\)</span> quantile of the standard Normal distribution (because the default is <code>mean = 0</code> and <code>sd = 1</code> for <code>qnorm()</code>).</p>
+<p>We call the output of <code>qnorm(x)</code> the <span class="math inline">100x\%</span> quantile of the standard Normal distribution (because the default is <code>mean = 0</code> and <code>sd = 1</code> for <code>qnorm()</code>).</p>
 </div>
 <div id="tabset-4-2">
 <details class="transcript">
@@ -2357,7 +2518,7 @@ Lecturer transcript
 <summary>
 Lecturer transcript
 </summary>
-<p>Your turn again, and this one has a shortcut worth seeing. You want the eighty-eight percent quantile of a Normal with mean zero and standard deviation nine. Do it directly first, in the work cell. Then read the note under the answer. The standard Normal quantile is about one point one seven, and scaling the standard deviation by nine scales the quantile by nine too, giving about ten point six. That is a general property: quantiles scale with the standard deviation. It is also why standardising a variable is such a common move, since it converts every distribution back to the one you have memorised.</p>
+<p>Your turn again, and this one has a shortcut worth seeing. You want the eighty-eight percent quantile of a Normal with mean zero and standard deviation nine. Do it directly first, in the work cell. Then read the note under the answer. The standard Normal quantile is about one point one seven, and multiplying the standard deviation by nine multiplies this zero-mean Normal quantile by nine, giving about ten point six. More generally, a Normal quantile is <span class="math inline">\mu+\sigma z_p</span>. That is why standardising a Normal variable is useful: it converts it to the standard Normal whose quantiles you know.</p>
 </details>
 <p>What is the 88% quantile of Normal distribution with <code>mean = 0</code> and <code>sd = 9</code>?</p>
 <p><br></p>
@@ -2406,7 +2567,7 @@ Lecturer transcript
 <li>compare your estimates with the true parameter</li>
 </ul>
 <p><strong>Question</strong></p>
-<p>Why do the steps <span class="math inline">\(1-3\)</span> many many times?</p>
+<p>Why do the steps <span class="math inline">1-3</span> many many times?</p>
 </section>
 <section id="monte-carlo-simulation-example-1" class="slide level2">
 <h2>Monte Carlo Simulation: Example 1</h2>
@@ -2433,7 +2594,7 @@ Lecturer transcript
 </div>
 </div>
 <p><br></p>
-<p>That is, is <span class="math inline">\(E[\frac{1}{n}\sum_{i=1}^n x_i] = E[x]\)</span>, where <span class="math inline">\(x_i\)</span> is an independent random draw from the same distribution?</p>
+<p>That is, is <span class="math inline">E[\frac{1}{n}\sum_{i=1}^n x_i] = E[x]</span>, where <span class="math inline">x_i</span> is an independent random draw from the same distribution?</p>
 </div>
 <div id="tabset-6-2">
 <details class="transcript">
@@ -2469,7 +2630,7 @@ Lecturer transcript
 <noscript>Please enable JavaScript to experience the dynamic code cell content on this page.</noscript>
 <p><br></p>
 <p><strong>Verbally</strong></p>
-<p>For each of <span class="math inline">\(i\)</span> in <span class="math inline">\(1:B\)</span> <span class="math inline">\((1, 2, \dots, 1000)\)</span>, do <code>print(i)</code>.</p>
+<p>For each of <span class="math inline">i</span> in <span class="math inline">1:B</span> <span class="math inline">(1, 2, \dots, 1000)</span>, do <code>print(i)</code>.</p>
 <ul>
 <li><code>i</code> takes the value of 1, and then <code>print(1)</code></li>
 <li><code>i</code> takes the value of 2, and then <code>print(2)</code></li>
@@ -2497,7 +2658,7 @@ Lecturer transcript
 </details>
 <p>Compare your estimates with the true parameter</p>
 <ul>
-<li>the truth here is <span class="math inline">\(E[x] = 0.5\)</span>, because <span class="math inline">\(x\)</span> is drawn from <code>runif()</code></li>
+<li>the truth here is <span class="math inline">E[x] = 0.5</span>, because <span class="math inline">x</span> is drawn from <code>runif()</code></li>
 </ul>
 <div id="qwebr-insertion-location-17"></div>
 <noscript>Please enable JavaScript to experience the dynamic code cell content on this page.</noscript>
@@ -2529,7 +2690,7 @@ Lecturer transcript
 <p><strong>Question</strong></p>
 </div>
 <div class="callout-content">
-<p>What happens to <span class="math inline">\(\hat{\beta}_1\)</span> if <span class="math inline">\(E[u|x]\ne 0\)</span> when estimating <span class="math inline">\(y=\beta_0+\beta_1 x + u\)</span>?</p>
+<p>What happens to <span class="math inline">\hat{\beta}_1</span> if <span class="math inline">E[u|x]\ne 0</span> when estimating <span class="math inline">y=\beta_0+\beta_1 x + u</span>?</p>
 </div>
 </div>
 </div>
@@ -2552,14 +2713,14 @@ Lecturer transcript
 </summary>
 <p>Before running anything, let’s predict the answer, because a simulation you cannot predict is a simulation you cannot learn from. Both x and u contain mu, so the covariance between them is the variance of mu, which is one. And the variance of x is the variance of mu plus one, so two. The bias formula on screen turns those two numbers into a prediction: the estimates should center on one plus one half, which is one point five, against a true value of one. Write that number down. The next tab is the test of whether we understood our own model.</p>
 </details>
-<p>Both <span class="math inline">\(x\)</span> and <span class="math inline">\(u\)</span> contain <span class="math inline">\(\mu\)</span>, so they are correlated by construction:</p>
+<p>Both <span class="math inline">x</span> and <span class="math inline">u</span> contain <span class="math inline">\mu</span>, so they are correlated by construction:</p>
 <ul>
-<li><span class="math inline">\(Cov(x, u) = Var(\mu) = 1\)</span></li>
-<li><span class="math inline">\(Var(x) = Var(\mu) + 1 = 2\)</span></li>
+<li><span class="math inline">Cov(x, u) = Var(\mu) = 1</span></li>
+<li><span class="math inline">Var(x) = Var(\mu) + 1 = 2</span></li>
 </ul>
 <p><br></p>
-<p>And the bias of <span class="math inline">\(\hat{\beta}_1\)</span> is governed by exactly that ratio:</p>
-<p><span class="math display">\[\hat{\beta}_1 \rightarrow \beta_1 + \frac{Cov(x, u)}{Var(x)} = 1 + \frac{1}{2} = 1.5\]</span></p>
+<p>And the bias of <span class="math inline">\hat{\beta}_1</span> is governed by exactly that ratio:</p>
+<p><span class="math display">\hat{\beta}_1 \rightarrow \beta_1 + \frac{Cov(x, u)}{Var(x)} = 1 + \frac{1}{2} = 1.5</span></p>
 <ul>
 <li>so the histogram should be centered at <span style="color: red;">1.5</span>, not at the true value of 1</li>
 </ul>
@@ -2575,7 +2736,7 @@ Lecturer transcript
 <noscript>Please enable JavaScript to experience the dynamic code cell content on this page.</noscript>
 <ul>
 <li>the estimates pile up around the red line, and the true value in blue sits well outside the bulk of the distribution</li>
-<li>compare this against the same picture in lecture 01-3 (<code>Unbiasedness of OLS estimator</code> <span class="math inline">\(\rightarrow\)</span> <code>Seeing it</code>), where <span class="math inline">\(E[u|x]=0\)</span> held and the histogram <span style="color: blue;"> was </span> centered on the truth</li>
+<li>compare this against the same picture in lecture 01-3 (<code>Unbiasedness of OLS estimator</code> <span class="math inline">\rightarrow</span> <code>Seeing it</code>), where <span class="math inline">E[u|x]=0</span> held and the histogram <span style="color: blue;"> was </span> centered on the truth</li>
 <li>more data would <span style="color: red;"> not </span> fix this: it would tighten the histogram around 1.5, which makes you more and more confident about the wrong number</li>
 </ul>
 </div>
@@ -2596,18 +2757,18 @@ Lecturer transcript
 <p>This example is optional, but it answers a question you should be asking. We have checked that beta-hat is unbiased. But every regression table also reports a standard error, which comes from an estimated variance. Is that estimate any good? On screen, the true variance of beta-one-hat, sigma squared over the sum of squared deviations of x, and underneath it the estimator we actually compute, which replaces the unknown sigma squared with the average squared residual. The question at the bottom is whether that substitution is honest. Same method as before: build a world where we know the truth, and check.</p>
 </details>
 <p><strong>Model</strong></p>
-<span class="math display">\[\begin{aligned}
+<span class="math display">\begin{aligned}
     y = \beta_0 + \beta_1 x + u \\
-\end{aligned}\]</span>
+\end{aligned}</span>
 <ul>
-<li><span class="math inline">\(x\sim N(0,1)\)</span></li>
-<li><span class="math inline">\(u\sim N(0,1)\)</span></li>
-<li><span class="math inline">\(E[u|x]=0\)</span></li>
+<li><span class="math inline">x\sim N(0,1)</span></li>
+<li><span class="math inline">u\sim N(0,1)</span></li>
+<li><span class="math inline">E[u|x]=0</span></li>
 </ul>
 <p><br></p>
 <p><strong>Variance of the OLS estimator</strong></p>
-<p>True Variance of <span class="math inline">\(\hat{\beta}_1\)</span>: <span class="math inline">\(V(\hat{\beta}_1) = \frac{\sigma^2}{\sum_{i=1}^n (x_i-\bar{x})^2} = \frac{\sigma^2}{SST_X}\)</span></p>
-<p>Its estimator: <span class="math inline">\(\widehat{V(\hat{\beta}_1)} =\frac{\hat{\sigma}^2}{SST_X} = \frac{\sum_{i=1}^n \hat{u}_i^2}{n-2} \times \frac{1}{SST_X}\)</span></p>
+<p>True Variance of <span class="math inline">\hat{\beta}_1</span>: <span class="math inline">V(\hat{\beta}_1) = \frac{\sigma^2}{\sum_{i=1}^n (x_i-\bar{x})^2} = \frac{\sigma^2}{SST_X}</span></p>
+<p>Its estimator: <span class="math inline">\widehat{V(\hat{\beta}_1)} =\frac{\hat{\sigma}^2}{SST_X} = \frac{\sum_{i=1}^n \hat{u}_i^2}{n-2} \times \frac{1}{SST_X}</span></p>
 <p><br></p>
 <p><strong>Question</strong></p>
 <p>Does the estimator really work? (Is it unbiased?)</p>
@@ -2631,13 +2792,13 @@ Lecturer transcript
 </details>
 <p><strong>True Variance</strong></p>
 <ul>
-<li><span class="math inline">\(SST_X = 112.07\)</span></li>
-<li><span class="math inline">\(\sigma^2 = 4\)</span></li>
+<li><span class="math inline">SST_X = 112.07</span></li>
+<li><span class="math inline">\sigma^2 = 4</span></li>
 </ul>
-<p><span class="math display">\[V(\hat{\beta}) = 4/112.07 = 0.0357\]</span></p>
+<p><span class="math display">V(\hat{\beta}) = 4/112.07 = 0.0357</span></p>
 <p><br></p>
 <p><strong>Check</strong></p>
-<p>Your Estimates of Variance of <span class="math inline">\(\hat{\beta}_1\)</span>?</p>
+<p>Your Estimates of Variance of <span class="math inline">\hat{\beta}_1</span>?</p>
 <div id="qwebr-insertion-location-21"></div>
 <noscript>Please enable JavaScript to experience the dynamic code cell content on this page.</noscript>
 </div>
@@ -2667,17 +2828,17 @@ Lecturer transcript
 </summary>
 <p>An exercise to run yourself, and it isolates something we have mentioned but not shown. How does variation in x affect OLS? Two models on screen, identical except for the independent variable. X-one is standard Normal, x-two has variance nine, so three times the standard deviation. The error is the same in both, and the zero conditional mean condition holds for both, so both estimators are unbiased. Nothing is broken here. The only thing that differs is how spread out the x values are. Predict what that does to the estimates before you open the solution.</p>
 </details>
-<p>Using MC simulations, find out how the variation in <span class="math inline">\(x\)</span> affects the OLS estimators</p>
+<p>Using MC simulations, find out how the variation in <span class="math inline">x</span> affects the OLS estimators</p>
 <p><br></p>
 <p><strong>Model setup</strong></p>
-<span class="math display">\[\begin{align}
+<span class="math display">\begin{align}
   y = \beta_0 + \beta_1 x_1 + u \\
   y = \beta_0 + \beta_1 x_2 + u
-\end{align}\]</span>
+\end{align}</span>
 <ul>
-<li><span class="math inline">\(x_1\sim N(0,1)\)</span> and <span class="math inline">\(x_2\sim N(0,9)\)</span> (so <span class="math inline">\(x_2\)</span> has three times the standard deviation of <span class="math inline">\(x_1\)</span>)</li>
-<li><span class="math inline">\(u\sim N(0,1)\)</span></li>
-<li><span class="math inline">\(E[u|x_1]=0\)</span> and <span class="math inline">\(E[u|x_2]=0\)</span></li>
+<li><span class="math inline">x_1\sim N(0,1)</span> and <span class="math inline">x_2\sim N(0,9)</span> (so <span class="math inline">x_2</span> has three times the standard deviation of <span class="math inline">x_1</span>)</li>
+<li><span class="math inline">u\sim N(0,1)</span></li>
+<li><span class="math inline">E[u|x_1]=0</span> and <span class="math inline">E[u|x_2]=0</span></li>
 </ul>
 </div>
 <div id="tabset-9-2">
@@ -2695,7 +2856,7 @@ Lecturer transcript
 <summary>
 Lecturer transcript
 </summary>
-<p>And here it is as a picture, which is worth more than the four numbers. Two densities, both centered on the true value of one, so unbiasedness is not what separates them. But the distribution for equation two, with the more spread out x, is dramatically narrower. Same truth, same sample size, same conditions satisfied, and yet one estimator is far more precise. That is the practical lesson: variation in your independent variable is information, and an x that barely moves gives OLS almost nothing to work with, however many observations you collect.</p>
+<p>And here it is as a picture, which is worth more than the four numbers. Two densities, both centered on the true value of one, so unbiasedness is not what separates them. But the distribution for equation two, with the more spread out x, is dramatically narrower. Same truth, same sample size, same conditions satisfied, and yet one estimator is far more precise. That is the practical lesson: variation in your independent variable is information. An x that barely moves gives OLS little information per observation, although increasing the sample size can still improve precision.</p>
 </details>
 <div id="qwebr-insertion-location-24"></div>
 <noscript>Please enable JavaScript to experience the dynamic code cell content on this page.</noscript>
@@ -2726,7 +2887,6 @@ Lecturer transcript
   <script src="../../site_libs/revealjs/plugin/notes/notes.js"></script>
   <script src="../../site_libs/revealjs/plugin/search/search.js"></script>
   <script src="../../site_libs/revealjs/plugin/zoom/zoom.js"></script>
-  <script src="../../site_libs/revealjs/plugin/math/math.js"></script>
   <script>window.define = window.backupDefine; window.backupDefine = undefined;</script>
 
   <script>
@@ -2894,27 +3054,9 @@ Lecturer transcript
         // Factor of the display size that should remain empty around the content
         margin: 0.1,
 
-        math: {
-          mathjax: 'https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.9/MathJax.js',
-          config: 'TeX-AMS_HTML-full',
-          tex2jax: {
-            inlineMath: [['\\(','\\)']],
-            displayMath: [['\\[','\\]']],
-            balanceBraces: true,
-            processEscapes: false,
-            processRefs: true,
-            processEnvironments: true,
-            preview: 'TeX',
-            skipTags: ['script','noscript','style','textarea','pre','code'],
-            ignoreClass: 'tex2jax_ignore',
-            processClass: 'tex2jax_process'
-          },
-        },
-
         // reveal.js plugins
         plugins: [QuartoLineHighlight, PdfExport, RevealMenu, QuartoSupport,
 
-          RevealMath,
           RevealNotes,
           RevealSearch,
           RevealZoom

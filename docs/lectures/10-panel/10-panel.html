@@ -94,7 +94,23 @@
     code span.vs { color: #20794d; } /* VerbatimString */
     code span.wa { color: #5e5e5e; font-style: italic; } /* Warning */
   </style>
-  <link rel="stylesheet" href="../../site_libs/revealjs/dist/theme/quarto-efe7f97d24ea27507c65df08cab6e7d6.css">
+  <link rel="stylesheet" href="../../site_libs/revealjs/dist/theme/quarto-db62157d6cf4bc51d0b25352aea75d23.css">
+  <script>window.backupDefine = window.define; window.define = undefined;</script><script src="https://cdn.jsdelivr.net/npm/katex@latest/dist/katex.min.js"></script>
+  <script>document.addEventListener("DOMContentLoaded", function () {
+ var mathElements = document.getElementsByClassName("math");
+ var macros = [];
+ for (var i = 0; i < mathElements.length; i++) {
+  var texText = mathElements[i].firstChild;
+  if (mathElements[i].tagName == "SPAN") {
+   katex.render(texText.data, mathElements[i], {
+    displayMode: mathElements[i].classList.contains('display'),
+    throwOnError: false,
+    macros: macros,
+    fleqn: false
+   });
+}}});
+  </script>
+  <script>window.define = window.backupDefine; window.backupDefine = undefined;</script><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@latest/dist/katex.min.css">
   <link href="../../site_libs/revealjs/plugin/quarto-line-highlight/line-highlight.css" rel="stylesheet">
   <link href="../../site_libs/revealjs/plugin/reveal-menu/menu.css" rel="stylesheet">
   <link href="../../site_libs/revealjs/plugin/reveal-menu/quarto-menu.css" rel="stylesheet">
@@ -187,6 +203,326 @@
       margin-right: 0; 
     }
   </style>
+  <!--
+    Support for collapsible "Lecturer transcript" panels in revealjs decks.
+
+    Include it from a deck's YAML header, with the path relative to the qmd:
+
+        format:
+          revealjs:
+            include-in-header: ../transcript-support.html
+
+    Then add a transcript anywhere inside a slide (or inside a single tab of a
+    tabset, which is the usual case):
+
+        <details class="transcript">
+        <summary>Lecturer transcript</summary>
+
+        What the lecturer says about this tab.
+
+        </details>
+
+    On a tab whose figure fills the whole slide there is no free rectangle to
+    overlay, so add "inline" and the panel joins the flow when opened, pushing the
+    figure down instead of covering it:
+
+        <details class="transcript inline">
+
+    Use it only where it is needed. Measure rather than guess: an open panel must
+    not overlap a ".cell-output-display". The collapsed pill still costs 0px in
+    both variants, which is the property the whole design exists to preserve.
+
+    It must live in the header rather than the body of a qmd: raw HTML placed
+    above the first "##" heading becomes its own untitled slide.
+
+    <details> is a native HTML element, so the collapse/expand works with no
+    JavaScript at all, including in a self-contained (embed-resources) file. The
+    script at the bottom adds one behaviour on top: collapsing an open panel when
+    the reader moves on. Without it everything still works, panels just keep their
+    open state.
+
+    Audience: students reviewing after class. These are not presenter notes -
+    reveal's own ".notes" blocks are the presenter-only mechanism.
+  -->
+  <style>
+  /* The panel is positioned against the slide rather than sitting in its normal
+     flow. That is the whole point: collapsed it costs the slide no vertical
+     space, and opened it overlays the content instead of pushing it off the
+     bottom edge. Each panel lives inside its own tab, and hidden tabs do not
+     render, so only the visible tab's transcript is ever shown. */
+  .reveal details.transcript {
+    position: absolute;
+    top: 0;
+    right: 0;
+    z-index: 20;
+    width: auto;
+    font-size: 0.55em;
+    line-height: 1.45;
+    text-align: left;
+    border-radius: 6px;
+    /* custom.scss styles every bare <details> as an "answer box" (grey border
+       plus padding) for Quarto's folded-code blocks. Opt out of both here so the
+       collapsed pill is not sitting inside a grey rectangle. */
+    border: none;
+    padding: 0;
+  }
+
+  /* Collapsed: a small pill that hugs the top-right corner. */
+  .reveal details.transcript > summary {
+    display: inline-block;
+    cursor: pointer;
+    list-style: none;
+    outline: none;
+    /* custom.scss pulls every bare <summary> with a negative margin; undo it. */
+    margin: 0;
+    padding: 0.15em 0.7em;
+    border: 1px solid #06a666;
+    border-radius: 999px;
+    background: #ffffff;
+    color: #06a666;
+    font-weight: 600;
+    white-space: nowrap;
+    -webkit-user-select: none;
+    user-select: none;
+  }
+  .reveal details.transcript > summary::-webkit-details-marker { display: none; }
+  .reveal details.transcript > summary::before { content: "\25B8\00A0"; }
+  .reveal details.transcript[open] > summary::before { content: "\25BE\00A0"; }
+
+  /* Opened: a tall, narrow panel down the right-hand side, where slide content
+     rarely reaches. It starts below the tab bar so tab names stay clickable
+     while a transcript is open, and runs down to just above the footer.
+
+     Measured as a share of the 700px logical slide. A top-level tab bar ends at
+     12.4-13%, so 21% clears it everywhere.
+
+     A tab bar that sits lower on the slide is cleared HORIZONTALLY instead: the
+     panel occupies x 62-100%, and no tab row measured so far reaches past x 66%.
+     Cases seen, all fine:
+       00-1  nested tabset          18.9%, names reach x 15%
+       00-1  tabset below prose     40.8%, names reach x 59%
+       01-2  nested tabset          29.6%, names reach x 46%
+     So the rule to preserve is not "top clears every tab bar" but "no tab NAME
+     overlaps the panel's rectangle". Re-check that if a deck grows a long tab row
+     sitting low on the slide. */
+  .reveal details.transcript[open] {
+    top: 21%;
+    width: 36%;
+    max-height: 75%;
+    overflow-y: auto;
+    padding: 0.55em 0.85em 0.7em;
+    background: #f4fbf8;
+    border: 1px solid #06a666;
+    box-shadow: 0 6px 22px rgba(0, 0, 0, 0.16);
+  }
+  .reveal details.transcript[open] > summary {
+    display: block;
+    padding: 0 0 0.4em 0;
+    border: none;
+    border-radius: 0;
+    background: transparent;
+  }
+  .reveal details.transcript p { margin: 0.35em 0; }
+
+  /* Opt-out, applied per tab as class="transcript inline".
+     Some figures are rendered at out-width 80% and span x 1.4-98.6% of the slide,
+     running from just under the tab bar down to y ~95%. There is no rectangle
+     left to overlay, so on those tabs the panel joins the normal flow when opened
+     and pushes the figure down; the slide is "scrollable: true", so the figure
+     stays reachable. Note this rule only touches [open]: collapsed, the pill is
+     still absolutely positioned at the top-right corner and still costs 0px. */
+  .reveal details.transcript.inline[open] {
+    position: static;
+    width: auto;
+    max-height: none;
+    overflow-y: visible;
+    margin: 0 0 0.9em 0;
+  }
+
+  /* No .slide-logo rule here: no deck in this course sets a "logo:" in its YAML,
+     so the bottom-right corner the panel would collide with is already free. If
+     a logo is ever added, move it out of the way with
+     .reveal .slide-logo { right: auto !important; left: 56px !important; }
+     where 56px clears reveal's menu button at x 8-43px. */
+  </style>
+
+  <script>
+  // Collapse any open transcript when the reader moves to another slide or
+  // another tab, so a panel left open never reappears over unrelated content.
+  (function () {
+    function closeAll() {
+      document.querySelectorAll("details.transcript[open]")
+        .forEach(function (d) { d.open = false; });
+    }
+
+    // Slide changes come from reveal, which is not ready when this runs.
+    function hookReveal() {
+      if (window.Reveal && typeof Reveal.on === "function") {
+        Reveal.on("slidechanged", closeAll);
+        Reveal.on("overviewshown", closeAll);
+        return true;
+      }
+      return false;
+    }
+    if (!hookReveal()) {
+      var tries = 0;
+      var timer = setInterval(function () {
+        if (hookReveal() || ++tries > 100) clearInterval(timer);
+      }, 100);
+    }
+
+    // Tab changes are plain clicks; capture so this runs before the tab switches.
+    document.addEventListener("click", function (e) {
+      var el = e.target;
+      if (el && el.closest && el.closest('.panel-tabset [role="tab"]')) closeAll();
+    }, true);
+  })();
+  </script>
+  <!-- Adaptive code/output layout for WebR cells in revealjs lecture decks. -->
+  <script>
+  (function () {
+    "use strict";
+
+    var MAX_CODE_LINES = 12;
+    var MAX_CODE_SHARE = 0.58;
+    var MIN_CODE_SHARE = 0.30;
+    var MAX_OUTPUT_SHARE = 0.70;
+
+    function detailsFor(area) {
+      var match = area.id && area.id.match(/qwebr-interactive-area-(\d+)/);
+      if (!match || !globalThis.qwebrCellDetails) return null;
+      return globalThis.qwebrCellDetails[Number(match[1]) - 1] || null;
+    }
+
+    function codeMetrics(code) {
+      var lines = String(code || "").split("\n");
+      var substantive = lines.filter(function (line) {
+        return line.trim() && !/^\s*#/.test(line);
+      });
+      return {
+        lines: substantive.length,
+        maxChars: lines.reduce(function (n, line) {
+          return Math.max(n, line.replace(/\t/g, "  ").length);
+        }, 0)
+      };
+    }
+
+    function setTracks(host, codeShare) {
+      codeShare = Math.max(MIN_CODE_SHARE, Math.min(MAX_CODE_SHARE, codeShare));
+      var outputShare = 1 - codeShare;
+      host.style.setProperty("--webr-code-track", codeShare + "fr");
+      host.style.setProperty("--webr-output-track", outputShare + "fr");
+      host.style.setProperty("--webr-code-share", (codeShare * 100) + "%");
+    }
+
+    function measureRenderedCode(area, host, code, attempt) {
+      if (host.dataset.webrLayout !== "side") return;
+      var sample = area.querySelector(".view-line, .monaco-editor");
+      if (!sample || !area.clientWidth) {
+        if (attempt < 20) setTimeout(function () {
+          measureRenderedCode(area, host, code, attempt + 1);
+        }, 100);
+        return;
+      }
+      var style = getComputedStyle(sample);
+      var canvas = document.createElement("canvas");
+      var context = canvas.getContext("2d");
+      context.font = [style.fontStyle, style.fontWeight, style.fontSize,
+        style.fontFamily].filter(Boolean).join(" ");
+      var widest = String(code || "").split("\n").reduce(function (width, line) {
+        return Math.max(width, context.measureText(line.replace(/\t/g, "  ")).width);
+      }, 0);
+      // Monaco's line-number gutter, padding, and scrollbar need about 76px in
+      // addition to the measured glyph width.
+      var available = Math.max(1, area.clientWidth - 16);
+      setTracks(host, (widest + 76) / available);
+    }
+
+    function stack(host) {
+      if (host.dataset.webrLayoutManual === "true") return;
+      host.classList.remove("side-out");
+      host.dataset.webrLayout = "stacked";
+    }
+
+    function assessOutput(area, host, metrics) {
+      if (host.dataset.webrLayout !== "side") return;
+      var graph = area.querySelector(".qwebr-output-graph-area canvas, .qwebr-output-graph-area img");
+      if (graph) return; // plots scale cleanly within their grid track
+
+      var pre = area.querySelector(".qwebr-output-code-area pre");
+      if (!pre || getComputedStyle(pre).visibility === "hidden") return;
+
+      var codeNeed = Math.max(MIN_CODE_SHARE,
+        Math.min(MAX_CODE_SHARE, (metrics.maxChars + 8) / 150));
+      var available = Math.max(1, area.clientWidth - 16);
+      var outputNeed = Math.min(MAX_OUTPUT_SHARE,
+        Math.max(0.42, (pre.scrollWidth + 24) / available));
+      var outputLines = (pre.innerText || "").split("\n").length;
+
+      // If both measured widths cannot coexist, or the console result is too
+      // tall to read as a right-hand panel, retain WebR's original vertical stack.
+      if (codeNeed + outputNeed > 1 || outputLines > 16 ||
+          pre.scrollHeight > area.ownerDocument.documentElement.clientHeight * 0.62) {
+        stack(host);
+        return;
+      }
+
+      setTracks(host, 1 - outputNeed);
+      requestAnimationFrame(function () {
+        if (pre.scrollWidth > pre.clientWidth * 1.08) stack(host);
+      });
+    }
+
+    function configure(area) {
+      if (area.dataset.webrLayoutChecked === "true") return;
+      area.dataset.webrLayoutChecked = "true";
+
+      var details = detailsFor(area);
+      if (!details || !details.options || details.options.context === "setup") return;
+      var metrics = codeMetrics(details.code);
+      if (!metrics.lines || metrics.lines > MAX_CODE_LINES || metrics.maxChars > 88) return;
+
+      var existingWrapper = area.closest(".side-out");
+      var host = existingWrapper || area.closest(".cell") || area.parentElement;
+      if (!host) return;
+
+      if (existingWrapper) {
+        host.dataset.webrLayoutManual = "true";
+      } else {
+        host.classList.add("side-out");
+      }
+      host.dataset.webrLayout = "side";
+
+      // Estimate an initial split from the longest source line. The output is
+      // intentionally favoured; actual output dimensions refine it after a run.
+      var initialCodeShare = (metrics.maxChars + 10) / 145;
+      setTracks(host, initialCodeShare);
+      measureRenderedCode(area, host, details.code, 0);
+
+      var observer = new MutationObserver(function () {
+        requestAnimationFrame(function () { assessOutput(area, host, metrics); });
+      });
+      observer.observe(area, { childList: true, subtree: true, characterData: true,
+        attributes: true, attributeFilter: ["style", "class"] });
+      requestAnimationFrame(function () { assessOutput(area, host, metrics); });
+    }
+
+    function scan() {
+      document.querySelectorAll(".qwebr-interactive-area").forEach(configure);
+    }
+
+    var pageObserver = new MutationObserver(scan);
+    function start() {
+      scan();
+      pageObserver.observe(document.body, { childList: true, subtree: true });
+    }
+    if (document.readyState === "loading") {
+      document.addEventListener("DOMContentLoaded", start, { once: true });
+    } else {
+      start();
+    }
+  })();
+  </script>
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/monaco-editor@0.47.0/min/vs/editor/editor.main.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
     
@@ -477,7 +813,7 @@
   };
 
   // Store cell data
-  globalThis.qwebrCellDetails = [{"code":"data(jtrain, package = \"wooldridge\")\n\ndplyr::select(jtrain, year, fcode, employ, sales) %>%\n  head(9)","id":1,"options":{"autorun":"true","classes":"","comment":"","context":"interactive","dpi":72,"editor-font-scale":"0.8","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":5,"fig-width":7,"label":"unnamed-chunk-1","message":"true","out-height":"","out-width":"700px","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"massage_data <- data.frame(\n  Location = c(\"Chicago\", \"Peoria\", \"Milwaukee\", \"Madison\"),\n  Year = rep(2003, 4),\n  P = c(75, 50, 60, 55),\n  Q = c(2, 1.0, 1.5, 0.8)\n)","id":2,"options":{"autorun":"true","classes":"","comment":"","context":"setup","dpi":72,"editor-font-scale":"0.8","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":5,"fig-width":7,"label":"unnamed-chunk-2","message":"true","out-height":"","out-width":"700px","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"massage_data <- \n  massage_data %>%\n  mutate(Ql = c(10, 5, 7, 6))\n\ngt(massage_data)","id":3,"options":{"autorun":"true","classes":"","comment":"","context":"setup","dpi":72,"editor-font-scale":"0.8","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":5,"fig-width":7,"label":"unnamed-chunk-3","message":"true","out-height":"","out-width":"700px","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"massage_data_2p <- \n  data.frame(\n    Location = rep(c(\"Chicago\", \"Peoria\", \"Milwaukee\", \"Madison\"), each = 2),\n    Year = rep(c(2003, 2004), 4),\n    P = c(75, 85, 50, 48, 60, 65, 55, 60),\n    Q = c(2, 1.8, 1.0, 1.1, 1.5, 1.4, 0.8, 0.7),\n    Ql = rep(c(10, 5, 7, 6), each = 2)\n  )","id":4,"options":{"autorun":"true","classes":"","comment":"","context":"setup","dpi":72,"editor-font-scale":"0.8","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":5,"fig-width":7,"label":"unnamed-chunk-4","message":"true","out-height":"","out-width":"700px","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"massage_data_fd <- \n  massage_data_2p %>%\n  group_by(Location) %>%\n  mutate(\n    P_dif = P - lag(P),\n    Q_dif = Q - lag(Q),\n    Ql_dif = Ql - lag(Ql)\n  ) %>%\n  ungroup()","id":5,"options":{"autorun":"true","classes":"","comment":"","context":"setup","dpi":72,"editor-font-scale":"0.8","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":5,"fig-width":7,"label":"unnamed-chunk-5","message":"true","out-height":"","out-width":"700px","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"massage_data_fd %>% head(5)","id":6,"options":{"autorun":"true","classes":"","comment":"","context":"output","dpi":72,"editor-font-scale":"0.8","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":5,"fig-width":7,"label":"unnamed-chunk-6","message":"true","out-height":"","out-width":"700px","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"fixest::feols(Q ~ P, data = massage_data_fd) %>% \n  broom::tidy()","id":7,"options":{"autorun":"true","classes":"","comment":"","context":"interactive","dpi":72,"editor-font-scale":"0.8","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":5,"fig-width":7,"label":"unnamed-chunk-7","message":"true","out-height":"","out-width":"700px","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"fixest::feols(Q_dif ~ P_dif, data = massage_data_fd) %>% \n  broom::tidy()","id":8,"options":{"autorun":"true","classes":"","comment":"","context":"interactive","dpi":72,"editor-font-scale":"0.8","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":5,"fig-width":7,"label":"unnamed-chunk-8","message":"true","out-height":"","out-width":"700px","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"massage_data_wth <- \n  massage_data_2p %>%\n  dplyr::select(Location, Year, P, Q, Ql) %>%\n  group_by(Location) %>%\n  mutate(\n    P_mean = mean(P),\n    P_dev = P - P_mean,\n    Q_mean = mean(Q),\n    Q_dev = Q - Q_mean,\n    Ql_mean = mean(Ql),\n    Ql_dev = Ql - Ql_mean\n  ) %>%\n  ungroup() %>%\n  dplyr::select(Location, Year, P, P_mean, P_dev, Q, Q_mean, Q_dev, Ql, Ql_mean, Ql_dev)","id":9,"options":{"autorun":"true","classes":"","comment":"","context":"setup","dpi":72,"editor-font-scale":"0.8","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":5,"fig-width":7,"label":"unnamed-chunk-9","message":"true","out-height":"","out-width":"700px","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"fixest::feols(Q_dev ~ P_dev, data = massage_data_wth)","id":10,"options":{"autorun":"true","classes":"","comment":"","context":"interactive","dpi":72,"editor-font-scale":"0.8","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":5,"fig-width":7,"label":"unnamed-chunk-10","message":"true","out-height":"","out-width":"700px","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"(\n  massage_data_d <- massage_data_2p %>%\n    mutate(\n      Peoria_D = ifelse(Location == \"Peoria\", 1, 0),\n      Milwaukee_D = ifelse(Location == \"Milwaukee\", 1, 0),\n      Madison_D = ifelse(Location == \"Madison\", 1, 0)\n    )\n)","id":11,"options":{"autorun":"true","classes":"","comment":"","context":"interactive","dpi":72,"editor-font-scale":"0.8","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":5,"fig-width":7,"label":"unnamed-chunk-11","message":"true","out-height":"","out-width":"700px","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"fixest::feols(Q ~ P + Peoria_D + Milwaukee_D + Madison_D, data = massage_data_d)","id":12,"options":{"autorun":"true","classes":"","comment":"","context":"interactive","dpi":72,"editor-font-scale":"0.8","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":5,"fig-width":7,"label":"unnamed-chunk-12","message":"true","out-height":"","out-width":"700px","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"massage_data_2p","id":13,"options":{"autorun":"true","classes":"","comment":"","context":"interactive","dpi":72,"editor-font-scale":"0.8","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":5,"fig-width":7,"label":"unnamed-chunk-13","message":"true","out-height":"","out-width":"700px","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"fixest::feols(Q ~ P | Location, data = massage_data_2p)","id":14,"options":{"autorun":"true","classes":"","comment":"","context":"interactive","dpi":72,"editor-font-scale":"0.8","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":5,"fig-width":7,"label":"unnamed-chunk-14","message":"true","out-height":"","out-width":"700px","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"year_fe <- data.frame(\n  id = rep(1:3, each = 4),\n  year = rep(2015:2017, 4),\n  income = c(77, 82, 84, 110, 120, 131, 56, 60, 61, 70, 71, 74),\n  educ = c(12:14, 18:20, 10:12, 13:15),\n  FE_2015 = rep(c(1, 0, 0), 4),\n  FE_2016 = rep(c(0, 1, 0), 4),\n  FE_2017 = rep(c(0, 0, 1), 4)\n)\nyear_fe","id":15,"options":{"autorun":"true","classes":"","comment":"","context":"output","dpi":72,"editor-font-scale":"0.8","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":5,"fig-width":7,"label":"unnamed-chunk-15","message":"true","out-height":"","out-width":"700px","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"fixest::feols(I(log(income)) ~ educ | id + year, data = year_fe) %>%\n  tidy()","id":16,"options":{"autorun":"true","classes":"","comment":"","context":"interactive","dpi":72,"editor-font-scale":"0.8","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":5,"fig-width":7,"label":"unnamed-chunk-16","message":"true","out-height":"","out-width":"700px","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"fixest::feols(I(log(income)) ~ educ | id + year, cluster = ~id, data = year_fe) %>% tidy()","id":17,"options":{"autorun":"true","classes":"","comment":"","context":"interactive","dpi":72,"editor-font-scale":"0.8","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":5,"fig-width":7,"label":"unnamed-chunk-17","message":"true","out-height":"","out-width":"700px","output":"true","read-only":"false","results":"markup","warning":"true"}}];
+  globalThis.qwebrCellDetails = [{"code":"data(jtrain, package = \"wooldridge\")\n\ndplyr::select(jtrain, year, fcode, employ, sales) %>%\n  head(9)","id":1,"options":{"autorun":"true","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.8","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"4.5","fig-width":"7","label":"unnamed-chunk-1","message":"true","out-height":"","out-width":"55%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"massage_data <- data.frame(\n  Location = c(\"Chicago\", \"Peoria\", \"Milwaukee\", \"Madison\"),\n  Year = rep(2003, 4),\n  P = c(75, 50, 60, 55),\n  Q = c(2, 1.0, 1.5, 0.8)\n)","id":2,"options":{"autorun":"true","classes":"","comment":"","context":"setup","dpi":"216","editor-font-scale":"0.8","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"4.5","fig-width":"7","label":"unnamed-chunk-2","message":"true","out-height":"","out-width":"55%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"massage_data <- \n  massage_data %>%\n  mutate(Ql = c(10, 5, 7, 6))\n\ngt(massage_data)","id":3,"options":{"autorun":"true","classes":"","comment":"","context":"setup","dpi":"216","editor-font-scale":"0.8","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"4.5","fig-width":"7","label":"unnamed-chunk-3","message":"true","out-height":"","out-width":"55%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"massage_data_2p <- \n  data.frame(\n    Location = rep(c(\"Chicago\", \"Peoria\", \"Milwaukee\", \"Madison\"), each = 2),\n    Year = rep(c(2003, 2004), 4),\n    P = c(75, 85, 50, 48, 60, 65, 55, 60),\n    Q = c(2, 1.8, 1.0, 1.1, 1.5, 1.4, 0.8, 0.7),\n    Ql = rep(c(10, 5, 7, 6), each = 2)\n  )","id":4,"options":{"autorun":"true","classes":"","comment":"","context":"setup","dpi":"216","editor-font-scale":"0.8","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"4.5","fig-width":"7","label":"unnamed-chunk-4","message":"true","out-height":"","out-width":"55%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"massage_data_fd <- \n  massage_data_2p %>%\n  group_by(Location) %>%\n  mutate(\n    P_dif = P - lag(P),\n    Q_dif = Q - lag(Q),\n    Ql_dif = Ql - lag(Ql)\n  ) %>%\n  ungroup()","id":5,"options":{"autorun":"true","classes":"","comment":"","context":"setup","dpi":"216","editor-font-scale":"0.8","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"4.5","fig-width":"7","label":"unnamed-chunk-5","message":"true","out-height":"","out-width":"55%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"massage_data_fd %>% head(5)","id":6,"options":{"autorun":"true","classes":"","comment":"","context":"output","dpi":"216","editor-font-scale":"0.8","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"4.5","fig-width":"7","label":"unnamed-chunk-6","message":"true","out-height":"","out-width":"55%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"fixest::feols(Q ~ P, data = massage_data_fd) %>% \n  broom::tidy()","id":7,"options":{"autorun":"true","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.8","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"4.5","fig-width":"7","label":"unnamed-chunk-7","message":"true","out-height":"","out-width":"55%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"fixest::feols(Q_dif ~ P_dif, data = massage_data_fd) %>% \n  broom::tidy()","id":8,"options":{"autorun":"true","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.8","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"4.5","fig-width":"7","label":"unnamed-chunk-8","message":"true","out-height":"","out-width":"55%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"massage_data_wth <- \n  massage_data_2p %>%\n  dplyr::select(Location, Year, P, Q, Ql) %>%\n  group_by(Location) %>%\n  mutate(\n    P_mean = mean(P),\n    P_dev = P - P_mean,\n    Q_mean = mean(Q),\n    Q_dev = Q - Q_mean,\n    Ql_mean = mean(Ql),\n    Ql_dev = Ql - Ql_mean\n  ) %>%\n  ungroup() %>%\n  dplyr::select(Location, Year, P, P_mean, P_dev, Q, Q_mean, Q_dev, Ql, Ql_mean, Ql_dev)","id":9,"options":{"autorun":"true","classes":"","comment":"","context":"setup","dpi":"216","editor-font-scale":"0.8","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"4.5","fig-width":"7","label":"unnamed-chunk-9","message":"true","out-height":"","out-width":"55%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"fixest::feols(Q_dev ~ P_dev, data = massage_data_wth)","id":10,"options":{"autorun":"true","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.8","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"4.5","fig-width":"7","label":"unnamed-chunk-10","message":"true","out-height":"","out-width":"55%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"(\n  massage_data_d <- massage_data_2p %>%\n    mutate(\n      Peoria_D = ifelse(Location == \"Peoria\", 1, 0),\n      Milwaukee_D = ifelse(Location == \"Milwaukee\", 1, 0),\n      Madison_D = ifelse(Location == \"Madison\", 1, 0)\n    )\n)","id":11,"options":{"autorun":"true","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.8","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"4.5","fig-width":"7","label":"unnamed-chunk-11","message":"true","out-height":"","out-width":"55%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"fixest::feols(Q ~ P + Peoria_D + Milwaukee_D + Madison_D, data = massage_data_d)","id":12,"options":{"autorun":"true","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.8","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"4.5","fig-width":"7","label":"unnamed-chunk-12","message":"true","out-height":"","out-width":"55%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"massage_data_2p","id":13,"options":{"autorun":"true","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.8","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"4.5","fig-width":"7","label":"unnamed-chunk-13","message":"true","out-height":"","out-width":"55%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"fixest::feols(Q ~ P | Location, data = massage_data_2p)","id":14,"options":{"autorun":"true","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.8","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"4.5","fig-width":"7","label":"unnamed-chunk-14","message":"true","out-height":"","out-width":"55%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"year_fe <- data.frame(\n  id = rep(1:4, each = 3),\n  year = rep(2015:2017, times = 4),\n  income = c(77, 82, 84, 110, 120, 131, 56, 60, 61, 70, 71, 74),\n  educ = c(12:14, 18:20, 10:12, 13:15),\n  FE_2015 = rep(c(1, 0, 0), times = 4),\n  FE_2016 = rep(c(0, 1, 0), times = 4),\n  FE_2017 = rep(c(0, 0, 1), times = 4)\n)\nyear_fe","id":15,"options":{"autorun":"true","classes":"","comment":"","context":"output","dpi":"216","editor-font-scale":"0.8","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"4.5","fig-width":"7","label":"unnamed-chunk-15","message":"true","out-height":"","out-width":"55%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"fixest::feols(I(log(income)) ~ educ | id + year, data = year_fe) %>%\n  tidy()","id":16,"options":{"autorun":"true","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.8","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"4.5","fig-width":"7","label":"unnamed-chunk-16","message":"true","out-height":"","out-width":"55%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"fixest::feols(I(log(income)) ~ educ | id + year, cluster = ~id, data = year_fe) %>% tidy()","id":17,"options":{"autorun":"true","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.8","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"4.5","fig-width":"7","label":"unnamed-chunk-17","message":"true","out-height":"","out-width":"55%","output":"true","read-only":"false","results":"markup","warning":"true"}}];
 
   </script>
   <script type="module">
@@ -1978,16 +2314,28 @@ globalThis.qwebrCreateMonacoEditorInstance = function (cellData) {
 <ul id="tabset-1" class="panel-tabset-tabby"><li><a data-tabby-default="" href="#tabset-1-1">Panel data</a></li><li><a href="#tabset-1-2">Example panel data</a></li><li><a href="#tabset-1-3">Central Question</a></li></ul>
 <div class="tab-content">
 <div id="tabset-1-1">
+<details class="transcript">
+<summary>
+Lecturer transcript
+</summary>
+<p>Panel data add a time dimension to cross-sectional data. The defining feature is not simply that observations come from several years; it is that we observe the same units repeatedly. A dataset containing a different random sample each year is a repeated cross-section, not a panel. Tracking the same people, firms, or places lets us compare a unit with itself. That within-unit comparison is valuable because many characteristics—ability, geography, organizational culture, or soil type—may be difficult to observe but relatively stable over the study period.</p>
+</details>
 <p><strong>Definition</strong></p>
-<p>Data follow the <span style="color: blue;"> same </span> individuals, families, firms, cities, states or whatever, across time.</p>
+<p>Panel data follow the <span style="color: blue;">same</span> individuals, families, firms, cities, states, or other units over time.</p>
 <p><br></p>
 <p><strong>Example</strong></p>
 <ul>
 <li><p>Randomly select people from a population at a given point in time</p></li>
-<li><p>Then the same people are reinterviewed at several subsequent points in time, which would result in data on wages, hours, education, and so on, for the same group of people in different years.</p></li>
+<li><p>Reinterview the same people at several later dates, producing observations on wages, hours, education, and other variables for the same group in different years.</p></li>
 </ul>
 </div>
 <div id="tabset-1-2">
+<details class="transcript inline">
+<summary>
+Lecturer transcript
+</summary>
+<p>This table shows the panel structure explicitly. <code>fcode</code> identifies a factory, and each factory can contribute observations in multiple years. The unit of observation is therefore a factory-year, not just a factory. Variables such as employment and sales can change within a factory over time, while other factory characteristics may remain constant. Before estimating any panel model, identify the unit index, the time index, whether every unit appears in every period, and which variables actually vary within units. A fixed-effects coefficient cannot be learned from a regressor that never changes within its unit.</p>
+</details>
 <p><strong>Panel Data as <code>data.frame</code></strong></p>
 <div id="qwebr-insertion-location-1"></div>
 <noscript>Please enable JavaScript to experience the dynamic code cell content on this page.</noscript>
@@ -2000,7 +2348,13 @@ globalThis.qwebrCreateMonacoEditorInstance = function (cellData) {
 </ul>
 </div>
 <div id="tabset-1-3">
-<p>Can we do anything to deal with endogeneity problem taking advantage of the panel data structure?</p>
+<details class="transcript">
+<summary>
+Lecturer transcript
+</summary>
+<p>The central question is whether repeated observations can help with endogeneity. The answer is yes, but only for particular sources. Panel methods can remove unobserved unit characteristics that do not change over time. They cannot automatically remove time-varying confounders, measurement error, reverse causality, or feedback from past outcomes to future regressors. Throughout the lecture, keep asking two questions: what variation identifies the coefficient, and which omitted factors are eliminated by that comparison?</p>
+</details>
+<p>Can we use the panel structure to address some sources of endogeneity?</p>
 </div>
 </div>
 </div>
@@ -2009,7 +2363,7 @@ globalThis.qwebrCreateMonacoEditorInstance = function (cellData) {
 <section id="panel-data-estimation-methods" class="slide level2">
 <h2>Panel Data Estimation Methods</h2>
 <div class="panel-tabset">
-<ul id="tabset-4" class="panel-tabset-tabby"><li><a data-tabby-default="" href="#tabset-4-1">Example</a></li><li><a href="#tabset-4-2">What’s hidden?</a></li><li><a href="#tabset-4-3">Mathenmatically</a></li><li><a href="#tabset-4-4">two-period panel</a></li></ul>
+<ul id="tabset-4" class="panel-tabset-tabby"><li><a data-tabby-default="" href="#tabset-4-1">Example</a></li><li><a href="#tabset-4-2">What’s hidden?</a></li><li><a href="#tabset-4-3">Mathematically</a></li><li><a href="#tabset-4-4">two-period panel</a></li></ul>
 <div class="tab-content">
 <div id="tabset-4-1">
 <p><strong>Demand for massage (cross-sectional)</strong></p>
@@ -2017,23 +2371,23 @@ globalThis.qwebrCreateMonacoEditorInstance = function (cellData) {
 <noscript>Please enable JavaScript to experience the dynamic code cell content on this page.</noscript>
 <div class="cell">
 <div class="cell-output-display">
-<div id="ojklvxwznq" style="padding-left:0px;padding-right:0px;padding-top:10px;padding-bottom:10px;overflow-x:auto;overflow-y:auto;width:auto;height:auto;">
-<style>#ojklvxwznq table {
+<div id="efhnmukgxu" style="padding-left:0px;padding-right:0px;padding-top:10px;padding-bottom:10px;overflow-x:auto;overflow-y:auto;width:auto;height:auto;">
+<style>#efhnmukgxu table {
   font-family: system-ui, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol', 'Noto Color Emoji';
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
 
-#ojklvxwznq thead, #ojklvxwznq tbody, #ojklvxwznq tfoot, #ojklvxwznq tr, #ojklvxwznq td, #ojklvxwznq th {
+#efhnmukgxu thead, #efhnmukgxu tbody, #efhnmukgxu tfoot, #efhnmukgxu tr, #efhnmukgxu td, #efhnmukgxu th {
   border-style: none;
 }
 
-#ojklvxwznq p {
+#efhnmukgxu p {
   margin: 0;
   padding: 0;
 }
 
-#ojklvxwznq .gt_table {
+#efhnmukgxu .gt_table {
   display: table;
   border-collapse: collapse;
   line-height: normal;
@@ -2059,12 +2413,12 @@ globalThis.qwebrCreateMonacoEditorInstance = function (cellData) {
   border-left-color: #D3D3D3;
 }
 
-#ojklvxwznq .gt_caption {
+#efhnmukgxu .gt_caption {
   padding-top: 4px;
   padding-bottom: 4px;
 }
 
-#ojklvxwznq .gt_title {
+#efhnmukgxu .gt_title {
   color: #333333;
   font-size: 125%;
   font-weight: initial;
@@ -2076,7 +2430,7 @@ globalThis.qwebrCreateMonacoEditorInstance = function (cellData) {
   border-bottom-width: 0;
 }
 
-#ojklvxwznq .gt_subtitle {
+#efhnmukgxu .gt_subtitle {
   color: #333333;
   font-size: 85%;
   font-weight: initial;
@@ -2088,7 +2442,7 @@ globalThis.qwebrCreateMonacoEditorInstance = function (cellData) {
   border-top-width: 0;
 }
 
-#ojklvxwznq .gt_heading {
+#efhnmukgxu .gt_heading {
   background-color: #FFFFFF;
   text-align: center;
   border-bottom-color: #FFFFFF;
@@ -2100,13 +2454,13 @@ globalThis.qwebrCreateMonacoEditorInstance = function (cellData) {
   border-right-color: #D3D3D3;
 }
 
-#ojklvxwznq .gt_bottom_border {
+#efhnmukgxu .gt_bottom_border {
   border-bottom-style: solid;
   border-bottom-width: 2px;
   border-bottom-color: #D3D3D3;
 }
 
-#ojklvxwznq .gt_col_headings {
+#efhnmukgxu .gt_col_headings {
   border-top-style: solid;
   border-top-width: 2px;
   border-top-color: #D3D3D3;
@@ -2121,7 +2475,7 @@ globalThis.qwebrCreateMonacoEditorInstance = function (cellData) {
   border-right-color: #D3D3D3;
 }
 
-#ojklvxwznq .gt_col_heading {
+#efhnmukgxu .gt_col_heading {
   color: #333333;
   background-color: #FFFFFF;
   font-size: 100%;
@@ -2141,7 +2495,7 @@ globalThis.qwebrCreateMonacoEditorInstance = function (cellData) {
   overflow-x: hidden;
 }
 
-#ojklvxwznq .gt_column_spanner_outer {
+#efhnmukgxu .gt_column_spanner_outer {
   color: #333333;
   background-color: #FFFFFF;
   font-size: 100%;
@@ -2153,15 +2507,15 @@ globalThis.qwebrCreateMonacoEditorInstance = function (cellData) {
   padding-right: 4px;
 }
 
-#ojklvxwznq .gt_column_spanner_outer:first-child {
+#efhnmukgxu .gt_column_spanner_outer:first-child {
   padding-left: 0;
 }
 
-#ojklvxwznq .gt_column_spanner_outer:last-child {
+#efhnmukgxu .gt_column_spanner_outer:last-child {
   padding-right: 0;
 }
 
-#ojklvxwznq .gt_column_spanner {
+#efhnmukgxu .gt_column_spanner {
   border-bottom-style: solid;
   border-bottom-width: 2px;
   border-bottom-color: #D3D3D3;
@@ -2173,11 +2527,11 @@ globalThis.qwebrCreateMonacoEditorInstance = function (cellData) {
   width: 100%;
 }
 
-#ojklvxwznq .gt_spanner_row {
+#efhnmukgxu .gt_spanner_row {
   border-bottom-style: hidden;
 }
 
-#ojklvxwznq .gt_group_heading {
+#efhnmukgxu .gt_group_heading {
   padding-top: 8px;
   padding-bottom: 8px;
   padding-left: 5px;
@@ -2203,7 +2557,7 @@ globalThis.qwebrCreateMonacoEditorInstance = function (cellData) {
   text-align: left;
 }
 
-#ojklvxwznq .gt_empty_group_heading {
+#efhnmukgxu .gt_empty_group_heading {
   padding: 0.5px;
   color: #333333;
   background-color: #FFFFFF;
@@ -2218,15 +2572,15 @@ globalThis.qwebrCreateMonacoEditorInstance = function (cellData) {
   vertical-align: middle;
 }
 
-#ojklvxwznq .gt_from_md > :first-child {
+#efhnmukgxu .gt_from_md > :first-child {
   margin-top: 0;
 }
 
-#ojklvxwznq .gt_from_md > :last-child {
+#efhnmukgxu .gt_from_md > :last-child {
   margin-bottom: 0;
 }
 
-#ojklvxwznq .gt_row {
+#efhnmukgxu .gt_row {
   padding-top: 8px;
   padding-bottom: 8px;
   padding-left: 5px;
@@ -2245,7 +2599,7 @@ globalThis.qwebrCreateMonacoEditorInstance = function (cellData) {
   overflow-x: hidden;
 }
 
-#ojklvxwznq .gt_stub {
+#efhnmukgxu .gt_stub {
   color: #333333;
   background-color: #FFFFFF;
   font-size: 100%;
@@ -2258,7 +2612,7 @@ globalThis.qwebrCreateMonacoEditorInstance = function (cellData) {
   padding-right: 5px;
 }
 
-#ojklvxwznq .gt_stub_row_group {
+#efhnmukgxu .gt_stub_row_group {
   color: #333333;
   background-color: #FFFFFF;
   font-size: 100%;
@@ -2272,15 +2626,15 @@ globalThis.qwebrCreateMonacoEditorInstance = function (cellData) {
   vertical-align: top;
 }
 
-#ojklvxwznq .gt_row_group_first td {
+#efhnmukgxu .gt_row_group_first td {
   border-top-width: 2px;
 }
 
-#ojklvxwznq .gt_row_group_first th {
+#efhnmukgxu .gt_row_group_first th {
   border-top-width: 2px;
 }
 
-#ojklvxwznq .gt_summary_row {
+#efhnmukgxu .gt_summary_row {
   color: #333333;
   background-color: #FFFFFF;
   text-transform: inherit;
@@ -2290,16 +2644,16 @@ globalThis.qwebrCreateMonacoEditorInstance = function (cellData) {
   padding-right: 5px;
 }
 
-#ojklvxwznq .gt_first_summary_row {
+#efhnmukgxu .gt_first_summary_row {
   border-top-style: solid;
   border-top-color: #D3D3D3;
 }
 
-#ojklvxwznq .gt_first_summary_row.thick {
+#efhnmukgxu .gt_first_summary_row.thick {
   border-top-width: 2px;
 }
 
-#ojklvxwznq .gt_last_summary_row {
+#efhnmukgxu .gt_last_summary_row {
   padding-top: 8px;
   padding-bottom: 8px;
   padding-left: 5px;
@@ -2309,7 +2663,7 @@ globalThis.qwebrCreateMonacoEditorInstance = function (cellData) {
   border-bottom-color: #D3D3D3;
 }
 
-#ojklvxwznq .gt_grand_summary_row {
+#efhnmukgxu .gt_grand_summary_row {
   color: #333333;
   background-color: #FFFFFF;
   text-transform: inherit;
@@ -2319,7 +2673,7 @@ globalThis.qwebrCreateMonacoEditorInstance = function (cellData) {
   padding-right: 5px;
 }
 
-#ojklvxwznq .gt_first_grand_summary_row {
+#efhnmukgxu .gt_first_grand_summary_row {
   padding-top: 8px;
   padding-bottom: 8px;
   padding-left: 5px;
@@ -2329,7 +2683,7 @@ globalThis.qwebrCreateMonacoEditorInstance = function (cellData) {
   border-top-color: #D3D3D3;
 }
 
-#ojklvxwznq .gt_last_grand_summary_row_top {
+#efhnmukgxu .gt_last_grand_summary_row_top {
   padding-top: 8px;
   padding-bottom: 8px;
   padding-left: 5px;
@@ -2339,11 +2693,11 @@ globalThis.qwebrCreateMonacoEditorInstance = function (cellData) {
   border-bottom-color: #D3D3D3;
 }
 
-#ojklvxwznq .gt_striped {
+#efhnmukgxu .gt_striped {
   background-color: rgba(128, 128, 128, 0.05);
 }
 
-#ojklvxwznq .gt_table_body {
+#efhnmukgxu .gt_table_body {
   border-top-style: solid;
   border-top-width: 2px;
   border-top-color: #D3D3D3;
@@ -2352,7 +2706,7 @@ globalThis.qwebrCreateMonacoEditorInstance = function (cellData) {
   border-bottom-color: #D3D3D3;
 }
 
-#ojklvxwznq .gt_footnotes {
+#efhnmukgxu .gt_footnotes {
   color: #333333;
   background-color: #FFFFFF;
   border-bottom-style: none;
@@ -2366,7 +2720,7 @@ globalThis.qwebrCreateMonacoEditorInstance = function (cellData) {
   border-right-color: #D3D3D3;
 }
 
-#ojklvxwznq .gt_footnote {
+#efhnmukgxu .gt_footnote {
   margin: 0px;
   font-size: 90%;
   padding-top: 4px;
@@ -2375,7 +2729,7 @@ globalThis.qwebrCreateMonacoEditorInstance = function (cellData) {
   padding-right: 5px;
 }
 
-#ojklvxwznq .gt_sourcenotes {
+#efhnmukgxu .gt_sourcenotes {
   color: #333333;
   background-color: #FFFFFF;
   border-bottom-style: none;
@@ -2389,7 +2743,7 @@ globalThis.qwebrCreateMonacoEditorInstance = function (cellData) {
   border-right-color: #D3D3D3;
 }
 
-#ojklvxwznq .gt_sourcenote {
+#efhnmukgxu .gt_sourcenote {
   font-size: 90%;
   padding-top: 4px;
   padding-bottom: 4px;
@@ -2397,72 +2751,72 @@ globalThis.qwebrCreateMonacoEditorInstance = function (cellData) {
   padding-right: 5px;
 }
 
-#ojklvxwznq .gt_left {
+#efhnmukgxu .gt_left {
   text-align: left;
 }
 
-#ojklvxwznq .gt_center {
+#efhnmukgxu .gt_center {
   text-align: center;
 }
 
-#ojklvxwznq .gt_right {
+#efhnmukgxu .gt_right {
   text-align: right;
   font-variant-numeric: tabular-nums;
 }
 
-#ojklvxwznq .gt_font_normal {
+#efhnmukgxu .gt_font_normal {
   font-weight: normal;
 }
 
-#ojklvxwznq .gt_font_bold {
+#efhnmukgxu .gt_font_bold {
   font-weight: bold;
 }
 
-#ojklvxwznq .gt_font_italic {
+#efhnmukgxu .gt_font_italic {
   font-style: italic;
 }
 
-#ojklvxwznq .gt_super {
+#efhnmukgxu .gt_super {
   font-size: 65%;
 }
 
-#ojklvxwznq .gt_footnote_marks {
+#efhnmukgxu .gt_footnote_marks {
   font-size: 75%;
   vertical-align: 0.4em;
   position: initial;
 }
 
-#ojklvxwznq .gt_asterisk {
+#efhnmukgxu .gt_asterisk {
   font-size: 100%;
   vertical-align: 0;
 }
 
-#ojklvxwznq .gt_indent_1 {
+#efhnmukgxu .gt_indent_1 {
   text-indent: 5px;
 }
 
-#ojklvxwznq .gt_indent_2 {
+#efhnmukgxu .gt_indent_2 {
   text-indent: 10px;
 }
 
-#ojklvxwznq .gt_indent_3 {
+#efhnmukgxu .gt_indent_3 {
   text-indent: 15px;
 }
 
-#ojklvxwznq .gt_indent_4 {
+#efhnmukgxu .gt_indent_4 {
   text-indent: 20px;
 }
 
-#ojklvxwznq .gt_indent_5 {
+#efhnmukgxu .gt_indent_5 {
   text-indent: 25px;
 }
 
-#ojklvxwznq .katex-display {
+#efhnmukgxu .katex-display {
   display: inline-flex !important;
   margin-bottom: 0.75em !important;
 }
 
-#ojklvxwznq div.Reactable > div.rt-table > div.rt-thead > div.rt-tr.rt-tr-group-header > div.rt-th-group:after {
+#efhnmukgxu div.Reactable > div.rt-table > div.rt-thead > div.rt-tr.rt-tr-group-header > div.rt-th-group:after {
   height: 0px !important;
 }
 </style>
@@ -2515,7 +2869,13 @@ globalThis.qwebrCreateMonacoEditorInstance = function (cellData) {
 <ul id="tabset-2" class="panel-tabset-tabby"><li><a data-tabby-default="" href="#tabset-2-1">Question 1</a></li><li><a href="#tabset-2-2">Question 2</a></li></ul>
 <div class="tab-content">
 <div id="tabset-2-1">
-<p>Across the four cities, how are price and quantity are associated? Positive or negative?</p>
+<details class="transcript">
+<summary>
+Lecturer transcript
+</summary>
+<p>Read the four-city table as a cross-section. Cities with higher massage prices also have more massages per capita, so the raw association is positive. It would be a mistake to read this as an upward-sloping demand curve. Cross-city prices can differ because the product and the market differ. The observation illustrates an identification problem: the regression line can describe the data correctly while failing to estimate the causal response of quantity demanded to a price change.</p>
+</details>
+<p>Across the four cities, how are price and quantity associated—positively or negatively?</p>
 <br>
 <details>
 <summary>
@@ -2525,6 +2885,12 @@ They are positively correlated. So, does that mean people want more massages as 
 </details>
 </div>
 <div id="tabset-2-2">
+<details class="transcript">
+<summary>
+Lecturer transcript
+</summary>
+<p>We need a factor that differs across cities, affects massage demand, and is related to price. Income is one possibility, but it may be observable. Massage quality is more troublesome: higher-quality services can command higher prices and attract more customers. Local occupations, tourism, demographics, and preferences could work similarly. The purpose of brainstorming is not to make an endless list. It is to understand why comparing Chicago with Peoria does not hold the demand environment fixed.</p>
+</details>
 <p>What could be causing the positive correlation?</p>
 <br>
 <details>
@@ -2543,28 +2909,34 @@ Answer
 <!--end of panel-->
 </div>
 <div id="tabset-4-2">
+<details class="transcript inline">
+<summary>
+Lecturer transcript
+</summary>
+<p>The quality column reveals the confounder that was hidden in the first table. High-quality cities have both higher prices and higher quantities. If quality is omitted, its effect enters the error term, and price is correlated with that error. We cannot fix the problem by saying quality matters; we would need to measure it credibly and control for it. The panel strategy will instead exploit the fact that this example defines each city’s quality as constant over time.</p>
+</details>
 <p><strong>Demand for massage (cross-sectional)</strong></p>
 <div id="qwebr-insertion-location-3"></div>
 <noscript>Please enable JavaScript to experience the dynamic code cell content on this page.</noscript>
 <div class="cell">
 <div class="cell-output-display">
-<div id="tabjpgrvel" style="padding-left:0px;padding-right:0px;padding-top:10px;padding-bottom:10px;overflow-x:auto;overflow-y:auto;width:auto;height:auto;">
-<style>#tabjpgrvel table {
+<div id="abkhepaoxk" style="padding-left:0px;padding-right:0px;padding-top:10px;padding-bottom:10px;overflow-x:auto;overflow-y:auto;width:auto;height:auto;">
+<style>#abkhepaoxk table {
   font-family: system-ui, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol', 'Noto Color Emoji';
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
 
-#tabjpgrvel thead, #tabjpgrvel tbody, #tabjpgrvel tfoot, #tabjpgrvel tr, #tabjpgrvel td, #tabjpgrvel th {
+#abkhepaoxk thead, #abkhepaoxk tbody, #abkhepaoxk tfoot, #abkhepaoxk tr, #abkhepaoxk td, #abkhepaoxk th {
   border-style: none;
 }
 
-#tabjpgrvel p {
+#abkhepaoxk p {
   margin: 0;
   padding: 0;
 }
 
-#tabjpgrvel .gt_table {
+#abkhepaoxk .gt_table {
   display: table;
   border-collapse: collapse;
   line-height: normal;
@@ -2590,12 +2962,12 @@ Answer
   border-left-color: #D3D3D3;
 }
 
-#tabjpgrvel .gt_caption {
+#abkhepaoxk .gt_caption {
   padding-top: 4px;
   padding-bottom: 4px;
 }
 
-#tabjpgrvel .gt_title {
+#abkhepaoxk .gt_title {
   color: #333333;
   font-size: 125%;
   font-weight: initial;
@@ -2607,7 +2979,7 @@ Answer
   border-bottom-width: 0;
 }
 
-#tabjpgrvel .gt_subtitle {
+#abkhepaoxk .gt_subtitle {
   color: #333333;
   font-size: 85%;
   font-weight: initial;
@@ -2619,7 +2991,7 @@ Answer
   border-top-width: 0;
 }
 
-#tabjpgrvel .gt_heading {
+#abkhepaoxk .gt_heading {
   background-color: #FFFFFF;
   text-align: center;
   border-bottom-color: #FFFFFF;
@@ -2631,13 +3003,13 @@ Answer
   border-right-color: #D3D3D3;
 }
 
-#tabjpgrvel .gt_bottom_border {
+#abkhepaoxk .gt_bottom_border {
   border-bottom-style: solid;
   border-bottom-width: 2px;
   border-bottom-color: #D3D3D3;
 }
 
-#tabjpgrvel .gt_col_headings {
+#abkhepaoxk .gt_col_headings {
   border-top-style: solid;
   border-top-width: 2px;
   border-top-color: #D3D3D3;
@@ -2652,7 +3024,7 @@ Answer
   border-right-color: #D3D3D3;
 }
 
-#tabjpgrvel .gt_col_heading {
+#abkhepaoxk .gt_col_heading {
   color: #333333;
   background-color: #FFFFFF;
   font-size: 100%;
@@ -2672,7 +3044,7 @@ Answer
   overflow-x: hidden;
 }
 
-#tabjpgrvel .gt_column_spanner_outer {
+#abkhepaoxk .gt_column_spanner_outer {
   color: #333333;
   background-color: #FFFFFF;
   font-size: 100%;
@@ -2684,15 +3056,15 @@ Answer
   padding-right: 4px;
 }
 
-#tabjpgrvel .gt_column_spanner_outer:first-child {
+#abkhepaoxk .gt_column_spanner_outer:first-child {
   padding-left: 0;
 }
 
-#tabjpgrvel .gt_column_spanner_outer:last-child {
+#abkhepaoxk .gt_column_spanner_outer:last-child {
   padding-right: 0;
 }
 
-#tabjpgrvel .gt_column_spanner {
+#abkhepaoxk .gt_column_spanner {
   border-bottom-style: solid;
   border-bottom-width: 2px;
   border-bottom-color: #D3D3D3;
@@ -2704,11 +3076,11 @@ Answer
   width: 100%;
 }
 
-#tabjpgrvel .gt_spanner_row {
+#abkhepaoxk .gt_spanner_row {
   border-bottom-style: hidden;
 }
 
-#tabjpgrvel .gt_group_heading {
+#abkhepaoxk .gt_group_heading {
   padding-top: 8px;
   padding-bottom: 8px;
   padding-left: 5px;
@@ -2734,7 +3106,7 @@ Answer
   text-align: left;
 }
 
-#tabjpgrvel .gt_empty_group_heading {
+#abkhepaoxk .gt_empty_group_heading {
   padding: 0.5px;
   color: #333333;
   background-color: #FFFFFF;
@@ -2749,15 +3121,15 @@ Answer
   vertical-align: middle;
 }
 
-#tabjpgrvel .gt_from_md > :first-child {
+#abkhepaoxk .gt_from_md > :first-child {
   margin-top: 0;
 }
 
-#tabjpgrvel .gt_from_md > :last-child {
+#abkhepaoxk .gt_from_md > :last-child {
   margin-bottom: 0;
 }
 
-#tabjpgrvel .gt_row {
+#abkhepaoxk .gt_row {
   padding-top: 8px;
   padding-bottom: 8px;
   padding-left: 5px;
@@ -2776,7 +3148,7 @@ Answer
   overflow-x: hidden;
 }
 
-#tabjpgrvel .gt_stub {
+#abkhepaoxk .gt_stub {
   color: #333333;
   background-color: #FFFFFF;
   font-size: 100%;
@@ -2789,7 +3161,7 @@ Answer
   padding-right: 5px;
 }
 
-#tabjpgrvel .gt_stub_row_group {
+#abkhepaoxk .gt_stub_row_group {
   color: #333333;
   background-color: #FFFFFF;
   font-size: 100%;
@@ -2803,15 +3175,15 @@ Answer
   vertical-align: top;
 }
 
-#tabjpgrvel .gt_row_group_first td {
+#abkhepaoxk .gt_row_group_first td {
   border-top-width: 2px;
 }
 
-#tabjpgrvel .gt_row_group_first th {
+#abkhepaoxk .gt_row_group_first th {
   border-top-width: 2px;
 }
 
-#tabjpgrvel .gt_summary_row {
+#abkhepaoxk .gt_summary_row {
   color: #333333;
   background-color: #FFFFFF;
   text-transform: inherit;
@@ -2821,16 +3193,16 @@ Answer
   padding-right: 5px;
 }
 
-#tabjpgrvel .gt_first_summary_row {
+#abkhepaoxk .gt_first_summary_row {
   border-top-style: solid;
   border-top-color: #D3D3D3;
 }
 
-#tabjpgrvel .gt_first_summary_row.thick {
+#abkhepaoxk .gt_first_summary_row.thick {
   border-top-width: 2px;
 }
 
-#tabjpgrvel .gt_last_summary_row {
+#abkhepaoxk .gt_last_summary_row {
   padding-top: 8px;
   padding-bottom: 8px;
   padding-left: 5px;
@@ -2840,7 +3212,7 @@ Answer
   border-bottom-color: #D3D3D3;
 }
 
-#tabjpgrvel .gt_grand_summary_row {
+#abkhepaoxk .gt_grand_summary_row {
   color: #333333;
   background-color: #FFFFFF;
   text-transform: inherit;
@@ -2850,7 +3222,7 @@ Answer
   padding-right: 5px;
 }
 
-#tabjpgrvel .gt_first_grand_summary_row {
+#abkhepaoxk .gt_first_grand_summary_row {
   padding-top: 8px;
   padding-bottom: 8px;
   padding-left: 5px;
@@ -2860,7 +3232,7 @@ Answer
   border-top-color: #D3D3D3;
 }
 
-#tabjpgrvel .gt_last_grand_summary_row_top {
+#abkhepaoxk .gt_last_grand_summary_row_top {
   padding-top: 8px;
   padding-bottom: 8px;
   padding-left: 5px;
@@ -2870,11 +3242,11 @@ Answer
   border-bottom-color: #D3D3D3;
 }
 
-#tabjpgrvel .gt_striped {
+#abkhepaoxk .gt_striped {
   background-color: rgba(128, 128, 128, 0.05);
 }
 
-#tabjpgrvel .gt_table_body {
+#abkhepaoxk .gt_table_body {
   border-top-style: solid;
   border-top-width: 2px;
   border-top-color: #D3D3D3;
@@ -2883,7 +3255,7 @@ Answer
   border-bottom-color: #D3D3D3;
 }
 
-#tabjpgrvel .gt_footnotes {
+#abkhepaoxk .gt_footnotes {
   color: #333333;
   background-color: #FFFFFF;
   border-bottom-style: none;
@@ -2897,7 +3269,7 @@ Answer
   border-right-color: #D3D3D3;
 }
 
-#tabjpgrvel .gt_footnote {
+#abkhepaoxk .gt_footnote {
   margin: 0px;
   font-size: 90%;
   padding-top: 4px;
@@ -2906,7 +3278,7 @@ Answer
   padding-right: 5px;
 }
 
-#tabjpgrvel .gt_sourcenotes {
+#abkhepaoxk .gt_sourcenotes {
   color: #333333;
   background-color: #FFFFFF;
   border-bottom-style: none;
@@ -2920,7 +3292,7 @@ Answer
   border-right-color: #D3D3D3;
 }
 
-#tabjpgrvel .gt_sourcenote {
+#abkhepaoxk .gt_sourcenote {
   font-size: 90%;
   padding-top: 4px;
   padding-bottom: 4px;
@@ -2928,72 +3300,72 @@ Answer
   padding-right: 5px;
 }
 
-#tabjpgrvel .gt_left {
+#abkhepaoxk .gt_left {
   text-align: left;
 }
 
-#tabjpgrvel .gt_center {
+#abkhepaoxk .gt_center {
   text-align: center;
 }
 
-#tabjpgrvel .gt_right {
+#abkhepaoxk .gt_right {
   text-align: right;
   font-variant-numeric: tabular-nums;
 }
 
-#tabjpgrvel .gt_font_normal {
+#abkhepaoxk .gt_font_normal {
   font-weight: normal;
 }
 
-#tabjpgrvel .gt_font_bold {
+#abkhepaoxk .gt_font_bold {
   font-weight: bold;
 }
 
-#tabjpgrvel .gt_font_italic {
+#abkhepaoxk .gt_font_italic {
   font-style: italic;
 }
 
-#tabjpgrvel .gt_super {
+#abkhepaoxk .gt_super {
   font-size: 65%;
 }
 
-#tabjpgrvel .gt_footnote_marks {
+#abkhepaoxk .gt_footnote_marks {
   font-size: 75%;
   vertical-align: 0.4em;
   position: initial;
 }
 
-#tabjpgrvel .gt_asterisk {
+#abkhepaoxk .gt_asterisk {
   font-size: 100%;
   vertical-align: 0;
 }
 
-#tabjpgrvel .gt_indent_1 {
+#abkhepaoxk .gt_indent_1 {
   text-indent: 5px;
 }
 
-#tabjpgrvel .gt_indent_2 {
+#abkhepaoxk .gt_indent_2 {
   text-indent: 10px;
 }
 
-#tabjpgrvel .gt_indent_3 {
+#abkhepaoxk .gt_indent_3 {
   text-indent: 15px;
 }
 
-#tabjpgrvel .gt_indent_4 {
+#abkhepaoxk .gt_indent_4 {
   text-indent: 20px;
 }
 
-#tabjpgrvel .gt_indent_5 {
+#abkhepaoxk .gt_indent_5 {
   text-indent: 25px;
 }
 
-#tabjpgrvel .katex-display {
+#abkhepaoxk .katex-display {
   display: inline-flex !important;
   margin-bottom: 0.75em !important;
 }
 
-#tabjpgrvel div.Reactable > div.rt-table > div.rt-thead > div.rt-tr.rt-tr-group-header > div.rt-th-group:after {
+#abkhepaoxk div.Reactable > div.rt-table > div.rt-thead > div.rt-tr.rt-tr-group-header > div.rt-th-group:after {
   height: 0px !important;
 }
 </style>
@@ -3045,47 +3417,53 @@ Answer
 </div>
 <p><br></p>
 <p><strong>Key</strong></p>
-<p>Massage quality was hidden (omitted) affecting <span style="color: blue;">both</span> price and massages per capita.</p>
+<p>Massage quality was hidden (omitted) and affects <span style="color: blue;">both</span> price and massages per capita.</p>
 <p><br></p>
 <p><strong>Problem</strong></p>
 <p>Massage quality is not observable, and thus cannot be controlled for.</p>
 </div>
 <div id="tabset-4-3">
+<details class="transcript">
+<summary>
+Lecturer transcript
+</summary>
+<p>Write the omitted-quality model as a regression with a composite error v. Quality affects quantity through beta two, but it is not included as a regressor. Because price is related to quality, price is related to v. This is the same omitted-variable logic from Lecture 09. The panel solution will not estimate quality’s coefficient; it will transform the data so that a time-invariant quality term cancels. That distinction matters: fixed effects control for stable differences without requiring us to observe or name each one separately.</p>
+</details>
 <p><strong>Mathematically</strong></p>
-<p><span class="math inline">\(Q  = \beta_0 + \beta_1 P + v \;\;( = \beta_2 + Ql + u)\)</span></p>
+<p><span class="math inline">Q=\beta_0+\beta_1P+v, \qquad v=\beta_2Ql+u</span></p>
 <ul>
-<li><span class="math inline">\(P\)</span>: the price of one massage</li>
-<li><span class="math inline">\(Q\)</span>: the number of massages received per capita<br>
+<li><span class="math inline">P</span>: the price of one massage</li>
+<li><span class="math inline">Q</span>: the number of massages received per capita<br>
 </li>
-<li><span class="math inline">\(Ql\)</span>: the quality of massages</li>
-<li><span class="math inline">\(u\)</span>: everything else that affect <span class="math inline">\(P\)</span></li>
+<li><span class="math inline">Ql</span>: an index of massage quality</li>
+<li><span class="math inline">u</span>: all other determinants of <span class="math inline">Q</span></li>
 </ul>
 <p><br></p>
 <p><strong>Endogeneity Problem</strong></p>
-<p><span class="math inline">\(P\)</span> is correlated with <span class="math inline">\(Ql\)</span>.</p>
+<p><span class="math inline">P</span> is correlated with <span class="math inline">Ql</span>.</p>
 </div>
 <div id="tabset-4-4">
 <div id="qwebr-insertion-location-4"></div>
 <noscript>Please enable JavaScript to experience the dynamic code cell content on this page.</noscript>
 <div class="cell">
 <div class="cell-output-display">
-<div id="qevgkouaob" style="padding-left:0px;padding-right:0px;padding-top:10px;padding-bottom:10px;overflow-x:auto;overflow-y:auto;width:auto;height:auto;">
-<style>#qevgkouaob table {
+<div id="zqudbpmgcz" style="padding-left:0px;padding-right:0px;padding-top:10px;padding-bottom:10px;overflow-x:auto;overflow-y:auto;width:auto;height:auto;">
+<style>#zqudbpmgcz table {
   font-family: system-ui, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol', 'Noto Color Emoji';
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
 
-#qevgkouaob thead, #qevgkouaob tbody, #qevgkouaob tfoot, #qevgkouaob tr, #qevgkouaob td, #qevgkouaob th {
+#zqudbpmgcz thead, #zqudbpmgcz tbody, #zqudbpmgcz tfoot, #zqudbpmgcz tr, #zqudbpmgcz td, #zqudbpmgcz th {
   border-style: none;
 }
 
-#qevgkouaob p {
+#zqudbpmgcz p {
   margin: 0;
   padding: 0;
 }
 
-#qevgkouaob .gt_table {
+#zqudbpmgcz .gt_table {
   display: table;
   border-collapse: collapse;
   line-height: normal;
@@ -3111,12 +3489,12 @@ Answer
   border-left-color: #D3D3D3;
 }
 
-#qevgkouaob .gt_caption {
+#zqudbpmgcz .gt_caption {
   padding-top: 4px;
   padding-bottom: 4px;
 }
 
-#qevgkouaob .gt_title {
+#zqudbpmgcz .gt_title {
   color: #333333;
   font-size: 125%;
   font-weight: initial;
@@ -3128,7 +3506,7 @@ Answer
   border-bottom-width: 0;
 }
 
-#qevgkouaob .gt_subtitle {
+#zqudbpmgcz .gt_subtitle {
   color: #333333;
   font-size: 85%;
   font-weight: initial;
@@ -3140,7 +3518,7 @@ Answer
   border-top-width: 0;
 }
 
-#qevgkouaob .gt_heading {
+#zqudbpmgcz .gt_heading {
   background-color: #FFFFFF;
   text-align: center;
   border-bottom-color: #FFFFFF;
@@ -3152,13 +3530,13 @@ Answer
   border-right-color: #D3D3D3;
 }
 
-#qevgkouaob .gt_bottom_border {
+#zqudbpmgcz .gt_bottom_border {
   border-bottom-style: solid;
   border-bottom-width: 2px;
   border-bottom-color: #D3D3D3;
 }
 
-#qevgkouaob .gt_col_headings {
+#zqudbpmgcz .gt_col_headings {
   border-top-style: solid;
   border-top-width: 2px;
   border-top-color: #D3D3D3;
@@ -3173,7 +3551,7 @@ Answer
   border-right-color: #D3D3D3;
 }
 
-#qevgkouaob .gt_col_heading {
+#zqudbpmgcz .gt_col_heading {
   color: #333333;
   background-color: #FFFFFF;
   font-size: 100%;
@@ -3193,7 +3571,7 @@ Answer
   overflow-x: hidden;
 }
 
-#qevgkouaob .gt_column_spanner_outer {
+#zqudbpmgcz .gt_column_spanner_outer {
   color: #333333;
   background-color: #FFFFFF;
   font-size: 100%;
@@ -3205,15 +3583,15 @@ Answer
   padding-right: 4px;
 }
 
-#qevgkouaob .gt_column_spanner_outer:first-child {
+#zqudbpmgcz .gt_column_spanner_outer:first-child {
   padding-left: 0;
 }
 
-#qevgkouaob .gt_column_spanner_outer:last-child {
+#zqudbpmgcz .gt_column_spanner_outer:last-child {
   padding-right: 0;
 }
 
-#qevgkouaob .gt_column_spanner {
+#zqudbpmgcz .gt_column_spanner {
   border-bottom-style: solid;
   border-bottom-width: 2px;
   border-bottom-color: #D3D3D3;
@@ -3225,11 +3603,11 @@ Answer
   width: 100%;
 }
 
-#qevgkouaob .gt_spanner_row {
+#zqudbpmgcz .gt_spanner_row {
   border-bottom-style: hidden;
 }
 
-#qevgkouaob .gt_group_heading {
+#zqudbpmgcz .gt_group_heading {
   padding-top: 8px;
   padding-bottom: 8px;
   padding-left: 5px;
@@ -3255,7 +3633,7 @@ Answer
   text-align: left;
 }
 
-#qevgkouaob .gt_empty_group_heading {
+#zqudbpmgcz .gt_empty_group_heading {
   padding: 0.5px;
   color: #333333;
   background-color: #FFFFFF;
@@ -3270,15 +3648,15 @@ Answer
   vertical-align: middle;
 }
 
-#qevgkouaob .gt_from_md > :first-child {
+#zqudbpmgcz .gt_from_md > :first-child {
   margin-top: 0;
 }
 
-#qevgkouaob .gt_from_md > :last-child {
+#zqudbpmgcz .gt_from_md > :last-child {
   margin-bottom: 0;
 }
 
-#qevgkouaob .gt_row {
+#zqudbpmgcz .gt_row {
   padding-top: 8px;
   padding-bottom: 8px;
   padding-left: 5px;
@@ -3297,7 +3675,7 @@ Answer
   overflow-x: hidden;
 }
 
-#qevgkouaob .gt_stub {
+#zqudbpmgcz .gt_stub {
   color: #333333;
   background-color: #FFFFFF;
   font-size: 100%;
@@ -3310,7 +3688,7 @@ Answer
   padding-right: 5px;
 }
 
-#qevgkouaob .gt_stub_row_group {
+#zqudbpmgcz .gt_stub_row_group {
   color: #333333;
   background-color: #FFFFFF;
   font-size: 100%;
@@ -3324,15 +3702,15 @@ Answer
   vertical-align: top;
 }
 
-#qevgkouaob .gt_row_group_first td {
+#zqudbpmgcz .gt_row_group_first td {
   border-top-width: 2px;
 }
 
-#qevgkouaob .gt_row_group_first th {
+#zqudbpmgcz .gt_row_group_first th {
   border-top-width: 2px;
 }
 
-#qevgkouaob .gt_summary_row {
+#zqudbpmgcz .gt_summary_row {
   color: #333333;
   background-color: #FFFFFF;
   text-transform: inherit;
@@ -3342,16 +3720,16 @@ Answer
   padding-right: 5px;
 }
 
-#qevgkouaob .gt_first_summary_row {
+#zqudbpmgcz .gt_first_summary_row {
   border-top-style: solid;
   border-top-color: #D3D3D3;
 }
 
-#qevgkouaob .gt_first_summary_row.thick {
+#zqudbpmgcz .gt_first_summary_row.thick {
   border-top-width: 2px;
 }
 
-#qevgkouaob .gt_last_summary_row {
+#zqudbpmgcz .gt_last_summary_row {
   padding-top: 8px;
   padding-bottom: 8px;
   padding-left: 5px;
@@ -3361,7 +3739,7 @@ Answer
   border-bottom-color: #D3D3D3;
 }
 
-#qevgkouaob .gt_grand_summary_row {
+#zqudbpmgcz .gt_grand_summary_row {
   color: #333333;
   background-color: #FFFFFF;
   text-transform: inherit;
@@ -3371,7 +3749,7 @@ Answer
   padding-right: 5px;
 }
 
-#qevgkouaob .gt_first_grand_summary_row {
+#zqudbpmgcz .gt_first_grand_summary_row {
   padding-top: 8px;
   padding-bottom: 8px;
   padding-left: 5px;
@@ -3381,7 +3759,7 @@ Answer
   border-top-color: #D3D3D3;
 }
 
-#qevgkouaob .gt_last_grand_summary_row_top {
+#zqudbpmgcz .gt_last_grand_summary_row_top {
   padding-top: 8px;
   padding-bottom: 8px;
   padding-left: 5px;
@@ -3391,11 +3769,11 @@ Answer
   border-bottom-color: #D3D3D3;
 }
 
-#qevgkouaob .gt_striped {
+#zqudbpmgcz .gt_striped {
   background-color: rgba(128, 128, 128, 0.05);
 }
 
-#qevgkouaob .gt_table_body {
+#zqudbpmgcz .gt_table_body {
   border-top-style: solid;
   border-top-width: 2px;
   border-top-color: #D3D3D3;
@@ -3404,7 +3782,7 @@ Answer
   border-bottom-color: #D3D3D3;
 }
 
-#qevgkouaob .gt_footnotes {
+#zqudbpmgcz .gt_footnotes {
   color: #333333;
   background-color: #FFFFFF;
   border-bottom-style: none;
@@ -3418,7 +3796,7 @@ Answer
   border-right-color: #D3D3D3;
 }
 
-#qevgkouaob .gt_footnote {
+#zqudbpmgcz .gt_footnote {
   margin: 0px;
   font-size: 90%;
   padding-top: 4px;
@@ -3427,7 +3805,7 @@ Answer
   padding-right: 5px;
 }
 
-#qevgkouaob .gt_sourcenotes {
+#zqudbpmgcz .gt_sourcenotes {
   color: #333333;
   background-color: #FFFFFF;
   border-bottom-style: none;
@@ -3441,7 +3819,7 @@ Answer
   border-right-color: #D3D3D3;
 }
 
-#qevgkouaob .gt_sourcenote {
+#zqudbpmgcz .gt_sourcenote {
   font-size: 90%;
   padding-top: 4px;
   padding-bottom: 4px;
@@ -3449,72 +3827,72 @@ Answer
   padding-right: 5px;
 }
 
-#qevgkouaob .gt_left {
+#zqudbpmgcz .gt_left {
   text-align: left;
 }
 
-#qevgkouaob .gt_center {
+#zqudbpmgcz .gt_center {
   text-align: center;
 }
 
-#qevgkouaob .gt_right {
+#zqudbpmgcz .gt_right {
   text-align: right;
   font-variant-numeric: tabular-nums;
 }
 
-#qevgkouaob .gt_font_normal {
+#zqudbpmgcz .gt_font_normal {
   font-weight: normal;
 }
 
-#qevgkouaob .gt_font_bold {
+#zqudbpmgcz .gt_font_bold {
   font-weight: bold;
 }
 
-#qevgkouaob .gt_font_italic {
+#zqudbpmgcz .gt_font_italic {
   font-style: italic;
 }
 
-#qevgkouaob .gt_super {
+#zqudbpmgcz .gt_super {
   font-size: 65%;
 }
 
-#qevgkouaob .gt_footnote_marks {
+#zqudbpmgcz .gt_footnote_marks {
   font-size: 75%;
   vertical-align: 0.4em;
   position: initial;
 }
 
-#qevgkouaob .gt_asterisk {
+#zqudbpmgcz .gt_asterisk {
   font-size: 100%;
   vertical-align: 0;
 }
 
-#qevgkouaob .gt_indent_1 {
+#zqudbpmgcz .gt_indent_1 {
   text-indent: 5px;
 }
 
-#qevgkouaob .gt_indent_2 {
+#zqudbpmgcz .gt_indent_2 {
   text-indent: 10px;
 }
 
-#qevgkouaob .gt_indent_3 {
+#zqudbpmgcz .gt_indent_3 {
   text-indent: 15px;
 }
 
-#qevgkouaob .gt_indent_4 {
+#zqudbpmgcz .gt_indent_4 {
   text-indent: 20px;
 }
 
-#qevgkouaob .gt_indent_5 {
+#zqudbpmgcz .gt_indent_5 {
   text-indent: 25px;
 }
 
-#qevgkouaob .katex-display {
+#zqudbpmgcz .katex-display {
   display: inline-flex !important;
   margin-bottom: 0.75em !important;
 }
 
-#qevgkouaob div.Reactable > div.rt-table > div.rt-thead > div.rt-tr.rt-tr-group-header > div.rt-th-group:after {
+#zqudbpmgcz div.Reactable > div.rt-table > div.rt-thead > div.rt-tr.rt-tr-group-header > div.rt-th-group:after {
   height: 0px !important;
 }
 </style>
@@ -3596,14 +3974,26 @@ Answer
 <ul id="tabset-3" class="panel-tabset-tabby"><li><a data-tabby-default="" href="#tabset-3-1">Key</a></li><li><a href="#tabset-3-2">within-city</a></li><li><a href="#tabset-3-3">Question</a></li></ul>
 <div class="tab-content">
 <div id="tabset-3-1">
-<p>There are two kinds of variations:</p>
+<details class="transcript inline">
+<summary>
+Lecturer transcript
+</summary>
+<p>The two-period table contains two sources of variation. Between-city variation compares, for example, Chicago with Peoria. Within-city variation compares Chicago in 2004 with Chicago in 2003. The cross-sectional regression mixes both. Panel estimators can discard the between-city component and use only changes within each city. That is useful here because the omitted quality index varies between cities but is fixed within a city over these two years.</p>
+</details>
+<p>There are two kinds of variation:</p>
 <ul>
-<li>inte-rcity (across city) variation</li>
-<li>intra-city (within city) variation</li>
+<li>intercity (between-city) variation</li>
+<li>intracity (within-city) variation</li>
 </ul>
-<p>The cross-sectional data offers only the inte-rcity (across city) variations.</p>
+<p>Cross-sectional data offer only between-city variation.</p>
 </div>
 <div id="tabset-3-2">
+<details class="transcript inline">
+<summary>
+Lecturer transcript
+</summary>
+<p>Compare each city with itself. Where price rises, quantity falls; where price falls, quantity rises. The within-city association is negative even though the between-city association was positive. This is not a paradox. The comparisons answer different questions and hold different things fixed. Within a city, our constructed quality measure stays constant, so it cannot explain the year-to-year movement. The example shows why the source of variation behind a coefficient matters at least as much as its numerical sign.</p>
+</details>
 <p>Now, compare the massage price and massages per capita <span style="color: blue;"> within </span> each city (over time). What do you see?</p>
 <br>
 <details>
@@ -3614,13 +4004,19 @@ Price and quantity are <span style="color: red;"> negatively </span> correlated!
 </details>
 </div>
 <div id="tabset-3-3">
-<p>Why looking at the <span style="color: blue;"> intra-city (within city) </span> variation seemed to help us estimate the impact of massage price on demand more credibly?</p>
+<details class="transcript">
+<summary>
+Lecturer transcript
+</summary>
+<p>Within-city comparisons help because any city characteristic that is exactly constant over time is held fixed automatically. Here massage quality does not change, so it cannot confound the relationship between changes in price and changes in quantity. Be precise about the claim: within variation removes this time-invariant omitted factor. If income, local employment, or quality changes and those changes are related to price, endogeneity can remain. Panel data create an opportunity for cleaner comparisons; they do not make every comparison causal.</p>
+</details>
+<p>Why does looking at <span style="color: blue;">within-city</span> variation seem to help us estimate the effect of massage price on demand more credibly?</p>
 <br>
 <details>
 <summary>
 Answer
 </summary>
-The omitted variable, massage quality, did not change over time within city, which means it is controlled for as long as you look only at the intra-city variations (you do not compare <span style="color: blue;">across</span> cities).
+The omitted variable, massage quality, did not change over time within a city. Restricting attention to within-city variation therefore removes this particular source of confounding.
 </details>
 </div>
 </div>
@@ -3631,17 +4027,23 @@ The omitted variable, massage quality, did not change over time within city, whi
 </div>
 <!--end of panel-->
 </section>
-<section id="using-only-the-intra-city-variations" class="slide level2">
-<h2>Using only the intra-city variations</h2>
+<section id="using-only-within-city-variation" class="slide level2">
+<h2>Using only within-city variation</h2>
 <div class="panel-tabset">
-<ul id="tabset-5" class="panel-tabset-tabby"><li><a data-tabby-default="" href="#tabset-5-1">first-differencing</a></li><li><a href="#tabset-5-2">first-differenced model</a></li><li><a href="#tabset-5-3">Estimate the model</a></li><li><a href="#tabset-5-4">Summary</a></li></ul>
+<ul id="tabset-5" class="panel-tabset-tabby"><li><a data-tabby-default="" href="#tabset-5-1">First differencing</a></li><li><a href="#tabset-5-2">first-differenced model</a></li><li><a href="#tabset-5-3">Estimate the model</a></li><li><a href="#tabset-5-4">Summary</a></li></ul>
 <div class="tab-content">
 <div id="tabset-5-1">
+<details class="transcript inline">
+<summary>
+Lecturer transcript
+</summary>
+<p>First differencing turns levels into changes within each city. For every variable, subtract the first-period value from the second-period value. The first observation for each city has no lag, so its difference is missing; the highlighted second row supplies one usable change. Quality’s difference is zero in every city because quality was constant. Regressing change in quantity on change in price therefore uses only within-city movement and discards all fixed level differences across cities.</p>
+</details>
 <p><strong>Question</strong></p>
-<p>So, how do we use only the intra-city variations in a regression framework?</p>
+<p>How do we use only within-city variation in a regression framework?</p>
 <p><br></p>
-<p><strong>first-differencing</strong></p>
-<p>One way to do this is to compute the changes in prices and th changes in quantities in each city <span class="math inline">\((\Delta P\)</span> and <span class="math inline">\(\Delta Q)\)</span> and then regress <span class="math inline">\(\Delta Q\)</span> and <span class="math inline">\(\Delta P\)</span>.</p>
+<p><strong>First differencing</strong></p>
+<p>One approach is to compute the changes in price and quantity within each city (<span class="math inline">\Delta P</span> and <span class="math inline">\Delta Q</span>) and then regress <span class="math inline">\Delta Q</span> on <span class="math inline">\Delta P</span>.</p>
 <p><br></p>
 <div class="columns">
 <div class="column" style="width:70%;">
@@ -3650,23 +4052,23 @@ The omitted variable, massage quality, did not change over time within city, whi
 <noscript>Please enable JavaScript to experience the dynamic code cell content on this page.</noscript>
 <div class="cell">
 <div class="cell-output-display">
-<div id="nbwymacjcj" style="padding-left:0px;padding-right:0px;padding-top:10px;padding-bottom:10px;overflow-x:auto;overflow-y:auto;width:auto;height:auto;">
-<style>#nbwymacjcj table {
+<div id="hbssompfdt" style="padding-left:0px;padding-right:0px;padding-top:10px;padding-bottom:10px;overflow-x:auto;overflow-y:auto;width:auto;height:auto;">
+<style>#hbssompfdt table {
   font-family: system-ui, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol', 'Noto Color Emoji';
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
 
-#nbwymacjcj thead, #nbwymacjcj tbody, #nbwymacjcj tfoot, #nbwymacjcj tr, #nbwymacjcj td, #nbwymacjcj th {
+#hbssompfdt thead, #hbssompfdt tbody, #hbssompfdt tfoot, #hbssompfdt tr, #hbssompfdt td, #hbssompfdt th {
   border-style: none;
 }
 
-#nbwymacjcj p {
+#hbssompfdt p {
   margin: 0;
   padding: 0;
 }
 
-#nbwymacjcj .gt_table {
+#hbssompfdt .gt_table {
   display: table;
   border-collapse: collapse;
   line-height: normal;
@@ -3692,12 +4094,12 @@ The omitted variable, massage quality, did not change over time within city, whi
   border-left-color: #D3D3D3;
 }
 
-#nbwymacjcj .gt_caption {
+#hbssompfdt .gt_caption {
   padding-top: 4px;
   padding-bottom: 4px;
 }
 
-#nbwymacjcj .gt_title {
+#hbssompfdt .gt_title {
   color: #333333;
   font-size: 125%;
   font-weight: initial;
@@ -3709,7 +4111,7 @@ The omitted variable, massage quality, did not change over time within city, whi
   border-bottom-width: 0;
 }
 
-#nbwymacjcj .gt_subtitle {
+#hbssompfdt .gt_subtitle {
   color: #333333;
   font-size: 85%;
   font-weight: initial;
@@ -3721,7 +4123,7 @@ The omitted variable, massage quality, did not change over time within city, whi
   border-top-width: 0;
 }
 
-#nbwymacjcj .gt_heading {
+#hbssompfdt .gt_heading {
   background-color: #FFFFFF;
   text-align: center;
   border-bottom-color: #FFFFFF;
@@ -3733,13 +4135,13 @@ The omitted variable, massage quality, did not change over time within city, whi
   border-right-color: #D3D3D3;
 }
 
-#nbwymacjcj .gt_bottom_border {
+#hbssompfdt .gt_bottom_border {
   border-bottom-style: solid;
   border-bottom-width: 2px;
   border-bottom-color: #D3D3D3;
 }
 
-#nbwymacjcj .gt_col_headings {
+#hbssompfdt .gt_col_headings {
   border-top-style: solid;
   border-top-width: 2px;
   border-top-color: #D3D3D3;
@@ -3754,7 +4156,7 @@ The omitted variable, massage quality, did not change over time within city, whi
   border-right-color: #D3D3D3;
 }
 
-#nbwymacjcj .gt_col_heading {
+#hbssompfdt .gt_col_heading {
   color: #333333;
   background-color: #FFFFFF;
   font-size: 100%;
@@ -3774,7 +4176,7 @@ The omitted variable, massage quality, did not change over time within city, whi
   overflow-x: hidden;
 }
 
-#nbwymacjcj .gt_column_spanner_outer {
+#hbssompfdt .gt_column_spanner_outer {
   color: #333333;
   background-color: #FFFFFF;
   font-size: 100%;
@@ -3786,15 +4188,15 @@ The omitted variable, massage quality, did not change over time within city, whi
   padding-right: 4px;
 }
 
-#nbwymacjcj .gt_column_spanner_outer:first-child {
+#hbssompfdt .gt_column_spanner_outer:first-child {
   padding-left: 0;
 }
 
-#nbwymacjcj .gt_column_spanner_outer:last-child {
+#hbssompfdt .gt_column_spanner_outer:last-child {
   padding-right: 0;
 }
 
-#nbwymacjcj .gt_column_spanner {
+#hbssompfdt .gt_column_spanner {
   border-bottom-style: solid;
   border-bottom-width: 2px;
   border-bottom-color: #D3D3D3;
@@ -3806,11 +4208,11 @@ The omitted variable, massage quality, did not change over time within city, whi
   width: 100%;
 }
 
-#nbwymacjcj .gt_spanner_row {
+#hbssompfdt .gt_spanner_row {
   border-bottom-style: hidden;
 }
 
-#nbwymacjcj .gt_group_heading {
+#hbssompfdt .gt_group_heading {
   padding-top: 8px;
   padding-bottom: 8px;
   padding-left: 5px;
@@ -3836,7 +4238,7 @@ The omitted variable, massage quality, did not change over time within city, whi
   text-align: left;
 }
 
-#nbwymacjcj .gt_empty_group_heading {
+#hbssompfdt .gt_empty_group_heading {
   padding: 0.5px;
   color: #333333;
   background-color: #FFFFFF;
@@ -3851,15 +4253,15 @@ The omitted variable, massage quality, did not change over time within city, whi
   vertical-align: middle;
 }
 
-#nbwymacjcj .gt_from_md > :first-child {
+#hbssompfdt .gt_from_md > :first-child {
   margin-top: 0;
 }
 
-#nbwymacjcj .gt_from_md > :last-child {
+#hbssompfdt .gt_from_md > :last-child {
   margin-bottom: 0;
 }
 
-#nbwymacjcj .gt_row {
+#hbssompfdt .gt_row {
   padding-top: 8px;
   padding-bottom: 8px;
   padding-left: 5px;
@@ -3878,7 +4280,7 @@ The omitted variable, massage quality, did not change over time within city, whi
   overflow-x: hidden;
 }
 
-#nbwymacjcj .gt_stub {
+#hbssompfdt .gt_stub {
   color: #333333;
   background-color: #FFFFFF;
   font-size: 100%;
@@ -3891,7 +4293,7 @@ The omitted variable, massage quality, did not change over time within city, whi
   padding-right: 5px;
 }
 
-#nbwymacjcj .gt_stub_row_group {
+#hbssompfdt .gt_stub_row_group {
   color: #333333;
   background-color: #FFFFFF;
   font-size: 100%;
@@ -3905,15 +4307,15 @@ The omitted variable, massage quality, did not change over time within city, whi
   vertical-align: top;
 }
 
-#nbwymacjcj .gt_row_group_first td {
+#hbssompfdt .gt_row_group_first td {
   border-top-width: 2px;
 }
 
-#nbwymacjcj .gt_row_group_first th {
+#hbssompfdt .gt_row_group_first th {
   border-top-width: 2px;
 }
 
-#nbwymacjcj .gt_summary_row {
+#hbssompfdt .gt_summary_row {
   color: #333333;
   background-color: #FFFFFF;
   text-transform: inherit;
@@ -3923,16 +4325,16 @@ The omitted variable, massage quality, did not change over time within city, whi
   padding-right: 5px;
 }
 
-#nbwymacjcj .gt_first_summary_row {
+#hbssompfdt .gt_first_summary_row {
   border-top-style: solid;
   border-top-color: #D3D3D3;
 }
 
-#nbwymacjcj .gt_first_summary_row.thick {
+#hbssompfdt .gt_first_summary_row.thick {
   border-top-width: 2px;
 }
 
-#nbwymacjcj .gt_last_summary_row {
+#hbssompfdt .gt_last_summary_row {
   padding-top: 8px;
   padding-bottom: 8px;
   padding-left: 5px;
@@ -3942,7 +4344,7 @@ The omitted variable, massage quality, did not change over time within city, whi
   border-bottom-color: #D3D3D3;
 }
 
-#nbwymacjcj .gt_grand_summary_row {
+#hbssompfdt .gt_grand_summary_row {
   color: #333333;
   background-color: #FFFFFF;
   text-transform: inherit;
@@ -3952,7 +4354,7 @@ The omitted variable, massage quality, did not change over time within city, whi
   padding-right: 5px;
 }
 
-#nbwymacjcj .gt_first_grand_summary_row {
+#hbssompfdt .gt_first_grand_summary_row {
   padding-top: 8px;
   padding-bottom: 8px;
   padding-left: 5px;
@@ -3962,7 +4364,7 @@ The omitted variable, massage quality, did not change over time within city, whi
   border-top-color: #D3D3D3;
 }
 
-#nbwymacjcj .gt_last_grand_summary_row_top {
+#hbssompfdt .gt_last_grand_summary_row_top {
   padding-top: 8px;
   padding-bottom: 8px;
   padding-left: 5px;
@@ -3972,11 +4374,11 @@ The omitted variable, massage quality, did not change over time within city, whi
   border-bottom-color: #D3D3D3;
 }
 
-#nbwymacjcj .gt_striped {
+#hbssompfdt .gt_striped {
   background-color: rgba(128, 128, 128, 0.05);
 }
 
-#nbwymacjcj .gt_table_body {
+#hbssompfdt .gt_table_body {
   border-top-style: solid;
   border-top-width: 2px;
   border-top-color: #D3D3D3;
@@ -3985,7 +4387,7 @@ The omitted variable, massage quality, did not change over time within city, whi
   border-bottom-color: #D3D3D3;
 }
 
-#nbwymacjcj .gt_footnotes {
+#hbssompfdt .gt_footnotes {
   color: #333333;
   background-color: #FFFFFF;
   border-bottom-style: none;
@@ -3999,7 +4401,7 @@ The omitted variable, massage quality, did not change over time within city, whi
   border-right-color: #D3D3D3;
 }
 
-#nbwymacjcj .gt_footnote {
+#hbssompfdt .gt_footnote {
   margin: 0px;
   font-size: 90%;
   padding-top: 4px;
@@ -4008,7 +4410,7 @@ The omitted variable, massage quality, did not change over time within city, whi
   padding-right: 5px;
 }
 
-#nbwymacjcj .gt_sourcenotes {
+#hbssompfdt .gt_sourcenotes {
   color: #333333;
   background-color: #FFFFFF;
   border-bottom-style: none;
@@ -4022,7 +4424,7 @@ The omitted variable, massage quality, did not change over time within city, whi
   border-right-color: #D3D3D3;
 }
 
-#nbwymacjcj .gt_sourcenote {
+#hbssompfdt .gt_sourcenote {
   font-size: 90%;
   padding-top: 4px;
   padding-bottom: 4px;
@@ -4030,72 +4432,72 @@ The omitted variable, massage quality, did not change over time within city, whi
   padding-right: 5px;
 }
 
-#nbwymacjcj .gt_left {
+#hbssompfdt .gt_left {
   text-align: left;
 }
 
-#nbwymacjcj .gt_center {
+#hbssompfdt .gt_center {
   text-align: center;
 }
 
-#nbwymacjcj .gt_right {
+#hbssompfdt .gt_right {
   text-align: right;
   font-variant-numeric: tabular-nums;
 }
 
-#nbwymacjcj .gt_font_normal {
+#hbssompfdt .gt_font_normal {
   font-weight: normal;
 }
 
-#nbwymacjcj .gt_font_bold {
+#hbssompfdt .gt_font_bold {
   font-weight: bold;
 }
 
-#nbwymacjcj .gt_font_italic {
+#hbssompfdt .gt_font_italic {
   font-style: italic;
 }
 
-#nbwymacjcj .gt_super {
+#hbssompfdt .gt_super {
   font-size: 65%;
 }
 
-#nbwymacjcj .gt_footnote_marks {
+#hbssompfdt .gt_footnote_marks {
   font-size: 75%;
   vertical-align: 0.4em;
   position: initial;
 }
 
-#nbwymacjcj .gt_asterisk {
+#hbssompfdt .gt_asterisk {
   font-size: 100%;
   vertical-align: 0;
 }
 
-#nbwymacjcj .gt_indent_1 {
+#hbssompfdt .gt_indent_1 {
   text-indent: 5px;
 }
 
-#nbwymacjcj .gt_indent_2 {
+#hbssompfdt .gt_indent_2 {
   text-indent: 10px;
 }
 
-#nbwymacjcj .gt_indent_3 {
+#hbssompfdt .gt_indent_3 {
   text-indent: 15px;
 }
 
-#nbwymacjcj .gt_indent_4 {
+#hbssompfdt .gt_indent_4 {
   text-indent: 20px;
 }
 
-#nbwymacjcj .gt_indent_5 {
+#hbssompfdt .gt_indent_5 {
   text-indent: 25px;
 }
 
-#nbwymacjcj .katex-display {
+#hbssompfdt .katex-display {
   display: inline-flex !important;
   margin-bottom: 0.75em !important;
 }
 
-#nbwymacjcj div.Reactable > div.rt-table > div.rt-thead > div.rt-tr.rt-tr-group-header > div.rt-th-group:after {
+#hbssompfdt div.Reactable > div.rt-table > div.rt-thead > div.rt-tr.rt-tr-group-header > div.rt-th-group:after {
   height: 0px !important;
 }
 </style>
@@ -4202,30 +4604,43 @@ The omitted variable, massage quality, did not change over time within city, whi
 </div>
 </div><!--end of the 1st column--><div class="column" style="width:30%;">
 <p><strong>Key</strong></p>
-<p>Variations in quality is eliminated after first differentiation!! (quality is controlled for)</p>
+<p>Variation in quality is eliminated after first differencing because quality is constant within each city.</p>
 </div><!--end of the 2nd column-->
 </div>
 <!--end of the columns-->
 </div>
 <div id="tabset-5-2">
+<details class="transcript">
+<summary>
+Lecturer transcript
+</summary>
+<p>The subscripts separate the city dimension i from the time dimension t. Subtract the period-one equation from the period-two equation. The intercept cancels because it is the same in both periods, and any time-invariant quality term cancels because its change is zero. What remains is a regression of changes. For beta one to have a causal interpretation, the change in price must still be unrelated to the change in the remaining error. A time-varying demand shock can violate that condition, so differencing solves a specific omitted-variable problem rather than all endogeneity.</p>
+</details>
 <p><strong>A new way of writing a model</strong></p>
-<p><span class="math inline">\(Q_{i,t}  = \beta_0 + \beta_1 P_{i,t} + v_{i,t} \;\; ( = \beta_2 Ql_{i,t} + u_{i,t})\)</span></p>
+<p><span class="math inline">Q_{i,t}=\beta_0+\beta_1P_{i,t}+\beta_2Ql_{i,t}+u_{i,t}</span></p>
 <ul>
 <li><code>i</code>: indicates city</li>
 <li><code>t</code>: indicates time</li>
 </ul>
 <p><br></p>
 <p><strong>First differencing</strong></p>
-<p><span class="math inline">\(Q_{i,1}  = \beta_0 + \beta_1 P_{i,1} + v_{i,1} \;\; ( = \beta_2 Ql_{i,1} + u_{i,1})\)</span></p>
-<p><span class="math inline">\(Q_{i,2}  = \beta_0 + \beta_1 P_{i,2} + v_{i,2} \;\; ( = \beta_2 Ql_{i,2} + u_{i,2})\)</span></p>
-<p><span class="math inline">\(\Rightarrow\)</span></p>
-<p><span class="math inline">\(\Delta Q  = \beta_1 \Delta P + \Delta v ( = \beta_2 \Delta Ql + \Delta u)\)</span></p>
+<p><span class="math inline">Q_{i,1}=\beta_0+\beta_1P_{i,1}+\beta_2Ql_{i,1}+u_{i,1}</span></p>
+<p><span class="math inline">Q_{i,2}=\beta_0+\beta_1P_{i,2}+\beta_2Ql_{i,2}+u_{i,2}</span></p>
+<p><span class="math inline">\Rightarrow</span></p>
+<p><span class="math inline">\Delta Q_i=\beta_1\Delta P_i+\beta_2\Delta Ql_i+\Delta u_i</span></p>
 <p><br></p>
 <p><strong>Endogeneity Problem?</strong></p>
-<p>Since <span class="math inline">\(Ql_{i,1} = Ql_{i,2}\)</span>, <span class="math inline">\(\Delta Ql = 0 \Rightarrow \Delta Q  = \beta_0 + \beta_1 \Delta P + \Delta u\)</span></p>
-<p>No endogeneity problem after first differentiation!</p>
+<p>Since <span class="math inline">Ql_{i,1}=Ql_{i,2}</span>, <span class="math inline">\Delta Ql_i=0</span>, so</p>
+<p><span class="math display">\Delta Q_i=\beta_1\Delta P_i+\Delta u_i.</span></p>
+<p>First differencing removes endogeneity caused by time-invariant massage quality. It does not remove endogeneity from time-varying omitted factors or reverse causality; we still need <span class="math inline">\Delta P_i</span> to be uncorrelated with <span class="math inline">\Delta u_i</span>.</p>
 </div>
 <div id="tabset-5-3">
+<details class="transcript inline">
+<summary>
+Lecturer transcript
+</summary>
+<p>The two regressions demonstrate the reversal. OLS in levels uses the mixture of between- and within-city variation and produces the positive cross-sectional relationship. The first-differenced regression keeps one change per city and produces the negative within-city relationship. With only four cities, this is an illustration rather than credible empirical evidence. Focus on why the coefficient changes: differencing removes the stable quality differences that drove the positive comparison across cities.</p>
+</details>
 <p><strong>Data</strong></p>
 <div id="qwebr-insertion-location-6"></div>
 <noscript>Please enable JavaScript to experience the dynamic code cell content on this page.</noscript>
@@ -4243,9 +4658,15 @@ The omitted variable, massage quality, did not change over time within city, whi
 <!--end of the columns-->
 </div>
 <div id="tabset-5-4">
+<details class="transcript">
+<summary>
+Lecturer transcript
+</summary>
+<p>The takeaway from the two-period example is narrow but powerful. When an omitted confounder is constant within a unit, comparing changes within the unit eliminates it. First differencing is one way to operationalize that comparison. It requires repeated observations on the same units, and it identifies the coefficient only from units whose explanatory variable changes. It does not solve confounding from factors that change over time, so the remaining change in the regressor still needs an exogeneity argument.</p>
+</details>
 <ul>
-<li><p>As long as the omitted variable that affects both the dependent and independent variables are constant over time (time-invariant), then using only the variations over time (ignoring variations across cross-sectional units) can eliminate the omitted variable bias</p></li>
-<li><p>First-differencing the data and then regressing changes on changes does the trick of ignoring variations across cross-sectional units</p></li>
+<li><p>When an omitted variable affecting both the dependent and independent variables is constant over time, using within-unit variation can eliminate the bias caused by that variable.</p></li>
+<li><p>First-differencing the data and regressing changes on changes removes between-unit variation.</p></li>
 <li><p>Of course, first-differencing is possible only because the same cross-sectional units are observed multiple times over time.</p></li>
 </ul>
 </div>
@@ -4256,37 +4677,43 @@ The omitted variable, massage quality, did not change over time within city, whi
 <section id="multi-year-general-panel-datasets" class="slide level2">
 <h2>Multi-year (general) panel datasets</h2>
 <div class="panel-tabset">
-<ul id="tabset-7" class="panel-tabset-tabby"><li><a data-tabby-default="" href="#tabset-7-1">deviation from the mean</a></li><li><a href="#tabset-7-2">Fixed Effects Regression</a></li></ul>
+<ul id="tabset-7" class="panel-tabset-tabby"><li><a data-tabby-default="" href="#tabset-7-1">Deviation from the mean</a></li><li><a href="#tabset-7-2">Fixed Effects Regression</a></li></ul>
 <div class="tab-content">
 <div id="tabset-7-1">
-<p><strong>within-transformation</strong></p>
+<details class="transcript inline">
+<summary>
+Lecturer transcript
+</summary>
+<p>With more than two periods, demeaning is a convenient way to isolate within-unit variation. For each city, compute its time average and subtract that average from every observation. A positive deviation means the variable is above that city’s usual level; a negative deviation means it is below. Because a time-invariant variable always equals its own time average, all of its deviations are zero. The highlighted columns show the transformed variables that feed the fixed-effects regression.</p>
+</details>
+<p><strong>Within transformation</strong></p>
 <ul>
 <li><p>If we have lots of years of data, we could, in principle, compute all of the first differences (i.e., 2004 versus 2003, 2005 versus 2004, etc.) and then run a single regression. But there is an easier way.</p></li>
 <li><p>Instead of thinking of each year’s observation in terms of how much it differs from the prior year for the same city, let’s think about how much each observation differs from the average for that city.</p></li>
 </ul>
 <p><strong>Example</strong></p>
-<p>How much each observation differs from the average for that city?</p>
+<p>How much does each observation differ from its city average?</p>
 <div id="qwebr-insertion-location-9"></div>
 <noscript>Please enable JavaScript to experience the dynamic code cell content on this page.</noscript>
 <div class="cell">
 <div class="cell-output-display">
-<div id="mquphzptti" style="padding-left:0px;padding-right:0px;padding-top:10px;padding-bottom:10px;overflow-x:auto;overflow-y:auto;width:auto;height:auto;">
-<style>#mquphzptti table {
+<div id="caphxrrgrp" style="padding-left:0px;padding-right:0px;padding-top:10px;padding-bottom:10px;overflow-x:auto;overflow-y:auto;width:auto;height:auto;">
+<style>#caphxrrgrp table {
   font-family: system-ui, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol', 'Noto Color Emoji';
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
 
-#mquphzptti thead, #mquphzptti tbody, #mquphzptti tfoot, #mquphzptti tr, #mquphzptti td, #mquphzptti th {
+#caphxrrgrp thead, #caphxrrgrp tbody, #caphxrrgrp tfoot, #caphxrrgrp tr, #caphxrrgrp td, #caphxrrgrp th {
   border-style: none;
 }
 
-#mquphzptti p {
+#caphxrrgrp p {
   margin: 0;
   padding: 0;
 }
 
-#mquphzptti .gt_table {
+#caphxrrgrp .gt_table {
   display: table;
   border-collapse: collapse;
   line-height: normal;
@@ -4312,12 +4739,12 @@ The omitted variable, massage quality, did not change over time within city, whi
   border-left-color: #D3D3D3;
 }
 
-#mquphzptti .gt_caption {
+#caphxrrgrp .gt_caption {
   padding-top: 4px;
   padding-bottom: 4px;
 }
 
-#mquphzptti .gt_title {
+#caphxrrgrp .gt_title {
   color: #333333;
   font-size: 125%;
   font-weight: initial;
@@ -4329,7 +4756,7 @@ The omitted variable, massage quality, did not change over time within city, whi
   border-bottom-width: 0;
 }
 
-#mquphzptti .gt_subtitle {
+#caphxrrgrp .gt_subtitle {
   color: #333333;
   font-size: 85%;
   font-weight: initial;
@@ -4341,7 +4768,7 @@ The omitted variable, massage quality, did not change over time within city, whi
   border-top-width: 0;
 }
 
-#mquphzptti .gt_heading {
+#caphxrrgrp .gt_heading {
   background-color: #FFFFFF;
   text-align: center;
   border-bottom-color: #FFFFFF;
@@ -4353,13 +4780,13 @@ The omitted variable, massage quality, did not change over time within city, whi
   border-right-color: #D3D3D3;
 }
 
-#mquphzptti .gt_bottom_border {
+#caphxrrgrp .gt_bottom_border {
   border-bottom-style: solid;
   border-bottom-width: 2px;
   border-bottom-color: #D3D3D3;
 }
 
-#mquphzptti .gt_col_headings {
+#caphxrrgrp .gt_col_headings {
   border-top-style: solid;
   border-top-width: 2px;
   border-top-color: #D3D3D3;
@@ -4374,7 +4801,7 @@ The omitted variable, massage quality, did not change over time within city, whi
   border-right-color: #D3D3D3;
 }
 
-#mquphzptti .gt_col_heading {
+#caphxrrgrp .gt_col_heading {
   color: #333333;
   background-color: #FFFFFF;
   font-size: 100%;
@@ -4394,7 +4821,7 @@ The omitted variable, massage quality, did not change over time within city, whi
   overflow-x: hidden;
 }
 
-#mquphzptti .gt_column_spanner_outer {
+#caphxrrgrp .gt_column_spanner_outer {
   color: #333333;
   background-color: #FFFFFF;
   font-size: 100%;
@@ -4406,15 +4833,15 @@ The omitted variable, massage quality, did not change over time within city, whi
   padding-right: 4px;
 }
 
-#mquphzptti .gt_column_spanner_outer:first-child {
+#caphxrrgrp .gt_column_spanner_outer:first-child {
   padding-left: 0;
 }
 
-#mquphzptti .gt_column_spanner_outer:last-child {
+#caphxrrgrp .gt_column_spanner_outer:last-child {
   padding-right: 0;
 }
 
-#mquphzptti .gt_column_spanner {
+#caphxrrgrp .gt_column_spanner {
   border-bottom-style: solid;
   border-bottom-width: 2px;
   border-bottom-color: #D3D3D3;
@@ -4426,11 +4853,11 @@ The omitted variable, massage quality, did not change over time within city, whi
   width: 100%;
 }
 
-#mquphzptti .gt_spanner_row {
+#caphxrrgrp .gt_spanner_row {
   border-bottom-style: hidden;
 }
 
-#mquphzptti .gt_group_heading {
+#caphxrrgrp .gt_group_heading {
   padding-top: 8px;
   padding-bottom: 8px;
   padding-left: 5px;
@@ -4456,7 +4883,7 @@ The omitted variable, massage quality, did not change over time within city, whi
   text-align: left;
 }
 
-#mquphzptti .gt_empty_group_heading {
+#caphxrrgrp .gt_empty_group_heading {
   padding: 0.5px;
   color: #333333;
   background-color: #FFFFFF;
@@ -4471,15 +4898,15 @@ The omitted variable, massage quality, did not change over time within city, whi
   vertical-align: middle;
 }
 
-#mquphzptti .gt_from_md > :first-child {
+#caphxrrgrp .gt_from_md > :first-child {
   margin-top: 0;
 }
 
-#mquphzptti .gt_from_md > :last-child {
+#caphxrrgrp .gt_from_md > :last-child {
   margin-bottom: 0;
 }
 
-#mquphzptti .gt_row {
+#caphxrrgrp .gt_row {
   padding-top: 8px;
   padding-bottom: 8px;
   padding-left: 5px;
@@ -4498,7 +4925,7 @@ The omitted variable, massage quality, did not change over time within city, whi
   overflow-x: hidden;
 }
 
-#mquphzptti .gt_stub {
+#caphxrrgrp .gt_stub {
   color: #333333;
   background-color: #FFFFFF;
   font-size: 100%;
@@ -4511,7 +4938,7 @@ The omitted variable, massage quality, did not change over time within city, whi
   padding-right: 5px;
 }
 
-#mquphzptti .gt_stub_row_group {
+#caphxrrgrp .gt_stub_row_group {
   color: #333333;
   background-color: #FFFFFF;
   font-size: 100%;
@@ -4525,15 +4952,15 @@ The omitted variable, massage quality, did not change over time within city, whi
   vertical-align: top;
 }
 
-#mquphzptti .gt_row_group_first td {
+#caphxrrgrp .gt_row_group_first td {
   border-top-width: 2px;
 }
 
-#mquphzptti .gt_row_group_first th {
+#caphxrrgrp .gt_row_group_first th {
   border-top-width: 2px;
 }
 
-#mquphzptti .gt_summary_row {
+#caphxrrgrp .gt_summary_row {
   color: #333333;
   background-color: #FFFFFF;
   text-transform: inherit;
@@ -4543,16 +4970,16 @@ The omitted variable, massage quality, did not change over time within city, whi
   padding-right: 5px;
 }
 
-#mquphzptti .gt_first_summary_row {
+#caphxrrgrp .gt_first_summary_row {
   border-top-style: solid;
   border-top-color: #D3D3D3;
 }
 
-#mquphzptti .gt_first_summary_row.thick {
+#caphxrrgrp .gt_first_summary_row.thick {
   border-top-width: 2px;
 }
 
-#mquphzptti .gt_last_summary_row {
+#caphxrrgrp .gt_last_summary_row {
   padding-top: 8px;
   padding-bottom: 8px;
   padding-left: 5px;
@@ -4562,7 +4989,7 @@ The omitted variable, massage quality, did not change over time within city, whi
   border-bottom-color: #D3D3D3;
 }
 
-#mquphzptti .gt_grand_summary_row {
+#caphxrrgrp .gt_grand_summary_row {
   color: #333333;
   background-color: #FFFFFF;
   text-transform: inherit;
@@ -4572,7 +4999,7 @@ The omitted variable, massage quality, did not change over time within city, whi
   padding-right: 5px;
 }
 
-#mquphzptti .gt_first_grand_summary_row {
+#caphxrrgrp .gt_first_grand_summary_row {
   padding-top: 8px;
   padding-bottom: 8px;
   padding-left: 5px;
@@ -4582,7 +5009,7 @@ The omitted variable, massage quality, did not change over time within city, whi
   border-top-color: #D3D3D3;
 }
 
-#mquphzptti .gt_last_grand_summary_row_top {
+#caphxrrgrp .gt_last_grand_summary_row_top {
   padding-top: 8px;
   padding-bottom: 8px;
   padding-left: 5px;
@@ -4592,11 +5019,11 @@ The omitted variable, massage quality, did not change over time within city, whi
   border-bottom-color: #D3D3D3;
 }
 
-#mquphzptti .gt_striped {
+#caphxrrgrp .gt_striped {
   background-color: rgba(128, 128, 128, 0.05);
 }
 
-#mquphzptti .gt_table_body {
+#caphxrrgrp .gt_table_body {
   border-top-style: solid;
   border-top-width: 2px;
   border-top-color: #D3D3D3;
@@ -4605,7 +5032,7 @@ The omitted variable, massage quality, did not change over time within city, whi
   border-bottom-color: #D3D3D3;
 }
 
-#mquphzptti .gt_footnotes {
+#caphxrrgrp .gt_footnotes {
   color: #333333;
   background-color: #FFFFFF;
   border-bottom-style: none;
@@ -4619,7 +5046,7 @@ The omitted variable, massage quality, did not change over time within city, whi
   border-right-color: #D3D3D3;
 }
 
-#mquphzptti .gt_footnote {
+#caphxrrgrp .gt_footnote {
   margin: 0px;
   font-size: 90%;
   padding-top: 4px;
@@ -4628,7 +5055,7 @@ The omitted variable, massage quality, did not change over time within city, whi
   padding-right: 5px;
 }
 
-#mquphzptti .gt_sourcenotes {
+#caphxrrgrp .gt_sourcenotes {
   color: #333333;
   background-color: #FFFFFF;
   border-bottom-style: none;
@@ -4642,7 +5069,7 @@ The omitted variable, massage quality, did not change over time within city, whi
   border-right-color: #D3D3D3;
 }
 
-#mquphzptti .gt_sourcenote {
+#caphxrrgrp .gt_sourcenote {
   font-size: 90%;
   padding-top: 4px;
   padding-bottom: 4px;
@@ -4650,72 +5077,72 @@ The omitted variable, massage quality, did not change over time within city, whi
   padding-right: 5px;
 }
 
-#mquphzptti .gt_left {
+#caphxrrgrp .gt_left {
   text-align: left;
 }
 
-#mquphzptti .gt_center {
+#caphxrrgrp .gt_center {
   text-align: center;
 }
 
-#mquphzptti .gt_right {
+#caphxrrgrp .gt_right {
   text-align: right;
   font-variant-numeric: tabular-nums;
 }
 
-#mquphzptti .gt_font_normal {
+#caphxrrgrp .gt_font_normal {
   font-weight: normal;
 }
 
-#mquphzptti .gt_font_bold {
+#caphxrrgrp .gt_font_bold {
   font-weight: bold;
 }
 
-#mquphzptti .gt_font_italic {
+#caphxrrgrp .gt_font_italic {
   font-style: italic;
 }
 
-#mquphzptti .gt_super {
+#caphxrrgrp .gt_super {
   font-size: 65%;
 }
 
-#mquphzptti .gt_footnote_marks {
+#caphxrrgrp .gt_footnote_marks {
   font-size: 75%;
   vertical-align: 0.4em;
   position: initial;
 }
 
-#mquphzptti .gt_asterisk {
+#caphxrrgrp .gt_asterisk {
   font-size: 100%;
   vertical-align: 0;
 }
 
-#mquphzptti .gt_indent_1 {
+#caphxrrgrp .gt_indent_1 {
   text-indent: 5px;
 }
 
-#mquphzptti .gt_indent_2 {
+#caphxrrgrp .gt_indent_2 {
   text-indent: 10px;
 }
 
-#mquphzptti .gt_indent_3 {
+#caphxrrgrp .gt_indent_3 {
   text-indent: 15px;
 }
 
-#mquphzptti .gt_indent_4 {
+#caphxrrgrp .gt_indent_4 {
   text-indent: 20px;
 }
 
-#mquphzptti .gt_indent_5 {
+#caphxrrgrp .gt_indent_5 {
   text-indent: 25px;
 }
 
-#mquphzptti .katex-display {
+#caphxrrgrp .katex-display {
   display: inline-flex !important;
   margin-bottom: 0.75em !important;
 }
 
-#mquphzptti div.Reactable > div.rt-table > div.rt-thead > div.rt-tr.rt-tr-group-header > div.rt-th-group:after {
+#caphxrrgrp div.Reactable > div.rt-table > div.rt-thead > div.rt-tr.rt-tr-group-header > div.rt-th-group:after {
   height: 0px !important;
 }
 </style>
@@ -4849,35 +5276,53 @@ The omitted variable, massage quality, did not change over time within city, whi
 </div>
 <p><br></p>
 <p><strong>Note</strong></p>
-<p>We call this data transformation <span style="color: red;"> within-transformation </span> or <span style="color: red;"> demeaning </span>.</p>
+<p>We call this transformation the <span style="color: red;">within transformation</span>, or <span style="color: red;">demeaning</span>.</p>
 </div>
 <div id="tabset-7-2">
 <div class="panel-tabset">
 <ul id="tabset-6" class="panel-tabset-tabby"><li><a data-tabby-default="" href="#tabset-6-1">Example</a></li><li><a href="#tabset-6-2">within-transformation</a></li><li><a href="#tabset-6-3">Endogeneity Problem?</a></li></ul>
 <div class="tab-content">
 <div id="tabset-6-1">
+<details class="transcript">
+<summary>
+Lecturer transcript
+</summary>
+<p>The fixed-effects regression uses the demeaned quantity and price variables. Quality has no remaining variation because each city’s quality is constant, so <code>Ql_dev</code> equals zero throughout. The price coefficient is estimated from whether quantity is unusually high or low when price is unusually high or low relative to the same city’s average. This is the multi-period version of comparing a city with itself.</p>
+</details>
 <p><strong>Model</strong></p>
 <ul>
 <li>Dependent variable: <code>Q_dev</code></li>
 <li>Independent variable: <code>P_dev</code></li>
 </ul>
 <p><strong>Key</strong></p>
-<p>In calculating <code>P_dev</code> (deviation from the mean by city), <code>Ql_dev</code> is eliminated.</p>
+<p>Because <code>Ql</code> is constant within each city, demeaning makes <code>Ql_dev</code> equal to zero.</p>
 </div>
 <div id="tabset-6-2">
-<p><span class="math inline">\(Q_{i,1}  = \beta_0 + \beta_1 P_{i,1} + v_{i,1} \;\; ( = \beta_2 Ql_{i,1} + u_{i,1})\)</span></p>
-<p><span class="math inline">\(Q_{i,2}  = \beta_0 + \beta_1 P_{i,2} + v_{i,2} \;\; ( = \beta_2 Ql_{i,2} + u_{i,2})\)</span></p>
-<p><span class="math inline">\(\vdots\)</span></p>
-<p><span class="math inline">\(Q_{i,T}  = \beta_0 + \beta_1 P_{i,T} + v_{i,T} \;\; ( = \beta_2 Ql_{i,T} + u_{i,T})\)</span></p>
-<p><span class="math inline">\(\Rightarrow\)</span></p>
-<p><span class="math inline">\(Q_{i,t} - \bar{Q_{i}}   = \beta_1 [P_{i,t} - \bar{P_{i}}] + [v_{i,t} - \bar{v_{i}}] ( = \beta_2 [Ql_{i,t} - \bar{Ql_{i}}] + [u_{i,t} - \bar{u_{i}}])\)</span></p>
+<details class="transcript">
+<summary>
+Lecturer transcript
+</summary>
+<p>Average the T equations for a city and subtract that average equation from each original equation. The intercept disappears, and every variable is expressed as a deviation from its city mean. The quality term is still shown at this stage so that we can see the algebra. In the next tab, its deviation becomes zero because quality is constant over time. The transformed disturbance is also demeaned, which is why the exogeneity condition for fixed effects must account for errors across all periods.</p>
+</details>
+<p><span class="math inline">Q_{i,1}=\beta_0+\beta_1P_{i,1}+\beta_2Ql_{i,1}+u_{i,1}</span></p>
+<p><span class="math inline">Q_{i,2}=\beta_0+\beta_1P_{i,2}+\beta_2Ql_{i,2}+u_{i,2}</span></p>
+<p><span class="math inline">\vdots</span></p>
+<p><span class="math inline">Q_{i,T}=\beta_0+\beta_1P_{i,T}+\beta_2Ql_{i,T}+u_{i,T}</span></p>
+<p><span class="math inline">\Rightarrow</span></p>
+<p><span class="math inline">Q_{i,t}-\bar Q_i=\beta_1(P_{i,t}-\bar P_i)+\beta_2(Ql_{i,t}-\overline{Ql}_i)+(u_{i,t}-\bar u_i)</span></p>
 </div>
 <div id="tabset-6-3">
-<p><span class="math inline">\(Ql_{i,1} = Ql_{i,2} = \dots = Ql_{i,T} = \bar{Ql_i}\)</span></p>
-<p><span class="math inline">\(\Rightarrow\)</span></p>
-<p><span class="math inline">\(Q_{i,t} - \bar{Q_{i}}   = \beta_1 [P_{i,t} - \bar{P_{i}}] + [u_{i,t} - \bar{u_{i}}]\)</span></p>
+<details class="transcript">
+<summary>
+Lecturer transcript
+</summary>
+<p>Since quality equals the same value in every period for a city, its time average is that same value. Subtracting the two gives zero, and the omitted quality effect vanishes from the transformed equation. Price may be correlated with the level of quality, but that between-city correlation is no longer used. Other endogeneity can survive. In particular, a temporary demand shock can affect both this period’s quantity and price, leaving transformed price correlated with the transformed error.</p>
+</details>
+<p><span class="math inline">Ql_{i,1}=Ql_{i,2}=\dots=Ql_{i,T}=\overline{Ql}_i</span></p>
+<p><span class="math inline">\Rightarrow</span></p>
+<p><span class="math inline">Q_{i,t}-\bar Q_i=\beta_1(P_{i,t}-\bar P_i)+(u_{i,t}-\bar u_i)</span></p>
 <p><br></p>
-<p>No endogeneity problem after the within-transformation because <span class="math inline">\(Ql\)</span> is gone.</p>
+<p>The within transformation removes the endogeneity caused by time-invariant <span class="math inline">Ql</span>. Other sources of endogeneity may remain.</p>
 </div>
 </div>
 </div>
@@ -4894,24 +5339,36 @@ The omitted variable, massage quality, did not change over time within city, whi
 <div class="tab-content">
 <div id="tabset-9-1">
 <p>Consider the following general model</p>
-<p><span class="math inline">\(y_{i,t}=\beta_1 x_{i,t} + \alpha_i + u_{i,t}\)</span></p>
+<p><span class="math inline">y_{i,t}=\beta_1 x_{i,t} + \alpha_i + u_{i,t}</span></p>
 <ul>
-<li><span class="math inline">\(\alpha_i\)</span>: the impact of time-invariant <span style="color: blue;"> unobserved </span> factor that is specific to <span class="math inline">\(i\)</span> (also termed <span style="color: blue;">individual fixed effect</span>)</li>
-<li><span class="math inline">\(\alpha_i\)</span> is thought to be correlated with <span class="math inline">\(x_{i,t}\)</span></li>
+<li><span class="math inline">\alpha_i</span>: the combined effect of time-invariant <span style="color: blue;">unobserved</span> factors specific to unit <span class="math inline">i</span> (the <span style="color: blue;">individual fixed effect</span>)</li>
+<li><span class="math inline">\alpha_i</span> may be correlated with <span class="math inline">x_{i,t}</span></li>
 </ul>
 <div class="panel-tabset">
-<ul id="tabset-8" class="panel-tabset-tabby"><li><a data-tabby-default="" href="#tabset-8-1">Find individual averages</a></li><li><a href="#tabset-8-2">within-transformation</a></li><li><a href="#tabset-8-3">Estimation of <span class="math inline">\(\beta\)</span>s</a></li></ul>
+<ul id="tabset-8" class="panel-tabset-tabby"><li><a data-tabby-default="" href="#tabset-8-1">Find individual averages</a></li><li><a href="#tabset-8-2">Within transformation</a></li><li><a href="#tabset-8-3">Estimation of <span class="math inline">\beta</span>s</a></li></ul>
 <div class="tab-content">
 <div id="tabset-8-1">
-<p>For each <span class="math inline">\(i\)</span>, average this equation over time, we get</p>
-<p><span class="math inline">\(\frac{\sum_{t=1}^T y_{i,t}}{T} = \frac{\sum_{t=1}^T x_{i,t}}{T} + \alpha_i  + \frac{\sum_{t=1}^T u_{i,t}}{T}\)</span></p>
-<p>We use <span class="math inline">\(\bar{z}_i\)</span> to indicate the average of <span class="math inline">\(\bar{z}_{i,t}\)</span> over time for individual <span class="math inline">\(i\)</span>. Using this notation,</p>
-<p><span class="math inline">\(\bar{y}_i = \bar{x}_i + \alpha_i  + \bar{u}_i\)</span></p>
-<p>Note that <span class="math inline">\(\frac{\sum_{t=1}^T \alpha_{i}}{T} = \alpha_i\)</span></p>
+<details class="transcript">
+<summary>
+Lecturer transcript
+</summary>
+<p>This is the general fixed-effects algebra. Alpha i collects all time-invariant characteristics of unit i, observed or unobserved. It can be correlated with x, which is exactly the correlation pooled OLS cannot tolerate. When we average the model over time, alpha i remains alpha i because the same value is repeated in every period. The bars denote unit-specific time averages; they are not averages across different individuals.</p>
+</details>
+<p>For each <span class="math inline">i</span>, averaging this equation over time gives</p>
+<p><span class="math inline">\frac{1}{T}\sum_{t=1}^T y_{i,t}=\beta_1\frac{1}{T}\sum_{t=1}^T x_{i,t}+\alpha_i+\frac{1}{T}\sum_{t=1}^T u_{i,t}</span></p>
+<p>We use <span class="math inline">\bar z_i</span> to denote the time average of <span class="math inline">z_{i,t}</span> for unit <span class="math inline">i</span>. Thus,</p>
+<p><span class="math inline">\bar y_i=\beta_1\bar x_i+\alpha_i+\bar u_i.</span></p>
+<p>Note that <span class="math inline">\frac{\sum_{t=1}^T \alpha_{i}}{T} = \alpha_i</span></p>
 </div>
 <div id="tabset-8-2">
+<details class="transcript">
+<summary>
+Lecturer transcript
+</summary>
+<p>Subtract the unit-average equation from the original observation. Alpha i minus itself is zero, so all stable unit characteristics are removed in one step. We do not estimate a separate coefficient for each unobserved characteristic and do not need to observe them. The transformation also removes every observed regressor that is constant within a unit. That is the cost of relying exclusively on within-unit variation.</p>
+</details>
 <p>Subtracting the equation of the average from the original model,</p>
-<p><span class="math inline">\((y_{i,t}-\bar{y}_i=\beta_1 (x_{i,t} -\bar{x}_i) + (u_{i,t} -\bar{u}_i) + a_i - a_i\)</span></p>
+<p><span class="math inline">y_{i,t}-\bar y_i=\beta_1(x_{i,t}-\bar x_i)+(u_{i,t}-\bar u_i)+\alpha_i-\alpha_i</span></p>
 <p><br></p>
 <div class="callout callout-important no-icon callout-titled callout-style-default">
 <div class="callout-body">
@@ -4919,40 +5376,61 @@ The omitted variable, massage quality, did not change over time within city, whi
 <p><strong>Important</strong></p>
 </div>
 <div class="callout-content">
-<p><span class="math inline">\(\alpha_i\)</span> is gone!</p>
+<p><span class="math inline">\alpha_i</span> is gone!</p>
 </div>
 </div>
 </div>
 </div>
 <div id="tabset-8-3">
-<p>We then regress <span class="math inline">\((y_{i,t}-\bar{y}_i)\)</span> on <span class="math inline">\((x_{i,t}-\bar{x}_i)\)</span> to estimate <span class="math inline">\(\beta_1\)</span>.</p>
+<details class="transcript">
+<summary>
+Lecturer transcript
+</summary>
+<p>After demeaning, estimate beta one by OLS using the transformed outcome and transformed regressor. The coefficient answers a within-unit question: when x differs from its usual value for a unit, how does y differ from its usual value? Units with no within variation in x provide no identifying information for beta one. Software performs this transformation efficiently, often without creating the demeaned variables explicitly.</p>
+</details>
+<p>We then regress <span class="math inline">(y_{i,t}-\bar{y}_i)</span> on <span class="math inline">(x_{i,t}-\bar{x}_i)</span> to estimate <span class="math inline">\beta_1</span>.</p>
 </div>
 </div>
 </div>
 <!--end of panel-->
 </div>
 <div id="tabset-9-2">
+<details class="transcript">
+<summary>
+Lecturer transcript
+</summary>
+<p>Removing alpha i is not the end of the identification argument. The demeaned regressor must be uncorrelated with the demeaned disturbance. A standard sufficient condition is strict exogeneity: every period’s error has conditional mean zero given the unit’s entire history of regressors and its fixed effect. This rules out contemporaneous confounding and also feedback from today’s shock to future x. For example, if an unexpected increase in y this year causes the unit to choose a different x next year, strict exogeneity fails even though x may be predetermined at the start of each period.</p>
+</details>
 <p>Here is the model after within-transformation:</p>
-<span class="math display">\[\begin{align*}
+<span class="math display">\begin{align*}
 y_{i,t}-\bar{y}_i=\beta_1 (x_{i,t} -\bar{x}_i) + (u_{i,t} -\bar{u}_i)
-\end{align*}\]</span>
+\end{align*}</span>
 <p>So,</p>
-<p><span class="math inline">\(x_{i,t} -\bar{x}_i\)</span> needs to be uncorrelated with <span class="math inline">\(u_{i,t} -\bar{u}_i\)</span>.</p>
+<p><span class="math inline">x_{i,t}-\bar x_i</span> must be uncorrelated with <span class="math inline">u_{i,t}-\bar u_i</span>.</p>
 <p><br></p>
+<div title="Strict exogeneity">
 <div class="callout callout-important no-icon callout-titled callout-style-default">
 <div class="callout-body">
 <div class="callout-title">
-<p><strong>Important</strong></p>
+<p><strong>Strict exogeneity</strong></p>
 </div>
 <div class="callout-content">
-<p>The above condition is satisfied if</p>
-<p><span class="math inline">\(E[u_{i,s}|x_{i,t}] = 0 \;\; ^\forall s, \;\; t, \;\;\mbox{and} \;\;j\)</span></p>
-<p>e.g., <span class="math inline">\(E[u_{i,1}|x_{i,4}]=0\)</span></p>
+<p>A sufficient condition is</p>
+<p><span class="math inline">E[u_{i,t}\mid x_{i,1},x_{i,2},\dots,x_{i,T},\alpha_i]=0
+\qquad\text{for every }t.</span></p>
+<p>Thus, regressors in any period must be unrelated to shocks in every period. For example, <span class="math inline">E[u_{i,1}\mid x_{i,4},\alpha_i]=0</span>.</p>
+</div>
 </div>
 </div>
 </div>
 </div>
 <div id="tabset-9-3">
+<details class="transcript">
+<summary>
+Lecturer transcript
+</summary>
+<p>This command estimates the demeaned massage equation directly. The input columns are already deviations, so no fixed-effects formula is needed here. The price coefficient matches the first-difference result in a two-period panel; with exactly two periods, demeaning and first differencing contain the same identifying information, differing only by scale. In applications, we generally let fixed-effects software operate on the original variables rather than constructing deviations ourselves.</p>
+</details>
 <p><strong>Fixed effects estimation</strong></p>
 <p>Regress within-transformed <code>Q</code> on within-transformed <code>P</code>:</p>
 <div id="qwebr-insertion-location-10"></div>
@@ -4962,16 +5440,22 @@ y_{i,t}-\bar{y}_i=\beta_1 (x_{i,t} -\bar{x}_i) + (u_{i,t} -\bar{u}_i)
 </div>
 <!--end of panel-->
 </section>
-<section id="an-alternative-way-to-view-the-fixed-effects-estimation-methods" class="slide level2">
-<h2>An alternative way to view the Fixed Effects estimation methods</h2>
+<section id="an-alternative-view-of-fixed-effects-estimation" class="slide level2">
+<h2>An alternative view of fixed-effects estimation</h2>
 <div class="panel-tabset">
 <ul id="tabset-11" class="panel-tabset-tabby"><li><a data-tabby-default="" href="#tabset-11-1">two equivalent models</a></li><li><a href="#tabset-11-2">Estimation with the alternative model</a></li><li><a href="#tabset-11-3">What does this tell us?</a></li></ul>
 <div class="tab-content">
 <div id="tabset-11-1">
+<details class="transcript">
+<summary>
+Lecturer transcript
+</summary>
+<p>There are two algebraically equivalent ways to remove unit-specific intercepts. The within estimator subtracts unit means. The least-squares dummy-variable estimator keeps the original data and gives each unit its own intercept through indicator variables. Both produce the same slope coefficients when specified consistently. Demeaning makes the source of variation transparent; dummy variables make the intercept differences explicit. Modern software can absorb fixed effects without literally adding thousands of dummy columns.</p>
+</details>
 <p><strong>Important</strong></p>
 <p>The two approaches below will result in the same coefficient estimates (mathematically identical).</p>
 <ul>
-<li>Running OLS on the within-tranformed (demeaned) data</li>
+<li>Running OLS on the within-transformed (demeaned) data</li>
 <li>Running OLS on the untransformed data but including the dummy variables for the individuals (city in our example)</li>
 </ul>
 </div>
@@ -4981,10 +5465,22 @@ y_{i,t}-\bar{y}_i=\beta_1 (x_{i,t} -\bar{x}_i) + (u_{i,t} -\bar{u}_i)
 <ul id="tabset-10" class="panel-tabset-tabby"><li><a data-tabby-default="" href="#tabset-10-1">Create dummy variables</a></li><li><a href="#tabset-10-2">Estimate with dummy variables</a></li></ul>
 <div class="tab-content">
 <div id="tabset-10-1">
+<details class="transcript">
+<summary>
+Lecturer transcript
+</summary>
+<p>With four cities and an overall intercept, we create only three city indicators. Chicago is the omitted reference category. Each included dummy allows its city’s intercept to differ from Chicago’s. Including all four indicators together with an intercept would create perfect multicollinearity, the dummy-variable trap. These indicators absorb any fixed city characteristic, not only the quality variable we happened to name.</p>
+</details>
 <div id="qwebr-insertion-location-11"></div>
 <noscript>Please enable JavaScript to experience the dynamic code cell content on this page.</noscript>
 </div>
 <div id="tabset-10-2">
+<details class="transcript">
+<summary>
+Lecturer transcript
+</summary>
+<p>The regression uses the original quantity and price levels plus the three city indicators. Compare the coefficient on price with the demeaned regression: it is exactly the same. The dummy coefficients themselves describe level differences relative to Chicago, but they are not our main target. Their role is to prevent stable cross-city differences from contributing to the estimated price slope.</p>
+</details>
 <div id="qwebr-insertion-location-12"></div>
 <noscript>Please enable JavaScript to experience the dynamic code cell content on this page.</noscript>
 <p><br></p>
@@ -4995,16 +5491,22 @@ y_{i,t}-\bar{y}_i=\beta_1 (x_{i,t} -\bar{x}_i) + (u_{i,t} -\bar{u}_i)
 <!--end of panel-->
 </div>
 <div id="tabset-11-3">
-<p>By including individual dummies (individual fixed effects), you are effectively eliminating the between (inter-city) variations and using only the clean within (within-city) variations for estimation.</p>
+<details class="transcript">
+<summary>
+Lecturer transcript
+</summary>
+<p>Fixed effects change the comparison behind a coefficient. City fixed effects eliminate comparisons between different cities’ average levels, so beta one is learned from price changes within the same city. Generalize that rule: firm fixed effects use within-firm variation, farmer fixed effects use within-farmer variation, and so on. This can be cleaner when stable differences confound the cross-section, but the correct fixed effect is dictated by the assignment mechanism and the level at which the troublesome unobservables operate.</p>
+</details>
+<p>By including individual dummies (individual fixed effects), you effectively remove between-city variation and estimate <span class="math inline">\beta_1</span> using within-city variation.</p>
 <p><br></p>
-<div title="Very Important">
+<div title="Very important">
 <div class="callout callout-note no-icon callout-titled callout-style-default">
 <div class="callout-body">
 <div class="callout-title">
-<p><strong>Very Important</strong></p>
+<p><strong>Very important</strong></p>
 </div>
 <div class="callout-content">
-<p>More generally, including dummy variables of a categorical variable (like city in the example above), eliminates the variations <span style="color: red;"> between </span> the elements of the category (e.g., different cities), and use only the variations <span style="color: blue;"> within </span> each of the element of the category.</p>
+<p>More generally, including fixed effects for a category (such as city) absorbs differences <span style="color: red;">between</span> its groups and identifies other coefficients from variation <span style="color: blue;">within</span> those groups.</p>
 </div>
 </div>
 </div>
@@ -5020,6 +5522,12 @@ y_{i,t}-\bar{y}_i=\beta_1 (x_{i,t} -\bar{x}_i) + (u_{i,t} -\bar{u}_i)
 <ul id="tabset-12" class="panel-tabset-tabby"><li><a data-tabby-default="" href="#tabset-12-1">How</a></li><li><a href="#tabset-12-2">Demonstration</a></li><li><a href="#tabset-12-3">Random Effects (RE) Model</a></li></ul>
 <div class="tab-content">
 <div id="tabset-12-1">
+<details class="transcript">
+<summary>
+Lecturer transcript
+</summary>
+<p>In practice, keep the variables in their original units and tell <code>feols</code> which fixed effect to absorb after the vertical bar. This reduces coding mistakes, handles many groups efficiently, and reports the model in a recognizable form. The slope regressors go before the bar; fixed-effect identifiers go after it. The software internally obtains the same within estimator we derived. We still need to choose fixed effects based on the research design rather than treating the formula as a mechanical recipe.</p>
+</details>
 <p><strong>Advice</strong></p>
 <ul>
 <li>Do not within-transform the data yourself and run a regression</li>
@@ -5035,11 +5543,17 @@ y_{i,t}-\bar{y}_i=\beta_1 (x_{i,t} -\bar{x}_i) + (u_{i,t} -\bar{u}_i)
 </div>
 <ul>
 <li><code>FE</code>: the name of the variable that identifies the cross-sectional units that are observed over time (<code>Location</code> in our example)</li>
-<li><code>dep_var</code>: (non-transformed) dependet variable</li>
+<li><code>dep_var</code>: untransformed dependent variable</li>
 <li><code>indep_vars</code>: list of (non-transformed) independent variables</li>
 </ul>
 </div>
 <div id="tabset-12-2">
+<details class="transcript inline">
+<summary>
+Lecturer transcript
+</summary>
+<p>Here the original two-period data go directly into <code>feols</code>, with <code>Location</code> specified as the fixed effect. The estimated coefficient on price agrees with both the manually demeaned and dummy-variable regressions. This equality is a useful diagnostic when learning the syntax. In a real dataset, also inspect how many observations and fixed-effect groups remain and whether the regressor has sufficient within-group variation.</p>
+</details>
 <p><strong>Data</strong></p>
 <div id="qwebr-insertion-location-13"></div>
 <noscript>Please enable JavaScript to experience the dynamic code cell content on this page.</noscript>
@@ -5049,16 +5563,22 @@ y_{i,t}-\bar{y}_i=\beta_1 (x_{i,t} -\bar{x}_i) + (u_{i,t} -\bar{u}_i)
 <noscript>Please enable JavaScript to experience the dynamic code cell content on this page.</noscript>
 </div>
 <div id="tabset-12-3">
+<details class="transcript">
+<summary>
+Lecturer transcript
+</summary>
+<p>Random effects retains both within- and between-unit information by imposing a stronger orthogonality assumption: the unit effect alpha i must be uncorrelated with the regressors in every period. If credible, RE can be more efficient and can estimate coefficients on variables that never change within a unit. If that assumption fails, standard RE is inconsistent, while FE can remain consistent under strict exogeneity. The choice should follow substantive knowledge about how x is assigned, not a preference for whichever estimator yields smaller standard errors.</p>
+</details>
 <p><strong>How is it different from the FE model?</strong></p>
 <ul>
-<li><p>Can be more efficient (lower variance) than FE under certain cases</p></li>
-<li><p>If <span class="math inline">\(\alpha_i\)</span> and independent variables are correlated, then RE estimators are biased</p></li>
-<li><p>Unless <span class="math inline">\(\alpha_i\)</span> and independent variables are not correlated (which does not hold most of the time unless you got data from controlled experiments), <span class="math inline">\(RE\)</span> is not an attractive option</p></li>
-<li><p>You almost never see this estimation method used in papers that use non-experimental data</p></li>
+<li><p>Random effects (RE) assumes <span class="math inline">\alpha_i</span> is uncorrelated with every explanatory variable in every period.</p></li>
+<li><p>Under that assumption, RE is consistent and can be more efficient than FE. It can also estimate coefficients on time-invariant regressors.</p></li>
+<li><p>If <span class="math inline">\alpha_i</span> is correlated with the explanatory variables, the standard RE estimator is inconsistent, whereas FE remains consistent under strict exogeneity.</p></li>
+<li><p>The choice between FE and RE should be based on the research design and the plausibility of the RE orthogonality assumption.</p></li>
 </ul>
 <p><br></p>
 <p><strong>Note</strong></p>
-<p>We do not cover this estimation method as you almost certainly would not use this estimation method.</p>
+<p>We do not develop RE estimation further in this lecture.</p>
 </div>
 </div>
 </div>
@@ -5070,12 +5590,18 @@ y_{i,t}-\bar{y}_i=\beta_1 (x_{i,t} -\bar{x}_i) + (u_{i,t} -\bar{u}_i)
 <ul id="tabset-14" class="panel-tabset-tabby"><li><a data-tabby-default="" href="#tabset-14-1">Avocado data</a></li><li><a href="#tabset-14-2">Observations</a></li><li><a href="#tabset-14-3">Endogeneity problem</a></li><li><a href="#tabset-14-4">Clean variations</a></li><li><a href="#tabset-14-5">What FE to include</a></li><li><a href="#tabset-14-6">Key message</a></li></ul>
 <div class="tab-content">
 <div id="tabset-14-1">
+<details class="transcript inline">
+<summary>
+Lecturer transcript
+</summary>
+<p>This application asks for the demand response to avocado price using weekly California data. The scatterplot is descriptive: it shows how total sales and average price move together, not yet a causal demand curve. Price is an equilibrium outcome determined jointly by supply and demand. Weather, promotions, supply disruptions, and demand shifts can move both variables. We therefore need to identify a subset of price variation that is plausibly unrelated to unobserved demand shocks.</p>
+</details>
 <div class="cell">
 <div class="cell-output-display">
 <div class="quarto-figure quarto-figure-center">
 <figure>
-<p><img data-src="10-panel_files/figure-revealjs/unnamed-chunk-9-1.png" width="4000"></p>
-<figcaption>Weekly Sales of Avocados in California, Jan 2015 - Match 2018</figcaption>
+<p><img data-src="10-panel_files/figure-revealjs/unnamed-chunk-9-1.png" width="2800"></p>
+<figcaption>Weekly sales of avocados in California, January 2015–March 2018</figcaption>
 </figure>
 </div>
 </div>
@@ -5085,6 +5611,12 @@ y_{i,t}-\bar{y}_i=\beta_1 (x_{i,t} -\bar{x}_i) + (u_{i,t} -\bar{u}_i)
 <p>You are interested in understanding the impact of avocado price on its consumption.</p>
 </div>
 <div id="tabset-14-2">
+<details class="transcript inline">
+<summary>
+Lecturer transcript
+</summary>
+<p>The raw relationship is negative, which is consistent with downward-sloping demand, but the sign alone does not establish causality. A supply increase can lower price and raise quantity, also producing a negative association. A positive demand shock can raise both price and sales. Because market price and quantity are jointly determined, reverse causality or simultaneity is the default concern. We need institutional knowledge about when and how prices are set before treating the fitted relationship as a demand effect.</p>
+</details>
 <div class="columns">
 <div class="column" style="width:30%;">
 <p><strong>Observations</strong></p>
@@ -5097,7 +5629,7 @@ y_{i,t}-\bar{y}_i=\beta_1 (x_{i,t} -\bar{x}_i) + (u_{i,t} -\bar{u}_i)
 </ul>
 <p><br></p>
 <p><strong>Question</strong></p>
-<p>If you just regress avocado sales on its price, is the estimation of the coefficient on the pirce unbiased?</p>
+<p>If you regress avocado sales on price, is the coefficient estimator necessarily unbiased?</p>
 <br>
 <details>
 <summary>
@@ -5127,22 +5659,34 @@ Answer
 <!--end of the columns-->
 </div>
 <div id="tabset-14-3">
+<details class="transcript">
+<summary>
+Lecturer transcript
+</summary>
+<p>The proposed timing rule is an identifying assumption, not a fact supplied by the data. Suppose suppliers set all weekly prices at the start of a month and do not revise them after seeing realized weekly demand. Then demand shocks later in that month cannot feed back into those planned prices. Month fixed effects remove all differences between months, leaving weekly price variation within a month. The design is credible only if planned within-month prices are also unrelated to other weekly demand shocks such as promotions or holidays.</p>
+</details>
 <p><strong>Problem</strong></p>
 <p>Reverse Causality: Price affects demand and demand affects price.</p>
 <p><br></p>
 <p><strong>contextual knowledge</strong></p>
-<p>Now, suppose you learned the following fact after studying the supply and purchasing mechanism on the avocado market:</p>
-<p><span style="color: blue;"> At the beginning of each month, avocado suppliers make a plan for what avocado prices will be each week in that month, and never change their plans until the next month. </span></p>
-<p>This means that within the same month changes in avocado price every week is not a function of how much avocado has been bought in the previous weeks, effectively breaking the causal effect of demand on price.</p>
-<p>So, our estimation strategy would be to just look at the variations in demand and price <span style="color: blue;"> within </span> individual months, but ignore variations in price <span style="color: blue;"> between</span> months.</p>
+<p>Now suppose that, after studying the supply and purchasing mechanism in the avocado market, you can credibly defend the following assumption:</p>
+<p><span style="color: blue;">At the beginning of each month, avocado suppliers set the price for each week of that month and do not revise those prices in response to realized weekly demand.</span></p>
+<p>Under this assumption, within-month weekly price changes do not respond to realized weekly demand shocks. This breaks the reverse-causality channel within a month, provided the planned prices are also unrelated to other within-month demand shocks.</p>
+<p>The proposed strategy therefore uses variation in demand and price <span style="color: blue;">within</span> months while absorbing variation <span style="color: blue;">between</span> months.</p>
 </div>
 <div id="tabset-14-4">
-<p>The figure below presents avocado sales and price of avocado in March, 2015. This is an example of clean variations in price (intra-month observations).</p>
+<details class="transcript inline">
+<summary>
+Lecturer transcript
+</summary>
+<p>The March 2015 points illustrate the variation that would remain after adding month-by-year fixed effects. We compare weeks within this single pricing period rather than March with February or with March in another year. Under the hypothetical price-setting rule, these movements are candidate exogenous price variation. The graph cannot verify the assumption; it only helps us see which observations make the comparison. Credibility comes from evidence about the pricing mechanism and the absence of correlated within-month demand shocks.</p>
+</details>
+<p>The figure below presents avocado sales and prices in March 2015. Under the stated timing assumption, these within-month price changes are candidate identifying variation.</p>
 <div class="cell">
 <div class="cell-output-display">
 <div>
 <figure>
-<p><img data-src="10-panel_files/figure-revealjs/unnamed-chunk-11-1.png" width="4000"></p>
+<p><img data-src="10-panel_files/figure-revealjs/unnamed-chunk-11-1.png" width="2800"></p>
 </figure>
 </div>
 </div>
@@ -5153,6 +5697,12 @@ Answer
 <ul id="tabset-13" class="panel-tabset-tabby"><li><a data-tabby-default="" href="#tabset-13-1">Case 1</a></li><li><a href="#tabset-13-2">Case 2</a></li></ul>
 <div class="tab-content">
 <div id="tabset-13-1">
+<details class="transcript">
+<summary>
+Lecturer transcript
+</summary>
+<p>With three months of weekly observations, include an indicator for each month, omitting one reference group. This absorbs every factor that is constant within a month but differs across the three months. The price coefficient is then estimated from week-to-week price variation inside each month. The answer follows the assumed timing of price assignment: the fixed-effect group should match the period over which common confounders and the pricing plan are shared.</p>
+</details>
 <p>We have three months of avocado purchase and price observed weekly.</p>
 <p><br></p>
 <p><strong>Question</strong></p>
@@ -5166,6 +5716,12 @@ Include month dummy variables.
 </details>
 </div>
 <div id="tabset-13-2">
+<details class="transcript">
+<summary>
+Lecturer transcript
+</summary>
+<p>Over two years, month-of-year indicators are not enough. A January dummy would group January 2015 with January 2016 and allow the regression to use their between-year difference. The design calls for a separate fixed effect for each calendar month-year, such as January 2015, February 2015, and January 2016. That specification keeps only weekly deviations within the same month-year and matches the hypothetical monthly price-setting rule.</p>
+</details>
 <p>We have two years of avocado purchase and price observed weekly.</p>
 <p><br></p>
 <p><strong>Question</strong></p>
@@ -5177,7 +5733,7 @@ Answer
 </summary>
 <ul>
 <li><p>Include <span style="color: blue;"> month-year </span> dummy variables.</p></li>
-<li><p>Including <span style="color: blue;"> month </span> dummy variables will not do it. Because the observations in the same month in two different years are considered to belong to the same group. That is, variations between two different years of the same month will be used for estimation. (e.g., January in 2014 and January in 2015)</p></li>
+<li><p>Month-of-year dummies alone are insufficient because, for example, January 2014 and January 2015 would belong to the same group. The regression would still use variation between those two month-years.</p></li>
 </ul>
 </details>
 </div>
@@ -5186,11 +5742,17 @@ Answer
 <!--end of panel-->
 </div>
 <div id="tabset-14-6">
+<details class="transcript">
+<summary>
+Lecturer transcript
+</summary>
+<p>Fixed effects are not a substitute for understanding the market. The raw price-sales relationship mixes many sources of variation, some endogenous. Contextual knowledge suggests which comparisons might be cleaner, and fixed effects let us isolate those comparisons. In this illustration, the pricing rule is hypothetical; an actual study would need evidence that prices were set in advance and that no other within-month shocks jointly affected planned price and demand. The general workflow is mechanism first, specification second.</p>
+</details>
 <p><strong>Message 1</strong></p>
-<p>By understanding the data generating process (knowing how any economic market works), we recognize the problem of simply looking at the relationship between the avocado price and demand to conclude the causal impact of price on demand (reverse causality).</p>
+<p>Understanding the data-generating process reveals why the raw relationship between avocado price and sales need not identify the causal effect of price on demand.</p>
 <p><br></p>
 <p><strong>Message 2</strong></p>
-<p>We study the context very well and how the avocado market works in California (of course it is not really how CA avocado market works in reality) and make use of the information to identify the “clean” variations in avocado price to identify its impact on demand.</p>
+<p>A credible causal design requires contextual knowledge that identifies which price variation is plausibly unrelated to unobserved demand shocks. The pricing rule here is hypothetical and is used only to illustrate that logic.</p>
 </div>
 </div>
 </div>
@@ -5202,45 +5764,69 @@ Answer
 <ul id="tabset-15" class="panel-tabset-tabby"><li><a data-tabby-default="" href="#tabset-15-1">What is it?</a></li><li><a href="#tabset-15-2">What do year FEs do?</a></li><li><a href="#tabset-15-3">Recommendation</a></li><li><a href="#tabset-15-4">R implementation</a></li></ul>
 <div class="tab-content">
 <div id="tabset-15-1">
-<p>Just a collection of year dummies, which takes 1 if in a specific year, 0 otherwise.</p>
+<details class="transcript inline">
+<summary>
+Lecturer transcript
+</summary>
+<p>Year fixed effects are indicators shared by every observation in a calendar year. The toy table makes the pattern visible: all four units have <code>FE_2015</code> equal to one in 2015, and so forth. With an intercept, one year is omitted as the reference. Do not confuse year fixed effects with unit fixed effects. Unit effects compare an observation with the same unit’s average; year effects remove shocks common to all units at a date.</p>
+</details>
+<p>A set of year indicators, each equal to 1 in a particular year and 0 otherwise.</p>
 <div id="qwebr-insertion-location-15"></div>
 <noscript>Please enable JavaScript to experience the dynamic code cell content on this page.</noscript>
 </div>
 <div id="tabset-15-2">
-<p>They capture anything that happened to <span style="color: red;"> all </span> the individuals for a specific year relative to the base year</p>
+<details class="transcript">
+<summary>
+Lecturer transcript
+</summary>
+<p>A year coefficient captures a common shift relative to the omitted year, holding the included covariates and other fixed effects constant. In the log-income example, sigma one compares 2012 with the 2014 base year. A coefficient of 0.05 is approximately a five-percent difference; exponentiating gives the exact 5.13 percent. Year effects can absorb recessions, inflation, nationwide policy, or other aggregate shocks, but they do not absorb shocks that vary differently across units within the same year.</p>
+</details>
+<p>They absorb shocks common to <span style="color: red;">all</span> units in a particular year, measured relative to an omitted base year.</p>
 <p><br></p>
 <p><strong>Example</strong></p>
-<p>Education and wage data from <span class="math inline">\(2012\)</span> to <span class="math inline">\(2014\)</span>,</p>
-<p><span class="math inline">\(log(income) = \beta_0 + \beta_1 educ + \beta_2 exper  + \sigma_1 FE_{2012} + \sigma_2 FE_{2013}\)</span></p>
+<p>Education and wage data from <span class="math inline">2012</span> to <span class="math inline">2014</span>,</p>
+<p><span class="math inline">\log(income) = \beta_0 + \beta_1 educ + \beta_2 exper + \sigma_1 FE_{2012} + \sigma_2 FE_{2013}</span></p>
 <ul>
-<li><p><span class="math inline">\(\sigma_1\)</span>: captures the difference in <span class="math inline">\(log(income)\)</span> between <span class="math inline">\(2012\)</span> and <span class="math inline">\(2014\)</span> (base year)</p></li>
-<li><p><span class="math inline">\(\sigma_2\)</span>: captures the difference in <span class="math inline">\(log(income)\)</span> between <span class="math inline">\(2013\)</span> and <span class="math inline">\(2014\)</span> (base year)</p></li>
+<li><p><span class="math inline">\sigma_1</span>: captures the difference in <span class="math inline">\log(income)</span> between <span class="math inline">2012</span> and <span class="math inline">2014</span> (the base year)</p></li>
+<li><p><span class="math inline">\sigma_2</span>: captures the difference in <span class="math inline">\log(income)</span> between <span class="math inline">2013</span> and <span class="math inline">2014</span> (the base year)</p></li>
 </ul>
 <p><br></p>
 <p><strong>Interpretation</strong></p>
-<p><span class="math inline">\(\sigma_1=0.05\)</span> would mean that <span class="math inline">\(log(income)\)</span> is greater in <span class="math inline">\(2012\)</span> than <span class="math inline">\(2014\)</span> by <span class="math inline">\(5\%\)</span> on average for whatever reasons with everything else fixed.</p>
+<p><span class="math inline">\sigma_1=0.05</span> means that, holding the included covariates fixed, expected income in 2012 is approximately <span class="math inline">5\%</span> higher than in 2014. The exact percentage is <span class="math inline">100[\exp(0.05)-1]\approx5.13\%</span>.</p>
 </div>
 <div id="tabset-15-3">
+<details class="transcript">
+<summary>
+Lecturer transcript
+</summary>
+<p>Annual panels often include year effects because trending regressors can otherwise pick up a common economic trend. If education rises over time while the entire economy also raises incomes, a regression without year effects may attribute part of that aggregate growth to education. Adding year effects removes the common year component. It is a sensible default when such shocks are plausible, but it is not costless: a variable that takes the same value for everyone in a year is perfectly collinear with the year indicators.</p>
+</details>
 <p><strong>Recommendation</strong></p>
-<p>It is almost always a good practice to include year FEs if you are using a panel dataset with annual observations.</p>
+<p>Including year fixed effects is often a sensible default in annual panel data when common year shocks could confound the relationship of interest.</p>
 <p><br></p>
 <p><strong>Why?</strong></p>
 <ul>
-<li><p>Remember year FEs capture <span style="color: blue;">anything</span> that happened to all the individuals for a specific year relative to the base year</p></li>
-<li><p>In other words, <span style="color: blue;">all the unobserved factors</span> that are common to all the individuals in a specific year is <span style="color: blue;">controlled for (taken out of the error term)</span></p></li>
+<li><p>Year fixed effects absorb aggregate shocks shared by all units in a given year, relative to the base year.</p></li>
+<li><p>Thus, <span style="color: blue;">unobserved factors common to all units</span> in a particular year are removed from the error term.</p></li>
 </ul>
 <p><br></p>
 <p><strong>Example</strong></p>
 <p>Economic trend in:</p>
-<p><span class="math inline">\(log(income) =  \beta_0 + \beta_1 educ + \sigma_1 FE_{2012} + \sigma_2 FE_{2013}\)</span></p>
+<p><span class="math inline">\log(income) = \beta_0 + \beta_1 educ + \sigma_1 FE_{2012} + \sigma_2 FE_{2013}</span></p>
 <ul>
 <li><p>Education is non-decreasing through time</p></li>
 <li><p>Economy might have either been going down or up during the observed period</p></li>
 </ul>
-<p>Without year FE, <span class="math inline">\(\beta_1\)</span> may capture the impact of overall economic trend.</p>
+<p>Without year fixed effects, <span class="math inline">\beta_1</span> may partly capture the overall economic trend.</p>
 </div>
 <div id="tabset-15-4">
-<p>In order to include year FEs to individual FEs, you can simply add the variable that indicates year like below:</p>
+<details class="transcript">
+<summary>
+Lecturer transcript
+</summary>
+<p>The fixed-effects portion after the vertical bar can contain multiple dimensions. <code>id + year</code> absorbs both stable person differences and common year shocks. The education coefficient is then identified from education changes within a person after netting out the average movement in each year. The caveat explains an identification limit: with a full set of year effects, a national variable that changes only by year has no independent variation left. Dropping year effects just to recover its coefficient may reintroduce aggregate confounding.</p>
+</details>
+<p>To include year fixed effects alongside individual fixed effects, add the year variable to the fixed-effects portion of the formula:</p>
 <div id="qwebr-insertion-location-16"></div>
 <noscript>Please enable JavaScript to experience the dynamic code cell content on this page.</noscript>
 <div title="Caveats">
@@ -5251,8 +5837,8 @@ Answer
 </div>
 <div class="callout-content">
 <ul>
-<li><p>Year FEs would be perfectly collinear with variables that change only across time, but not across individuals.</p></li>
-<li><p>If your variable of interest is such a variable, you cannot include year FEs, which would then make your estimation subject to omitted variable bias due to <span style="color: blue;">other</span> unobserved yearly-changing factors.</p></li>
+<li><p>Year fixed effects are perfectly collinear with variables that vary only over time and not across units.</p></li>
+<li><p>Consequently, a coefficient on a time-only variable cannot be estimated separately from a full set of year effects. Identifying it requires a different source of variation or additional structure; simply omitting year effects may introduce confounding from other aggregate shocks.</p></li>
 </ul>
 </div>
 </div>
@@ -5266,19 +5852,31 @@ Answer
 <section id="standard-error-estimation-for-panel-data-methods" class="slide level2">
 <h2>Standard Error Estimation for Panel Data Methods</h2>
 <div class="panel-tabset">
-<ul id="tabset-16" class="panel-tabset-tabby"><li><a data-tabby-default="" href="#tabset-16-1">non-homegeneous error</a></li><li><a href="#tabset-16-2">Consequences?</a></li><li><a href="#tabset-16-3">What to do and R implementation</a></li></ul>
+<ul id="tabset-16" class="panel-tabset-tabby"><li><a data-tabby-default="" href="#tabset-16-1">Dependence and heteroskedasticity</a></li><li><a href="#tabset-16-2">Consequences?</a></li><li><a href="#tabset-16-3">What to do and R implementation</a></li></ul>
 <div class="tab-content">
 <div id="tabset-16-1">
+<details class="transcript">
+<summary>
+Lecturer transcript
+</summary>
+<p>Panel observations for the same unit are usually not independent. An unobserved shock can persist, making this year’s error related to next year’s error for the same person, firm, or state. This is serial correlation. Error variance can also differ across units or time. Fixed effects address certain omitted variables in the conditional mean; they do not automatically make the errors homoskedastic or independent. Standard-error estimation must reflect the dependence structure separately from coefficient estimation.</p>
+</details>
 <p><strong>Heteroskedasticity</strong></p>
-<p>Just like we saw for OLS using cross-sectional data, heteroskedasticity leads to biased estimation of the standard error of the coefficient estimators if not taken into account</p>
+<p>As with cross-sectional OLS, ignoring heteroskedasticity generally produces inconsistent standard-error estimates.</p>
 <p><br></p>
 <p><strong>Serial Correlation</strong></p>
-<p>Correlation of errors over time, which we call <span style="color: blue;">serial correlation</span></p>
+<p>Errors for the same unit may be correlated over time; this is called <span style="color: blue;">serial correlation</span>.</p>
 </div>
 <div id="tabset-16-2">
+<details class="transcript">
+<summary>
+Lecturer transcript
+</summary>
+<p>If the exogeneity assumptions hold, serial correlation does not by itself bias the fixed-effects slope, but conventional standard errors can be badly wrong. Persistent treatments and outcomes make the problem especially severe because repeated observations from one unit contain less independent information than ordinary formulas assume. The Bertrand, Duflo, and Mullainathan placebo exercise makes the stakes concrete: a nominal five-percent procedure rejected far too often when grouped dependence was ignored. The lesson is to align inference with the level at which shocks are correlated.</p>
+</details>
 <ul>
-<li><p>just like heteroskedasticity, serial correlation could lead to biased estimation of the standard error of the coefficient estimators if not taken into account</p></li>
-<li><p>do not affect the unbiasedness and consistency property of your estimators</p></li>
+<li><p>Like heteroskedasticity, unmodeled serial correlation generally makes conventional standard errors inconsistent.</p></li>
+<li><p>Serial correlation alone does not bias the FE coefficient estimator when the required exogeneity assumptions hold, but it does affect efficiency and inference.</p></li>
 </ul>
 <div class="callout callout-important no-icon callout-titled callout-style-default">
 <div class="callout-body">
@@ -5287,34 +5885,41 @@ Answer
 </div>
 <div class="callout-content">
 <ul>
-<li><p>Taking into account the potential of serial correlation when estimating the standard error of the coefficient estimators can dramatically change your conclusions about the statistical significance of some independent variables!!</p></li>
-<li><p>When serial correlation is ignored, you tend to underestimate the standard error (why?), inflating <span class="math inline">\(t\)</span>-statistic, which in turn leads to over-rejection that you should.</p></li>
+<li><p>Accounting for serial correlation can substantially change conclusions about statistical significance.</p></li>
+<li><p>With persistent outcomes and treatments, ignoring positive serial correlation often understates standard errors, inflates t-statistics, and causes excessive rejection of true null hypotheses.</p></li>
 </ul>
-<p><strong>Bertrand, Duflo, and Mullainathan (2004)</strong></p>
+<p><strong><a href="https://www.nber.org/papers/w8841">Bertrand, Duflo, and Mullainathan (2004)</a></strong></p>
 <ul>
-<li><p>Examined how problematic serial correlation is in terms of inference via Monte Carlo simulation</p>
+<li><p>Examined inference problems using placebo-law simulations in Current Population Survey data on women’s wages.</p>
 <ul>
-<li><p>generate a fake treatment dummy variable in a way that it has no impact on the outcome (dependent variable) in the dataset of women’s wages from the Current Population Survey (CPS)</p></li>
-<li><p>run regression of the oucome on the treatment variable</p></li>
-<li><p>test if the treatment variable has statistically significant effect via <span class="math inline">\(t\)</span>-test</p></li>
+<li><p>Randomly generate placebo treatment laws that have no true effect.</p></li>
+<li><p>Regress the outcome on the placebo treatment and controls.</p></li>
+<li><p>Test whether the placebo treatment appears statistically significant.</p></li>
 </ul></li>
-<li><p>They rejected the null <span class="math inline">\(67.5\%\)</span> at the <span class="math inline">\(5\%\)</span> significance level!!</p></li>
+<li><p>In their baseline CPS microdata specification without correction for grouped errors, they rejected the null in <span class="math inline">67.5\%</span> of simulations using a nominal <span class="math inline">5\%</span> test.</p></li>
 </ul>
 </div>
 </div>
 </div>
 </div>
 <div id="tabset-16-3">
+<details class="transcript">
+<summary>
+Lecturer transcript
+</summary>
+<p>Clustering by unit allows arbitrary heteroskedasticity and serial correlation within each unit while relying on independence across units and a sufficiently large number of clusters. In <code>feols</code>, <code>cluster = ~id</code> requests that estimator. Clustering is not a universal correction: it does not handle common shocks across units, and conventional cluster approximations can perform poorly with few clusters. This example has only four people, so the command teaches syntax, not defensible inference. In an application, justify the cluster level from the error-generating and treatment-assignment processes.</p>
+</details>
 <p><strong>SE robust to heteroskedasticity and serial correlation</strong></p>
 <ul>
-<li><p>You can take into account <span style="color: blue;"> both </span> heteroskedasticity and serial correlation by clustering by individual (whatever the unit of individual is: state, county, farmer)</p></li>
-<li><p>Cluster by individual can take into account the correlation within individuals (over time)</p></li>
+<li><p>With many independent units, clustering by unit (e.g., state, county, or farmer) allows arbitrary heteroskedasticity and within-unit serial correlation.</p></li>
+<li><p>Unit-clustered standard errors do not address dependence across units, and conventional cluster asymptotics can be unreliable with few clusters.</p></li>
 </ul>
 <p><br></p>
 <p><strong>R implementation</strong></p>
-<p>The last partition is used for clustering standard error estimation by variable like below.</p>
+<p>The <code>cluster</code> argument specifies the clustering variable:</p>
 <div id="qwebr-insertion-location-17"></div>
 <noscript>Please enable JavaScript to experience the dynamic code cell content on this page.</noscript>
+<p>This toy dataset has only four clusters, so the output illustrates syntax rather than reliable cluster-based inference.</p>
 </div>
 </div>
 </div>
@@ -5342,7 +5947,6 @@ Answer
   <script src="../../site_libs/revealjs/plugin/notes/notes.js"></script>
   <script src="../../site_libs/revealjs/plugin/search/search.js"></script>
   <script src="../../site_libs/revealjs/plugin/zoom/zoom.js"></script>
-  <script src="../../site_libs/revealjs/plugin/math/math.js"></script>
   <script>window.define = window.backupDefine; window.backupDefine = undefined;</script>
 
   <script>
@@ -5510,27 +6114,9 @@ Answer
         // Factor of the display size that should remain empty around the content
         margin: 0.1,
 
-        math: {
-          mathjax: 'https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.9/MathJax.js',
-          config: 'TeX-AMS_HTML-full',
-          tex2jax: {
-            inlineMath: [['\\(','\\)']],
-            displayMath: [['\\[','\\]']],
-            balanceBraces: true,
-            processEscapes: false,
-            processRefs: true,
-            processEnvironments: true,
-            preview: 'TeX',
-            skipTags: ['script','noscript','style','textarea','pre','code'],
-            ignoreClass: 'tex2jax_ignore',
-            processClass: 'tex2jax_process'
-          },
-        },
-
         // reveal.js plugins
         plugins: [QuartoLineHighlight, PdfExport, RevealMenu, QuartoSupport,
 
-          RevealMath,
           RevealNotes,
           RevealSearch,
           RevealZoom

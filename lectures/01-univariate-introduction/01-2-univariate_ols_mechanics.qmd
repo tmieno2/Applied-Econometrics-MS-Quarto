@@ -1,7 +1,8 @@
 ---
 title: "01-2: Univariate Regression: OLS Mechanics and Implementation"
 format: 
-  revealjs: 
+  revealjs:
+    html-math-method: katex
     theme: [default, ../custom.scss, ../notebook.scss]
     fontsize: 1.2em
     callout-icon: false
@@ -9,14 +10,22 @@ format:
     echo: true
     fig-dpi: 400
     footer: "[back to course website with lecture slides](https://tmieno2.github.io/Applied-Econometrics-MS-Quarto/lectures/)"
-    include-in-header: ../transcript-support.html
+    include-in-header:
+      - ../transcript-support.html
+      - ../webr-layout.html
 webr:
   packages: ['AER', 'fixest', 'dplyr', 'data.table', 'ggplot2']
   cell-options:
     editor-font-scale: 0.8
     message: false
     warning: false
-    out-width: 80%
+    # webr renders plots to a canvas of fig-width x fig-height inches at `dpi`.
+    # The extension defaults (7x5 at 72dpi = 504x360px) were being blown up to
+    # 80% of the slide, which made the figures both oversized and soft.
+    dpi: 216
+    fig-width: 7
+    fig-height: 4.5
+    out-width: 55%
 filters:
   - webr
 ---
@@ -49,12 +58,12 @@ uni_reg <- feols(price ~ lotsize, data = HousePrices)
 data(HousePrices, package = "AER")
 
 theme_lecture <-
-  theme_bw() +
+  theme_bw(base_size = 30) +
   theme(
-    axis.text = element_text(size = 20),
-    axis.title = element_text(size = 20),
-    legend.text = element_text(size = 16),
-    legend.title = element_text(size = 16)
+    axis.text = element_text(size = 30),
+    axis.title = element_text(size = 30),
+    legend.text = element_text(size = 27),
+    legend.title = element_text(size = 27)
   )
 ```
 
@@ -94,9 +103,11 @@ Estimate the impact of lot size on house price
 <details class="transcript">
 <summary>Lecturer transcript</summary>
 
-Here is the code that gets you the data, and this is a live R session running inside your browser, so you can edit it and press run. We load the AER package, which is where the HousePrices data lives, then call data to bring it into memory, then look at the first few rows with head. Do run it yourself rather than just reading it. The first time you press run it takes a moment, because R itself is downloading into the tab. And look at what comes back: there are twelve columns, and we are about to use exactly two of them.
+Here is the code that gets you the data, and this is a live R session running inside your browser, so you can edit it and press run. We load the AER package, which is where the HousePrices data lives, then call data to bring it into memory. The dataset has twelve columns, but the final line selects and previews only the two we use in this lecture: price and lot size. Do run it yourself rather than just reading it. The first time you press run it takes a moment, because R itself is downloading into the tab.
 
 </details>
+
+::: {.side-out}
 
 ```{webr-r}
 #| autorun: true
@@ -107,9 +118,11 @@ library(AER) # load the AER package
 #--- load the HousePrices data set ---#
 data(HousePrices) # load
 
-#--- take a look ---#
-head(HousePrices[, 1:10])
+#--- inspect the two variables used in this lecture ---#
+head(HousePrices[, c("price", "lotsize")])
 ```
+
+:::
 
 ### Data visualization
 
@@ -120,9 +133,10 @@ Before you estimate anything, look at your data. This is house price up the vert
 
 </details>
 
+::: {.side-out}
+
 ```{webr-r}
 #| context: output
-#| out-width: 80%
 g_hp <-
   ggplot(data = HousePrices) +
   geom_point(aes(y = price, x = lotsize), size = 0.6) +
@@ -132,6 +146,8 @@ g_hp <-
 
 g_hp
 ```
+
+:::
 
 :::
 <!--end of panel-->
@@ -153,10 +169,14 @@ So here is the goal as a picture. We want to draw a line like this one through t
 + We want to draw a line like this, the slope of which is an estimate of $\beta_1$
 + A way: Ordinary Least Squares (OLS)
 
+::: {.side-out .tight}
+
 ```{webr-r}
 #| context: output
 g_hp + geom_smooth(aes(y = price, x = lotsize), method = "lm", se = F)
 ```
+
+:::
 
 ### Examples
 
@@ -172,11 +192,15 @@ Let's take that question seriously by trying some lines out. Here is a candidate
 </details>
 
 
+::: {.side-out .tight}
+
 ```{webr-r}
 #| context: output
 g_hp +
   geom_abline(intercept = 20000, slope = 7, color = "red")
 ```
+
+:::
 
 
 #### Ex. 2: $\widehat{\beta}_0=70000$, $\widehat{\beta}_1=3.8$
@@ -188,12 +212,16 @@ And here is the rival: intercept seventy thousand, slope three point eight. High
 
 </details>
 
+::: {.side-out .tight}
+
 ```{webr-r}
 #| context: output
  
 g_hp +
   geom_abline(intercept = 70000, slope = 3.8, color = "red")
 ```
+
+:::
 
 #### So,
 
@@ -233,10 +261,11 @@ That is, the residual is the observed value of the dependent variable less the m
 
 The vertical red segments below <span style = "color: red;"> are </span> the residuals: each one runs from an observed point to the line.
 
+::: {.side-out}
+
 ```{webr-r}
 #| context: output
 #| message: false
-#| out-width: 80%
 #--- a handful of points, so the residuals are actually visible ---#
 set.seed(543)
 hp_few <- HousePrices[sample(nrow(HousePrices), 25), ]
@@ -253,6 +282,8 @@ ggplot(data = hp_few, aes(x = lotsize, y = price)) +
   xlab("Lot Size") +
   theme_lecture
 ```
+
+:::
 
 ### OLS
 
@@ -273,7 +304,7 @@ Let's find the values of $\widehat{\beta}_0$ and $\widehat{\beta}_1$ that minimi
 
 Solve the following minimization problem:
 
-$$Min_{\widehat{\beta}_0,\widehat{\beta}_1} \sum_{i=1}^n \widehat{u}_i^2, \mbox{where} \;\; \widehat{u}_i=y_i-(\widehat{\beta}_0+\widehat{\beta}_1 x_i)$$
+$$Min_{\widehat{\beta}_0,\widehat{\beta}_1} \sum_{i=1}^n \widehat{u}_i^2, \text{where} \;\; \widehat{u}_i=y_i-(\widehat{\beta}_0+\widehat{\beta}_1 x_i)$$
 
 ### Visualization
 
@@ -357,7 +388,7 @@ Dividing each by $-2$ leaves the two conditions OLS always satisfies:
 
 $$
 \def\sumn{\sum_{i=1}^{n}}
-\sumn \widehat{u}_i = 0 \;\;\;\mbox{and}\;\;\; \sumn x_i \widehat{u}_i = 0
+\sumn \widehat{u}_i = 0 \;\;\;\text{and}\;\;\; \sumn x_i \widehat{u}_i = 0
 $$
 
 **OLS estimators: analytical formula** 
@@ -367,7 +398,7 @@ $$
 \begin{aligned}
   \widehat{\beta}_1 & = \frac{\sumn (x_i-\bar{x})(y_i-\bar{y})}{\sumn (x_i-\bar{x})^2},\\\\
   \widehat{\beta}_0 & = \bar{y}-\widehat{\beta}_1 \bar{x}, \\\\
-  \mbox{where} & \;\; \bar{y} = \sumn y_i/n \;\; \mbox{and} \;\;\bar{x} = \sumn x_i/n
+  \text{where} & \;\; \bar{y} = \sumn y_i/n \;\; \text{and} \;\;\bar{x} = \sumn x_i/n
 \end{aligned}
 $$
 
@@ -430,6 +461,8 @@ $$
 
 **R code**
 
+::: {.side-out}
+
 ```{webr-r}
 #| autorun: true
  
@@ -443,6 +476,8 @@ b1 <- b1_num / b1_denom
 b1
 ```
 
+:::
+
 ### R code: a better way
 
 <details class="transcript">
@@ -454,6 +489,8 @@ And here is the short way, which is what you will actually use. The feols functi
 
 We can use the `feols()` function from the `fixest` package.
 
+::: {.side-out}
+
 ```{webr-r}
 #| autorun: true
 library(fixest)
@@ -464,6 +501,8 @@ uni_reg <- feols(price ~ lotsize, data = HousePrices)
 
 uni_reg
 ```
+
+:::
 
 
 
@@ -485,10 +524,14 @@ What comes back from feols is not just two numbers, it is a list holding everyth
 
 Apply `ls()` to see its elements:
 
+::: {.side-out .tight}
+
 ```{webr-r}
 #--- list the things inside the regression results ---#
 ls(uni_reg)
 ```
+
+:::
 
 #### Coefficients
 
@@ -499,9 +542,13 @@ The first thing you will want is the estimated coefficients, and they live in th
 
 </details>
 
+::: {.side-out .tight}
+
 ```{webr-r}
 uni_reg$coefficients
 ```
+
+:::
 
 #### Fitted values
 
@@ -514,10 +561,14 @@ Fitted values are the model's predictions at the lot sizes you actually observed
 
 Predicted values at the observation points:
 
+::: {.side-out .tight}
+
 ```{webr-r}
 #* fitted values for the first 5 observation points
 uni_reg$fitted.values[1:5]
 ```
+
+:::
 
 #### Residuals
 
@@ -528,10 +579,14 @@ And here are the residuals as numbers, the same quantity you saw as red segments
 
 </details>
 
+::: {.side-out .tight}
+
 ```{webr-r}
 #* residuals for the first 5 observation points
 uni_reg$residuals[1:5]
 ```
+
+:::
 
 #### `summary()`
 
@@ -605,10 +660,14 @@ This is the fitted values idea from a moment ago, met again where you would actu
 
 You can access the predicted values at the observed points by looking at the `fitted.values` element of the regression results.
 
+::: {.side-out .tight}
+
 ```{webr-r}
 #| autorun: true
 uni_reg$fitted.values[1:5]
 ```
+
+:::
 
 ### New predictions (R)
 
@@ -623,6 +682,8 @@ To calculate the predicted value at arbitrary values of $x$,
 
 1. create a new `data.frame` with values of $x$ of your choice.
 
+::: {.side-out}
+
 ```{webr-r}
 #| autorun: true
 (
@@ -630,14 +691,20 @@ new_data <- data.frame(lotsize = c(3000, 12000, 15000))
 )
 ```
 
+:::
+
 <br>
 
 2. apply `predict()` to the `data.frame` using the regression results.
+
+::: {.side-out .tight}
 
 ```{webr-r}
 #| autorun: true
 predict(uni_reg, newdata = new_data)
 ```
+
+:::
 
 ### Exercise: The impact of `lotsize`
 
@@ -673,6 +740,8 @@ Here is the answer. Pull out the coefficient on lotsize, multiply it by a thousa
 
 </details>
 
+::: {.side-out}
+
 ```{webr-r}
 #--- access the coefficient values  ---#
 uni_reg$coefficients
@@ -681,6 +750,8 @@ uni_reg$coefficients
 #--- assess the impact ---#
 uni_reg$coefficients["lotsize"] * 1000 - 5000
 ```
+
+:::
 
 :::
 <!--end of panel-->
@@ -715,7 +786,7 @@ Before the formula, here is the decomposition it rests on, and it is only algebr
 You can decompose observed value of $y$ into two parts: fitted value and residual
 
 $$
-y_i=\widehat{y}_i +\widehat{u}_i, \;\;\mbox{where}\;\; \widehat{y}_i = \widehat{\beta}_0+\widehat{\beta}_1 x_i
+y_i=\widehat{y}_i +\widehat{u}_i, \;\;\text{where}\;\; \widehat{y}_i = \widehat{\beta}_0+\widehat{\beta}_1 x_i
 $$
 
 now, subtracting $\bar{y}$ (sample average of $y$),
@@ -757,24 +828,37 @@ g_hp +
   geom_hline(yintercept = y_bar, color = "red") +
   #--- explained deviation: y_bar up to the fitted value ---#
   annotate("segment",
-    x = x_i - 900, xend = x_i - 900, y = y_bar, yend = yhat_i,
-    color = "darkgreen", linewidth = 1.2,
-    arrow = arrow(length = unit(0.02, "npc"), ends = "both")
+    x = x_i, xend = x_i, y = y_bar, yend = yhat_i,
+    color = "darkgreen", linewidth = 0.8,
+    arrow = arrow(length = unit(0.015, "npc"), ends = "both")
+  ) +
+  #--- curved leaders connect both interval endpoints to its label ---#
+  annotate("curve",
+    x = x_i, y = y_bar,
+    xend = x_i - 1100, yend = (y_bar + yhat_i) / 2 - 7000,
+    curvature = -0.25, color = "darkgreen", linewidth = 0.7
+  ) +
+  annotate("curve",
+    x = x_i, y = yhat_i,
+    xend = x_i - 1100, yend = (y_bar + yhat_i) / 2 + 7000,
+    curvature = 0.25, color = "darkgreen", linewidth = 0.7
   ) +
   #--- residual: fitted value up to the observed point ---#
   annotate("segment",
     x = x_i, xend = x_i, y = yhat_i, yend = y_i,
-    color = "purple", linewidth = 1.2,
-    arrow = arrow(length = unit(0.02, "npc"), ends = "both")
+    color = "purple", linewidth = 0.8,
+    arrow = arrow(length = unit(0.015, "npc"), ends = "both")
   ) +
-  annotate("point", x = x_i, y = y_i, size = 2.5) +
+  annotate("point", x = x_i, y = y_i, size = 3.2) +
   annotate("text",
-    x = x_i - 3400, y = (y_bar + yhat_i) / 2,
-    label = "hat(y)[i] - bar(y)", parse = TRUE, color = "darkgreen", size = 5
+    x = x_i - 1100, y = (y_bar + yhat_i) / 2,
+    label = "hat(y)[i] - bar(y)", parse = TRUE, color = "darkgreen",
+    size = 7, hjust = 0.5
   ) +
   annotate("text",
-    x = x_i - 1800, y = (yhat_i + y_i) / 2,
-    label = "hat(u)[i]", parse = TRUE, color = "purple", size = 5
+    x = x_i + 350, y = (yhat_i + y_i) / 2,
+    label = "hat(u)[i]", parse = TRUE, color = "purple",
+    size = 7, hjust = 0
   ) +
   annotate("text",
     x = 3000, y = y_bar * 1.12, label = "bar(y)",
@@ -848,11 +932,15 @@ $R^2$ is a measure of how much improvement <span style = "color: red;"> in predi
 
 **For our model**
 
+::: {.side-out .tight}
+
 ```{webr-r}
 #| autorun: true
 #--- R-squared of the house price regression ---#
 r2(uni_reg, "r2")
 ```
+
+:::
 
 That is how much of the variation in house price lot size alone accounts for. The rest is everything in $u$ &mdash; bedrooms, location, condition, the year it sold.
 

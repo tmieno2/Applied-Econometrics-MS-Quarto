@@ -28,7 +28,23 @@
       vertical-align: middle;
     }
   </style>
-  <link rel="stylesheet" href="../../site_libs/revealjs/dist/theme/quarto-efe7f97d24ea27507c65df08cab6e7d6.css">
+  <link rel="stylesheet" href="../../site_libs/revealjs/dist/theme/quarto-db62157d6cf4bc51d0b25352aea75d23.css">
+  <script>window.backupDefine = window.define; window.define = undefined;</script><script src="https://cdn.jsdelivr.net/npm/katex@latest/dist/katex.min.js"></script>
+  <script>document.addEventListener("DOMContentLoaded", function () {
+ var mathElements = document.getElementsByClassName("math");
+ var macros = [];
+ for (var i = 0; i < mathElements.length; i++) {
+  var texText = mathElements[i].firstChild;
+  if (mathElements[i].tagName == "SPAN") {
+   katex.render(texText.data, mathElements[i], {
+    displayMode: mathElements[i].classList.contains('display'),
+    throwOnError: false,
+    macros: macros,
+    fleqn: false
+   });
+}}});
+  </script>
+  <script>window.define = window.backupDefine; window.backupDefine = undefined;</script><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@latest/dist/katex.min.css">
   <link href="../../site_libs/revealjs/plugin/quarto-line-highlight/line-highlight.css" rel="stylesheet">
   <link href="../../site_libs/revealjs/plugin/reveal-menu/menu.css" rel="stylesheet">
   <link href="../../site_libs/revealjs/plugin/reveal-menu/quarto-menu.css" rel="stylesheet">
@@ -121,6 +137,326 @@
       margin-right: 0; 
     }
   </style>
+  <!--
+    Support for collapsible "Lecturer transcript" panels in revealjs decks.
+
+    Include it from a deck's YAML header, with the path relative to the qmd:
+
+        format:
+          revealjs:
+            include-in-header: ../transcript-support.html
+
+    Then add a transcript anywhere inside a slide (or inside a single tab of a
+    tabset, which is the usual case):
+
+        <details class="transcript">
+        <summary>Lecturer transcript</summary>
+
+        What the lecturer says about this tab.
+
+        </details>
+
+    On a tab whose figure fills the whole slide there is no free rectangle to
+    overlay, so add "inline" and the panel joins the flow when opened, pushing the
+    figure down instead of covering it:
+
+        <details class="transcript inline">
+
+    Use it only where it is needed. Measure rather than guess: an open panel must
+    not overlap a ".cell-output-display". The collapsed pill still costs 0px in
+    both variants, which is the property the whole design exists to preserve.
+
+    It must live in the header rather than the body of a qmd: raw HTML placed
+    above the first "##" heading becomes its own untitled slide.
+
+    <details> is a native HTML element, so the collapse/expand works with no
+    JavaScript at all, including in a self-contained (embed-resources) file. The
+    script at the bottom adds one behaviour on top: collapsing an open panel when
+    the reader moves on. Without it everything still works, panels just keep their
+    open state.
+
+    Audience: students reviewing after class. These are not presenter notes -
+    reveal's own ".notes" blocks are the presenter-only mechanism.
+  -->
+  <style>
+  /* The panel is positioned against the slide rather than sitting in its normal
+     flow. That is the whole point: collapsed it costs the slide no vertical
+     space, and opened it overlays the content instead of pushing it off the
+     bottom edge. Each panel lives inside its own tab, and hidden tabs do not
+     render, so only the visible tab's transcript is ever shown. */
+  .reveal details.transcript {
+    position: absolute;
+    top: 0;
+    right: 0;
+    z-index: 20;
+    width: auto;
+    font-size: 0.55em;
+    line-height: 1.45;
+    text-align: left;
+    border-radius: 6px;
+    /* custom.scss styles every bare <details> as an "answer box" (grey border
+       plus padding) for Quarto's folded-code blocks. Opt out of both here so the
+       collapsed pill is not sitting inside a grey rectangle. */
+    border: none;
+    padding: 0;
+  }
+
+  /* Collapsed: a small pill that hugs the top-right corner. */
+  .reveal details.transcript > summary {
+    display: inline-block;
+    cursor: pointer;
+    list-style: none;
+    outline: none;
+    /* custom.scss pulls every bare <summary> with a negative margin; undo it. */
+    margin: 0;
+    padding: 0.15em 0.7em;
+    border: 1px solid #06a666;
+    border-radius: 999px;
+    background: #ffffff;
+    color: #06a666;
+    font-weight: 600;
+    white-space: nowrap;
+    -webkit-user-select: none;
+    user-select: none;
+  }
+  .reveal details.transcript > summary::-webkit-details-marker { display: none; }
+  .reveal details.transcript > summary::before { content: "\25B8\00A0"; }
+  .reveal details.transcript[open] > summary::before { content: "\25BE\00A0"; }
+
+  /* Opened: a tall, narrow panel down the right-hand side, where slide content
+     rarely reaches. It starts below the tab bar so tab names stay clickable
+     while a transcript is open, and runs down to just above the footer.
+
+     Measured as a share of the 700px logical slide. A top-level tab bar ends at
+     12.4-13%, so 21% clears it everywhere.
+
+     A tab bar that sits lower on the slide is cleared HORIZONTALLY instead: the
+     panel occupies x 62-100%, and no tab row measured so far reaches past x 66%.
+     Cases seen, all fine:
+       00-1  nested tabset          18.9%, names reach x 15%
+       00-1  tabset below prose     40.8%, names reach x 59%
+       01-2  nested tabset          29.6%, names reach x 46%
+     So the rule to preserve is not "top clears every tab bar" but "no tab NAME
+     overlaps the panel's rectangle". Re-check that if a deck grows a long tab row
+     sitting low on the slide. */
+  .reveal details.transcript[open] {
+    top: 21%;
+    width: 36%;
+    max-height: 75%;
+    overflow-y: auto;
+    padding: 0.55em 0.85em 0.7em;
+    background: #f4fbf8;
+    border: 1px solid #06a666;
+    box-shadow: 0 6px 22px rgba(0, 0, 0, 0.16);
+  }
+  .reveal details.transcript[open] > summary {
+    display: block;
+    padding: 0 0 0.4em 0;
+    border: none;
+    border-radius: 0;
+    background: transparent;
+  }
+  .reveal details.transcript p { margin: 0.35em 0; }
+
+  /* Opt-out, applied per tab as class="transcript inline".
+     Some figures are rendered at out-width 80% and span x 1.4-98.6% of the slide,
+     running from just under the tab bar down to y ~95%. There is no rectangle
+     left to overlay, so on those tabs the panel joins the normal flow when opened
+     and pushes the figure down; the slide is "scrollable: true", so the figure
+     stays reachable. Note this rule only touches [open]: collapsed, the pill is
+     still absolutely positioned at the top-right corner and still costs 0px. */
+  .reveal details.transcript.inline[open] {
+    position: static;
+    width: auto;
+    max-height: none;
+    overflow-y: visible;
+    margin: 0 0 0.9em 0;
+  }
+
+  /* No .slide-logo rule here: no deck in this course sets a "logo:" in its YAML,
+     so the bottom-right corner the panel would collide with is already free. If
+     a logo is ever added, move it out of the way with
+     .reveal .slide-logo { right: auto !important; left: 56px !important; }
+     where 56px clears reveal's menu button at x 8-43px. */
+  </style>
+
+  <script>
+  // Collapse any open transcript when the reader moves to another slide or
+  // another tab, so a panel left open never reappears over unrelated content.
+  (function () {
+    function closeAll() {
+      document.querySelectorAll("details.transcript[open]")
+        .forEach(function (d) { d.open = false; });
+    }
+
+    // Slide changes come from reveal, which is not ready when this runs.
+    function hookReveal() {
+      if (window.Reveal && typeof Reveal.on === "function") {
+        Reveal.on("slidechanged", closeAll);
+        Reveal.on("overviewshown", closeAll);
+        return true;
+      }
+      return false;
+    }
+    if (!hookReveal()) {
+      var tries = 0;
+      var timer = setInterval(function () {
+        if (hookReveal() || ++tries > 100) clearInterval(timer);
+      }, 100);
+    }
+
+    // Tab changes are plain clicks; capture so this runs before the tab switches.
+    document.addEventListener("click", function (e) {
+      var el = e.target;
+      if (el && el.closest && el.closest('.panel-tabset [role="tab"]')) closeAll();
+    }, true);
+  })();
+  </script>
+  <!-- Adaptive code/output layout for WebR cells in revealjs lecture decks. -->
+  <script>
+  (function () {
+    "use strict";
+
+    var MAX_CODE_LINES = 12;
+    var MAX_CODE_SHARE = 0.58;
+    var MIN_CODE_SHARE = 0.30;
+    var MAX_OUTPUT_SHARE = 0.70;
+
+    function detailsFor(area) {
+      var match = area.id && area.id.match(/qwebr-interactive-area-(\d+)/);
+      if (!match || !globalThis.qwebrCellDetails) return null;
+      return globalThis.qwebrCellDetails[Number(match[1]) - 1] || null;
+    }
+
+    function codeMetrics(code) {
+      var lines = String(code || "").split("\n");
+      var substantive = lines.filter(function (line) {
+        return line.trim() && !/^\s*#/.test(line);
+      });
+      return {
+        lines: substantive.length,
+        maxChars: lines.reduce(function (n, line) {
+          return Math.max(n, line.replace(/\t/g, "  ").length);
+        }, 0)
+      };
+    }
+
+    function setTracks(host, codeShare) {
+      codeShare = Math.max(MIN_CODE_SHARE, Math.min(MAX_CODE_SHARE, codeShare));
+      var outputShare = 1 - codeShare;
+      host.style.setProperty("--webr-code-track", codeShare + "fr");
+      host.style.setProperty("--webr-output-track", outputShare + "fr");
+      host.style.setProperty("--webr-code-share", (codeShare * 100) + "%");
+    }
+
+    function measureRenderedCode(area, host, code, attempt) {
+      if (host.dataset.webrLayout !== "side") return;
+      var sample = area.querySelector(".view-line, .monaco-editor");
+      if (!sample || !area.clientWidth) {
+        if (attempt < 20) setTimeout(function () {
+          measureRenderedCode(area, host, code, attempt + 1);
+        }, 100);
+        return;
+      }
+      var style = getComputedStyle(sample);
+      var canvas = document.createElement("canvas");
+      var context = canvas.getContext("2d");
+      context.font = [style.fontStyle, style.fontWeight, style.fontSize,
+        style.fontFamily].filter(Boolean).join(" ");
+      var widest = String(code || "").split("\n").reduce(function (width, line) {
+        return Math.max(width, context.measureText(line.replace(/\t/g, "  ")).width);
+      }, 0);
+      // Monaco's line-number gutter, padding, and scrollbar need about 76px in
+      // addition to the measured glyph width.
+      var available = Math.max(1, area.clientWidth - 16);
+      setTracks(host, (widest + 76) / available);
+    }
+
+    function stack(host) {
+      if (host.dataset.webrLayoutManual === "true") return;
+      host.classList.remove("side-out");
+      host.dataset.webrLayout = "stacked";
+    }
+
+    function assessOutput(area, host, metrics) {
+      if (host.dataset.webrLayout !== "side") return;
+      var graph = area.querySelector(".qwebr-output-graph-area canvas, .qwebr-output-graph-area img");
+      if (graph) return; // plots scale cleanly within their grid track
+
+      var pre = area.querySelector(".qwebr-output-code-area pre");
+      if (!pre || getComputedStyle(pre).visibility === "hidden") return;
+
+      var codeNeed = Math.max(MIN_CODE_SHARE,
+        Math.min(MAX_CODE_SHARE, (metrics.maxChars + 8) / 150));
+      var available = Math.max(1, area.clientWidth - 16);
+      var outputNeed = Math.min(MAX_OUTPUT_SHARE,
+        Math.max(0.42, (pre.scrollWidth + 24) / available));
+      var outputLines = (pre.innerText || "").split("\n").length;
+
+      // If both measured widths cannot coexist, or the console result is too
+      // tall to read as a right-hand panel, retain WebR's original vertical stack.
+      if (codeNeed + outputNeed > 1 || outputLines > 16 ||
+          pre.scrollHeight > area.ownerDocument.documentElement.clientHeight * 0.62) {
+        stack(host);
+        return;
+      }
+
+      setTracks(host, 1 - outputNeed);
+      requestAnimationFrame(function () {
+        if (pre.scrollWidth > pre.clientWidth * 1.08) stack(host);
+      });
+    }
+
+    function configure(area) {
+      if (area.dataset.webrLayoutChecked === "true") return;
+      area.dataset.webrLayoutChecked = "true";
+
+      var details = detailsFor(area);
+      if (!details || !details.options || details.options.context === "setup") return;
+      var metrics = codeMetrics(details.code);
+      if (!metrics.lines || metrics.lines > MAX_CODE_LINES || metrics.maxChars > 88) return;
+
+      var existingWrapper = area.closest(".side-out");
+      var host = existingWrapper || area.closest(".cell") || area.parentElement;
+      if (!host) return;
+
+      if (existingWrapper) {
+        host.dataset.webrLayoutManual = "true";
+      } else {
+        host.classList.add("side-out");
+      }
+      host.dataset.webrLayout = "side";
+
+      // Estimate an initial split from the longest source line. The output is
+      // intentionally favoured; actual output dimensions refine it after a run.
+      var initialCodeShare = (metrics.maxChars + 10) / 145;
+      setTracks(host, initialCodeShare);
+      measureRenderedCode(area, host, details.code, 0);
+
+      var observer = new MutationObserver(function () {
+        requestAnimationFrame(function () { assessOutput(area, host, metrics); });
+      });
+      observer.observe(area, { childList: true, subtree: true, characterData: true,
+        attributes: true, attributeFilter: ["style", "class"] });
+      requestAnimationFrame(function () { assessOutput(area, host, metrics); });
+    }
+
+    function scan() {
+      document.querySelectorAll(".qwebr-interactive-area").forEach(configure);
+    }
+
+    var pageObserver = new MutationObserver(scan);
+    function start() {
+      scan();
+      pageObserver.observe(document.body, { childList: true, subtree: true });
+    }
+    if (document.readyState === "loading") {
+      document.addEventListener("DOMContentLoaded", start, { once: true });
+    } else {
+      start();
+    }
+  })();
+  </script>
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/monaco-editor@0.47.0/min/vs/editor/editor.main.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
     
@@ -389,7 +725,7 @@
   // Document level settings ----
 
   // Determine if we need to install R packages
-  globalThis.qwebrInstallRPackagesList = ['fixest', 'dplyr', 'data.table', 'ggplot2', 'wooldridge', 'car'];
+  globalThis.qwebrInstallRPackagesList = ['fixest', 'dplyr', 'data.table', 'ggplot2', 'wooldridge', 'car', 'broom'];
 
   // Specify possible locations to search for the repository
   globalThis.qwebrPackageRepoURLS = ['https://repo.r-wasm.org/'];
@@ -411,7 +747,7 @@
   };
 
   // Store cell data
-  globalThis.qwebrCellDetails = [{"code":"#--- prepare a dataset ---#\ndata(\"wage1\", package = \"wooldridge\")\n\n#--- run a regression ---#\nquad_reg <- fixest::feols(wage ~ female + educ + I(educ^2), vcov = \"hetero\", data = wage1)\n\n#--- look at the results ---#\nbroom::tidy(quad_reg)","id":1,"options":{"autorun":"true","classes":"","comment":"","context":"interactive","dpi":72,"editor-font-scale":"0.8","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":5,"fig-width":7,"label":"unnamed-chunk-1","message":"true","out-height":"","out-width":"700px","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"N <- 1000\nx <- seq(min(wage1$educ), max(wage1$educ), length = N)\ndata <- data.table(educ = x, female = 1) %>%\n  mutate(y = predict(quad_reg, newdata = .))\n\ng_quad_ex <- \n  ggplot() +\n  geom_point(data = wage1, aes(y = wage, x = educ), size = 0.4) +\n  geom_line(data = data, aes(y = y, x = x)) +\n  theme_bw()\n\ng_quad_ex","id":2,"options":{"autorun":"true","classes":"","comment":"","context":"output","dpi":72,"editor-font-scale":"0.8","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":5,"fig-width":7,"label":"unnamed-chunk-2","message":"true","out-height":"","out-width":"700px","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"linear_reg <- fixest::feols(wage ~ female + educ, vcov = \"hetero\", data = wage1)\nbroom::tidy(linear_reg)","id":3,"options":{"autorun":"true","classes":"","comment":"","context":"interactive","dpi":72,"editor-font-scale":"0.8","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":5,"fig-width":7,"label":"unnamed-chunk-3","message":"true","out-height":"","out-width":"700px","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"car::linearHypothesis(quad_reg, \"educ + 8*I(educ^2)=0\")","id":4,"options":{"autorun":"false","classes":"","comment":"","context":"interactive","dpi":72,"editor-font-scale":"0.8","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":5,"fig-width":7,"label":"unnamed-chunk-4","message":"true","out-height":"","out-width":"700px","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"car::linearHypothesis(quad_reg, \"educ + 20*I(educ^2)=0\")","id":5,"options":{"autorun":"false","classes":"","comment":"","context":"interactive","dpi":72,"editor-font-scale":"0.8","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":5,"fig-width":7,"label":"unnamed-chunk-5","message":"true","out-height":"","out-width":"700px","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"(\nreg_int <- fixest::feols(wage ~ female + exper + I(exper * educ), data = wage1)\n)","id":6,"options":{"autorun":"true","classes":"","comment":"","context":"interactive","dpi":72,"editor-font-scale":"0.8","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":5,"fig-width":7,"label":"unnamed-chunk-6","message":"true","out-height":"","out-width":"700px","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"car::linearHypothesis(reg_int, \"exper+10*I(exper * educ)=0\")","id":7,"options":{"autorun":"true","classes":"","comment":"","context":"interactive","dpi":72,"editor-font-scale":"0.8","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":5,"fig-width":7,"label":"unnamed-chunk-7","message":"true","out-height":"","out-width":"700px","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"dplyr::select(wage1, wage, educ, exper, female, married) %>%\n  head()","id":8,"options":{"autorun":"false","classes":"","comment":"","context":"interactive","dpi":72,"editor-font-scale":"0.8","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":5,"fig-width":7,"label":"unnamed-chunk-8","message":"true","out-height":"","out-width":"700px","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"reg_df <- fixest::feols(wage ~ female + educ, data = wage1)\n\nreg_df","id":9,"options":{"autorun":"false","classes":"","comment":"","context":"interactive","dpi":72,"editor-font-scale":"0.8","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":5,"fig-width":7,"label":"unnamed-chunk-9","message":"true","out-height":"","out-width":"700px","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"wage1 <- dplyr::mutate(wage1, male = 1 - female)\n\nreg_df <- fixest::feols(wage ~ male + educ, data = wage1)\n\nreg_df","id":10,"options":{"autorun":"true","classes":"","comment":"","context":"interactive","dpi":72,"editor-font-scale":"0.8","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":5,"fig-width":7,"label":"unnamed-chunk-10","message":"true","out-height":"","out-width":"700px","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"reg_dmf <- fixest::feols(wage ~ male + female + educ, data = wage1)\n\nreg_dmf","id":11,"options":{"autorun":"true","classes":"","comment":"","context":"interactive","dpi":72,"editor-font-scale":"0.8","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":5,"fig-width":7,"label":"unnamed-chunk-11","message":"true","out-height":"","out-width":"700px","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"(\nreg_di <- fixest::feols(wage ~ female + educ + I(female * educ), data = wage)\n)","id":12,"options":{"autorun":"false","classes":"","comment":"","context":"interactive","dpi":72,"editor-font-scale":"0.8","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":5,"fig-width":7,"label":"unnamed-chunk-12","message":"true","out-height":"","out-width":"700px","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"data(\"gpa3\", package = \"wooldridge\")\n\ngpa <-\n  gpa3 %>%\n  dplyr::filter(!is.na(ctothrs)) %>%\n  #--- create interaction terms ---#\n  dplyr::mutate(\n    female_sat := female * sat,\n    female_hsperc := female * hsperc,\n    female_tothrs := female * tothrs\n  )\n\n#--- regression with female dummy ---#\nreg_full <-\n  fixest::feols(\n    cumgpa ~\n      female + sat + female_sat + hsperc + female_hsperc +\n      tothrs + female_tothrs,\n    data = gpa\n  )","id":13,"options":{"autorun":"true","classes":"","comment":"","context":"interactive","dpi":72,"editor-font-scale":"0.8","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":5,"fig-width":7,"label":"unnamed-chunk-13","message":"true","out-height":"","out-width":"700px","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"summary(reg_full)","id":14,"options":{"autorun":"true","classes":"","comment":"","context":"interactive","dpi":72,"editor-font-scale":"0.8","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":5,"fig-width":7,"label":"unnamed-chunk-14","message":"true","out-height":"","out-width":"700px","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"car::linearHypothesis(\n  reg_full,\n  c(\n    \"female = 0\",\n    \"female_hsperc = 0\",\n    \"female_sat = 0\",\n    \"female_tothrs = 0\"\n  )\n)","id":15,"options":{"autorun":"true","classes":"","comment":"","context":"interactive","dpi":72,"editor-font-scale":"0.8","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":5,"fig-width":7,"label":"unnamed-chunk-15","message":"true","out-height":"","out-width":"700px","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"#* get big9salary\ndata(\"big9salary\", package = \"wooldridge\")\n\n#* creat a variable that indicates university\n#* this is how the data would like most of the time (instead of having bunch of dummy variables)\nbig9salary_c <-\n  as_tibble(big9salary) %>%\n  dplyr::mutate(\n    university =\n      case_when(\n        osu == 1 ~ \"Ohio State U\",\n        iowa == 1 ~ \"U of Iowa\",\n        indiana == 1 ~ \"Indiana U\",\n        purdue == 1 ~ \"Purdue U\",\n        msu == 1 ~ \"Michigan State U\",\n        mich == 1 ~ \"Michigan U\",\n        wisc == 1 ~ \"U of Wisconsin\",\n        illinois == 1 ~ \"U of Illinois\"\n      )\n  ) %>%\n  dplyr::relocate(id, year, salary, pubindx, university)","id":16,"options":{"autorun":"false","classes":"","comment":"","context":"interactive","dpi":72,"editor-font-scale":"0.8","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":5,"fig-width":7,"label":"unnamed-chunk-16","message":"true","out-height":"","out-width":"700px","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"head(big9salary_c)\n\ntail(big9salary_c)","id":17,"options":{"autorun":"false","classes":"","comment":"","context":"interactive","dpi":72,"editor-font-scale":"0.8","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":5,"fig-width":7,"label":"unnamed-chunk-17","message":"true","out-height":"","out-width":"700px","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"fixest::feols(salary ~ pubindx + female + i(university, ref = \"Indiana U\"), data = big9salary_c) %>%\n  broom::tidy()","id":18,"options":{"autorun":"false","classes":"","comment":"","context":"interactive","dpi":72,"editor-font-scale":"0.8","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":5,"fig-width":7,"label":"unnamed-chunk-18","message":"true","out-height":"","out-width":"700px","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"fixest::feols(salary ~ female + pubindx + i(university, ref = \"Indiana U\") + i(university, pubindx, ref = \"Indiana U\"), data = big9salary_c) %>%\n  broom::tidy()","id":19,"options":{"autorun":"false","classes":"","comment":"","context":"interactive","dpi":72,"editor-font-scale":"0.8","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":5,"fig-width":7,"label":"unnamed-chunk-19","message":"true","out-height":"","out-width":"700px","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"data(apple, package = \"wooldridge\")\n\n(\nfixest::feols(ecolbs ~ regprc + ecoprc, data = apple)\n)","id":20,"options":{"autorun":"false","classes":"","comment":"","context":"interactive","dpi":72,"editor-font-scale":"0.8","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":5,"fig-width":7,"label":"unnamed-chunk-20","message":"true","out-height":"","out-width":"700px","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"#--- regression with original scale ---#\nfixest::feols(wage ~ female + educ, data = wage1)","id":21,"options":{"autorun":"true","classes":"","comment":"","context":"interactive","dpi":72,"editor-font-scale":"0.8","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":5,"fig-width":7,"label":"unnamed-chunk-21","message":"true","out-height":"","out-width":"700px","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"#--- regression with scaled educ ---#\nfixest::feols(wage ~ female + I(educ * 12), data = wage1)","id":22,"options":{"autorun":"true","classes":"","comment":"","context":"interactive","dpi":72,"editor-font-scale":"0.8","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":5,"fig-width":7,"label":"unnamed-chunk-22","message":"true","out-height":"","out-width":"700px","output":"true","read-only":"false","results":"markup","warning":"true"}}];
+  globalThis.qwebrCellDetails = [{"code":"#--- prepare a dataset ---#\ndata(\"wage1\", package = \"wooldridge\")\n\n#--- run a regression ---#\nquad_reg <- fixest::feols(wage ~ female + educ + I(educ^2), vcov = \"hetero\", data = wage1)\n\n#--- look at the results ---#\nbroom::tidy(quad_reg)","id":1,"options":{"autorun":"true","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.8","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"4.5","fig-width":"7","label":"unnamed-chunk-1","message":"true","out-height":"","out-width":"55%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"N <- 1000\nx <- seq(min(wage1$educ), max(wage1$educ), length = N)\ndata <- data.table(educ = x, female = 1) %>%\n  mutate(y = predict(quad_reg, newdata = .))\n\ng_quad_ex <- \n  ggplot() +\n  geom_point(data = wage1, aes(y = wage, x = educ), size = 0.4) +\n  geom_line(data = data, aes(y = y, x = x)) +\n  theme_bw(base_size = 30)\n\ng_quad_ex","id":2,"options":{"autorun":"true","classes":"","comment":"","context":"output","dpi":"216","editor-font-scale":"0.8","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"4.5","fig-width":"7","label":"unnamed-chunk-2","message":"true","out-height":"","out-width":"55%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"linear_reg <- fixest::feols(wage ~ female + educ, vcov = \"hetero\", data = wage1)\nbroom::tidy(linear_reg)","id":3,"options":{"autorun":"true","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.8","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"4.5","fig-width":"7","label":"unnamed-chunk-3","message":"true","out-height":"","out-width":"55%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"car::linearHypothesis(quad_reg, \"educ + 8*I(educ^2)=0\")","id":4,"options":{"autorun":"false","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.8","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"4.5","fig-width":"7","label":"unnamed-chunk-4","message":"true","out-height":"","out-width":"55%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"car::linearHypothesis(quad_reg, \"educ + 20*I(educ^2)=0\")","id":5,"options":{"autorun":"false","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.8","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"4.5","fig-width":"7","label":"unnamed-chunk-5","message":"true","out-height":"","out-width":"55%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"(\nreg_int <- fixest::feols(wage ~ female + exper + I(exper * educ), data = wage1)\n)","id":6,"options":{"autorun":"true","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.8","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"4.5","fig-width":"7","label":"unnamed-chunk-6","message":"true","out-height":"","out-width":"55%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"car::linearHypothesis(reg_int, \"exper+10*I(exper * educ)=0\")","id":7,"options":{"autorun":"true","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.8","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"4.5","fig-width":"7","label":"unnamed-chunk-7","message":"true","out-height":"","out-width":"55%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"dplyr::select(wage1, wage, educ, exper, female, married) %>%\n  head()","id":8,"options":{"autorun":"false","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.8","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"4.5","fig-width":"7","label":"unnamed-chunk-8","message":"true","out-height":"","out-width":"55%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"reg_df <- fixest::feols(wage ~ female + educ, data = wage1)\n\nreg_df","id":9,"options":{"autorun":"false","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.8","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"4.5","fig-width":"7","label":"unnamed-chunk-9","message":"true","out-height":"","out-width":"55%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"wage1 <- dplyr::mutate(wage1, male = 1 - female)\n\nreg_df <- fixest::feols(wage ~ male + educ, data = wage1)\n\nreg_df","id":10,"options":{"autorun":"true","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.8","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"4.5","fig-width":"7","label":"unnamed-chunk-10","message":"true","out-height":"","out-width":"55%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"reg_dmf <- fixest::feols(wage ~ male + female + educ, data = wage1)\n\nreg_dmf","id":11,"options":{"autorun":"true","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.8","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"4.5","fig-width":"7","label":"unnamed-chunk-11","message":"true","out-height":"","out-width":"55%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"(\nreg_di <- fixest::feols(wage ~ female + educ + I(female * educ), data = wage1)\n)","id":12,"options":{"autorun":"false","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.8","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"4.5","fig-width":"7","label":"unnamed-chunk-12","message":"true","out-height":"","out-width":"55%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"data(\"gpa3\", package = \"wooldridge\")\n\ngpa <-\n  gpa3 %>%\n  dplyr::filter(!is.na(ctothrs)) %>%\n  #--- create interaction terms ---#\n  dplyr::mutate(\n    female_sat := female * sat,\n    female_hsperc := female * hsperc,\n    female_tothrs := female * tothrs\n  )\n\n#--- regression with female dummy ---#\nreg_full <-\n  fixest::feols(\n    cumgpa ~\n      female + sat + female_sat + hsperc + female_hsperc +\n      tothrs + female_tothrs,\n    data = gpa\n  )","id":13,"options":{"autorun":"true","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.8","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"4.5","fig-width":"7","label":"unnamed-chunk-13","message":"true","out-height":"","out-width":"55%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"summary(reg_full)","id":14,"options":{"autorun":"true","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.8","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"4.5","fig-width":"7","label":"unnamed-chunk-14","message":"true","out-height":"","out-width":"55%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"car::linearHypothesis(\n  reg_full,\n  c(\n    \"female = 0\",\n    \"female_hsperc = 0\",\n    \"female_sat = 0\",\n    \"female_tothrs = 0\"\n  )\n)","id":15,"options":{"autorun":"true","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.8","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"4.5","fig-width":"7","label":"unnamed-chunk-15","message":"true","out-height":"","out-width":"55%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"#* get big9salary\ndata(\"big9salary\", package = \"wooldridge\")\n\n#* create a variable that indicates university\n#* this is how the data would look most of the time (instead of having a bunch of dummy variables)\nbig9salary_c <-\n  as_tibble(big9salary) %>%\n  dplyr::mutate(\n    university =\n      case_when(\n        osu == 1 ~ \"Ohio State U\",\n        iowa == 1 ~ \"U of Iowa\",\n        indiana == 1 ~ \"Indiana U\",\n        purdue == 1 ~ \"Purdue U\",\n        msu == 1 ~ \"Michigan State U\",\n        mich == 1 ~ \"Michigan U\",\n        wisc == 1 ~ \"U of Wisconsin\",\n        illinois == 1 ~ \"U of Illinois\"\n      )\n  ) %>%\n  dplyr::relocate(id, year, salary, pubindx, university)","id":16,"options":{"autorun":"false","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.8","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"4.5","fig-width":"7","label":"unnamed-chunk-16","message":"true","out-height":"","out-width":"55%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"head(big9salary_c)\n\ntail(big9salary_c)","id":17,"options":{"autorun":"false","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.8","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"4.5","fig-width":"7","label":"unnamed-chunk-17","message":"true","out-height":"","out-width":"55%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"fixest::feols(salary ~ pubindx + female + i(university, ref = \"Indiana U\"), data = big9salary_c) %>%\n  broom::tidy()","id":18,"options":{"autorun":"false","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.8","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"4.5","fig-width":"7","label":"unnamed-chunk-18","message":"true","out-height":"","out-width":"55%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"fixest::feols(salary ~ female + pubindx + i(university, ref = \"Indiana U\") + i(university, pubindx, ref = \"Indiana U\"), data = big9salary_c) %>%\n  broom::tidy()","id":19,"options":{"autorun":"false","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.8","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"4.5","fig-width":"7","label":"unnamed-chunk-19","message":"true","out-height":"","out-width":"55%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"data(apple, package = \"wooldridge\")\n\n(\nfixest::feols(ecolbs ~ regprc + ecoprc, data = apple)\n)","id":20,"options":{"autorun":"false","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.8","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"4.5","fig-width":"7","label":"unnamed-chunk-20","message":"true","out-height":"","out-width":"55%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"#--- regression with original scale ---#\nfixest::feols(wage ~ female + educ, data = wage1)","id":21,"options":{"autorun":"true","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.8","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"4.5","fig-width":"7","label":"unnamed-chunk-21","message":"true","out-height":"","out-width":"55%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"#--- regression with scaled educ ---#\nfixest::feols(wage ~ female + I(educ * 12), data = wage1)","id":22,"options":{"autorun":"true","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.8","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"4.5","fig-width":"7","label":"unnamed-chunk-22","message":"true","out-height":"","out-width":"55%","output":"true","read-only":"false","results":"markup","warning":"true"}}];
 
   </script>
   <script type="module">
@@ -1922,6 +2258,12 @@ globalThis.qwebrCreateMonacoEditorInstance = function (cellData) {
 <ul id="tabset-1" class="panel-tabset-tabby"><li><a data-tabby-default="" href="#tabset-1-1">Introduction</a></li><li><a href="#tabset-1-2">Linear or Non-linear?</a></li><li><a href="#tabset-1-3">Why bother?</a></li></ul>
 <div class="tab-content">
 <div id="tabset-1-1">
+<details class="transcript">
+<summary>
+Lecturer transcript
+</summary>
+<p>Transformation is the tool that lets a linear model describe a nonlinear relationship. The phrase to hold onto is linear in parameters. We can take logs, square a regressor, or multiply two variables together, and every result we have proved so far still applies, because the model remains a linear combination of unknown coefficients. What changes is the interpretation. A coefficient no longer answers the question how much does y change when x rises by one unit; the answer now depends on the transformation, and sometimes on where you are along the x axis. The four models on this slide are the ones we will work through.</p>
+</details>
 <ul>
 <li><p>Transformation of variables is allowed without disturbing our analytical framework as long as the model is linear in <span style="color: blue;"> parameter </span>.</p></li>
 <li><p>Transformation of variables change the interpretation of the coefficients estimates</p></li>
@@ -1936,16 +2278,16 @@ globalThis.qwebrCreateMonacoEditorInstance = function (cellData) {
 <div class="columns">
 <div class="column" style="width:50%;">
 <p><strong>log-linear</strong></p>
-<p><span class="math inline">\(log(y_i)= \beta_0+\beta_1 x_i + u_i\)</span></p>
+<p><span class="math inline">log(y_i)= \beta_0+\beta_1 x_i + u_i</span></p>
 <p><br></p>
 <p><strong>linear-log</strong></p>
-<p><span class="math inline">\(y_i= \beta_0+\beta_1 log(x_i) + u_i\)</span></p>
+<p><span class="math inline">y_i= \beta_0+\beta_1 log(x_i) + u_i</span></p>
 </div><!--end of the 1st column--><div class="column" style="width:50%;">
 <p><strong>log-log</strong></p>
-<p><span class="math inline">\(log(y_i)= \beta_0+\beta_1 log(x_i) + u_i\)</span></p>
+<p><span class="math inline">log(y_i)= \beta_0+\beta_1 log(x_i) + u_i</span></p>
 <p><br></p>
 <p><strong>quadratic</strong></p>
-<p><span class="math inline">\(y_i= \beta_0 + \beta_1 x_i + \beta_2 x_i^2 + u_i\)</span></p>
+<p><span class="math inline">y_i= \beta_0 + \beta_1 x_i + \beta_2 x_i^2 + u_i</span></p>
 </div><!--end of the 2nd column-->
 </div>
 <!--end of the columns-->
@@ -1955,15 +2297,21 @@ globalThis.qwebrCreateMonacoEditorInstance = function (cellData) {
 </div>
 </div>
 <div id="tabset-1-2">
+<details class="transcript">
+<summary>
+Lecturer transcript
+</summary>
+<p>Students reasonably object at this point: the pictures are curved, so how can we call these linear models. The resolution is that linear refers to how the parameters enter, not how the variables enter. In the two examples at the bottom, a coefficient appears as an exponent and inside a denominator. No amount of rewriting turns those into a linear combination of betas, so ordinary least squares does not apply and we would need nonlinear estimation. Contrast that with a squared regressor: education squared is just another column of numbers, and its coefficient enters additively. That model is linear in parameters and OLS is fine.</p>
+</details>
 <ul>
 <li><p>In the models we just saw, the dependent variable and independent variable are non-linearly related, how come are these models called simple <span style="color: blue;"> linear </span> model?</p></li>
 <li><p><span style="color: blue;"> “linear” </span> in simple <span style="color: blue;"> linear </span> model means that the model is linear in <span style="color: blue;"> parameter </span>, but not in <span style="color: blue;"> variable </span></p></li>
 </ul>
 <p><strong>Examples: Non-linear models</strong></p>
-<span class="math display">\[\begin{align*}
+<span class="math display">\begin{align*}
   y_i=\beta_0+x_i^{\beta_1}+u_i \\
   y_i=\frac{x_i}{\beta_0+\beta_1 x_i}+u_i
-\end{align*}\]</span>
+\end{align*}</span>
 <p><br></p>
 <div class="callout callout-note no-icon callout-titled callout-style-default">
 <div class="callout-body">
@@ -1977,10 +2325,16 @@ globalThis.qwebrCreateMonacoEditorInstance = function (cellData) {
 </div>
 </div>
 <div id="tabset-1-3">
+<details class="transcript">
+<summary>
+Lecturer transcript
+</summary>
+<p>This is the practical motivation. The fertilizer equation says the tenth pound of nitrogen raises yield by exactly as much as the hundredth pound. No agronomist believes that. Yields flatten out and can eventually decline. If we insist on a straight line, the estimated slope becomes an average over a range where the true response is steep at one end and flat at the other, and any recommendation we derive from it will be wrong at both ends. Functional form is not decoration. It encodes what you already know about the process, and getting it wrong biases the answer to the question you actually care about.</p>
+</details>
 <p>Consider a following model:</p>
-<span class="math display">\[\begin{align*}
-\mbox{corn yield} = \beta_0 + \beta_1 \cdot \mbox{fertilizer} + \mu
-\end{align*}\]</span>
+<span class="math display">\begin{align*}
+\text{corn yield} = \beta_0 + \beta_1 \cdot \text{fertilizer} + \mu
+\end{align*}</span>
 <p><strong>Question</strong></p>
 <p>What is wrong with this model?</p>
 <br>
@@ -2005,61 +2359,97 @@ It assumes that fertilizer affects corn yield the same way no matter how much fe
 <ul id="tabset-2" class="panel-tabset-tabby"><li><a data-tabby-default="" href="#tabset-2-1">Basics</a></li><li><a href="#tabset-2-2">Visualization</a></li><li><a href="#tabset-2-3">Example</a></li><li><a href="#tabset-2-4">Estimated model</a></li></ul>
 <div class="tab-content">
 <div id="tabset-2-1">
+<details class="transcript">
+<summary>
+Lecturer transcript
+</summary>
+<p>Take logs of the dependent variable only. Differentiating both sides with respect to x, the chain rule puts one over y on the left, so beta one equals the proportional change in y per one-unit change in x. Multiply by one hundred and you have a percentage. The wording matters: a one-unit increase in x is associated with a beta-one-times-one-hundred percent change in y, not a beta-one-unit change. This approximation is good for small beta one; for larger coefficients the exact percentage is one hundred times the quantity exponential of beta one minus one.</p>
+</details>
 <p><strong>Model</strong></p>
-<span class="math display">\[\begin{align}
+<span class="math display">\begin{align}
   log(y_i)= \beta_0+\beta_1 x_i + u_i \notag
-\end{align}\]</span>
+\end{align}</span>
 <p><strong>Calculus</strong></p>
-<p>Differentiating the both sides wrt <span class="math inline">\(x_i\)</span>,</p>
-<span class="math display">\[\begin{align}
+<p>Differentiating the both sides wrt <span class="math inline">x_i</span>,</p>
+<span class="math display">\begin{align}
   \frac{1}{y_i}\cdot\frac{\partial y_i}{\partial x_i} = \beta_1 \Rightarrow \frac{\Delta y_i}{y_i} = \beta_1 \Delta x_i \notag
-\end{align}\]</span>
+\end{align}</span>
 <p><strong>Interpretation</strong></p>
-<p><span class="math inline">\(\beta_1\)</span> measures a percentage change in <span class="math inline">\(y_i\)</span> (once multiplied by 100) when <span class="math inline">\(x_i\)</span> is increased by one unit</p>
+<p><span class="math inline">\beta_1</span> measures a percentage change in <span class="math inline">y_i</span> (once multiplied by 100) when <span class="math inline">x_i</span> is increased by one unit</p>
 </div>
 <div id="tabset-2-2">
+<details class="transcript inline">
+<summary>
+Lecturer transcript
+</summary>
+<p>The two curves show what the log-linear form imposes. Both are exponential in x, because undoing the log means exponentiating. With a positive coefficient the curve rises at an accelerating rate; with a negative one it decays toward zero but never crosses it. That last property is often the reason to choose this form. Wages, prices, and yields cannot be negative, and a log-linear specification cannot predict a negative value no matter how far you extrapolate. A model that is linear in the level offers no such guarantee.</p>
+</details>
 <div class="cell">
 <div class="cell-output-display">
 <div>
 <figure>
-<p><img data-src="07-modeling_files/figure-revealjs/unnamed-chunk-1-1.png" width="4000"></p>
+<p><img data-src="07-modeling_files/figure-revealjs/unnamed-chunk-1-1.png" width="2800"></p>
 </figure>
 </div>
 </div>
 </div>
 </div>
 <div id="tabset-2-3">
+<details class="transcript">
+<summary>
+Lecturer transcript
+</summary>
+<p>Applying the same algebra to the wage equation gives the interpretation you will use constantly in labor economics. Beta one is the proportional change in wage per additional year of schooling, so multiplying by one hundred gives the return to education in percent. This is why log wage rather than wage is the standard left-hand-side variable in this literature. A percentage return is comparable across countries, decades, and wage levels, whereas a dollar return is not.</p>
+</details>
 <p><strong>Model</strong></p>
-<span class="math display">\[\begin{align}
+<span class="math display">\begin{align}
     log(wage)=\beta_0 + \beta_1 educ + u \notag
-\end{align}\]</span>
+\end{align}</span>
 <p><strong>Calculus</strong></p>
-<p>Differentiating both sides with respect to <span class="math inline">\(educ\)</span>,</p>
-<span class="math display">\[\begin{align}
+<p>Differentiating both sides with respect to <span class="math inline">educ</span>,</p>
+<span class="math display">\begin{align}
     \frac{1}{wage} \frac{\partial wage}{\partial educ} = \beta_1 \Rightarrow \frac{\Delta wage}{wage} = \beta_1\Delta educ\notag
-\end{align}\]</span>
+\end{align}</span>
 <p><strong>Interpretation</strong></p>
-<p>If education increases by 1 year <span class="math inline">\((\Delta educ=1)\)</span>, then wage increases by <span class="math inline">\(\beta_1*100\%\)</span> <span class="math inline">\((\frac{\Delta wage}{wage}=\beta_1)\)</span></p>
+<p>If education increases by 1 year <span class="math inline">(\Delta educ=1)</span>, then wage increases by <span class="math inline">\beta_1*100\%</span> <span class="math inline">(\frac{\Delta wage}{wage}=\beta_1)</span></p>
 </div>
 <div id="tabset-2-4">
+<details class="transcript inline">
+<summary>
+Lecturer transcript
+</summary>
+<p>Here is the fitted log-linear equation and what it looks like back in dollar space. The red line comes from regressing wage directly on education; the blue curve is the log-linear fit exponentiated. Notice the shapes differ most at the ends of the education range, which is exactly where a straight line is most likely to mislead. The callout flags a subtlety worth stating once: exponentiating the fitted line gives a predicted median, not a predicted mean, because the expectation of an exponential is not the exponential of an expectation.</p>
+</details>
 <div class="columns">
 <div class="column" style="width:40%;">
 <p>When you estimate the following model using the wage dataset:</p>
-<p><span class="math display">\[log(wage)=\beta_0 + \beta_1 educ + u \notag\]</span></p>
+<p><span class="math display">log(wage)=\beta_0 + \beta_1 educ + u \notag</span></p>
 <p><br></p>
 <p>Then, the estimated equation is the following:</p>
-<span class="math display">\[\begin{align}
+<span class="math display">\begin{align}
   \widehat{log(wage)}=0.584+0.083 educ \notag
-\end{align}\]</span>
-<span class="math display">\[\begin{align}
-  E[\widehat{wage}]=e^{0.584+0.083 educ}
-\end{align}\]</span>
+\end{align}</span>
+<span class="math display">\begin{align}
+  \widehat{wage}=e^{0.584+0.083 educ}
+\end{align}</span>
+<div title="Careful">
+<div class="callout callout-note no-icon callout-titled callout-style-default">
+<div class="callout-body">
+<div class="callout-title">
+<p><strong>Careful</strong></p>
+</div>
+<div class="callout-content">
+<p>Exponentiating the fitted line gives the predicted <span style="color: blue;">median</span> of <span class="math inline">wage</span>, not its mean. Because <span class="math inline">E[e^u]&gt;e^{E[u]}</span>, recovering <span class="math inline">E[wage\mid educ]</span> requires an extra retransformation factor.</p>
+</div>
+</div>
+</div>
+</div>
 </div><!--end of the 1st column--><div class="column" style="width:60%;">
 <div class="cell">
 <div class="cell-output-display">
 <div>
 <figure>
-<p><img data-src="07-modeling_files/figure-revealjs/g_wage_log-1.png" width="4000"></p>
+<p><img data-src="07-modeling_files/figure-revealjs/g_wage_log-1.png" width="2800"></p>
 </figure>
 </div>
 </div>
@@ -2077,25 +2467,37 @@ It assumes that fertilizer affects corn yield the same way no matter how much fe
 <ul id="tabset-3" class="panel-tabset-tabby"><li><a data-tabby-default="" href="#tabset-3-1">Basics</a></li><li><a href="#tabset-3-2">Visualization</a></li></ul>
 <div class="tab-content">
 <div id="tabset-3-1">
+<details class="transcript">
+<summary>
+Lecturer transcript
+</summary>
+<p>Now the transformation is on the right-hand side instead. Differentiating, the derivative of the log puts one over x on the right, so beta one multiplies the proportional change in x. Read the interpretation carefully: a one percent increase in x, meaning delta x over x equals zero point zero one, raises y by beta one times zero point zero one in the units of y. Students routinely misstate this as a one-unit change in x, so slow down here. This form suits a regressor with strongly diminishing returns, such as firm size or income.</p>
+</details>
 <p><strong>Model</strong></p>
-<span class="math display">\[\begin{align}
+<span class="math display">\begin{align}
   y_i= \beta_0+\beta_1 log(x_i) +u_i \notag
-\end{align}\]</span>
+\end{align}</span>
 <p><strong>Calculus</strong></p>
-<p>Differentiating the both sides wrt <span class="math inline">\(x_i\)</span>,</p>
-<span class="math display">\[\begin{align}
+<p>Differentiating the both sides wrt <span class="math inline">x_i</span>,</p>
+<span class="math display">\begin{align}
   \frac{\partial y_i}{\partial x_i} = \frac{\beta_1}{x_i} \Rightarrow \Delta y_i = \beta_1\frac{\Delta x_i}{x_i} \notag
-\end{align}\]</span>
+\end{align}</span>
 <p><strong>Interpretation</strong></p>
-<p>When <span class="math inline">\(x\)</span> increases by 0.01 (<span class="math inline">\(1\%\)</span>) <span class="math inline">\(y\)</span> increases by <span class="math inline">\(\beta_1 \times 0.01\)</span>.</p>
+<p>When <span class="math inline">x</span> increases by <span class="math inline">1\%</span> (that is, <span class="math inline">\frac{\Delta x_i}{x_i} = 0.01</span>), <span class="math inline">y</span> increases by <span class="math inline">\beta_1 \times 0.01</span> units.</p>
 </div>
 <div id="tabset-3-2">
-<p><span class="math display">\[y = \beta_0 + \beta_1 log(x) = 1 + 2 \times log(x)\]</span></p>
+<details class="transcript inline">
+<summary>
+Lecturer transcript
+</summary>
+<p>The linear-log curve rises steeply at small x and then flattens, without ever turning over. That is the shape to keep in mind when choosing between this and a quadratic. Linear-log imposes diminishing returns that never become negative; a quadratic allows the relationship to peak and come back down. Which restriction you want is a substantive question about the process, not a statistical one, and you should be able to defend the choice before you look at the fit.</p>
+</details>
+<p><span class="math display">y = \beta_0 + \beta_1 log(x) = 1 + 2 \times log(x)</span></p>
 <div class="cell">
 <div class="cell-output-display">
 <div>
 <figure>
-<p><img data-src="07-modeling_files/figure-revealjs/linear_log_vis-1.png" width="4000"></p>
+<p><img data-src="07-modeling_files/figure-revealjs/linear_log_vis-1.png" width="2800"></p>
 </figure>
 </div>
 </div>
@@ -2106,54 +2508,72 @@ It assumes that fertilizer affects corn yield the same way no matter how much fe
 <!--end of panel-->
 </div>
 <div id="tabset-5-3">
+<details class="transcript">
+<summary>
+Lecturer transcript
+</summary>
+<p>Logs on both sides give the constant-elasticity model, which is why this specification appears everywhere in demand and production estimation. Beta one is an elasticity: a one percent change in x produces a beta-one percent change in y, and crucially that percentage is the same everywhere along the curve. That constancy is a real restriction. If you believe demand is more elastic at high prices than at low ones, log-log has assumed the problem away, and you would need interactions or a more flexible form to let the elasticity vary.</p>
+</details>
 <p><strong>Model</strong></p>
-<span class="math display">\[\begin{align}
+<span class="math display">\begin{align}
   log(y_i)= \beta_0+\beta_1 log(x_i) +u_i \notag
-\end{align}\]</span>
+\end{align}</span>
 <p><strong>Calculus</strong></p>
-<p>Differentiating the both sides wrt <span class="math inline">\(x_i\)</span>,</p>
-<span class="math display">\[\begin{align}
+<p>Differentiating the both sides wrt <span class="math inline">x_i</span>,</p>
+<span class="math display">\begin{align}
   \frac{\partial y_i}{y_i}/\frac{\partial x_i}{x_i} = \beta_1 \Rightarrow \frac{\Delta y_i}{y_i} = \beta_1 \frac{\Delta x_i}{x_i}\notag
-\end{align}\]</span>
+\end{align}</span>
 <p><strong>Interpretation</strong></p>
-<p>A <span style="color: blue;"> percentage </span> change in <span class="math inline">\(x\)</span> would result in a <span class="math inline">\(\beta_1\)</span> <span style="color: blue;"> percentage </span> change in <span class="math inline">\(y_i\)</span> (constant elasticity)</p>
+<p>A <span style="color: blue;"> percentage </span> change in <span class="math inline">x</span> would result in a <span class="math inline">\beta_1</span> <span style="color: blue;"> percentage </span> change in <span class="math inline">y_i</span> (constant elasticity)</p>
 </div>
 <div id="tabset-5-4">
 <div class="panel-tabset">
-<ul id="tabset-4" class="panel-tabset-tabby"><li><a data-tabby-default="" href="#tabset-4-1">Basics</a></li><li><a href="#tabset-4-2">Visualization</a></li><li><a href="#tabset-4-3">Example</a></li><li><a href="#tabset-4-4">Implementation in R</a></li><li><a href="#tabset-4-5">Estimated Model</a></li><li><a href="#tabset-4-6">Marginal impact of <span class="math inline">\(educ\)</span></a></li></ul>
+<ul id="tabset-4" class="panel-tabset-tabby"><li><a data-tabby-default="" href="#tabset-4-1">Basics</a></li><li><a href="#tabset-4-2">Visualization</a></li><li><a href="#tabset-4-3">Example</a></li><li><a href="#tabset-4-4">Implementation in R</a></li><li><a href="#tabset-4-5">Estimated Model</a></li><li><a href="#tabset-4-6">Marginal impact of <span class="math inline">educ</span></a></li></ul>
 <div class="tab-content">
 <div id="tabset-4-1">
+<details class="transcript">
+<summary>
+Lecturer transcript
+</summary>
+<p>The quadratic adds a squared term and lets the slope vary with x. Differentiating gives beta one plus two times beta two times x, so the marginal effect now depends on where you evaluate it. This is the single most important consequence and it drives the rest of the lecture: there is no longer one number you can report as the effect of x. Note also that beta one on its own is only the marginal effect at x equal to zero, which is often outside the data and rarely interesting by itself.</p>
+</details>
 <p><strong>Model</strong></p>
-<p><span class="math inline">\(y_i= \beta_0 + \beta_1 x_i + \beta_2 x_i^2 + u_i\)</span></p>
+<p><span class="math inline">y_i= \beta_0 + \beta_1 x_i + \beta_2 x_i^2 + u_i</span></p>
 <p><br></p>
 <p><strong>Calculus</strong></p>
-<p>Differentiating the both sides wrt <span class="math inline">\(x_i\)</span>,</p>
-<p><span class="math inline">\(\frac{\partial y_i}{\partial x_i} = \beta_1 + 2*\beta_2 x_i\Rightarrow  \Delta y_i = (\beta_1 + 2*\beta_2 x_i)\Delta x_i\)</span></p>
+<p>Differentiating the both sides wrt <span class="math inline">x_i</span>,</p>
+<p><span class="math inline">\frac{\partial y_i}{\partial x_i} = \beta_1 + 2*\beta_2 x_i\Rightarrow  \Delta y_i = (\beta_1 + 2*\beta_2 x_i)\Delta x_i</span></p>
 <p><br></p>
 <p><strong>Interpretation</strong></p>
-<p>When <span class="math inline">\(x\)</span> increases by 1 unit <span class="math inline">\((\Delta x_i=1)\)</span>, <span class="math inline">\(y\)</span> increases by <span class="math inline">\(\beta_1 + 2*\beta_2 x_i\)</span></p>
+<p>When <span class="math inline">x</span> increases by 1 unit <span class="math inline">(\Delta x_i=1)</span>, <span class="math inline">y</span> increases by <span class="math inline">\beta_1 + 2*\beta_2 x_i</span></p>
 </div>
 <div id="tabset-4-2">
+<details class="transcript inline">
+<summary>
+Lecturer transcript
+</summary>
+<p>The two panels show how flexible this form is. On the left both coefficients are positive and the curve accelerates upward. On the right beta two is negative, so the curve rises, peaks, and falls. That turning point sits at minus beta one over two beta two. Always check where the turning point lands relative to your data. If it falls well outside the observed range of x, the quadratic is behaving like a smoothly curved line over the range you care about, and you should not describe your results as if you had estimated a peak.</p>
+</details>
 <p>Quadratic functional form is quite flexible.</p>
 <div class="columns">
 <div class="column" style="width:50%;">
-<p><span class="math inline">\(y = x + x^2\)</span> <span class="math inline">\((\beta_1 = 1, \beta_2 = 1)\)</span></p>
+<p><span class="math inline">y = x + x^2</span> <span class="math inline">(\beta_1 = 1, \beta_2 = 1)</span></p>
 <div class="cell">
 <div class="cell-output-display">
 <div>
 <figure>
-<p><img data-src="07-modeling_files/figure-revealjs/unnamed-chunk-3-1.png" width="4000"></p>
+<p><img data-src="07-modeling_files/figure-revealjs/unnamed-chunk-3-1.png" width="2800"></p>
 </figure>
 </div>
 </div>
 </div>
 </div><!--end of the 1st column--><div class="column" style="width:50%;">
-<p><span class="math inline">\(y = 3x-2x^2\)</span> <span class="math inline">\((\beta_1 = 3, \beta_2 = -2)\)</span></p>
+<p><span class="math inline">y = 3x-2x^2</span> <span class="math inline">(\beta_1 = 3, \beta_2 = -2)</span></p>
 <div class="cell">
 <div class="cell-output-display">
 <div>
 <figure>
-<p><img data-src="07-modeling_files/figure-revealjs/unnamed-chunk-4-1.png" width="4000"></p>
+<p><img data-src="07-modeling_files/figure-revealjs/unnamed-chunk-4-1.png" width="2800"></p>
 </figure>
 </div>
 </div>
@@ -2163,8 +2583,14 @@ It assumes that fertilizer affects corn yield the same way no matter how much fe
 <!--end of the columns-->
 </div>
 <div id="tabset-4-3">
-<p><strong>Education impacts of income</strong></p>
-<p>The marginal impact of education (the impact of a small change in education on income) may differ what level of education you have had:</p>
+<details class="transcript">
+<summary>
+Lecturer transcript
+</summary>
+<p>The three questions on this slide are meant to make the constant-slope assumption feel wrong. Two more years of schooling after elementary school, after a bachelor’s degree, and midway through a doctorate almost certainly do not carry the same return. Once you accept that, a model forcing one number onto all three cases is misspecified. The quadratic is the simplest way to let the data tell you how the return changes with the level of schooling.</p>
+</details>
+<p><strong>Education impacts on income</strong></p>
+<p>The marginal impact of education (the impact of a small change in education on income) may differ depending on the level of education you have had:</p>
 <ul>
 <li><p>How much does it help to have two more years of education when you have had education until elementary school?</p></li>
 <li><p>How much does it help to have two more years of education when you have graduated a college?</p></li>
@@ -2175,22 +2601,40 @@ It assumes that fertilizer affects corn yield the same way no matter how much fe
 <p>The marginal impact of education does not seem to be linear.</p>
 </div>
 <div id="tabset-4-4">
+<details class="transcript">
+<summary>
+Lecturer transcript
+</summary>
+<p>In R, any transformation of an existing variable goes inside the I function, which tells the formula parser to treat what follows as arithmetic rather than as formula syntax. Without it, the caret has a special meaning in a formula and you would not get the squared term you intended. Run this cell and look at the two education coefficients. The linear term is negative and the squared term is positive, which alone tells you the fitted relationship is U-shaped in education over some range.</p>
+</details>
 <p>When you want to include a variable that is a transformation of an existing variable, you can use <code>I()</code> function in which you write the mathematical expression of the desired transformation.</p>
 <div id="qwebr-insertion-location-1"></div>
 <noscript>Please enable JavaScript to experience the dynamic code cell content on this page.</noscript>
 </div>
 <div id="tabset-4-5">
+<details class="transcript inline">
+<summary>
+Lecturer transcript
+</summary>
+<p>The plotted curve holds female at one and traces predicted wage across the education range. The fitted relationship falls slightly at low education and then rises increasingly steeply. Do not over-read the downward portion. Very few people in this sample have only a few years of schooling, so that part of the curve rests on little data and is largely an artifact of forcing a parabola through the whole range. This is a good habit generally: overlay the data before interpreting a fitted curve.</p>
+</details>
 <p><strong>Estimated Model</strong></p>
-<p><span class="math inline">\(wage = 5.60 - 2.12\times female -0.416\times educ + 0.039\times educ^2\)</span></p>
+<p><span class="math inline">wage = 5.60 - 2.12\times female -0.416\times educ + 0.039\times educ^2</span></p>
 <div id="qwebr-insertion-location-2"></div>
 <noscript>Please enable JavaScript to experience the dynamic code cell content on this page.</noscript>
 </div>
 <div id="tabset-4-6">
-<p>According to the estimated model, the marginal impact of <span class="math inline">\(educ\)</span> is:</p>
-<p><span class="math inline">\(\frac{\partial wage}{\partial educ} = -0.416+0.039\times 2\times educ\)</span></p>
+<details class="transcript">
+<summary>
+Lecturer transcript
+</summary>
+<p>Here is the marginal effect written out, along with the two coefficients and their t-statistics. Notice that neither t-statistic answers the question we care about. The first tests whether the coefficient on education alone is zero, which is the marginal effect only at zero years of schooling. The second tests the curvature. What we actually want is whether the whole expression, a combination of two estimated coefficients, differs from zero at a particular education level. That is a different test, and building it is what the next section does.</p>
+</details>
+<p>According to the estimated model, the marginal impact of <span class="math inline">educ</span> is:</p>
+<p><span class="math inline">\frac{\partial wage}{\partial educ} = -0.416+0.039\times 2\times educ</span></p>
 <ul>
-<li><p>When <span class="math inline">\(educ = 4\)</span>, additional year of education is going to increase hourly wage by -0.104 on average</p></li>
-<li><p>When <span class="math inline">\(educ = 10\)</span>, additional year of education is going to increase hourly wage by 0.364 on average</p></li>
+<li><p>When <span class="math inline">educ = 4</span>, additional year of education is going to increase hourly wage by -0.104 on average</p></li>
+<li><p>When <span class="math inline">educ = 10</span>, additional year of education is going to increase hourly wage by 0.364 on average</p></li>
 </ul>
 </div>
 </div>
@@ -2214,38 +2658,56 @@ It assumes that fertilizer affects corn yield the same way no matter how much fe
 <section id="statistical-significance-of-the-marginal-impact-1" class="slide level2">
 <h2>Statistical significance of the marginal impact</h2>
 <div class="panel-tabset">
-<ul id="tabset-9" class="panel-tabset-tabby"><li><a data-tabby-default="" href="#tabset-9-1">Marginal impcat</a></li><li><a href="#tabset-9-2">In the linear case</a></li><li><a href="#tabset-9-3">The quadratic case</a></li></ul>
+<ul id="tabset-9" class="panel-tabset-tabby"><li><a data-tabby-default="" href="#tabset-9-1">Marginal impact</a></li><li><a href="#tabset-9-2">In the linear case</a></li><li><a href="#tabset-9-3">The quadratic case</a></li></ul>
 <div class="tab-content">
 <div id="tabset-9-1">
-<p>Let’s work with the income model, in which the marginal impact of <span class="math inline">\(educ\)</span> is:</p>
-<span class="math display">\[\begin{align*}
+<details class="transcript">
+<summary>
+Lecturer transcript
+</summary>
+<p>This slide sets up the problem cleanly. In the quadratic model the marginal effect of education is a linear combination of two coefficients whose weights depend on the education level you pick. So the question is the marginal effect statistically significant is incomplete until you say at what value of education. We will first review the easy linear case, where the question has a single answer, and then handle the quadratic case where it does not.</p>
+</details>
+<p>Let’s work with the income model, in which the marginal impact of <span class="math inline">educ</span> is:</p>
+<span class="math display">\begin{align*}
 \frac{\partial wage}{\partial educ} = -0.416+0.039\times 2\times educ
-\end{align*}\]</span>
+\end{align*}</span>
 <ul>
-<li><span class="math inline">\(\beta_{educ}\)</span>: <span class="math inline">\(-0.416\)</span> <span class="math inline">\((t\)</span>-stat <span class="math inline">\(= -1.80)\)</span></li>
-<li><span class="math inline">\(\beta_{educ^2}\)</span>: <span class="math inline">\(0.039\)</span> <span class="math inline">\((t\)</span>-stat <span class="math inline">\(= 4.10)\)</span></li>
+<li><span class="math inline">\beta_{educ}</span>: <span class="math inline">-0.416</span> <span class="math inline">(t</span>-stat <span class="math inline">= -1.80)</span></li>
+<li><span class="math inline">\beta_{educ^2}</span>: <span class="math inline">0.039</span> <span class="math inline">(t</span>-stat <span class="math inline">= 4.10)</span></li>
 </ul>
 <p><br></p>
 <p><strong>Question</strong></p>
-<p>So, is the marginal impact of <span class="math inline">\(educ\)</span> statistically significantly different from <span class="math inline">\(0\)</span>?</p>
+<p>So, is the marginal impact of <span class="math inline">educ</span> statistically significantly different from <span class="math inline">0</span>?</p>
 </div>
 <div id="tabset-9-2">
 <div class="panel-tabset">
 <ul id="tabset-7" class="panel-tabset-tabby"><li><a data-tabby-default="" href="#tabset-7-1">Model and marginal impact</a></li><li><a href="#tabset-7-2">Testing?</a></li></ul>
 <div class="tab-content">
 <div id="tabset-7-1">
+<details class="transcript">
+<summary>
+Lecturer transcript
+</summary>
+<p>Start with the linear specification as a baseline. Here the marginal effect of education is a single coefficient, about fifty-one cents an hour per year of schooling, and it is the same for everyone regardless of their education level. That constancy is what makes the linear case easy: testing significance of the effect is just the t-test on one coefficient, which the regression output already prints for you. Work through the two questions before moving on, because the contrast with the quadratic case is the whole point.</p>
+</details>
 <p><strong>Regression</strong></p>
 <div id="qwebr-insertion-location-3"></div>
 <noscript>Please enable JavaScript to experience the dynamic code cell content on this page.</noscript>
 <p><br></p>
 <p><strong>Estimated model</strong></p>
-<p><span class="math inline">\(wage = 0.62+0.51 \times educ\)</span></p>
+<p><span class="math inline">wage = 0.62 - 2.27 \times female + 0.51 \times educ</span></p>
 <p><br></p>
 <div class="panel-tabset">
 <ul id="tabset-6" class="panel-tabset-tabby"><li><a data-tabby-default="" href="#tabset-6-1">Question 1</a></li><li><a href="#tabset-6-2">Question 2</a></li></ul>
 <div class="tab-content">
 <div id="tabset-6-1">
-<p>What is the marginal impact of <span class="math inline">\(educ\)</span>?</p>
+<details class="transcript">
+<summary>
+Lecturer transcript
+</summary>
+<p>The marginal effect is the coefficient on education, about zero point five one. In the linear model the answer really is that simple, which is precisely why we tend to forget that it is a special case rather than the general rule.</p>
+</details>
+<p>What is the marginal impact of <span class="math inline">educ</span>?</p>
 <br>
 <details>
 <summary>
@@ -2255,6 +2717,12 @@ Answer
 </details>
 </div>
 <div id="tabset-6-2">
+<details class="transcript">
+<summary>
+Lecturer transcript
+</summary>
+<p>No, and notice that we assumed it away rather than discovering it. By writing education as a single linear term we imposed that an extra year is worth the same to someone with eight years of schooling and someone with eighteen. That is not a finding from the data; it is a restriction we chose when we specified the model, and the quadratic specification is what lets us relax it.</p>
+</details>
 <p>Does the marginal impact of education vary depending on the level of education?</p>
 <br>
 <details>
@@ -2269,7 +2737,13 @@ No, the model we estimated assumed that the marginal impact of education is cons
 <!--end of panel-->
 </div>
 <div id="tabset-7-2">
-<p>You can just test if <span class="math inline">\(\hat{\beta}_{educ}\)</span> (the marginal impact of education) is statistically significantly different from <span class="math inline">\(0\)</span>, which is just a t-test.</p>
+<details class="transcript">
+<summary>
+Lecturer transcript
+</summary>
+<p>In the linear case, the significance test for the marginal effect is already in the regression output. The coefficient on education is the marginal effect, so its t-statistic and p-value answer the question directly. Nothing extra is required. Hold onto this, because the contrast is coming: as soon as the marginal effect involves more than one coefficient, the printed t-statistics no longer test what you want.</p>
+</details>
+<p>You can just test if <span class="math inline">\hat{\beta}_{educ}</span> (the marginal impact of education) is statistically significantly different from <span class="math inline">0</span>, which is just a t-test.</p>
 </div>
 </div>
 </div>
@@ -2280,64 +2754,104 @@ No, the model we estimated assumed that the marginal impact of education is cons
 <ul id="tabset-8" class="panel-tabset-tabby"><li><a data-tabby-default="" href="#tabset-8-1">Issue</a></li><li><a href="#tabset-8-2">Example 1</a></li><li><a href="#tabset-8-3">R implementation</a></li><li><a href="#tabset-8-4">Example 2</a></li><li><a href="#tabset-8-5">R implementation</a></li></ul>
 <div class="tab-content">
 <div id="tabset-8-1">
+<details class="transcript">
+<summary>
+Lecturer transcript
+</summary>
+<p>Three consequences follow from a varying marginal effect. It changes with the education level, so there is no universal answer to whether education matters. There is no single test that settles significance for everyone. And you therefore need to choose the education levels at which the question is interesting and test at each of them. That choice is substantive: pick values that correspond to real, well-populated cases in your data, not values that happen to give you the answer you wanted.</p>
+</details>
 <p>With the quadratic specification</p>
 <ul>
 <li><p>The marginal impact of education varies depending on your education level</p></li>
 <li><p>There is no single test that tells you whether the marginal impact of education is statistically significant universally</p></li>
-<li><p>Indeed, you need different tests for different values education levels</p></li>
+<li><p>Indeed, you need different tests for different education levels</p></li>
 </ul>
 </div>
 <div id="tabset-8-2">
+<details class="transcript">
+<summary>
+Lecturer transcript
+</summary>
+<p>We evaluate at four years of schooling. Note carefully what the null says. It is a statement about the population parameters, a single equation combining two of them with weights one and eight. That makes it a test of one linear restriction, which is a t-test, not an F-test of several restrictions. The three-way question on the slide is worth pausing on, because students commonly reach for an F-test whenever they see two coefficients appear in a hypothesis.</p>
+</details>
 <p><strong>Marginal impact of education</strong></p>
-<p><span class="math inline">\(\hat{\beta}_{educ} + \hat{\beta}_{educ^2} \times 2 \times educ\)</span></p>
+<p><span class="math inline">\hat{\beta}_{educ} + \hat{\beta}_{educ^2} \times 2 \times educ</span></p>
 <p><br></p>
 <p><strong>Hypothesis testing</strong></p>
-<p>Does additional year of education has a statistically significant impact (positive or negative) if your current education level is 4?</p>
+<p>Does an additional year of education have a statistically significant impact (positive or negative) if your current education level is 4?</p>
 <ul>
-<li><p><span class="math inline">\(H_0\)</span>: <span class="math inline">\(\hat{\beta}_{educ} + \hat{\beta}_{educ^2} \times 2 \times 4 =0\)</span></p></li>
-<li><p><span class="math inline">\(H_1\)</span>: <span class="math inline">\(\hat{\beta}_{educ} + \hat{\beta}_{educ^2} \times 2 \times 4 \ne 0\)</span></p></li>
+<li><p><span class="math inline">H_0</span>: <span class="math inline">\beta_{educ} + \beta_{educ^2} \times 2 \times 4 =0</span></p></li>
+<li><p><span class="math inline">H_1</span>: <span class="math inline">\beta_{educ} + \beta_{educ^2} \times 2 \times 4 \ne 0</span></p></li>
 </ul>
+<div class="callout callout-note no-icon callout-titled callout-style-default">
+<div class="callout-body">
+<div class="callout-title">
+<p><strong>Note</strong></p>
+</div>
+<div class="callout-content">
+<p>Hypotheses are statements about the <span style="color: blue;">population</span> parameters <span class="math inline">\beta</span>, never about the estimates <span class="math inline">\hat{\beta}</span>. We use the estimates to build the test statistic below.</p>
+</div>
+</div>
+</div>
 <p><br></p>
 <p><strong>Question</strong></p>
 <p>Is this</p>
 <ul>
 <li>test of a single coefficient? (t-test)</li>
 <li>test of a single equation with multiple coefficients? (t-test)</li>
-<li>test of multiples equations with multiple coefficients? (F-test)</li>
+<li>test of multiple equations with multiple coefficients? (F-test)</li>
 </ul>
 <p><strong>t-statistic</strong></p>
-<p><span class="math inline">\(t = \frac{\hat{\beta}_{educ} + \hat{\beta}_{educ^2} \times 2 \times 4}{se(\hat{\beta}_{educ} + \hat{\beta}_{educ^2} \times 2 \times 4)} = \frac{\hat{\beta}_{educ} + \hat{\beta}_{educ^2} \times 8}{se(\hat{\beta}_{educ} + \hat{\beta}_{educ^2} \times 8)}\)</span></p>
+<p><span class="math inline">t = \frac{\hat{\beta}_{educ} + \hat{\beta}_{educ^2} \times 2 \times 4}{se(\hat{\beta}_{educ} + \hat{\beta}_{educ^2} \times 2 \times 4)} = \frac{\hat{\beta}_{educ} + \hat{\beta}_{educ^2} \times 8}{se(\hat{\beta}_{educ} + \hat{\beta}_{educ^2} \times 8)}</span></p>
 </div>
 <div id="tabset-8-3">
-<p>Remember, a trick to do this test using R is take advantage of the fact that <span class="math inline">\(F_{1, n-k-1} \sim t_{n-k-1}^2\)</span>.</p>
+<details class="transcript">
+<summary>
+Lecturer transcript
+</summary>
+<p>The linearHypothesis function from the car package takes the restriction as a text string, written exactly as it appears in the null. The trick noted above is that R reports this as an F-statistic on one degree of freedom, and an F on one and n minus k minus one degrees of freedom is just the square of the corresponding t. So the p-value is the one you want. Here it is zero point three nine four, so at four years of schooling we cannot distinguish the marginal effect from zero.</p>
+</details>
+<p>Remember, a trick to do this test using R is take advantage of the fact that <span class="math inline">F_{1, n-k-1} \sim t_{n-k-1}^2</span>.</p>
 <div id="qwebr-insertion-location-4"></div>
 <noscript>Please enable JavaScript to experience the dynamic code cell content on this page.</noscript>
-<p>Since the p-value is 0.529, we do not reject the null.</p>
+<p>The p-value is <span class="math inline">0.394</span>, so we do not reject the null: at an education level of 4, the marginal impact of education is not statistically distinguishable from zero.</p>
 </div>
 <div id="tabset-8-4">
+<details class="transcript">
+<summary>
+Lecturer transcript
+</summary>
+<p>Now repeat at ten years of schooling. The structure is identical; only the weight changes, from eight to twenty. This is worth doing explicitly rather than describing, because it makes concrete that we are running a genuinely different test, not reinterpreting the same one. Same model, same coefficients, same standard errors, different linear combination, and therefore a different answer.</p>
+</details>
 <p><strong>Marginal impact of education</strong></p>
-<p><span class="math inline">\(\hat{\beta}_{educ} + \hat{\beta}_{educ^2} \times 2 \times educ\)</span></p>
+<p><span class="math inline">\hat{\beta}_{educ} + \hat{\beta}_{educ^2} \times 2 \times educ</span></p>
 <p><br></p>
 <p><strong>Hypothesis testing</strong></p>
-<p>Does additional year of education has a statistically significant impact (positive or negative) if your current education level is 10?</p>
+<p>Does an additional year of education have a statistically significant impact (positive or negative) if your current education level is 10?</p>
 <ul>
-<li><p><span class="math inline">\(H_0\)</span>: <span class="math inline">\(\hat{\beta}_{educ} + \hat{\beta}_{educ^2} \times 2 \times 10 =0\)</span></p></li>
-<li><p><span class="math inline">\(H_1\)</span>: <span class="math inline">\(\hat{\beta}_{educ} + \hat{\beta}_{educ^2} \times 2 \times 10 \ne 0\)</span></p></li>
+<li><p><span class="math inline">H_0</span>: <span class="math inline">\beta_{educ} + \beta_{educ^2} \times 2 \times 10 =0</span></p></li>
+<li><p><span class="math inline">H_1</span>: <span class="math inline">\beta_{educ} + \beta_{educ^2} \times 2 \times 10 \ne 0</span></p></li>
 </ul>
 <p><strong>Question</strong></p>
 <p>Is this</p>
 <ul>
 <li>test of a single coefficient? (t-test)</li>
 <li>test of a single equation with multiple coefficients? (t-test)</li>
-<li>test of multiples equations with multiple coefficients? (F-test)</li>
+<li>test of multiple equations with multiple coefficients? (F-test)</li>
 </ul>
 <p><strong>t-statistic</strong></p>
-<p><span class="math inline">\(t = \frac{\hat{\beta}_{educ} + \hat{\beta}_{educ^2} \times 2 \times 10}{se(\hat{\beta}_{educ} + \hat{\beta}_{educ^2} \times 2 \times 10)} = \frac{\hat{\beta}_{educ} + \hat{\beta}_{educ^2} \times 20}{se(\hat{\beta}_{educ} + \hat{\beta}_{educ^2} \times 20)}\)</span></p>
+<p><span class="math inline">t = \frac{\hat{\beta}_{educ} + \hat{\beta}_{educ^2} \times 2 \times 10}{se(\hat{\beta}_{educ} + \hat{\beta}_{educ^2} \times 2 \times 10)} = \frac{\hat{\beta}_{educ} + \hat{\beta}_{educ^2} \times 20}{se(\hat{\beta}_{educ} + \hat{\beta}_{educ^2} \times 20)}</span></p>
 </div>
 <div id="tabset-8-5">
+<details class="transcript">
+<summary>
+Lecturer transcript
+</summary>
+<p>The same command with twenty in place of eight. The p-value is now far below one percent, so at ten years of schooling the marginal effect of education is clearly positive and statistically significant. Put the two results side by side: identical model and identical estimates, but at four years we could not reject zero and at ten years we reject decisively. That is the practical payoff of taking the varying marginal effect seriously.</p>
+</details>
 <div id="qwebr-insertion-location-5"></div>
 <noscript>Please enable JavaScript to experience the dynamic code cell content on this page.</noscript>
-<p>Since the much lower than is 0.01, we can reject the null at the 1% level.</p>
+<p>The p-value is far below <span class="math inline">0.01</span>, so we reject the null at the 1% level: at an education level of 10, the marginal impact of education is statistically significant.</p>
 </div>
 </div>
 </div>
@@ -2363,40 +2877,77 @@ No, the model we estimated assumed that the marginal impact of education is cons
 <ul id="tabset-11" class="panel-tabset-tabby"><li><a data-tabby-default="" href="#tabset-11-1">What is it?</a></li><li><a href="#tabset-11-2">Marginal impact</a></li><li><a href="#tabset-11-3">R implementation</a></li><li><a href="#tabset-11-4">Estimated model</a></li><li><a href="#tabset-11-5">Hypothesis testing</a></li></ul>
 <div class="tab-content">
 <div id="tabset-11-1">
+<details class="transcript">
+<summary>
+Lecturer transcript
+</summary>
+<p>An interaction term is simply the product of two variables entered as an additional regressor. The important callout on this slide is a warning about the example itself. To keep the algebra short we have left education out as a standalone term. In your own work, include both main effects whenever you include their product. Omitting one imposes restrictions you almost certainly do not intend, and it is one of the most common specification errors in student papers.</p>
+</details>
 <p>A variable that is a multiplication of two variables</p>
 <p><br></p>
 <p><strong>Example</strong></p>
-<p><span class="math inline">\(educ\times exper\)</span></p>
+<p><span class="math inline">educ\times exper</span></p>
 <p><br></p>
 <p><strong>A model with an interaction term</strong></p>
-<p><span class="math inline">\(wage = \beta_0 + \beta_1 exper + \beta_2 educ \times exper + u\)</span></p>
+<p><span class="math inline">wage = \beta_0 + \beta_1 exper + \beta_2 educ \times exper + u</span></p>
 <p><br></p>
+<div title="A deliberately stripped-down model">
+<div class="callout callout-important no-icon callout-titled callout-style-default">
+<div class="callout-body">
+<div class="callout-title">
+<p><strong>A deliberately stripped-down model</strong></p>
+</div>
+<div class="callout-content">
+<p>Notice that <span class="math inline">educ</span> does <span style="color: red;">not</span> enter on its own here. This keeps the algebra on the next slides as simple as possible, but it is <span style="color: blue;">not</span> what you should do in your own work.</p>
+<p><strong>Rule of thumb:</strong> whenever you include an interaction <span class="math inline">x_1 \times x_2</span>, include <span class="math inline">x_1</span> and <span class="math inline">x_2</span> as separate terms too. Omitting a main effect forces the marginal impact of <span class="math inline">exper</span> to be exactly <span class="math inline">\beta_1</span> when <span class="math inline">educ = 0</span> and constrains <span class="math inline">educ</span> to affect <span class="math inline">wage</span> only through <span class="math inline">exper</span> — a restriction you almost never want to impose.</p>
+</div>
+</div>
+</div>
+</div>
 </div>
 <div id="tabset-11-2">
-<p><strong>Marginal impact of education</strong>:</p>
-<p><span class="math inline">\(\frac{\partial wage}{\partial exper} = \beta_1+\beta_2\times educ\)</span></p>
+<details class="transcript">
+<summary>
+Lecturer transcript
+</summary>
+<p>Differentiating with respect to experience gives beta one plus beta two times education, so the return to experience now depends on schooling. Read the two coefficients carefully. Beta one is the return to experience for someone with zero years of education, which is an extrapolation well outside the data here. Beta two tells you how much that return changes per additional year of schooling. A positive beta two means experience and education reinforce each other.</p>
+</details>
+<p><strong>Marginal impact of experience</strong>:</p>
+<p><span class="math inline">\frac{\partial wage}{\partial exper} = \beta_1+\beta_2\times educ</span></p>
 <p><br></p>
 <p><strong>Implications</strong></p>
 <p>The marginal impact of experience depends on education</p>
 <ul>
-<li><p><span class="math inline">\(\beta_1\)</span>: the marginal impact of experience when <span class="math inline">\(educ=0\)</span></p></li>
-<li><p>if <span class="math inline">\(\beta_2&gt;0\)</span>: additional year of experience is worth more when you have more years of education</p></li>
+<li><p><span class="math inline">\beta_1</span>: the marginal impact of experience when <span class="math inline">educ=0</span></p></li>
+<li><p>if <span class="math inline">\beta_2&gt;0</span>: additional year of experience is worth more when you have more years of education</p></li>
 </ul>
 </div>
 <div id="tabset-11-3">
-<p>Just like the quadratic case with <span class="math inline">\(educ^2\)</span>, you can use <code>I()</code>.</p>
+<details class="transcript">
+<summary>
+Lecturer transcript
+</summary>
+<p>Again the product goes inside the I function so the formula parser multiplies the two columns rather than reading the asterisk as formula shorthand. As an aside, fixest also accepts education times experience directly, which would automatically add both main effects. That would be the better specification in practice, and we are writing it out the long way here only so that the algebra on the previous slide matches the output exactly.</p>
+</details>
+<p>Just like the quadratic case with <span class="math inline">educ^2</span>, you can use <code>I()</code>.</p>
 <div id="qwebr-insertion-location-6"></div>
 <noscript>Please enable JavaScript to experience the dynamic code cell content on this page.</noscript>
 </div>
 <div id="tabset-11-4">
+<details class="transcript inline">
+<summary>
+Lecturer transcript
+</summary>
+<p>The left panel plots the estimated marginal effect of experience across the education range, with a horizontal line at zero. It starts negative and crosses zero somewhere in the middle of the range. The right panel shows why you must look at both together: the histogram tells you where the data actually are. A marginal effect estimated at an education level with almost no observations is not something to build a conclusion on, however tight the standard error looks.</p>
+</details>
 <p><strong>Estimated Model</strong></p>
-<p><span class="math inline">\(wage = 6.121 - 2.418 \times female - 0.188 \times exper + 0.020 \times educ \times exper\)</span></p>
+<p><span class="math inline">wage = 6.121 - 2.418 \times female - 0.188 \times exper + 0.020 \times educ \times exper</span></p>
 <p><br></p>
 <p><strong>Marginal impact of experience</strong></p>
-<p><span class="math inline">\(\frac{\partial wage}{\partial exper} = - 0.188 + 0.020 \times educ\)</span></p>
+<p><span class="math inline">\frac{\partial wage}{\partial exper} = - 0.188 + 0.020 \times educ</span></p>
 <div class="columns">
 <div class="column" style="width:50%;">
-<p>Marginal impact of <span class="math inline">\(exper\)</span>:</p>
+<p>Marginal impact of <span class="math inline">exper</span>:</p>
 <div class="cell">
 <div class="cell-output-display">
 <div>
@@ -2426,22 +2977,34 @@ No, the model we estimated assumed that the marginal impact of education is cons
 <ul id="tabset-10" class="panel-tabset-tabby"><li><a data-tabby-default="" href="#tabset-10-1">Hypothesis</a></li><li><a href="#tabset-10-2">R implementation</a></li></ul>
 <div class="tab-content">
 <div id="tabset-10-1">
+<details class="transcript">
+<summary>
+Lecturer transcript
+</summary>
+<p>Same logic as the quadratic case. The marginal effect of experience at ten years of schooling is a linear combination of two coefficients, so we are testing one linear restriction on the population parameters. Notice the arithmetic on this slide: at ten years the effect is about one cent an hour, and at fifteen years about eleven cents. Whether either is statistically distinguishable from zero is exactly what the test decides.</p>
+</details>
 <p>Just like the case of the quadratic specification of education, marginal impact of experience is not constant</p>
 <p>We can test if the marginal impact of experience is statistically significant for a given level of education</p>
 <ul>
-<li>When <span class="math inline">\(educ=10\)</span>, <span class="math inline">\(\frac{\partial wage}{\partial exper} = - 0.188 + 0.020 \times 10=0.012\)</span></li>
-<li>When <span class="math inline">\(educ=15\)</span>, <span class="math inline">\(\frac{\partial wage}{\partial exper} = - 0.188 + 0.020 \times 15=0.112\)</span></li>
+<li>When <span class="math inline">educ=10</span>, <span class="math inline">\frac{\partial wage}{\partial exper} = - 0.188 + 0.020 \times 10=0.012</span></li>
+<li>When <span class="math inline">educ=15</span>, <span class="math inline">\frac{\partial wage}{\partial exper} = - 0.188 + 0.020 \times 15=0.112</span></li>
 </ul>
 <p><strong>Question</strong></p>
-<p>Does additional year of experience has a statistically significant impact (positive or negative) if your current education level is 10</p>
+<p>Does an additional year of experience have a statistically significant impact (positive or negative) if your current education level is 10</p>
 <p><br></p>
 <p><strong>Hypothesis</strong></p>
 <ul>
-<li><p><span class="math inline">\(H_0\)</span>: <span class="math inline">\(\hat{\beta}_{exper} + \hat{\beta}_{exper\_educ} \times 10=0\)</span></p></li>
-<li><p><span class="math inline">\(H_1\)</span>: <span class="math inline">\(\hat{\beta}_{exper} + \hat{\beta}_{exper\_educ} \times 10=0\)</span></p></li>
+<li><p><span class="math inline">H_0</span>: <span class="math inline">\beta_{exper} + \beta_{exper\_educ} \times 10=0</span></p></li>
+<li><p><span class="math inline">H_1</span>: <span class="math inline">\beta_{exper} + \beta_{exper\_educ} \times 10\ne 0</span></p></li>
 </ul>
 </div>
 <div id="tabset-10-2">
+<details class="transcript">
+<summary>
+Lecturer transcript
+</summary>
+<p>The command is the same as before, with the interaction term named exactly as it appears in the regression output. That naming trips people up: the string must match the coefficient label character for character, including the I and the spaces around the asterisk. If R complains that it cannot find the term, print the coefficient names first and copy them.</p>
+</details>
 <div id="qwebr-insertion-location-7"></div>
 <noscript>Please enable JavaScript to experience the dynamic code cell content on this page.</noscript>
 </div>
@@ -2469,6 +3032,12 @@ No, the model we estimated assumed that the marginal impact of education is cons
 <ul id="tabset-14" class="panel-tabset-tabby"><li><a data-tabby-default="" href="#tabset-14-1">Issue</a></li><li><a href="#tabset-14-2">Binary variables</a></li><li><a href="#tabset-14-3">Use <code>male</code> instead?</a></li></ul>
 <div class="tab-content">
 <div id="tabset-14-1">
+<details class="transcript">
+<summary>
+Lecturer transcript
+</summary>
+<p>So far every regressor has been a number. Much of the information we care about is not: sex, marital status, region, degree type, crop, treatment status. The rest of this section is about getting such information into a regression correctly. The distinction that organizes it is between variables with two categories, which need a single indicator, and variables with more than two, which need a set of indicators with one held out.</p>
+</details>
 <p><strong>Issue</strong></p>
 <p>How do we include qualitative information as an independent variable?</p>
 <p><br></p>
@@ -2481,9 +3050,15 @@ No, the model we estimated assumed that the marginal impact of education is cons
 </div>
 <div id="tabset-14-2">
 <div class="panel-tabset">
-<ul id="tabset-12" class="panel-tabset-tabby"><li><a data-tabby-default="" href="#tabset-12-1">Dummy variable</a></li><li><a href="#tabset-12-2">Model with dummy a variable</a></li><li><a href="#tabset-12-3">R implementation</a></li><li><a href="#tabset-12-4">Visualization</a></li></ul>
+<ul id="tabset-12" class="panel-tabset-tabby"><li><a data-tabby-default="" href="#tabset-12-1">Dummy variable</a></li><li><a href="#tabset-12-2">Model with a dummy variable</a></li><li><a href="#tabset-12-3">R implementation</a></li><li><a href="#tabset-12-4">Visualization</a></li></ul>
 <div class="tab-content">
 <div id="tabset-12-1">
+<details class="transcript">
+<summary>
+Lecturer transcript
+</summary>
+<p>A dummy variable takes the value one for one state and zero for the other. That is the whole construction. What makes it powerful is that the coefficient on a zero-one variable has a clean interpretation as a difference in conditional means, which we derive on the next slide. Run the cell and look at the female and married columns to see what these look like in an actual dataset.</p>
+</details>
 <div title="Dummy variable">
 <div class="callout callout-note no-icon callout-titled callout-style-default">
 <div class="callout-body">
@@ -2492,7 +3067,7 @@ No, the model we estimated assumed that the marginal impact of education is cons
 </div>
 <div class="callout-content">
 <ul>
-<li><p>Relevant information in binary variables can be captured by a <span style="color: red;">zero-one</span> variable that takes the value of <span class="math inline">\(1\)</span> for one state and <span class="math inline">\(0\)</span> for the other state</p></li>
+<li><p>Relevant information in binary variables can be captured by a <span style="color: red;">zero-one</span> variable that takes the value of <span class="math inline">1</span> for one state and <span class="math inline">0</span> for the other state</p></li>
 <li><p>We use “dummy variable” to refer to a binary (zero-one) variable</p></li>
 </ul>
 </div>
@@ -2505,24 +3080,36 @@ No, the model we estimated assumed that the marginal impact of education is cons
 <noscript>Please enable JavaScript to experience the dynamic code cell content on this page.</noscript>
 </div>
 <div id="tabset-12-2">
+<details class="transcript">
+<summary>
+Lecturer transcript
+</summary>
+<p>Evaluate the model at female equal to one and at female equal to zero and subtract. Everything except sigma cancels, so sigma is the difference in expected wage between women and men at the same level of education. Two things to note. The comparison holds education fixed, which is what it means to say controlling for education. And the group coded zero, men here, is the baseline, so the coefficient is always a comparison against that group.</p>
+</details>
 <p><strong>Model</strong></p>
-<p><span class="math inline">\(wage = \beta_0 +\sigma_f female +\beta_2 educ + u\)</span></p>
+<p><span class="math inline">wage = \beta_0 +\sigma_f female +\beta_2 educ + u</span></p>
 <p><br></p>
 <p><strong>Interpretation</strong></p>
 <ul>
-<li><p><code>female</code>: <span class="math inline">\(E[wage|female=1,educ] = \beta_0 + \sigma_f +\beta_2 educ\)</span></p></li>
-<li><p><code>male</code>: <span class="math inline">\(E[wage|female=0,educ] = \beta_0 + \beta_2 educ\)</span></p></li>
+<li><p><code>female</code>: <span class="math inline">E[wage|female=1,educ] = \beta_0 + \sigma_f +\beta_2 educ</span></p></li>
+<li><p><code>male</code>: <span class="math inline">E[wage|female=0,educ] = \beta_0 + \beta_2 educ</span></p></li>
 </ul>
 <p><br></p>
 <p>This means that</p>
-<p><span class="math inline">\(\sigma_f = E[wage|female=1,educ]-E[wage|female=0,educ]\)</span></p>
+<p><span class="math inline">\sigma_f = E[wage|female=1,educ]-E[wage|female=0,educ]</span></p>
 <p>Verbally,</p>
 <ul>
-<li><p><span class="math inline">\(\sigma_f\)</span> is the difference in the expected wage conditional on education between female and male</p></li>
-<li><p><span class="math inline">\(\sigma_f\)</span> measures how much more (less) female workers make compared to male workers (<span style="color: blue;"> baseline </span>) if they were to have the same education level</p></li>
+<li><p><span class="math inline">\sigma_f</span> is the difference in the expected wage conditional on education between female and male</p></li>
+<li><p><span class="math inline">\sigma_f</span> measures how much more (less) female workers make compared to male workers (<span style="color: blue;"> baseline </span>) if they were to have the same education level</p></li>
 </ul>
 </div>
 <div id="tabset-12-3">
+<details class="transcript">
+<summary>
+Lecturer transcript
+</summary>
+<p>Run the regression and read the female coefficient as a dollars-per-hour gap at equal education. Be careful with the causal language. This is a conditional mean difference given the variables we included, nothing more. It does not isolate discrimination, because occupation, experience, hours, and many other determinants of pay are still sitting in the error term and may differ systematically between the two groups.</p>
+</details>
 <p><strong>R implementation</strong></p>
 <div id="qwebr-insertion-location-9"></div>
 <noscript>Please enable JavaScript to experience the dynamic code cell content on this page.</noscript>
@@ -2531,11 +3118,17 @@ No, the model we estimated assumed that the marginal impact of education is cons
 <p>Female workers make -2.2733619 ($/hour) less than male workers on average even though they have the same education level.</p>
 </div>
 <div id="tabset-12-4">
+<details class="transcript inline">
+<summary>
+Lecturer transcript
+</summary>
+<p>The picture makes the restriction visible. Two parallel lines, one for each group, separated vertically by sigma. Parallel is the key word: because we included the dummy but not its interaction with education, we have forced the return to education to be identical for both groups and allowed only the intercepts to differ. If you think the return to schooling itself differs by group, this model cannot express that. The interaction section fixes it.</p>
+</details>
 <div class="cell">
 <div class="cell-output-display">
 <div>
 <figure>
-<p><img data-src="07-modeling_files/figure-revealjs/unnamed-chunk-10-1.png" width="4000"></p>
+<p><img data-src="07-modeling_files/figure-revealjs/unnamed-chunk-10-1.png" width="3600"></p>
 </figure>
 </div>
 </div>
@@ -2550,21 +3143,27 @@ No, the model we estimated assumed that the marginal impact of education is cons
 <ul id="tabset-13" class="panel-tabset-tabby"><li><a data-tabby-default="" href="#tabset-13-1">Model and theory</a></li><li><a href="#tabset-13-2">Regression results</a></li><li><a href="#tabset-13-3">Question</a></li><li><a href="#tabset-13-4">Perfect Collinearity</a></li></ul>
 <div class="tab-content">
 <div id="tabset-13-1">
+<details class="transcript">
+<summary>
+Lecturer transcript
+</summary>
+<p>Suppose we code male instead of female. Nothing substantive changes. The coefficient flips sign, the baseline switches to women, and every prediction from the model is identical. This is worth demonstrating explicitly because students often worry they have chosen the wrong coding. You have not; you have only chosen which group the comparison is measured against. The important thing is to state clearly in your writeup which category is the baseline.</p>
+</details>
 <p><strong>Model</strong></p>
-<p><span class="math inline">\(wage = \beta_0 +\sigma_m male +\beta_2 educ + u\)</span></p>
+<p><span class="math inline">wage = \beta_0 +\sigma_m male +\beta_2 educ + u</span></p>
 <p><br></p>
 <p><strong>Interpretation</strong></p>
 <ul>
-<li><p><code>male</code>: <span class="math inline">\(E[wage|male = 1,educ] = \beta_0 + \sigma_m +\beta_2 educ\)</span></p></li>
-<li><p><code>female</code>: <span class="math inline">\(E[wage|male = 0,educ] = \beta_0 + \beta_2 educ\)</span></p></li>
+<li><p><code>male</code>: <span class="math inline">E[wage|male = 1,educ] = \beta_0 + \sigma_m +\beta_2 educ</span></p></li>
+<li><p><code>female</code>: <span class="math inline">E[wage|male = 0,educ] = \beta_0 + \beta_2 educ</span></p></li>
 </ul>
 <p><br></p>
 <p>This means that</p>
-<p><span class="math inline">\(\sigma_m = E[wage|male=1,educ]-E[wage|male=0,educ]\)</span></p>
+<p><span class="math inline">\sigma_m = E[wage|male=1,educ]-E[wage|male=0,educ]</span></p>
 <p>Verbally,</p>
 <ul>
-<li><p><span class="math inline">\(\sigma_m\)</span> is the difference in the expected wage conditional on education between female and male</p></li>
-<li><p><span class="math inline">\(\sigma_m\)</span> measures how much more (less) male workers make compared to female workers (<span style="color: blue;">baseline</span>) if they were to have the same education level</p></li>
+<li><p><span class="math inline">\sigma_m</span> is the difference in the expected wage conditional on education between male and female</p></li>
+<li><p><span class="math inline">\sigma_m</span> measures how much more (less) male workers make compared to female workers (<span style="color: blue;">baseline</span>) if they were to have the same education level</p></li>
 </ul>
 <div class="callout callout-important no-icon callout-titled callout-style-default">
 <div class="callout-body">
@@ -2572,12 +3171,18 @@ No, the model we estimated assumed that the marginal impact of education is cons
 <p><strong>Important</strong></p>
 </div>
 <div class="callout-content">
-<p>Whichever status that is given the value of <span class="math inline">\(0\)</span> becomes the baseline</p>
+<p>Whichever status that is given the value of <span class="math inline">0</span> becomes the baseline</p>
 </div>
 </div>
 </div>
 </div>
 <div id="tabset-13-2">
+<details class="transcript">
+<summary>
+Lecturer transcript
+</summary>
+<p>Here is the same regression with male in place of female. The coefficient has the same magnitude as before with the opposite sign, and the intercept has shifted to absorb the change of baseline. Confirm that against the earlier output yourself rather than taking my word for it.</p>
+</details>
 <p><strong>Regression results</strong></p>
 <div id="qwebr-insertion-location-10"></div>
 <noscript>Please enable JavaScript to experience the dynamic code cell content on this page.</noscript>
@@ -2586,6 +3191,12 @@ No, the model we estimated assumed that the marginal impact of education is cons
 <p>Male workers make NA ($/hour) more than female workers on average even though they have the same education level.</p>
 </div>
 <div id="tabset-13-3">
+<details class="transcript">
+<summary>
+Lecturer transcript
+</summary>
+<p>Think about it before opening the answer. Male and female always sum to one, and the intercept is a column of ones, so the three are perfectly collinear. There is no unique set of coefficients that fits the data, and OLS cannot proceed. This is the dummy variable trap, and the rule that follows is simple: with c categories and an intercept, include c minus one indicators.</p>
+</details>
 <p>What do you think will happen if we include both male and female dummy variables?</p>
 <br>
 <details>
@@ -2600,7 +3211,13 @@ Answer
 </details>
 </div>
 <div id="tabset-13-4">
-<p>In the model, <span class="math inline">\(intercept = male + female\)</span>, which causes perfec collinearity.</p>
+<details class="transcript">
+<summary>
+Lecturer transcript
+</summary>
+<p>Rather than just asserting it, run the regression with both dummies and watch what happens. Modern software will not stop with an error; fixest silently drops one of the collinear variables and reports the rest. That silence is the danger. If you do not read the output carefully you may not notice that the model you estimated is not the model you wrote, so always check which variables actually appear in the results table.</p>
+</details>
+<p>In the model, <span class="math inline">intercept = male + female</span>, which causes perfect collinearity.</p>
 <p>Here is what happens if you include both:</p>
 <div id="qwebr-insertion-location-11"></div>
 <noscript>Please enable JavaScript to experience the dynamic code cell content on this page.</noscript>
@@ -2626,31 +3243,49 @@ Answer
 <ul id="tabset-15" class="panel-tabset-tabby"><li><a data-tabby-default="" href="#tabset-15-1">Issue</a></li><li><a href="#tabset-15-2">Example using R</a></li><li><a href="#tabset-15-3">Interpretation</a></li></ul>
 <div class="tab-content">
 <div id="tabset-15-1">
+<details class="transcript">
+<summary>
+Lecturer transcript
+</summary>
+<p>In the previous model the two groups were forced onto parallel lines. Now we relax that. The question is whether the return to education itself differs between women and men, not merely the level of pay. Answering it requires interacting the dummy with education, which lets each group have its own slope as well as its own intercept.</p>
+</details>
 <ul>
 <li><p>In the previous example, the impact of education on wage was modeled to be exactly the same</p></li>
 <li><p>Can we build a more flexible model that allows us to estimate the differential impacts of education on wage between male and female?</p></li>
 </ul>
 <p><strong>A more flexible model</strong></p>
-<p><span class="math inline">\(wage = \beta_0 + \sigma_f female +\beta_2 educ + \gamma female\times educ + u\)</span></p>
+<p><span class="math inline">wage = \beta_0 + \sigma_f female +\beta_2 educ + \gamma female\times educ + u</span></p>
 <ul>
-<li><code>female</code>: <span class="math inline">\(E[wage|female=1,educ] = \beta_0 + \sigma_f +(\beta_2+\gamma) educ\)</span></li>
-<li><code>male</code>: <span class="math inline">\(E[wage|female=0,educ] = \beta_0 + \beta_2 educ\)</span></li>
+<li><code>female</code>: <span class="math inline">E[wage|female=1,educ] = \beta_0 + \sigma_f +(\beta_2+\gamma) educ</span></li>
+<li><code>male</code>: <span class="math inline">E[wage|female=0,educ] = \beta_0 + \beta_2 educ</span></li>
 </ul>
 <p><br></p>
 <p><strong>Interpretation</strong></p>
-<p>For female, education is more effective by <span class="math inline">\(\gamma\)</span> than it is for male.</p>
+<p>For female, education is more effective by <span class="math inline">\gamma</span> than it is for male.</p>
 </div>
 <div id="tabset-15-2">
+<details class="transcript">
+<summary>
+Lecturer transcript
+</summary>
+<p>Adding the product of female and education gives each group a separate slope. Evaluating the model at female equal to one shows that women’s return to education is the coefficient on education plus gamma, while men’s is that coefficient alone. Gamma is therefore the difference in returns, which is exactly the quantity the research question is about.</p>
+</details>
 <div id="qwebr-insertion-location-12"></div>
 <noscript>Please enable JavaScript to experience the dynamic code cell content on this page.</noscript>
 </div>
 <div id="tabset-15-3">
+<details class="transcript inline">
+<summary>
+Lecturer transcript
+</summary>
+<p>The estimated gamma says the return to an additional year of schooling is about nine cents an hour lower for women. In the figure the two lines are no longer parallel: they differ in both intercept and slope, and the gap between them widens with education. Whether gamma is statistically distinguishable from zero is a separate question, and because it is a single coefficient, the regression output answers it directly with a t-test.</p>
+</details>
 <p>The marginal benefit of education is 0.086 ($/hour) less for females workers than for male workers on average.</p>
 <div class="cell">
 <div class="cell-output-display">
 <div>
 <figure>
-<p><img data-src="07-modeling_files/figure-revealjs/unnamed-chunk-11-1.png" width="4000"></p>
+<p><img data-src="07-modeling_files/figure-revealjs/unnamed-chunk-11-1.png" width="3600"></p>
 </figure>
 </div>
 </div>
@@ -2666,13 +3301,19 @@ Answer
 <ul id="tabset-16" class="panel-tabset-tabby"><li><a data-tabby-default="" href="#tabset-16-1">Issue</a></li><li><a href="#tabset-16-2">Model</a></li></ul>
 <div class="tab-content">
 <div id="tabset-16-1">
+<details class="transcript">
+<summary>
+Lecturer transcript
+</summary>
+<p>Now consider a variable with more than two categories, such as highest degree. The recipe is to build one indicator per category and then include all but one of them. The omitted category becomes the baseline, and every reported coefficient is a comparison against it. If you include all of them together with an intercept, you are back in the dummy variable trap.</p>
+</details>
 <ul>
-<li><p>Consider a variable called <span class="math inline">\(degree\)</span> which has three status values: college, master, and doctor.</p></li>
+<li><p>Consider a variable called <span class="math inline">degree</span> which has three status values: college, master, and doctor.</p></li>
 <li><p>Unlike a binary variable, there are three status values.</p></li>
 <li><p>How do we include a categorical variable like this in a model?</p></li>
 </ul>
 <p><strong>What do we do about this?</strong></p>
-<p>You can create three dummy variables likes below:</p>
+<p>You can create three dummy variables like below:</p>
 <ul>
 <li><code>college</code>: 1 if the highest degree is college, 0 otherwise</li>
 <li><code>master</code>: 1 if the highest degree is Master’s, 0 otherwise</li>
@@ -2681,17 +3322,23 @@ Answer
 <p>You then include two (the number of status values - 1) of the three dummy variables:</p>
 </div>
 <div id="tabset-16-2">
+<details class="transcript">
+<summary>
+Lecturer transcript
+</summary>
+<p>With college omitted, sigma on master is the wage difference between a master’s degree holder and a college graduate at the same level of the other regressors, and sigma on doctor is the corresponding comparison for a doctorate. Two cautions. Neither coefficient compares master’s with doctorate directly; for that you would test whether the two coefficients are equal. And the choice of baseline is yours, so pick the category that makes your comparisons easiest to read, and say which one it is.</p>
+</details>
 <p><strong>Model</strong></p>
-<p><span class="math inline">\(wage = \beta_0 + \sigma_m master +\sigma_d doctor + \beta_1 educ + u\)</span></p>
+<p><span class="math inline">wage = \beta_0 + \sigma_m master +\sigma_d doctor + \beta_1 educ + u</span></p>
 <ul>
-<li><span class="math inline">\(college\)</span>: <span class="math inline">\(E[wage|master=0, doctor = 0, educ] = \beta_0 + \beta_1 educ\)</span></li>
-<li><span class="math inline">\(master\)</span>: <span class="math inline">\(E[wage|master=1, doctor = 0, educ] = \beta_0 + \sigma_m + \beta_1 educ\)</span></li>
-<li><span class="math inline">\(doctor\)</span>: <span class="math inline">\(E[wage|master=0, doctor = 1, educ] = \beta_0 + \sigma_d + \beta_1 educ\)</span></li>
+<li><span class="math inline">college</span>: <span class="math inline">E[wage|master=0, doctor = 0, educ] = \beta_0 + \beta_1 educ</span></li>
+<li><span class="math inline">master</span>: <span class="math inline">E[wage|master=1, doctor = 0, educ] = \beta_0 + \sigma_m + \beta_1 educ</span></li>
+<li><span class="math inline">doctor</span>: <span class="math inline">E[wage|master=0, doctor = 1, educ] = \beta_0 + \sigma_d + \beta_1 educ</span></li>
 </ul>
 <p><br></p>
 <p><strong>Interpretation</strong></p>
-<p><span class="math inline">\(\sigma_m\)</span>: the impact of having a MS degree <span style="color: red;">relative to</span> having a <span style="color: red;">college degree</span></p>
-<p><span class="math inline">\(\sigma_d\)</span>: the impact of having a Ph.D.&nbsp;degree <span style="color: red;">relative to</span> having a <span style="color: red;">college degree</span></p>
+<p><span class="math inline">\sigma_m</span>: the impact of having a MS degree <span style="color: red;">relative to</span> having a <span style="color: red;">college degree</span></p>
+<p><span class="math inline">\sigma_d</span>: the impact of having a Ph.D.&nbsp;degree <span style="color: red;">relative to</span> having a <span style="color: red;">college degree</span></p>
 <p><br></p>
 <p><strong>Important</strong></p>
 <p>The omitted category (here, <code>college</code>) becomes the baseline.</p>
@@ -2706,43 +3353,61 @@ Answer
 <ul id="tabset-17" class="panel-tabset-tabby"><li><a data-tabby-default="" href="#tabset-17-1">Definition</a></li><li><a href="#tabset-17-2">What to do?</a></li><li><a href="#tabset-17-3">Interpretation</a></li><li><a href="#tabset-17-4">R code</a></li><li><a href="#tabset-17-5">What do you see?</a></li><li><a href="#tabset-17-6">Test of joint significance</a></li></ul>
 <div class="tab-content">
 <div id="tabset-17-1">
+<details class="transcript">
+<summary>
+Lecturer transcript
+</summary>
+<p>Structural difference means the entire relationship differs across groups, not just the level. In the example, every coefficient carries a different symbol for men and women: the intercept, the SAT effect, the high school rank effect, and the credit hours effect. If that is true, a single pooled regression estimates some weighted blend of two different processes and describes neither of them correctly.</p>
+</details>
 <p>Structural difference refers to the fundamental differences in the model of a phenomenon in the population:</p>
 <p><br></p>
 <p><strong>Example</strong></p>
-<p>Male: <span class="math inline">\(cumgpa = \alpha_0 + \alpha_1 sat + \alpha_2 hsperc + \alpha_3 tothrs + u\)</span></p>
-<p>Female: <span class="math inline">\(cumgpa = \beta_0 + \beta_1 sat + \beta_2 hsperc + \beta_3 tothrs + u\)</span></p>
+<p>Male: <span class="math inline">cumgpa = \alpha_0 + \alpha_1 sat + \alpha_2 hsperc + \alpha_3 tothrs + u</span></p>
+<p>Female: <span class="math inline">cumgpa = \beta_0 + \beta_1 sat + \beta_2 hsperc + \beta_3 tothrs + u</span></p>
 <ul>
-<li><p><span class="math inline">\(cumgpa\)</span>: college grade points averages for male and female college athletes</p></li>
-<li><p><span class="math inline">\(sat\)</span>: SAT score</p></li>
-<li><p><span class="math inline">\(hsperc\)</span>: high school rank percentile</p></li>
-<li><p><span class="math inline">\(tothrs\)</span>: total hours of college courses</p></li>
+<li><p><span class="math inline">cumgpa</span>: college grade points averages for male and female college athletes</p></li>
+<li><p><span class="math inline">sat</span>: SAT score</p></li>
+<li><p><span class="math inline">hsperc</span>: high school rank percentile</p></li>
+<li><p><span class="math inline">tothrs</span>: total hours of college courses</p></li>
 </ul>
 <p><br></p>
 <p><strong>In this example,</strong></p>
-<p><span class="math inline">\(cumgpa\)</span> are determined in a fundamentally different manner between female and male students.</p>
+<p><span class="math inline">cumgpa</span> are determined in a fundamentally different manner between female and male students.</p>
 <p>You do not want to run a single regression that fits a single model for both female and male students.</p>
 </div>
 <div id="tabset-17-2">
+<details class="transcript">
+<summary>
+Lecturer transcript
+</summary>
+<p>The right response is to test the hypothesis rather than assume an answer. The trick is that you can estimate both group-specific models inside one regression by interacting the group dummy with every regressor, including the intercept. The betas are then the male coefficients and the sigmas are the female-minus-male differences. This formulation is convenient precisely because it turns the question into a hypothesis about the sigmas.</p>
+</details>
 <p>If you suspect that the underlying process of how the dependent variable is determined vary across groups, then you should test that hypothesis!</p>
 <p><br></p>
 <p><strong>To do so,</strong></p>
 <p>You estimate the model that allows to estimate separate models across groups within a single regression analysis.</p>
 <p><br></p>
 <p><strong>A more flexible model</strong></p>
-<p><span class="math display">\[cumgpa = \beta_0 + \sigma_0 female + \beta_1 sat + \sigma_1 (sat \times female)\]</span> <span class="math display">\[\;\; + \beta_2 hsperc + \sigma_2 (hsperc \times female)\]</span> <span class="math display">\[\qquad + \beta_3 tothrs + \sigma_3 (tothrs \times female) + u\]</span></p>
+<p><span class="math display">cumgpa = \beta_0 + \sigma_0 female + \beta_1 sat + \sigma_1 (sat \times female)</span> <span class="math display">\;\; + \beta_2 hsperc + \sigma_2 (hsperc \times female)</span> <span class="math display">\qquad + \beta_3 tothrs + \sigma_3 (tothrs \times female) + u</span></p>
 </div>
 <div id="tabset-17-3">
-<p>Male: <span class="math inline">\(E[cumgpa] = \beta_0 + \beta_1 sat + \beta_2 hsperc + \beta_3 tothrs\)</span> Female: <span class="math inline">\(E[cumgpa] = (\beta_0 +\sigma_0) + (\beta_1+\sigma_1) sat + (\beta_2+\sigma_2) hsperc + (\beta_3+\sigma_3) tothrs\)</span></p>
+<details class="transcript">
+<summary>
+Lecturer transcript
+</summary>
+<p>Evaluate the flexible model at female equal to zero and at female equal to one to confirm that it reproduces both group-specific equations exactly. The null of no structural difference is that all four sigmas are zero simultaneously. Four restrictions at once means an F-test, not four separate t-tests. Running four t-tests instead would be both a different hypothesis and a multiple-testing problem.</p>
+</details>
+<p>Male: <span class="math inline">E[cumgpa] = \beta_0 + \beta_1 sat + \beta_2 hsperc + \beta_3 tothrs</span> Female: <span class="math inline">E[cumgpa] = (\beta_0 +\sigma_0) + (\beta_1+\sigma_1) sat + (\beta_2+\sigma_2) hsperc + (\beta_3+\sigma_3) tothrs</span></p>
 <p><br></p>
 <p><strong>Interpretation</strong></p>
 <ul>
-<li><span class="math inline">\(\beta\)</span>s are commonly shared by female and male students</li>
-<li><span class="math inline">\(\sigma\)</span>s capture the differences between female and male students</li>
+<li><span class="math inline">\beta</span>s are commonly shared by female and male students</li>
+<li><span class="math inline">\sigma</span>s capture the differences between female and male students</li>
 </ul>
 <p><strong>Null Hypothesis</strong></p>
 <ul>
 <li>(verbally) The model of GPA for male and female students are not structurally different.</li>
-<li>(mathematically) <span class="math inline">\(H_0: \;\; \sigma_0=0,\;\; \sigma_1=0, \;\; \sigma_2=0, \;\; \mbox{and} \;\; \sigma_3=0\)</span></li>
+<li>(mathematically) <span class="math inline">H_0: \;\; \sigma_0=0,\;\; \sigma_1=0, \;\; \sigma_2=0, \;\; \text{and} \;\; \sigma_3=0</span></li>
 </ul>
 <p><strong>Question</strong></p>
 <p>What test do we do? t-test or F-test?</p>
@@ -2755,23 +3420,41 @@ F-test.
 </details>
 </div>
 <div id="tabset-17-4">
+<details class="transcript">
+<summary>
+Lecturer transcript
+</summary>
+<p>The code builds the three interaction terms explicitly and estimates the unrestricted model. Note the filter dropping missing values, which restricts the sample to the term in which the change in credit hours is observed. Whenever a filter like that changes your sample, say so in your writeup, because it changes the population your results describe.</p>
+</details>
 <p>Run the unrestricted model with all the interaction terms:</p>
 <div id="qwebr-insertion-location-13"></div>
 <noscript>Please enable JavaScript to experience the dynamic code cell content on this page.</noscript>
 </div>
 <div id="tabset-17-5">
+<details class="transcript">
+<summary>
+Lecturer transcript
+</summary>
+<p>Look at the output and notice the trap. None of the female-related terms is individually significant at five percent, and the temptation is to conclude that the groups are the same. That inference does not follow. Individually insignificant coefficients can still be jointly significant, particularly when the interaction terms are correlated with each other, which they usually are. The joint test is the right instrument, and we run it next.</p>
+</details>
 <p><strong>Regression results</strong></p>
 <div id="qwebr-insertion-location-14"></div>
 <noscript>Please enable JavaScript to experience the dynamic code cell content on this page.</noscript>
 <p><br></p>
 <p><strong>What do you see?</strong></p>
 <ul>
-<li><p>None of the variables that involve <span class="math inline">\(female\)</span> are statistically significant at the 5% level individually.</p></li>
-<li><p>Does this mean that <span class="math inline">\(male\)</span> and <span class="math inline">\(female\)</span> students have the same regression function?</p></li>
-<li><p>No, we are testing the joint significance of the coefficients. We need to do an <span class="math inline">\(F\)</span>-test!</p></li>
+<li><p>None of the variables that involve <span class="math inline">female</span> are statistically significant at the 5% level individually.</p></li>
+<li><p>Does this mean that <span class="math inline">male</span> and <span class="math inline">female</span> students have the same regression function?</p></li>
+<li><p>No, we are testing the joint significance of the coefficients. We need to do an <span class="math inline">F</span>-test!</p></li>
 </ul>
 </div>
 <div id="tabset-17-6">
+<details class="transcript">
+<summary>
+Lecturer transcript
+</summary>
+<p>Here the four restrictions are passed to linearHypothesis as a vector of strings, and R returns a single F-statistic for the joint null. Compare that conclusion with what you would have concluded from the individual t-statistics alone. This gap between individual and joint significance is a recurring theme, and it is the main reason we spent time on F-tests earlier in the course.</p>
+</details>
 <div id="qwebr-insertion-location-15"></div>
 <noscript>Please enable JavaScript to experience the dynamic code cell content on this page.</noscript>
 </div>
@@ -2782,43 +3465,67 @@ F-test.
 <section id="r-coding-tips-categorical-variables-and-interaction-terms" class="slide level2">
 <h2>R coding tips: categorical variables and interaction terms</h2>
 <div class="panel-tabset">
-<ul id="tabset-18" class="panel-tabset-tabby"><li><a data-tabby-default="" href="#tabset-18-1">Prepare a dataset</a></li><li><a href="#tabset-18-2">Data</a></li><li><a href="#tabset-18-3"><code>i()</code></a></li><li><a href="#tabset-18-4">Interactions terms</a></li></ul>
+<ul id="tabset-18" class="panel-tabset-tabby"><li><a data-tabby-default="" href="#tabset-18-1">Prepare a dataset</a></li><li><a href="#tabset-18-2">Data</a></li><li><a href="#tabset-18-3"><code>i()</code></a></li><li><a href="#tabset-18-4">Interaction terms</a></li></ul>
 <div class="tab-content">
 <div id="tabset-18-1">
+<details class="transcript">
+<summary>
+Lecturer transcript
+</summary>
+<p>A short practical aside. Real datasets rarely arrive as a wall of dummy variables; they arrive with one column holding a category label. This code goes the other way, collapsing eight university indicators into a single university column, so that we can practice the workflow you will actually face. Read the case_when call to see how the mapping is built.</p>
+</details>
 <div id="qwebr-insertion-location-16"></div>
 <noscript>Please enable JavaScript to experience the dynamic code cell content on this page.</noscript>
 </div>
 <div id="tabset-18-2">
+<details class="transcript inline">
+<summary>
+Lecturer transcript
+</summary>
+<p>Look at the head and the tail of the reshaped data. The university column now carries the information that was previously spread across eight indicator columns, and it is easier to read, easier to filter, and much less error-prone. Getting your data into this shape first is worth the effort.</p>
+</details>
 <p>Take a look at the data,</p>
 <div id="qwebr-insertion-location-17"></div>
 <noscript>Please enable JavaScript to experience the dynamic code cell content on this page.</noscript>
 </div>
 <div id="tabset-18-3">
+<details class="transcript">
+<summary>
+Lecturer transcript
+</summary>
+<p>The i function creates the full set of indicators for you, and the ref argument chooses the baseline explicitly. This beats building dummies by hand for three reasons: you cannot accidentally include every category, the baseline is stated in the code rather than implied by whatever you happened to omit, and adding a category later requires no changes. Read the highlighted coefficient as a salary difference relative to Indiana.</p>
+</details>
 <p>You can use the <code>i()</code> function inside <code>fixest::feols()</code> like below:</p>
 <div id="qwebr-insertion-location-18"></div>
 <noscript>Please enable JavaScript to experience the dynamic code cell content on this page.</noscript>
 <p><br></p>
 <p><code>ref = "Indiana U"</code> sets the base category to <code>"Indiana U"</code>.</p>
-<p>So, for example, the highlighted line means that faculty members at Michigan State U make <span class="math inline">\(9,118\)</span> USD less annually than those at Indiana U.</p>
+<p>So, for example, the highlighted line means that faculty members at Michigan State U make <span class="math inline">9,118</span> USD less annually than those at Indiana U.</p>
 <p><br></p>
 <p><strong>Key</strong></p>
-<p>You do not have to make bunch of dummy variables like the original dataset. Just use <code>i(catergory_variable)</code>.</p>
+<p>You do not have to make a bunch of dummy variables like the original dataset. Just use <code>i(category_variable)</code>.</p>
 </div>
 <div id="tabset-18-4">
+<details class="transcript">
+<summary>
+Lecturer transcript
+</summary>
+<p>The same function creates interactions between a categorical variable and a continuous one. Passing the continuous variable as the second argument gives you a separate slope on the publication index for each university, again measured relative to the baseline. This is the categorical version of the structural difference test from the previous section, and testing all of these interactions jointly asks whether the return to publications differs across institutions at all.</p>
+</details>
 <p>You can use <code>i()</code> for creating interactions of a categorical variable and a continuous variable.</p>
 <p>Suppose you are interested in understanding the impact of <code>pubindx</code> (continuous) by <code>university</code> (categorical), then</p>
 <div id="qwebr-insertion-location-19"></div>
 <noscript>Please enable JavaScript to experience the dynamic code cell content on this page.</noscript>
 <p><br></p>
-<p>So, the marginal impact of <code>pubindex</code> is <span class="math inline">\(436\)</span> greater for those at Michigan State U than those at Indiana U.</p>
+<p>So, the marginal impact of <code>pubindex</code> is <span class="math inline">436</span> greater for those at Michigan State U than those at Indiana U.</p>
 </div>
 </div>
 </div>
 <!--end of panel-->
 </section></section>
 <section>
-<section id="other-miscellaneous-topic" class="title-slide slide level1 center">
-<h1>Other miscellaneous topic</h1>
+<section id="other-miscellaneous-topics" class="title-slide slide level1 center">
+<h1>Other miscellaneous topics</h1>
 
 <div style="float:left">
 
@@ -2827,38 +3534,56 @@ F-test.
 
 </section>
 <section id="goodness-of-fit-r2" class="slide level2">
-<h2>Goodness of fit: <span class="math inline">\(R^2\)</span></h2>
+<h2>Goodness of fit: <span class="math inline">R^2</span></h2>
 <div class="panel-tabset">
-<ul id="tabset-19" class="panel-tabset-tabby"><li><a data-tabby-default="" href="#tabset-19-1"><span class="math inline">\(R^2\)</span> does not matter (often)</a></li><li><a href="#tabset-19-2">Why?</a></li><li><a href="#tabset-19-3">Regression results</a></li></ul>
+<ul id="tabset-19" class="panel-tabset-tabby"><li><a data-tabby-default="" href="#tabset-19-1"><span class="math inline">R^2</span> does not matter (often)</a></li><li><a href="#tabset-19-2">Why?</a></li><li><a href="#tabset-19-3">Regression results</a></li></ul>
 <div class="tab-content">
 <div id="tabset-19-1">
+<details class="transcript">
+<summary>
+Lecturer transcript
+</summary>
+<p>This will feel like heresy after an introductory course that treats R squared as a report card. In applied causal work it is close to irrelevant. R squared measures how much variation in the outcome your model accounts for; it says nothing about whether the coefficient you care about is unbiased. Those are different questions, and only one of them is usually your question.</p>
+</details>
 <div class="callout callout-important no-icon callout-titled callout-style-default">
 <div class="callout-body">
 <div class="callout-title">
 <p><strong>Important</strong></p>
 </div>
 <div class="callout-content">
-<p>Small value of <span class="math inline">\(R^2\)</span> does not mean the end of the world (In fact, we could not care less about it.)</p>
+<p>Small value of <span class="math inline">R^2</span> does not mean the end of the world (In fact, we could not care less about it.)</p>
 </div>
 </div>
 </div>
 </div>
 <div id="tabset-19-2">
+<details class="transcript">
+<summary>
+Lecturer transcript
+</summary>
+<p>The eco-labeled apple study makes the point concretely. The researchers set the prices randomly when designing the survey, so the price variables are exogenous by construction and the price coefficient has a clean causal interpretation. Demand also depends on income, taste, household size, and a hundred other things they did not measure, so R squared is small. Both statements are true at the same time. Low explanatory power and clean identification are entirely compatible.</p>
+</details>
 <p><strong>Example</strong></p>
-<p><span class="math display">\[ecolabs = \beta_0 + \beta_1 regprc + \beta_2 ecoprc\]</span></p>
+<p><span class="math display">ecolabs = \beta_0 + \beta_1 regprc + \beta_2 ecoprc</span></p>
 <ul>
-<li><span class="math inline">\(ecolabs\)</span>: the (hypothetical) pounds of ecologically friendly (eco-labeled) apples a family would demand</li>
-<li><span class="math inline">\(regprc\)</span>: prices of regular apples</li>
-<li><span class="math inline">\(ecoprc\)</span>: prices of the hypothetical eco-labeled apples</li>
+<li><span class="math inline">ecolabs</span>: the (hypothetical) pounds of ecologically friendly (eco-labeled) apples a family would demand</li>
+<li><span class="math inline">regprc</span>: prices of regular apples</li>
+<li><span class="math inline">ecoprc</span>: prices of the hypothetical eco-labeled apples</li>
 </ul>
 <p><br></p>
 <p><strong>Key</strong></p>
 <ul>
-<li>The data was obtained via survey and <span class="math inline">\(ecoprc\)</span> was set randomly (So, we know <span class="math inline">\(E[u|x] = 0\)</span>) by the researcher.</li>
+<li>The data was obtained via survey and <span class="math inline">ecoprc</span> was set randomly (So, we know <span class="math inline">E[u|x] = 0</span>) by the researcher.</li>
 <li>The (only) objective of the study is to understand the impact of the price of eco-labeled apple on the demand for eco-labeled apples.</li>
 </ul>
 </div>
 <div id="tabset-19-3">
+<details class="transcript">
+<summary>
+Lecturer transcript
+</summary>
+<p>Run it, look at the R squared, then read the question. The answer is no, this is not a problem. The goal was never to predict how many pounds of apples a given family buys; it was to measure how demand responds to price. Randomization at the design stage delivered that, and no amount of additional explanatory power would have made the price coefficient more credible.</p>
+</details>
 <div id="qwebr-insertion-location-20"></div>
 <noscript>Please enable JavaScript to experience the dynamic code cell content on this page.</noscript>
 <p><br></p>
@@ -2869,7 +3594,7 @@ F-test.
 <p><strong>Question</strong></p>
 </div>
 <div class="callout-content">
-<p>Note that <span class="math inline">\(R^2\)</span> is very small. Is this a problem?</p>
+<p>Note that <span class="math inline">R^2</span> is very small. Is this a problem?</p>
 </div>
 </div>
 </div>
@@ -2896,15 +3621,27 @@ Answer
 <ul id="tabset-20" class="panel-tabset-tabby"><li><a data-tabby-default="" href="#tabset-20-1">Questions</a></li><li><a href="#tabset-20-2">Let’s see</a></li><li><a href="#tabset-20-3">Interpretation</a></li><li><a href="#tabset-20-4">Summary</a></li></ul>
 <div class="tab-content">
 <div id="tabset-20-1">
+<details class="transcript">
+<summary>
+Lecturer transcript
+</summary>
+<p>A practical question that comes up constantly: what happens if you change the units of a variable, from years to months, dollars to thousands of dollars, acres to hectares. Predict the answer for all four quantities before running the code. Getting this wrong is a common source of confusion when comparing results across papers that use different units.</p>
+</details>
 <p>What happens if you scale up/down variables used in regression?</p>
 <ul>
 <li>coefficients</li>
 <li>standard errors</li>
 <li>t-statistics</li>
-<li><span class="math inline">\(R^2\)</span></li>
+<li><span class="math inline">R^2</span></li>
 </ul>
 </div>
 <div id="tabset-20-2">
+<details class="transcript inline">
+<summary>
+Lecturer transcript
+</summary>
+<p>The two regressions differ only in that education is measured in months rather than years. Compare the outputs line by line. The coefficient and its standard error are both divided by twelve, while the t-statistic and R squared are completely unchanged. That pattern is the answer, and it makes sense: rescaling a regressor cannot change how well the model fits or how many standard errors the estimate sits from zero.</p>
+</details>
 <div class="columns">
 <div class="column" style="width:50%;">
 <div id="qwebr-insertion-location-21"></div>
@@ -2927,7 +3664,7 @@ Answer
 <li>coefficient: 1/12</li>
 <li>standard error: 1/12</li>
 <li>t-stat: the same</li>
-<li><span class="math inline">\(R^2\)</span>: the same</li>
+<li><span class="math inline">R^2</span>: the same</li>
 </ul>
 </div>
 </div>
@@ -2935,26 +3672,38 @@ Answer
 </div>
 </div>
 <div id="tabset-20-3">
+<details class="transcript">
+<summary>
+Lecturer transcript
+</summary>
+<p>State each result in words with its units attached and the two models say exactly the same thing. Half a dollar an hour per year of schooling and four point two cents an hour per month of schooling are the same fact, since twelve months make a year. The lesson is that units are a reporting choice, not a modeling one, and you should pick whichever makes your coefficients readable.</p>
+</details>
 <p><strong>Interpretation</strong></p>
 <ul>
 <li>Regression <span style="color: blue;"> without </span> scaling</li>
 </ul>
-<p>hourly wage increases by <span class="math inline">\(0.506\)</span> if education increases by a <span style="color: blue;"> year </span></p>
+<p>hourly wage increases by <span class="math inline">0.506</span> if education increases by a <span style="color: blue;"> year </span></p>
 <ul>
 <li>Regression <span style="color: blue;"> with </span> scaling (e.g., 48 means 4 years)</li>
 </ul>
-<p>hourly wage increases by <span class="math inline">\(0.0422\)</span> if education increases by a <span style="color: blue;"> month </span></p>
+<p>hourly wage increases by <span class="math inline">0.0422</span> if education increases by a <span style="color: blue;"> month </span></p>
 <p><br></p>
 <p><strong>Note</strong></p>
-<p>According to the scaled model, hourly wage increases by <span class="math inline">\(0.0422 * 12\)</span> if education increases by a year (12 months).</p>
+<p>According to the scaled model, hourly wage increases by <span class="math inline">0.0422 * 12</span> if education increases by a year (12 months).</p>
 <p>That is, the estimated marginal impact of education on wage from the scaled model is the same as that from the non-scaled model.</p>
 </div>
 <div id="tabset-20-4">
+<details class="transcript">
+<summary>
+Lecturer transcript
+</summary>
+<p>To summarize: rescaling an independent variable scales its coefficient and standard error by the same factor and leaves the t-statistic and R squared untouched. Nothing about the substance of the model changes. The practical advice is to choose units that make your table readable, avoiding coefficients reported as ten to the minus six, and always to state the units in the table so a reader can judge the magnitude without guessing.</p>
+</details>
 <p>When an independent variable is scaled,</p>
 <ul>
 <li>its coefficient estimate and standard error are going to be scaled up/back to the exact degree the variable is scaled up/back</li>
 <li>t-statistics stays the same (as it should be)</li>
-<li><span class="math inline">\(R^2\)</span> stays the same (the model does not improve by simply scaling independent variables)</li>
+<li><span class="math inline">R^2</span> stays the same (the model does not improve by simply scaling independent variables)</li>
 </ul>
 </div>
 </div>
@@ -2983,7 +3732,6 @@ Answer
   <script src="../../site_libs/revealjs/plugin/notes/notes.js"></script>
   <script src="../../site_libs/revealjs/plugin/search/search.js"></script>
   <script src="../../site_libs/revealjs/plugin/zoom/zoom.js"></script>
-  <script src="../../site_libs/revealjs/plugin/math/math.js"></script>
   <script>window.define = window.backupDefine; window.backupDefine = undefined;</script>
 
   <script>
@@ -3151,27 +3899,9 @@ Answer
         // Factor of the display size that should remain empty around the content
         margin: 0.1,
 
-        math: {
-          mathjax: 'https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.9/MathJax.js',
-          config: 'TeX-AMS_HTML-full',
-          tex2jax: {
-            inlineMath: [['\\(','\\)']],
-            displayMath: [['\\[','\\]']],
-            balanceBraces: true,
-            processEscapes: false,
-            processRefs: true,
-            processEnvironments: true,
-            preview: 'TeX',
-            skipTags: ['script','noscript','style','textarea','pre','code'],
-            ignoreClass: 'tex2jax_ignore',
-            processClass: 'tex2jax_process'
-          },
-        },
-
         // reveal.js plugins
         plugins: [QuartoLineHighlight, PdfExport, RevealMenu, QuartoSupport,
 
-          RevealMath,
           RevealNotes,
           RevealSearch,
           RevealZoom

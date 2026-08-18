@@ -9,7 +9,7 @@
 <link href="../../site_libs/quarto-html/quarto-syntax-highlighting-e1a5c8363afafaef2c763b6775fbf3ca.css" rel="stylesheet" id="quarto-text-highlighting-styles"><meta charset="utf-8">
   <meta name="generator" content="quarto-1.7.31">
 
-  <title>Applied Econometrics (AECN 896-004) – 11: Dealing with Endogeneity: Instrumental Variable</title>
+  <title>Applied Econometrics (AECN 896-004) – 11: Dealing with Endogeneity: Instrumental Variables</title>
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, minimal-ui">
@@ -94,7 +94,23 @@
     code span.vs { color: #20794d; } /* VerbatimString */
     code span.wa { color: #5e5e5e; font-style: italic; } /* Warning */
   </style>
-  <link rel="stylesheet" href="../../site_libs/revealjs/dist/theme/quarto-efe7f97d24ea27507c65df08cab6e7d6.css">
+  <link rel="stylesheet" href="../../site_libs/revealjs/dist/theme/quarto-db62157d6cf4bc51d0b25352aea75d23.css">
+  <script>window.backupDefine = window.define; window.define = undefined;</script><script src="https://cdn.jsdelivr.net/npm/katex@latest/dist/katex.min.js"></script>
+  <script>document.addEventListener("DOMContentLoaded", function () {
+ var mathElements = document.getElementsByClassName("math");
+ var macros = [];
+ for (var i = 0; i < mathElements.length; i++) {
+  var texText = mathElements[i].firstChild;
+  if (mathElements[i].tagName == "SPAN") {
+   katex.render(texText.data, mathElements[i], {
+    displayMode: mathElements[i].classList.contains('display'),
+    throwOnError: false,
+    macros: macros,
+    fleqn: false
+   });
+}}});
+  </script>
+  <script>window.define = window.backupDefine; window.backupDefine = undefined;</script><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@latest/dist/katex.min.css">
   <link href="../../site_libs/revealjs/plugin/quarto-line-highlight/line-highlight.css" rel="stylesheet">
   <link href="../../site_libs/revealjs/plugin/reveal-menu/menu.css" rel="stylesheet">
   <link href="../../site_libs/revealjs/plugin/reveal-menu/quarto-menu.css" rel="stylesheet">
@@ -187,6 +203,326 @@
       margin-right: 0; 
     }
   </style>
+  <!--
+    Support for collapsible "Lecturer transcript" panels in revealjs decks.
+
+    Include it from a deck's YAML header, with the path relative to the qmd:
+
+        format:
+          revealjs:
+            include-in-header: ../transcript-support.html
+
+    Then add a transcript anywhere inside a slide (or inside a single tab of a
+    tabset, which is the usual case):
+
+        <details class="transcript">
+        <summary>Lecturer transcript</summary>
+
+        What the lecturer says about this tab.
+
+        </details>
+
+    On a tab whose figure fills the whole slide there is no free rectangle to
+    overlay, so add "inline" and the panel joins the flow when opened, pushing the
+    figure down instead of covering it:
+
+        <details class="transcript inline">
+
+    Use it only where it is needed. Measure rather than guess: an open panel must
+    not overlap a ".cell-output-display". The collapsed pill still costs 0px in
+    both variants, which is the property the whole design exists to preserve.
+
+    It must live in the header rather than the body of a qmd: raw HTML placed
+    above the first "##" heading becomes its own untitled slide.
+
+    <details> is a native HTML element, so the collapse/expand works with no
+    JavaScript at all, including in a self-contained (embed-resources) file. The
+    script at the bottom adds one behaviour on top: collapsing an open panel when
+    the reader moves on. Without it everything still works, panels just keep their
+    open state.
+
+    Audience: students reviewing after class. These are not presenter notes -
+    reveal's own ".notes" blocks are the presenter-only mechanism.
+  -->
+  <style>
+  /* The panel is positioned against the slide rather than sitting in its normal
+     flow. That is the whole point: collapsed it costs the slide no vertical
+     space, and opened it overlays the content instead of pushing it off the
+     bottom edge. Each panel lives inside its own tab, and hidden tabs do not
+     render, so only the visible tab's transcript is ever shown. */
+  .reveal details.transcript {
+    position: absolute;
+    top: 0;
+    right: 0;
+    z-index: 20;
+    width: auto;
+    font-size: 0.55em;
+    line-height: 1.45;
+    text-align: left;
+    border-radius: 6px;
+    /* custom.scss styles every bare <details> as an "answer box" (grey border
+       plus padding) for Quarto's folded-code blocks. Opt out of both here so the
+       collapsed pill is not sitting inside a grey rectangle. */
+    border: none;
+    padding: 0;
+  }
+
+  /* Collapsed: a small pill that hugs the top-right corner. */
+  .reveal details.transcript > summary {
+    display: inline-block;
+    cursor: pointer;
+    list-style: none;
+    outline: none;
+    /* custom.scss pulls every bare <summary> with a negative margin; undo it. */
+    margin: 0;
+    padding: 0.15em 0.7em;
+    border: 1px solid #06a666;
+    border-radius: 999px;
+    background: #ffffff;
+    color: #06a666;
+    font-weight: 600;
+    white-space: nowrap;
+    -webkit-user-select: none;
+    user-select: none;
+  }
+  .reveal details.transcript > summary::-webkit-details-marker { display: none; }
+  .reveal details.transcript > summary::before { content: "\25B8\00A0"; }
+  .reveal details.transcript[open] > summary::before { content: "\25BE\00A0"; }
+
+  /* Opened: a tall, narrow panel down the right-hand side, where slide content
+     rarely reaches. It starts below the tab bar so tab names stay clickable
+     while a transcript is open, and runs down to just above the footer.
+
+     Measured as a share of the 700px logical slide. A top-level tab bar ends at
+     12.4-13%, so 21% clears it everywhere.
+
+     A tab bar that sits lower on the slide is cleared HORIZONTALLY instead: the
+     panel occupies x 62-100%, and no tab row measured so far reaches past x 66%.
+     Cases seen, all fine:
+       00-1  nested tabset          18.9%, names reach x 15%
+       00-1  tabset below prose     40.8%, names reach x 59%
+       01-2  nested tabset          29.6%, names reach x 46%
+     So the rule to preserve is not "top clears every tab bar" but "no tab NAME
+     overlaps the panel's rectangle". Re-check that if a deck grows a long tab row
+     sitting low on the slide. */
+  .reveal details.transcript[open] {
+    top: 21%;
+    width: 36%;
+    max-height: 75%;
+    overflow-y: auto;
+    padding: 0.55em 0.85em 0.7em;
+    background: #f4fbf8;
+    border: 1px solid #06a666;
+    box-shadow: 0 6px 22px rgba(0, 0, 0, 0.16);
+  }
+  .reveal details.transcript[open] > summary {
+    display: block;
+    padding: 0 0 0.4em 0;
+    border: none;
+    border-radius: 0;
+    background: transparent;
+  }
+  .reveal details.transcript p { margin: 0.35em 0; }
+
+  /* Opt-out, applied per tab as class="transcript inline".
+     Some figures are rendered at out-width 80% and span x 1.4-98.6% of the slide,
+     running from just under the tab bar down to y ~95%. There is no rectangle
+     left to overlay, so on those tabs the panel joins the normal flow when opened
+     and pushes the figure down; the slide is "scrollable: true", so the figure
+     stays reachable. Note this rule only touches [open]: collapsed, the pill is
+     still absolutely positioned at the top-right corner and still costs 0px. */
+  .reveal details.transcript.inline[open] {
+    position: static;
+    width: auto;
+    max-height: none;
+    overflow-y: visible;
+    margin: 0 0 0.9em 0;
+  }
+
+  /* No .slide-logo rule here: no deck in this course sets a "logo:" in its YAML,
+     so the bottom-right corner the panel would collide with is already free. If
+     a logo is ever added, move it out of the way with
+     .reveal .slide-logo { right: auto !important; left: 56px !important; }
+     where 56px clears reveal's menu button at x 8-43px. */
+  </style>
+
+  <script>
+  // Collapse any open transcript when the reader moves to another slide or
+  // another tab, so a panel left open never reappears over unrelated content.
+  (function () {
+    function closeAll() {
+      document.querySelectorAll("details.transcript[open]")
+        .forEach(function (d) { d.open = false; });
+    }
+
+    // Slide changes come from reveal, which is not ready when this runs.
+    function hookReveal() {
+      if (window.Reveal && typeof Reveal.on === "function") {
+        Reveal.on("slidechanged", closeAll);
+        Reveal.on("overviewshown", closeAll);
+        return true;
+      }
+      return false;
+    }
+    if (!hookReveal()) {
+      var tries = 0;
+      var timer = setInterval(function () {
+        if (hookReveal() || ++tries > 100) clearInterval(timer);
+      }, 100);
+    }
+
+    // Tab changes are plain clicks; capture so this runs before the tab switches.
+    document.addEventListener("click", function (e) {
+      var el = e.target;
+      if (el && el.closest && el.closest('.panel-tabset [role="tab"]')) closeAll();
+    }, true);
+  })();
+  </script>
+  <!-- Adaptive code/output layout for WebR cells in revealjs lecture decks. -->
+  <script>
+  (function () {
+    "use strict";
+
+    var MAX_CODE_LINES = 12;
+    var MAX_CODE_SHARE = 0.58;
+    var MIN_CODE_SHARE = 0.30;
+    var MAX_OUTPUT_SHARE = 0.70;
+
+    function detailsFor(area) {
+      var match = area.id && area.id.match(/qwebr-interactive-area-(\d+)/);
+      if (!match || !globalThis.qwebrCellDetails) return null;
+      return globalThis.qwebrCellDetails[Number(match[1]) - 1] || null;
+    }
+
+    function codeMetrics(code) {
+      var lines = String(code || "").split("\n");
+      var substantive = lines.filter(function (line) {
+        return line.trim() && !/^\s*#/.test(line);
+      });
+      return {
+        lines: substantive.length,
+        maxChars: lines.reduce(function (n, line) {
+          return Math.max(n, line.replace(/\t/g, "  ").length);
+        }, 0)
+      };
+    }
+
+    function setTracks(host, codeShare) {
+      codeShare = Math.max(MIN_CODE_SHARE, Math.min(MAX_CODE_SHARE, codeShare));
+      var outputShare = 1 - codeShare;
+      host.style.setProperty("--webr-code-track", codeShare + "fr");
+      host.style.setProperty("--webr-output-track", outputShare + "fr");
+      host.style.setProperty("--webr-code-share", (codeShare * 100) + "%");
+    }
+
+    function measureRenderedCode(area, host, code, attempt) {
+      if (host.dataset.webrLayout !== "side") return;
+      var sample = area.querySelector(".view-line, .monaco-editor");
+      if (!sample || !area.clientWidth) {
+        if (attempt < 20) setTimeout(function () {
+          measureRenderedCode(area, host, code, attempt + 1);
+        }, 100);
+        return;
+      }
+      var style = getComputedStyle(sample);
+      var canvas = document.createElement("canvas");
+      var context = canvas.getContext("2d");
+      context.font = [style.fontStyle, style.fontWeight, style.fontSize,
+        style.fontFamily].filter(Boolean).join(" ");
+      var widest = String(code || "").split("\n").reduce(function (width, line) {
+        return Math.max(width, context.measureText(line.replace(/\t/g, "  ")).width);
+      }, 0);
+      // Monaco's line-number gutter, padding, and scrollbar need about 76px in
+      // addition to the measured glyph width.
+      var available = Math.max(1, area.clientWidth - 16);
+      setTracks(host, (widest + 76) / available);
+    }
+
+    function stack(host) {
+      if (host.dataset.webrLayoutManual === "true") return;
+      host.classList.remove("side-out");
+      host.dataset.webrLayout = "stacked";
+    }
+
+    function assessOutput(area, host, metrics) {
+      if (host.dataset.webrLayout !== "side") return;
+      var graph = area.querySelector(".qwebr-output-graph-area canvas, .qwebr-output-graph-area img");
+      if (graph) return; // plots scale cleanly within their grid track
+
+      var pre = area.querySelector(".qwebr-output-code-area pre");
+      if (!pre || getComputedStyle(pre).visibility === "hidden") return;
+
+      var codeNeed = Math.max(MIN_CODE_SHARE,
+        Math.min(MAX_CODE_SHARE, (metrics.maxChars + 8) / 150));
+      var available = Math.max(1, area.clientWidth - 16);
+      var outputNeed = Math.min(MAX_OUTPUT_SHARE,
+        Math.max(0.42, (pre.scrollWidth + 24) / available));
+      var outputLines = (pre.innerText || "").split("\n").length;
+
+      // If both measured widths cannot coexist, or the console result is too
+      // tall to read as a right-hand panel, retain WebR's original vertical stack.
+      if (codeNeed + outputNeed > 1 || outputLines > 16 ||
+          pre.scrollHeight > area.ownerDocument.documentElement.clientHeight * 0.62) {
+        stack(host);
+        return;
+      }
+
+      setTracks(host, 1 - outputNeed);
+      requestAnimationFrame(function () {
+        if (pre.scrollWidth > pre.clientWidth * 1.08) stack(host);
+      });
+    }
+
+    function configure(area) {
+      if (area.dataset.webrLayoutChecked === "true") return;
+      area.dataset.webrLayoutChecked = "true";
+
+      var details = detailsFor(area);
+      if (!details || !details.options || details.options.context === "setup") return;
+      var metrics = codeMetrics(details.code);
+      if (!metrics.lines || metrics.lines > MAX_CODE_LINES || metrics.maxChars > 88) return;
+
+      var existingWrapper = area.closest(".side-out");
+      var host = existingWrapper || area.closest(".cell") || area.parentElement;
+      if (!host) return;
+
+      if (existingWrapper) {
+        host.dataset.webrLayoutManual = "true";
+      } else {
+        host.classList.add("side-out");
+      }
+      host.dataset.webrLayout = "side";
+
+      // Estimate an initial split from the longest source line. The output is
+      // intentionally favoured; actual output dimensions refine it after a run.
+      var initialCodeShare = (metrics.maxChars + 10) / 145;
+      setTracks(host, initialCodeShare);
+      measureRenderedCode(area, host, details.code, 0);
+
+      var observer = new MutationObserver(function () {
+        requestAnimationFrame(function () { assessOutput(area, host, metrics); });
+      });
+      observer.observe(area, { childList: true, subtree: true, characterData: true,
+        attributes: true, attributeFilter: ["style", "class"] });
+      requestAnimationFrame(function () { assessOutput(area, host, metrics); });
+    }
+
+    function scan() {
+      document.querySelectorAll(".qwebr-interactive-area").forEach(configure);
+    }
+
+    var pageObserver = new MutationObserver(scan);
+    function start() {
+      scan();
+      pageObserver.observe(document.body, { childList: true, subtree: true });
+    }
+    if (document.readyState === "loading") {
+      document.addEventListener("DOMContentLoaded", start, { once: true });
+    } else {
+      start();
+    }
+  })();
+  </script>
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/monaco-editor@0.47.0/min/vs/editor/editor.main.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
     
@@ -477,7 +813,7 @@
   };
 
   // Store cell data
-  globalThis.qwebrCellDetails = [{"code":"data(\"wage2\", package = \"wooldridge\")\n\n#* regress educ on exper, IQ, and sibs\nfirst_reg <- fixest::feols(educ ~ exper + IQ + sibs, data = wage2)\n\n#* predict educ as a function of exper, IQ, and sibs\nwage2 <- dplyr::mutate(wage2, educ_hat = first_reg$fitted.values)\n\n#* seed the predicted values\nwage2 %>%\n  dplyr::relocate(educ_hat) %>%\n  head()","id":1,"options":{"autorun":"true","classes":"","comment":"","context":"interactive","dpi":72,"editor-font-scale":"0.8","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":5,"fig-width":7,"label":"unnamed-chunk-1","message":"true","out-height":"","out-width":"700px","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"#* regression with educ_hat in place of educ\nsecond_reg <- fixest::feols(wage ~ educ_hat + exper, data = wage2)\n\n#* see the results\nsecond_reg","id":2,"options":{"autorun":"true","classes":"","comment":"","context":"interactive","dpi":72,"editor-font-scale":"0.8","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":5,"fig-width":7,"label":"unnamed-chunk-2","message":"true","out-height":"","out-width":"700px","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"#--- take a look at the data ---#\nwage2 %>%\n  select(wage, educ, sibs, feduc) %>%\n  head()","id":3,"options":{"autorun":"true","classes":"","comment":"","context":"interactive","dpi":72,"editor-font-scale":"0.8","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":5,"fig-width":7,"label":"unnamed-chunk-3","message":"true","out-height":"","out-width":"700px","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"iv_res <- fixest::feols(log(wage) ~ exper | educ ~ sibs + feduc, data = wage2)","id":4,"options":{"autorun":"true","classes":"","comment":"","context":"interactive","dpi":72,"editor-font-scale":"0.8","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":5,"fig-width":7,"label":"unnamed-chunk-4","message":"true","out-height":"","out-width":"700px","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"iv_res","id":5,"options":{"autorun":"true","classes":"","comment":"","context":"interactive","dpi":72,"editor-font-scale":"0.8","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":5,"fig-width":7,"label":"unnamed-chunk-5","message":"true","out-height":"","out-width":"700px","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"iv_res","id":6,"options":{"autorun":"true","classes":"","comment":"","context":"interactive","dpi":72,"editor-font-scale":"0.8","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":5,"fig-width":7,"label":"unnamed-chunk-6","message":"true","out-height":"","out-width":"700px","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"iv_res$iv_first_stage","id":7,"options":{"autorun":"true","classes":"","comment":"","context":"interactive","dpi":72,"editor-font-scale":"0.8","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":5,"fig-width":7,"label":"unnamed-chunk-7","message":"true","out-height":"","out-width":"700px","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"set.seed(73289)\nN <- 500 # number of observations\n\nu_common <- runif(N) # the term shared by the endogenous variable and the error term\nz_common <- runif(N) # the term shared by the endogenous variable and instruments\nx_end <- u_common + z_common + runif(N) # the endogenous variable\nz_strong <- z_common + runif(N) # strong instrument\nz_weak <- 0.01 * z_common + 0.99995 * runif(N) # weak instrument\nu <- u_common + runif(N) # error term\ny <- x_end + u # dependent variable\n\ndata <- data.frame(y, x_end, z_strong, z_weak)","id":8,"options":{"autorun":"false","classes":"","comment":"","context":"interactive","dpi":72,"editor-font-scale":"0.8","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":5,"fig-width":7,"label":"unnamed-chunk-8","message":"true","out-height":"","out-width":"700px","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"cor(data)","id":9,"options":{"autorun":"false","classes":"","comment":"","context":"interactive","dpi":72,"editor-font-scale":"0.8","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":5,"fig-width":7,"label":"unnamed-chunk-9","message":"true","out-height":"","out-width":"700px","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"#--- IV estimation (strong) ---#\niv_strong <- fixest::feols(y ~ 1 | x_end ~ z_strong, data = data)\n\n#--- coefs (strong) ---#\ntidy(iv_strong)","id":10,"options":{"autorun":"false","classes":"","comment":"","context":"interactive","dpi":72,"editor-font-scale":"0.8","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":5,"fig-width":7,"label":"unnamed-chunk-10","message":"true","out-height":"","out-width":"700px","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"#--- IV estimation (weak) ---#\niv_weak <- fixest::feols(y ~ 1 | x_end ~ z_weak, data = data)\n\n#--- coefs (weak) ---#\ntidy(iv_weak)","id":11,"options":{"autorun":"false","classes":"","comment":"","context":"interactive","dpi":72,"editor-font-scale":"0.8","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":5,"fig-width":7,"label":"unnamed-chunk-11","message":"true","out-height":"","out-width":"700px","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"iv_strong$iv_first_stage","id":12,"options":{"autorun":"false","classes":"","comment":"","context":"interactive","dpi":72,"editor-font-scale":"0.8","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":5,"fig-width":7,"label":"unnamed-chunk-12","message":"true","out-height":"","out-width":"700px","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"iv_weak$iv_first_stage","id":13,"options":{"autorun":"false","classes":"","comment":"","context":"interactive","dpi":72,"editor-font-scale":"0.8","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":5,"fig-width":7,"label":"unnamed-chunk-13","message":"true","out-height":"","out-width":"700px","output":"true","read-only":"false","results":"markup","warning":"true"}}];
+  globalThis.qwebrCellDetails = [{"code":"data(\"wage2\", package = \"wooldridge\")\n\n#* regress educ on exper, IQ, and sibs\nfirst_reg <- fixest::feols(educ ~ exper + IQ + sibs, data = wage2)\n\n#* predict educ as a function of exper, IQ, and sibs\nwage2 <- dplyr::mutate(wage2, educ_hat = first_reg$fitted.values)\n\n#* see the predicted values\nwage2 %>%\n  dplyr::relocate(educ_hat) %>%\n  head()","id":1,"options":{"autorun":"true","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.8","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"4.5","fig-width":"7","label":"unnamed-chunk-1","message":"true","out-height":"","out-width":"55%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"#* coefficient demonstration only: these OLS standard errors are not valid for 2SLS\nsecond_reg <- fixest::feols(log(wage) ~ educ_hat + exper, data = wage2)\n\n#* see the results\nsecond_reg","id":2,"options":{"autorun":"true","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.8","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"4.5","fig-width":"7","label":"unnamed-chunk-2","message":"true","out-height":"","out-width":"55%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"#--- take a look at the data ---#\nwage2 %>%\n  select(wage, educ, sibs, feduc) %>%\n  head()","id":3,"options":{"autorun":"true","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.8","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"4.5","fig-width":"7","label":"unnamed-chunk-3","message":"true","out-height":"","out-width":"55%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"iv_res <- fixest::feols(log(wage) ~ exper | educ ~ sibs + feduc, data = wage2)","id":4,"options":{"autorun":"true","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.8","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"4.5","fig-width":"7","label":"unnamed-chunk-4","message":"true","out-height":"","out-width":"55%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"iv_res","id":5,"options":{"autorun":"true","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.8","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"4.5","fig-width":"7","label":"unnamed-chunk-5","message":"true","out-height":"","out-width":"55%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"iv_res","id":6,"options":{"autorun":"true","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.8","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"4.5","fig-width":"7","label":"unnamed-chunk-6","message":"true","out-height":"","out-width":"55%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"iv_res$iv_first_stage","id":7,"options":{"autorun":"true","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.8","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"4.5","fig-width":"7","label":"unnamed-chunk-7","message":"true","out-height":"","out-width":"55%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"set.seed(73289)\nN <- 500 # number of observations\n\nu_common <- runif(N) # the term shared by the endogenous variable and the error term\nz_common <- runif(N) # the term shared by the endogenous variable and instruments\nx_end <- u_common + z_common + runif(N) # the endogenous variable\nz_strong <- z_common + runif(N) # strong instrument\nz_weak <- 0.01 * z_common + 0.99995 * runif(N) # weak instrument\nu <- u_common + runif(N) # error term\ny <- x_end + u # dependent variable\n\ndata <- data.frame(y, x_end, z_strong, z_weak)","id":8,"options":{"autorun":"false","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.8","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"4.5","fig-width":"7","label":"unnamed-chunk-8","message":"true","out-height":"","out-width":"55%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"cor(data)","id":9,"options":{"autorun":"false","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.8","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"4.5","fig-width":"7","label":"unnamed-chunk-9","message":"true","out-height":"","out-width":"55%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"#--- IV estimation (strong) ---#\niv_strong <- fixest::feols(y ~ 1 | x_end ~ z_strong, data = data)\n\n#--- coefs (strong) ---#\ntidy(iv_strong)","id":10,"options":{"autorun":"false","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.8","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"4.5","fig-width":"7","label":"unnamed-chunk-10","message":"true","out-height":"","out-width":"55%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"#--- IV estimation (weak) ---#\niv_weak <- fixest::feols(y ~ 1 | x_end ~ z_weak, data = data)\n\n#--- coefs (weak) ---#\ntidy(iv_weak)","id":11,"options":{"autorun":"false","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.8","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"4.5","fig-width":"7","label":"unnamed-chunk-11","message":"true","out-height":"","out-width":"55%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"iv_strong$iv_first_stage","id":12,"options":{"autorun":"false","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.8","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"4.5","fig-width":"7","label":"unnamed-chunk-12","message":"true","out-height":"","out-width":"55%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"iv_weak$iv_first_stage","id":13,"options":{"autorun":"false","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.8","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"4.5","fig-width":"7","label":"unnamed-chunk-13","message":"true","out-height":"","out-width":"55%","output":"true","read-only":"false","results":"markup","warning":"true"}}];
 
   </script>
   <script type="module">
@@ -1674,7 +2010,7 @@
   }
 
   </script>
-<meta property="og:title" content="11: Dealing with Endogeneity: Instrumental Variable – Applied Econometrics (AECN 896-004)">
+<meta property="og:title" content="11: Dealing with Endogeneity: Instrumental Variables – Applied Econometrics (AECN 896-004)">
 <meta property="og:site_name" content="Applied Econometrics (AECN 896-004)">
 </head>
 <body class="quarto-light">
@@ -1966,7 +2302,7 @@ globalThis.qwebrCreateMonacoEditorInstance = function (cellData) {
     <div class="slides">
 
 <section id="title-slide" class="quarto-title-block center">
-  <h1 class="title">11: Dealing with Endogeneity: Instrumental Variable</h1>
+  <h1 class="title">11: Dealing with Endogeneity: Instrumental Variables</h1>
 
 <div class="quarto-title-authors">
 </div>
@@ -1988,11 +2324,18 @@ globalThis.qwebrCreateMonacoEditorInstance = function (cellData) {
 <ul id="tabset-4" class="panel-tabset-tabby"><li><a data-tabby-default="" href="#tabset-4-1">Review of Endogeneity</a></li><li><a href="#tabset-4-2">Causal Diagram</a></li><li><a href="#tabset-4-3">Rough idea</a></li><li><a href="#tabset-4-4">Estimation procedure</a></li><li><a href="#tabset-4-5">Example</a></li></ul>
 <div class="tab-content">
 <div id="tabset-4-1">
+<details class="transcript">
+<summary>
+Lecturer transcript
+</summary>
+<p>Instrumental variables address a setting where the explanatory variable of interest is correlated with the structural error. That correlation can come from omitted variables, selection, reverse causality, or measurement error. OLS then cannot separate the regressor’s causal effect from unobserved determinants of the outcome. IV does not make the original regressor exogenous. It searches for a distinct source of variation in that regressor that is unrelated to the outcome error.</p>
+</details>
 <p><strong>Endogeneity</strong></p>
-<p><span class="math inline">\(E[u|x_k] \ne 0\)</span> (the error term is not correlated with any of the independent variables)</p>
+<p><span class="math inline">E[u\mid x_1,\dots,x_k]\ne0</span></p>
+<p>The zero-conditional-mean assumption fails: the error term is systematically related to at least one explanatory variable.</p>
 <p><br></p>
 <p><strong>Endogenous independent variable</strong></p>
-<p>If the error term is, <span style="color: red;">for whatever reason</span>, correlated with the independent variable <span class="math inline">\(x_k\)</span>, then we say that <span class="math inline">\(x_k\)</span> is an endogenous independent variable.</p>
+<p>If an explanatory variable <span class="math inline">x_k</span> is correlated with the error term, we call <span class="math inline">x_k</span> an endogenous explanatory variable.</p>
 <ul>
 <li>Omitted variable</li>
 <li>Selection</li>
@@ -2005,6 +2348,12 @@ globalThis.qwebrCreateMonacoEditorInstance = function (cellData) {
 <ul id="tabset-1" class="panel-tabset-tabby"><li><a data-tabby-default="" href="#tabset-1-1">Causal diagram of the model</a></li><li><a href="#tabset-1-2">Causal diagram with an instrument</a></li></ul>
 <div class="tab-content">
 <div id="tabset-1-1">
+<details class="transcript inline">
+<summary>
+Lecturer transcript
+</summary>
+<p>The diagram represents our education example. Education may affect income, which is the arrow we want to estimate. Ability and other omitted factors affect both education and income, creating a backdoor path from education to income. Experience is included as an observed control. Because the common cause in the error points into both education and income, a regression of income on education and experience generally mixes the causal education effect with confounding from ability.</p>
+</details>
 <p>You want to estimate the causal impact of education on income.</p>
 <ul>
 <li>Variable of interest: Education</li>
@@ -2014,23 +2363,22 @@ globalThis.qwebrCreateMonacoEditorInstance = function (cellData) {
 <p><img data-src="causal_graph.svg"></p>
 </div>
 <div id="tabset-1-2">
-<p>We want to find a variable like <span class="math inline">\(Z\)</span> in the diagram below:</p>
+<details class="transcript inline">
+<summary>
+Lecturer transcript
+</summary>
+<p>An instrument Z supplies variation that reaches income through education. Three ideas must hold. Relevance requires an arrow from Z to education after controls. Exclusion rules out a direct Z-to-income arrow. Exogeneity rules out an unobserved common cause linking Z to income. Under those conditions, the education variation induced by Z avoids the ability backdoor path. The diagram clarifies why predicting education is necessary but insufficient: a strong predictor that also affects income directly is not a valid instrument.</p>
+</details>
+<p>We want to find a variable like <span class="math inline">Z</span> in the diagram below:</p>
 <p><br></p>
 <div class="columns">
 <div class="column" style="width:50%;">
 <p><img data-src="causal_graph_z.svg"></p>
 </div><!--end of the 1st column--><div class="column" style="width:50%;">
 <ul>
-<li><span class="math inline">\(Z\)</span> does <span style="color: blue;"> NOT </span> affect income <span style="color: blue;"> directly </span></li>
-<li><span class="math inline">\(Z\)</span> is correlated with the variable of interest (education)
-<ul>
-<li>does not matter which causes which (associattion is enough)</li>
-</ul></li>
-<li><span class="math inline">\(Z\)</span> is <span style="color: blue;"> NOT </span> correlated with <span style="color: red;"> any </span> of the unobservable variables in the error term (including ability) that is making the vairable of interest (education) endogeneous.
-<ul>
-<li><span class="math inline">\(Z\)</span> does not affect ability</li>
-<li>abiliyt does not affect <span class="math inline">\(Z\)</span></li>
-</ul></li>
+<li><strong>Relevance:</strong> <span class="math inline">Z</span> predicts education after controlling for the other exogenous variables.</li>
+<li><strong>Exclusion:</strong> <span class="math inline">Z</span> affects income only through education; it has no direct effect on income.</li>
+<li><strong>Exogeneity:</strong> <span class="math inline">Z</span> is uncorrelated with unobserved determinants of income in the structural error, including ability.</li>
 </ul>
 </div><!--end of the 2nd column-->
 </div>
@@ -2041,18 +2389,24 @@ globalThis.qwebrCreateMonacoEditorInstance = function (cellData) {
 <!--end of panel-->
 </div>
 <div id="tabset-4-3">
+<details class="transcript">
+<summary>
+Lecturer transcript
+</summary>
+<p>In the structural model, x one is endogenous and x two is an included exogenous control. We seek excluded instruments Z that predict x one but belong outside the outcome equation. The first stage isolates the component of x one explained by Z and the exogenous controls. The second stage uses that component to estimate beta one. The phrase instrument-induced variation is important: IV identifies the effect for changes in x one generated by the instrument, subject to the validity assumptions.</p>
+</details>
 <p><strong>The Model</strong></p>
-<p><span class="math inline">\(y=\beta_0 + \beta_1 x_1 + \beta_2 x_2 + u\)</span></p>
+<p><span class="math inline">y=\beta_0 + \beta_1 x_1 + \beta_2 x_2 + u</span></p>
 <ul>
-<li><span class="math inline">\(x_1\)</span> is endogenous: <span class="math inline">\(E[u|x_1] \ne 0\)</span> (or <span class="math inline">\(Cov(u,x_1)\ne 0\)</span>)</li>
-<li><span class="math inline">\(x_2\)</span> is exogenous: <span class="math inline">\(E[u|x_1] = 0\)</span> (or <span class="math inline">\(Cov(u,x_1) = 0\)</span>)</li>
+<li><span class="math inline">x_1</span> is endogenous: <span class="math inline">E[u\mid x_1,x_2]\ne0</span> (and typically <span class="math inline">\operatorname{Cov}(u,x_1)\ne0</span>)</li>
+<li><span class="math inline">x_2</span> is exogenous: <span class="math inline">E[u\mid x_2]=0</span> (and <span class="math inline">\operatorname{Cov}(u,x_2)=0</span>)</li>
 </ul>
 <p><br></p>
 <p><strong>Idea (very loosely put)</strong></p>
-<p>Bring in variable(s) (<span style="color: blue;"> Instrumental variable(s) </span>) that does <span style="color: red;"> NOT </span> belong to the model, but <span style="color: red;"> IS </span> related with the endogenous variable,</p>
+<p>Find one or more <span style="color: blue;">instrumental variables</span> that are excluded from the structural outcome equation but predict the endogenous variable.</p>
 <ul>
-<li><p>Using the instrumental variable(s) (which we denote by <span class="math inline">\(Z\)</span>), make the endogenous variable exogenous, which we call <span style="color: blue;">instrumented</span> variable(s)</p></li>
-<li><p>Use the variation in the instrumented variable instead of the original endogenous variable to estimate the impact of the original variable</p></li>
+<li><p>Use the instruments <span class="math inline">Z</span> to isolate variation in <span class="math inline">x_1</span> that is unrelated to the structural error.</p></li>
+<li><p>Use that instrument-induced variation to estimate the causal effect of <span class="math inline">x_1</span> on <span class="math inline">y</span>.</p></li>
 </ul>
 </div>
 <div id="tabset-4-4">
@@ -2060,27 +2414,39 @@ globalThis.qwebrCreateMonacoEditorInstance = function (cellData) {
 <ul id="tabset-2" class="panel-tabset-tabby"><li><a data-tabby-default="" href="#tabset-2-1">Step 1</a></li><li><a href="#tabset-2-2">Step 2</a></li></ul>
 <div class="tab-content">
 <div id="tabset-2-1">
+<details class="transcript">
+<summary>
+Lecturer transcript
+</summary>
+<p>The first stage regresses the endogenous variable on every excluded instrument and every exogenous variable included in the structural equation. Including x two in both stages is essential; leaving it out of the first stage generally changes the estimator and can invalidate the projection. The fitted x one is the portion predictable from this instrument set. Relevance means the excluded instruments contribute predictive power after x two is held fixed.</p>
+</details>
 <p><strong>Idea</strong></p>
-<p>Using the instrumental variables, make the endogenous variable exogenous, which we call <span style="color: blue;"> instrumented </span> variable.</p>
+<p>Project the endogenous variable onto the instruments and all included exogenous variables.</p>
 <p><br></p>
 <p><strong>Step 1: mathematically</strong></p>
 <ul>
-<li>Regress the endogenous variable <span class="math inline">\((x_1)\)</span> on the instrumental variable(s) <span class="math inline">\((Z=\{z_1,z_2\}\)</span>, two instruments here) and all the other exogenous variables <span class="math inline">\((x_2\)</span> here)</li>
+<li>Regress the endogenous variable <span class="math inline">x_1</span> on the excluded instruments <span class="math inline">Z=\{z_1,z_2\}</span> and every exogenous variable included in the outcome equation (here, <span class="math inline">x_2</span>).</li>
 </ul>
-<p><span class="math inline">\(x_1 = \alpha_0 + \sigma_2 x_2 + \alpha_1 z_1 +\alpha_2 z_2 + v\)</span></p>
+<p><span class="math inline">x_1 = \alpha_0 + \sigma_2 x_2 + \alpha_1 z_1 +\alpha_2 z_2 + v</span></p>
 <ul>
-<li>obtain the predicted value of <span class="math inline">\(x\)</span> from the regression</li>
+<li>Obtain the predicted value of <span class="math inline">x_1</span> from this first-stage regression.</li>
 </ul>
-<p><span class="math inline">\(\widehat{x}_1 = \widehat{\alpha}_0 + \widehat{\sigma}_2 x_2 + \widehat{\alpha}_1 z_1 + \widehat{\alpha}_2 z_2\)</span></p>
+<p><span class="math inline">\widehat{x}_1 = \widehat{\alpha}_0 + \widehat{\sigma}_2 x_2 + \widehat{\alpha}_1 z_1 + \widehat{\alpha}_2 z_2</span></p>
 </div>
 <div id="tabset-2-2">
+<details class="transcript">
+<summary>
+Lecturer transcript
+</summary>
+<p>Conceptually, replace x one with its fitted value and regress y on that fitted component plus x two. This reproduces the 2SLS slope coefficient. However, ordinary OLS software in this manual second stage treats the fitted regressor as if it were observed data and reports the wrong uncertainty. A dedicated IV command accounts for how the fitted values were constructed and produces the correct 2SLS variance estimate. Use the two steps to understand the estimator, not as the recommended implementation.</p>
+</details>
 <p><strong>Idea</strong></p>
-<p>Use the variation in the instrumented variable instead of the original endogenous variable to estimate the impact of the original variable</p>
+<p>Use the fitted component of <span class="math inline">x_1</span> to estimate the structural coefficient <span class="math inline">\beta_1</span>.</p>
 <p><br></p>
 <p><strong>Step 2: Mathematically</strong></p>
-<p>Regress the dependent variable <span class="math inline">\((y)\)</span> on the instrumented variable <span class="math inline">\((\widehat{x}_1)\)</span>,</p>
-<p><span class="math inline">\(y= \beta_0 + \beta_1 \widehat{x}_1+ \beta_2 x_2 + \varepsilon\)</span></p>
-<p>to estimate the coefficient on <span class="math inline">\(x\)</span> in the original model</p>
+<p>Conceptually, regress <span class="math inline">y</span> on <span class="math inline">\widehat{x}_1</span> and <span class="math inline">x_2</span>:</p>
+<p><span class="math inline">y= \beta_0 + \beta_1 \widehat{x}_1+ \beta_2 x_2 + \varepsilon</span></p>
+<p>This reproduces the 2SLS coefficient, but a manually run second-stage OLS regression does <span style="color: red;">not</span> report the correct 2SLS standard errors. In practice, estimate both stages with an IV command.</p>
 </div>
 </div>
 </div>
@@ -2091,43 +2457,62 @@ globalThis.qwebrCreateMonacoEditorInstance = function (cellData) {
 <ul id="tabset-3" class="panel-tabset-tabby"><li><a data-tabby-default="" href="#tabset-3-1">Model of interest</a></li><li><a href="#tabset-3-2">Step 1</a></li><li><a href="#tabset-3-3">Step 2</a></li></ul>
 <div class="tab-content">
 <div id="tabset-3-1">
+<details class="transcript">
+<summary>
+Lecturer transcript
+</summary>
+<p>Education is endogenous because unobserved ability affects wages and is related to schooling. Experience is assumed exogenous for this illustration. IQ and number of siblings are candidate instruments, not automatically valid ones. IQ is likely related to ability, which threatens exogeneity and exclusion. Siblings may predict schooling through family resources, but family size could also proxy for background that affects wages directly. The example first demonstrates computation; later slides evaluate whether such variables deserve to be instruments.</p>
+</details>
 <p><strong>Model</strong></p>
-<p><span class="math inline">\(log(wage) = \beta_0 + \beta_1 educ + \beta_2 exper + (\beta_3 ability + v)\)</span></p>
+<p><span class="math inline">\log(wage)=\beta_0+\beta_1 educ+\beta_2 exper+v, \qquad v=\beta_3 ability+e</span></p>
 <ul>
-<li>Regress <span class="math inline">\(log(wage)\)</span> on <span class="math inline">\(educ\)</span> and <span class="math inline">\(exper\)</span> <span class="math inline">\((ability\)</span> not included because you do not observe it)</li>
-<li><span class="math inline">\((\beta_3 ability + v)\)</span> is the error term</li>
-<li><span class="math inline">\(educ\)</span> is considered endogenous (correlated with <span class="math inline">\(ability\)</span>)</li>
-<li><span class="math inline">\(exper\)</span> is considered exogenous (not correlated with <span class="math inline">\(ability\)</span>)</li>
+<li>Regress <span class="math inline">\log(wage)</span> on <span class="math inline">educ</span> and <span class="math inline">exper</span> (<span class="math inline">ability</span> is omitted because it is unobserved).</li>
+<li><span class="math inline">v=\beta_3 ability+e</span> is the structural error term.</li>
+<li><span class="math inline">educ</span> is considered endogenous (correlated with <span class="math inline">ability</span>)</li>
+<li><span class="math inline">exper</span> is considered exogenous (not correlated with <span class="math inline">ability</span>)</li>
 </ul>
 <p><br></p>
 <p><strong>Instruments (Z)</strong></p>
-<p>Suppose you selected the following variables as instruments:</p>
+<p>Suppose you are considering the following candidate instruments for illustration:</p>
 <ul>
-<li>IQ test score <span class="math inline">\((IQ)\)</span></li>
-<li>number of siblings <span class="math inline">\((sibs)\)</span></li>
+<li>IQ test score <span class="math inline">(IQ)</span></li>
+<li>number of siblings <span class="math inline">(sibs)</span></li>
 </ul>
 </div>
 <div id="tabset-3-2">
-<p>Regress <span class="math inline">\(educ\)</span> on <span class="math inline">\(exper\)</span>, <span class="math inline">\(IQ\)</span>, and <span class="math inline">\(sibs\)</span>:</p>
-<span class="math display">\[\begin{align*}
-educ = \alpha_0 + \alpha_1 exper + \alpha_2 IQ + \alpha_3 sibs + u
-\end{align*}\]</span>
-<p>Use the coefficient estimates on <span class="math inline">\(\alpha_0\)</span>, <span class="math inline">\(\alpha_1\)</span>, <span class="math inline">\(\alpha_2\)</span>, and <span class="math inline">\(\alpha_3\)</span> to predict <span class="math inline">\(educ\)</span> as a function of <span class="math inline">\(exper\)</span>, <span class="math inline">\(IQ\)</span>, and <span class="math inline">\(sibs\)</span>.</p>
-<span class="math display">\[\begin{align*}
+<details class="transcript inline">
+<summary>
+Lecturer transcript
+</summary>
+<p>The first-stage equation predicts education using experience, IQ, and siblings. The code estimates that model and stores each person’s fitted years of education. Inspecting <code>educ_hat</code> helps make the projection concrete: it is not a cleaned version of education for each individual, but a linear prediction from the instrument set. The excluded instruments need to explain enough residual variation in education after experience for the second stage to be informative.</p>
+</details>
+<p>Regress <span class="math inline">educ</span> on <span class="math inline">exper</span>, <span class="math inline">IQ</span>, and <span class="math inline">sibs</span>:</p>
+<span class="math display">\begin{align*}
+educ = \alpha_0 + \alpha_1 exper + \alpha_2 IQ + \alpha_3 sibs + r
+\end{align*}</span>
+<p>Use the coefficient estimates on <span class="math inline">\alpha_0</span>, <span class="math inline">\alpha_1</span>, <span class="math inline">\alpha_2</span>, and <span class="math inline">\alpha_3</span> to predict <span class="math inline">educ</span> as a function of <span class="math inline">exper</span>, <span class="math inline">IQ</span>, and <span class="math inline">sibs</span>.</p>
+<span class="math display">\begin{align*}
 \widehat{educ} = \widehat{\alpha_0} + \widehat{\alpha_1} exper + \widehat{\alpha_2} IQ + \widehat{\alpha_3} sibs
-\end{align*}\]</span>
+\end{align*}</span>
 <p><br></p>
 <div id="qwebr-insertion-location-1"></div>
 <noscript>Please enable JavaScript to experience the dynamic code cell content on this page.</noscript>
 </div>
 <div id="tabset-3-3">
-<p>Use <span class="math inline">\(\widehat{educ}\)</span> in place of <span class="math inline">\(educ\)</span> to estimate the model of interest:</p>
-<span class="math display">\[\begin{align*}
-log(wage) = \beta_0 + \beta_1 \widehat{educ} + \beta_2 exper + u
-\end{align*}\]</span>
+<details class="transcript">
+<summary>
+Lecturer transcript
+</summary>
+<p>The manual second stage uses log wage—not wage—because that is the specified structural outcome. Its coefficient on predicted education equals the 2SLS coefficient when the stages are constructed correctly. The printed OLS standard error is not valid for IV inference. This distinction is easy to miss because the regression runs without warning. Later we use <code>feols</code> IV syntax, which estimates the same coefficient and computes an appropriate variance in a single call.</p>
+</details>
+<p>Use <span class="math inline">\widehat{educ}</span> in place of <span class="math inline">educ</span> to estimate the model of interest:</p>
+<span class="math display">\begin{align*}
+\log(wage) = \beta_0 + \beta_1 \widehat{educ} + \beta_2 exper + \varepsilon
+\end{align*}</span>
 <p><br></p>
 <div id="qwebr-insertion-location-2"></div>
 <noscript>Please enable JavaScript to experience the dynamic code cell content on this page.</noscript>
+<p>The coefficient on <code>educ_hat</code> illustrates the second-stage coefficient. Do not use the standard error from this manually fitted regression; the IV implementation below computes the correct 2SLS variance estimate.</p>
 </div>
 </div>
 </div>
@@ -2143,109 +2528,139 @@ log(wage) = \beta_0 + \beta_1 \widehat{educ} + \beta_2 exper + u
 <ul id="tabset-6" class="panel-tabset-tabby"><li><a data-tabby-default="" href="#tabset-6-1">Introduction</a></li><li><a href="#tabset-6-2">Condition 1</a></li><li><a href="#tabset-6-3">Condition 2</a></li><li><a href="#tabset-6-4">Review of the conditions</a></li><li><a href="#tabset-6-5">2SLS</a></li></ul>
 <div class="tab-content">
 <div id="tabset-6-1">
-<p>Just like OLS needs to satisy some conditions for it to consistently estimate the coefficients, IV approach needs to satisy some conditions for it to work.</p>
+<details class="transcript">
+<summary>
+Lecturer transcript
+</summary>
+<p>IV consistency rests on assumptions about the instruments, just as OLS consistency rests on assumptions about regressors and errors. The two broad requirements are relevance and validity. Relevance asks whether the excluded instruments move the endogenous variable after controls. Validity combines exclusion and exogeneity: the instruments must affect the outcome only through the endogenous regressor and must be unrelated to the structural error. A convincing IV study needs both statistical diagnostics and a substantive research-design argument.</p>
+</details>
+<p>Just as OLS requires assumptions for consistency, IV requires conditions on the proposed instruments.</p>
 <p><br></p>
 <p><strong>Estimation Procedure</strong></p>
 <ul>
-<li><p>Step 1: <span class="math inline">\(\widehat{x}_1 = \widehat{\alpha}_0 +\widehat{\sigma}_2 x_2 + \widehat{\alpha}_1 z_1 + \widehat{\alpha}_2 z_2\)</span></p></li>
-<li><p>Step 2: <span class="math inline">\(y = \beta_0 + \beta_1 \widehat{x}_1+ \beta_2 x_2 + \varepsilon\)</span></p></li>
+<li><p>Step 1: <span class="math inline">\widehat{x}_1 = \widehat{\alpha}_0 +\widehat{\sigma}_2 x_2 + \widehat{\alpha}_1 z_1 + \widehat{\alpha}_2 z_2</span></p></li>
+<li><p>Step 2: <span class="math inline">y = \beta_0 + \beta_1 \widehat{x}_1+ \beta_2 x_2 + \varepsilon</span></p></li>
 </ul>
 <p><br></p>
 <p><strong>Important question</strong></p>
 <p>What are the conditions under which IV estimation is consistent?</p>
-<p>The instruments <span class="math inline">\((Z)\)</span> need to satisfy two conditions, which we will discuss.</p>
+<p>The instruments <span class="math inline">Z</span> must be relevant and valid, as discussed next.</p>
 </div>
 <div id="tabset-6-2">
+<details class="transcript">
+<summary>
+Lecturer transcript
+</summary>
+<p>If the excluded instruments have zero first-stage coefficients, fitted x one contains nothing beyond the included exogenous controls. There is then no independent variation with which to identify beta one. Nonzero prediction is relevance, but useful IV also requires adequate strength. In finite samples, a weak first stage can make 2SLS unstable and conventional confidence intervals unreliable even if a significance test rejects exact zero. We will return to diagnostics near the end of the lecture.</p>
+</details>
 <p><strong>Estimation Procedure</strong></p>
 <ul>
-<li><p>Step 1: <span class="math inline">\(\widehat{x}_1 = \widehat{\alpha}_0 +\widehat{\sigma}_2 x_2 + \widehat{\alpha}_1 z_1 + \widehat{\alpha}_2 z_2\)</span></p></li>
-<li><p>Step 2: <span class="math inline">\(y = \beta_0 + \beta_1 \widehat{x}_1+ \beta_2 x_2 + \varepsilon\)</span></p></li>
+<li><p>Step 1: <span class="math inline">\widehat{x}_1 = \widehat{\alpha}_0 +\widehat{\sigma}_2 x_2 + \widehat{\alpha}_1 z_1 + \widehat{\alpha}_2 z_2</span></p></li>
+<li><p>Step 2: <span class="math inline">y = \beta_0 + \beta_1 \widehat{x}_1+ \beta_2 x_2 + \varepsilon</span></p></li>
 </ul>
 <p><br></p>
 <p><strong>Question</strong></p>
-<p>What happens if <span class="math inline">\(Z\)</span> have no power to explain <span class="math inline">\(x_1\)</span> <span class="math inline">\((\alpha_1=0\)</span> and <span class="math inline">\(\alpha_2=0)\)</span>?</p>
+<p>What happens if <span class="math inline">Z</span> has no power to explain <span class="math inline">x_1</span> (<span class="math inline">\alpha_1=0</span> and <span class="math inline">\alpha_2=0</span>)?</p>
 <br>
 <details>
 <summary>
 Answer
 </summary>
 <ul>
-<li><span class="math inline">\(\widehat{x}_1=\widehat{\alpha}_0+\widehat{\sigma}^2 x_2\)</span></li>
-<li><span class="math inline">\(\widehat{\beta}_1?\)</span></li>
+<li><span class="math inline">\widehat{x}_1=\widehat{\alpha}_0+\widehat{\sigma}_2x_2</span></li>
+<li>There is no instrument-induced variation left to identify <span class="math inline">\beta_1</span>.</li>
 </ul>
-<p>That is, <span class="math inline">\(\widehat{x}_1\)</span> has no information beyond the information <span class="math inline">\(x_2\)</span> possesses.</p>
-The instrument(s) <span class="math inline">\(Z\)</span> have jointly significant explanatory power on the endogenous variable <span class="math inline">\(x_1\)</span> <span style="color: red;">after</span> you control for all the other exogenous variables (here <span class="math inline">\(x_2\)</span>)
+<p>That is, <span class="math inline">\widehat{x}_1</span> contains no information beyond what <span class="math inline">x_2</span> already provides.</p>
+<strong>Relevance requires the excluded instruments to predict <span class="math inline">x_1</span> after controlling for the other exogenous variables.</strong> Statistical significance is a useful diagnostic, but instruments must also be sufficiently strong for reliable conventional IV inference.
 </details>
 </div>
 <div id="tabset-6-3">
 <div class="columns">
 <div class="column" style="width:50%;">
 <p><strong>Model of interest</strong></p>
-<p><span class="math inline">\(y = \beta_0 + \beta_1 x_1 + \beta_2 x_2 + u\)</span></p>
+<p><span class="math inline">y = \beta_0 + \beta_1 x_1 + \beta_2 x_2 + u</span></p>
 </div><!--end of the 1st column--><div class="column" style="width:50%;">
 <p><strong>Estimation Procedure</strong></p>
 <ul>
-<li><p>Step 1: <span class="math inline">\(\widehat{x}_1 = \widehat{\alpha}_0 +\widehat{\sigma}_2 x_2 + \widehat{\alpha}_1 z_1 + \widehat{\alpha}_2 z_2\)</span></p></li>
-<li><p>Step 2: <span class="math inline">\(y = \beta_0 + \beta_1 \widehat{x}_1+ \beta_2 x_2 + \varepsilon\)</span></p></li>
+<li><p>Step 1: <span class="math inline">\widehat{x}_1 = \widehat{\alpha}_0 +\widehat{\sigma}_2 x_2 + \widehat{\alpha}_1 z_1 + \widehat{\alpha}_2 z_2</span></p></li>
+<li><p>Step 2: <span class="math inline">y = \beta_0 + \beta_1 \widehat{x}_1+ \beta_2 x_2 + \varepsilon</span></p></li>
 </ul>
 </div><!--end of the 2nd column-->
 </div>
 <!--end of the columns-->
 <div class="panel-tabset">
-<ul id="tabset-5" class="panel-tabset-tabby"><li><a data-tabby-default="" href="#tabset-5-1">Investigation of the model</a></li><li><a href="#tabset-5-2">When is it unbiased?</a></li><li><a href="#tabset-5-3">So,</a></li></ul>
+<ul id="tabset-5" class="panel-tabset-tabby"><li><a data-tabby-default="" href="#tabset-5-1">Investigation of the model</a></li><li><a href="#tabset-5-2">When is it consistent?</a></li><li><a href="#tabset-5-3">So,</a></li></ul>
 <div class="tab-content">
 <div id="tabset-5-1">
-<p>Remember you can break <span class="math inline">\(x_1\)</span> into the predicted part and the residuals.</p>
-<span class="math display">\[\begin{align*}
+<details class="transcript">
+<summary>
+Lecturer transcript
+</summary>
+<p>The first-stage projection splits x one into a fitted component and a residual. Substitute that decomposition into the structural equation. The conceptual second-stage disturbance contains the original outcome error plus beta one times the first-stage residual. OLS on fitted x one requires that fitted component to be unrelated to this composite disturbance. Projection makes the fitted value orthogonal to the first-stage residual in sample, but we still need the instruments and included controls to be unrelated to the structural error u.</p>
+</details>
+<p>The first stage decomposes <span class="math inline">x_1</span> into its fitted component and residual:</p>
+<span class="math display">\begin{align*}
 x_1 = \widehat{x}_1 + \widehat{\varepsilon}
-\end{align*}\]</span>
-<p>where <span class="math inline">\(\widehat{\varepsilon}\)</span> is the residual of the first stage estimation.</p>
-<p>Plugging in <span class="math inline">\(x_1 = \widehat{x}_1 + \widehat{\varepsilon}\)</span> into the model of interest,</p>
-<span class="math display">\[\begin{align*}
+\end{align*}</span>
+<p>where <span class="math inline">\widehat{\varepsilon}</span> is the first-stage residual.</p>
+<p>Substituting <span class="math inline">x_1=\widehat{x}_1+\widehat{\varepsilon}</span> into the model of interest gives</p>
+<span class="math display">\begin{align*}
 y &amp; =  \beta_0 + \beta_1 (\widehat{x}_1 + \widehat{\varepsilon}) + \beta_2 x_2+ u\\
 
 &amp; = \beta_0 + \beta_1 \widehat{x}_1 + \beta_2 x_2+ (\beta_1\widehat{\varepsilon} + u)
-\end{align*}\]</span>
-<p>So, if you regress <span class="math inline">\(y\)</span> on <span class="math inline">\(\widehat{x}_1\)</span> and <span class="math inline">\(x_2\)</span>, then the error term is <span class="math inline">\((\beta_1\widehat{\varepsilon} + u)\)</span>.</p>
+\end{align*}</span>
+<p>Thus, in the conceptual second-stage equation, the composite error is <span class="math inline">\beta_1\widehat{\varepsilon}+u</span>.</p>
 <p><br></p>
 <p><strong>Question</strong></p>
-<p>What is the condition under which the OLS estimation of <span class="math inline">\(\beta_1\)</span> in the main model is unbiased?</p>
+<p>What condition is needed for the second-stage coefficient to be consistent?</p>
 <br>
 <details>
 <summary>
 Answer
 </summary>
-<span class="math inline">\(\widehat{x}_1\)</span> is not correlated with <span class="math inline">\((\beta_1\widehat{\varepsilon} + u)\)</span>
+<span class="math inline">\widehat{x}_1</span> must be asymptotically uncorrelated with <span class="math inline">\beta_1\widehat{\varepsilon}+u</span>.
 </details>
 </div>
 <div id="tabset-5-2">
+<details class="transcript">
+<summary>
+Lecturer transcript
+</summary>
+<p>The algebra isolates the remaining requirement. Because the fitted value is built from x two, z one, and z two, those variables must not carry information about u. Orthogonality to the first-stage residual follows mechanically from least squares; orthogonality to the structural error does not. It comes from the design. This is why an excellent predictor can still be a bad instrument: predictive power addresses the first stage, while correlation with u invalidates the second-stage comparison.</p>
+</details>
 <p>We confirmed that we need the following condition to be satisfied:</p>
-<div data-tile="Condition">
+<div title="Condition">
 <div class="callout callout-note no-icon callout-titled callout-style-default">
 <div class="callout-body">
 <div class="callout-title">
-<p><strong>Note</strong></p>
+<p><strong>Condition</strong></p>
 </div>
 <div class="callout-content">
-<p><span class="math inline">\(\widehat{x}_1\)</span> is not correlated with <span class="math inline">\((\beta_1\widehat{\varepsilon} + u)\)</span></p>
+<p><span class="math inline">\widehat{x}_1</span> must be asymptotically uncorrelated with <span class="math inline">\beta_1\widehat{\varepsilon}+u</span>.</p>
 </div>
 </div>
 </div>
 </div>
-<p>This in turn means that <span class="math inline">\(x_2\)</span>, <span class="math inline">\(z_1\)</span>, and <span class="math inline">\(z_2\)</span> are not correlated with <span class="math inline">\(u\)</span> (the error term of the true model.)</p>
-<p><span class="math inline">\((\widehat{x}_1\)</span> is always not correlated (orthogonal) with <span class="math inline">\(\varepsilon)\)</span></p>
+<p>This requires the included exogenous variable <span class="math inline">x_2</span> and the excluded instruments <span class="math inline">z_1,z_2</span> to be uncorrelated with the structural error <span class="math inline">u</span>.</p>
+<p>By construction, <span class="math inline">\widehat{x}_1</span> is orthogonal in sample to the first-stage residual <span class="math inline">\widehat{\varepsilon}</span>.</p>
 </div>
 <div id="tabset-5-3">
-<div title="Condition 2">
+<details class="transcript">
+<summary>
+Lecturer transcript
+</summary>
+<p>Validity has two related pieces. Exclusion says an excluded instrument has no direct pathway to y once x one and the included controls are held fixed. Exogeneity says it is uncorrelated with unobserved determinants in u. Neither condition can be verified by a first-stage regression because u and the excluded counterfactual pathways are unobserved. Overidentification tests can sometimes reject the joint restrictions when there are extra instruments, but passing does not certify that every instrument is valid. The main evidence must be institutional and causal reasoning.</p>
+</details>
+<div title="Condition 2: Instrument validity">
 <div class="callout callout-important no-icon callout-titled callout-style-default">
 <div class="callout-body">
 <div class="callout-title">
-<p><strong>Condition 2</strong></p>
+<p><strong>Condition 2: Instrument validity</strong></p>
 </div>
 <div class="callout-content">
 <ul>
-<li><p><span class="math inline">\(z_1\)</span> and <span class="math inline">\(z_2\)</span> do not belong in the main model, meaning they do not have any explanatory power beyond <span class="math inline">\(x_2\)</span> (they should have been included in the model in the first place as independent variables)</p></li>
-<li><p><span class="math inline">\(z_1\)</span> and <span class="math inline">\(z_2\)</span> are not correlated with the error term (there are no unobserved factors in the error term that are correlated with <span class="math inline">\(Z\)</span>)</p></li>
+<li><p><strong>Exclusion:</strong> <span class="math inline">z_1</span> and <span class="math inline">z_2</span> have no direct effect on <span class="math inline">y</span> after controlling for <span class="math inline">x_1</span> and <span class="math inline">x_2</span>; they belong in the first stage but not the structural outcome equation.</p></li>
+<li><p><strong>Exogeneity:</strong> <span class="math inline">z_1</span> and <span class="math inline">z_2</span> are uncorrelated with the structural error <span class="math inline">u</span>.</p></li>
 </ul>
 </div>
 </div>
@@ -2259,7 +2674,7 @@ Answer
 <summary>
 Answer
 </summary>
-No, because we never observe the error term.
+Not directly, because the structural error is unobserved. With more excluded instruments than endogenous variables, overidentification tests can sometimes detect a violation of the joint restrictions, but passing such a test does not prove that every instrument is valid.
 </details>
 <p><br></p>
 <div class="callout callout-important no-icon callout-titled callout-style-default">
@@ -2269,8 +2684,8 @@ No, because we never observe the error term.
 </div>
 <div class="callout-content">
 <ul>
-<li><p>All we can do is to <span style="color: red;"> argue </span> that the instruments are not correlated with the error term.</p></li>
-<li><p>In journal articles that use IV method, they make careful arguments as to why their choice of instruments are not correlated with the error term.</p></li>
+<li><p>The research design must provide a credible <span style="color: red;">argument</span> for instrument exogeneity and exclusion.</p></li>
+<li><p>Empirical IV studies should explain the causal mechanism, examine possible violations, and report relevant diagnostics.</p></li>
 </ul>
 </div>
 </div>
@@ -2281,15 +2696,21 @@ No, because we never observe the error term.
 <!--end of panel-->
 </div>
 <div id="tabset-6-4">
+<details class="transcript">
+<summary>
+Lecturer transcript
+</summary>
+<p>Keep the conditions separate. Relevance and strength concern the relationship between Z and x one conditional on included exogenous variables; they can be investigated empirically. Exclusion and exogeneity concern pathways from Z to y and relationships with u; they require a research-design argument. A large first-stage F statistic cannot rescue an invalid instrument, and a beautifully exogenous variable that does not move x one cannot identify the effect. Both halves are indispensable.</p>
+</details>
 <p><strong>Condition 1</strong></p>
 <ul>
-<li>The instrument(s) <span class="math inline">\(Z\)</span> have jointly significant explanatory power on the endogenous variable <span class="math inline">\(x_1\)</span> <span style="color: red;"> after </span> you control for all the other exogenous variables (here <span class="math inline">\(x_2\)</span>)</li>
+<li>The excluded instruments <span class="math inline">Z</span> predict the endogenous variable <span class="math inline">x_1</span> <span style="color: red;">after</span> controlling for all included exogenous variables, and the first stage is sufficiently strong.</li>
 </ul>
 <p><br></p>
 <p><strong>Condition 2</strong></p>
 <ul>
-<li><p><span class="math inline">\(z_1\)</span> and <span class="math inline">\(z_2\)</span> do not belong in the main model, meaning they do not have any explanatory power beyond <span class="math inline">\(x_2\)</span> (they should have been included in the model in the first place as independent variables)</p></li>
-<li><p><span class="math inline">\(z_1\)</span> and <span class="math inline">\(z_2\)</span> are not correlated with the error term (there are no unobserved factors in the error term that are correlated with <span class="math inline">\(Z)\)</span></p></li>
+<li><p><strong>Exclusion:</strong> <span class="math inline">z_1</span> and <span class="math inline">z_2</span> do not directly affect <span class="math inline">y</span> outside their effect through <span class="math inline">x_1</span>.</p></li>
+<li><p><strong>Exogeneity:</strong> <span class="math inline">z_1</span> and <span class="math inline">z_2</span> are uncorrelated with the structural error.</p></li>
 </ul>
 <p><br></p>
 <div class="callout callout-important no-icon callout-titled callout-style-default">
@@ -2299,20 +2720,27 @@ No, because we never observe the error term.
 </div>
 <div class="callout-content">
 <ul>
-<li><p>Condition 1 is always testable</p></li>
-<li><p>Condition 2 is NOT testable (unless you have more instruments than endogenous variables)</p></li>
+<li><p>First-stage relevance and strength can be assessed empirically, although no single diagnostic settles every weak-instrument problem.</p></li>
+<li><p>Instrument validity cannot be established from the data alone. Overidentification tests are available in overidentified models, but they test joint restrictions and cannot certify validity.</p></li>
 </ul>
 </div>
 </div>
 </div>
 </div>
 <div id="tabset-6-5">
-<p>IV estimator is also called two-stage least squares estimator (2SLS) because it involves two stages of OLS.</p>
+<details class="transcript">
+<summary>
+Lecturer transcript
+</summary>
+<p>Two-stage least squares is named for the projection logic we have traced, but estimation should be performed by an IV routine. With valid and sufficiently relevant instruments, 2SLS is consistent as the sample grows. It is not generally unbiased in a finite sample, and weak instruments can make its finite-sample behavior especially poor. Report the structural estimate together with first-stage information, appropriate standard errors, the instrument-validity argument, and sensitivity analyses.</p>
+</details>
+<p>The most common IV estimator is two-stage least squares (2SLS), named for its two conceptual projection stages.</p>
 <ul>
-<li><p>Step 1: <span class="math inline">\(\widehat{x}_1 = \widehat{\alpha}_0 +\widehat{\sigma}_2 x_2 + \widehat{\alpha}_1 z_1 + \widehat{\alpha}_2 z_2\)</span></p></li>
-<li><p>Step 2: <span class="math inline">\(y = \beta_0 + \beta_1 \widehat{x}_1+ \beta_2 x_2 + \varepsilon\)</span></p></li>
+<li><p>Step 1: <span class="math inline">\widehat{x}_1 = \widehat{\alpha}_0 +\widehat{\sigma}_2 x_2 + \widehat{\alpha}_1 z_1 + \widehat{\alpha}_2 z_2</span></p></li>
+<li><p>Step 2: <span class="math inline">y = \beta_0 + \beta_1 \widehat{x}_1+ \beta_2 x_2 + \varepsilon</span></p></li>
 </ul>
-<p>2SLS framework is a good way to understand conceptually why and how instrumental variable estimation works. But, IV estimation is done in one-step</p>
+<p>The two stages explain how the coefficient is constructed. In practice, use a dedicated IV/2SLS command so that the coefficient and its standard error are computed correctly in one estimation call.</p>
+<p>Even with valid instruments, 2SLS is generally not exactly unbiased in finite samples. Its central justification is consistency as the sample size grows.</p>
 </div>
 </div>
 </div>
@@ -2324,12 +2752,18 @@ No, because we never observe the error term.
 <ul id="tabset-7" class="panel-tabset-tabby"><li><a data-tabby-default="" href="#tabset-7-1">Setup</a></li><li><a href="#tabset-7-2">Instrument example 1</a></li><li><a href="#tabset-7-3">Instrument example 2</a></li><li><a href="#tabset-7-4">Instrument example 3</a></li><li><a href="#tabset-7-5">Instrument example 4</a></li></ul>
 <div class="tab-content">
 <div id="tabset-7-1">
+<details class="transcript">
+<summary>
+Lecturer transcript
+</summary>
+<p>Apply the abstract conditions to the wage equation. A candidate z must predict education after experience is controlled for. It must also be excluded from the wage equation and unrelated to ability and every other unobserved wage determinant in v. The second requirement is deliberately demanding. For each candidate, tell a causal story about why z changes schooling and then actively search for every other route by which it could be associated with wages.</p>
+</details>
 <p><strong>The model</strong></p>
-<p><span class="math inline">\(log(wage) = \beta_0 + \beta_1 educ + \beta_2 exper + v \;\; ( = \beta_3 ability + u)\)</span></p>
+<p><span class="math inline">\log(wage)=\beta_0+\beta_1 educ+\beta_2 exper+v, \qquad v=\beta_3 ability+u</span></p>
 <p><code>educ</code> is endogenous because of its correlation with <code>ability</code>.</p>
 <p><br></p>
 <p><strong>Question</strong></p>
-<p>What conditions would a good instrument <span class="math inline">\((z)\)</span> satisfy?</p>
+<p>What conditions would a good instrument <span class="math inline">(z)</span> satisfy?</p>
 <p><br></p>
 <br>
 <details>
@@ -2337,60 +2771,84 @@ No, because we never observe the error term.
 Answer
 </summary>
 <ul>
-<li><p><span class="math inline">\(z\)</span> has explanatory power on <span class="math inline">\(educ\)</span> <span style="color: blue;">after</span> you control for the impact of <span class="math inline">\(epxer\)</span> on <span class="math inline">\(educ\)</span></p></li>
-<li><p><span class="math inline">\(z\)</span> is uncorrelated with <span class="math inline">\(v\)</span> (<span class="math inline">\(ability\)</span> and all the other important unobservables)</p></li>
+<li><p><strong>Relevance:</strong> <span class="math inline">z</span> predicts <span class="math inline">educ</span> <span style="color: blue;">after</span> controlling for <span class="math inline">exper</span>.</p></li>
+<li><p><strong>Validity:</strong> <span class="math inline">z</span> has no direct effect on wages and is uncorrelated with <span class="math inline">v</span> (ability and all other unobserved wage determinants).</p></li>
 </ul>
 </details>
 </div>
 <div id="tabset-7-2">
+<details class="transcript">
+<summary>
+Lecturer transcript
+</summary>
+<p>The last digit of a Social Security number might appear plausibly random and therefore exogenous. But it almost certainly has no systematic relationship with education after experience, so it fails relevance. Random noise is not an instrument merely because it is unrelated to the outcome error. We need a variable that is both plausibly as-good-as-random with respect to u and capable of shifting the endogenous regressor.</p>
+</details>
 <p><strong>The model</strong></p>
-<p><span class="math inline">\(log(wage) = \beta_0 + \beta_1 educ + \beta_2 exper + v \;\; ( = \beta_3 ability + u)\)</span></p>
+<p><span class="math inline">\log(wage)=\beta_0+\beta_1 educ+\beta_2 exper+v, \qquad v=\beta_3 ability+u</span></p>
 <p><br></p>
 <p><strong>Instrument</strong></p>
-<p>The last digit of an individual’s Social Security Number? (this has been actually used in some journal articles)</p>
+<p>The last digit of an individual’s Social Security number?</p>
 <p><br></p>
 <p><strong>Question</strong></p>
 <ul>
-<li><p>Is it uncorrelated with <span class="math inline">\(v\)</span> (<span class="math inline">\(ability\)</span> and all the other important unobservables)?</p></li>
-<li><p>does it have explanatory power on <span class="math inline">\(educ\)</span> <span style="color: blue;">after</span> you control for the impact of <span class="math inline">\(epxer\)</span> on <span class="math inline">\(educ\)</span>?</p></li>
+<li><p>Is it uncorrelated with <span class="math inline">v</span> (<span class="math inline">ability</span> and all the other important unobservables)?</p></li>
+<li><p>Does it predict <span class="math inline">educ</span> after controlling for <span class="math inline">exper</span>?</p></li>
 </ul>
 </div>
 <div id="tabset-7-3">
+<details class="transcript">
+<summary>
+Lecturer transcript
+</summary>
+<p>IQ probably predicts education, so relevance may be strong. Its validity is much less plausible because IQ can proxy for ability, which sits directly in the wage error, and it may affect productivity and wages outside its effect through schooling. This is a useful example of a strong predictor that is not automatically a valid excluded instrument. Controlling imperfectly for ability does not make the exclusion concern disappear.</p>
+</details>
 <p><strong>The model</strong></p>
-<p><span class="math inline">\(log(wage) = \beta_0 + \beta_1 educ + \beta_2 exper + v \;\; ( = \beta_3 ability + u)\)</span></p>
+<p><span class="math inline">\log(wage)=\beta_0+\beta_1 educ+\beta_2 exper+v, \qquad v=\beta_3 ability+u</span></p>
 <p><br></p>
 <p><strong>Instrument</strong></p>
 <p>IQ test score</p>
 <p><br></p>
 <p><strong>Question</strong></p>
 <ul>
-<li><p>Is it uncorrelated with <span class="math inline">\(v\)</span> (<span class="math inline">\(ability\)</span> and all the other important unobservables)?</p></li>
-<li><p>does it have explanatory power on <span class="math inline">\(educ\)</span> <span style="color: blue;">after</span> you control for the impact of <span class="math inline">\(epxer\)</span> on <span class="math inline">\(educ\)</span>?</p></li>
+<li><p>Is it uncorrelated with <span class="math inline">v</span> (<span class="math inline">ability</span> and all the other important unobservables)?</p></li>
+<li><p>Does it predict <span class="math inline">educ</span> after controlling for <span class="math inline">exper</span>?</p></li>
 </ul>
 </div>
 <div id="tabset-7-4">
+<details class="transcript">
+<summary>
+Lecturer transcript
+</summary>
+<p>Mother’s education likely predicts a child’s education through expectations, resources, and access, satisfying relevance. Those same family-background channels can affect wages through networks, wealth, neighborhood, health, or inherited skills even holding the child’s schooling fixed. They can also be correlated with unobserved ability. The candidate therefore faces serious exclusion and exogeneity concerns. The point is to interrogate the full causal pathway, not simply to observe a first-stage relationship.</p>
+</details>
 <p><strong>The model</strong></p>
-<p><span class="math inline">\(log(wage) = \beta_0 + \beta_1 educ + \beta_2 exper + v \;\; ( = \beta_3 ability + u)\)</span></p>
+<p><span class="math inline">\log(wage)=\beta_0+\beta_1 educ+\beta_2 exper+v, \qquad v=\beta_3 ability+u</span></p>
 <p><br></p>
 <p><strong>Instrument</strong></p>
 <p>Mother’s education</p>
 <p><br></p>
 <p><strong>Question</strong></p>
 <ul>
-<li><p>Is it uncorrelated with <span class="math inline">\(v\)</span> (<span class="math inline">\(ability\)</span> and all the other important unobservables)?</p></li>
-<li><p>does it have explanatory power on <span class="math inline">\(educ\)</span> <span style="color: blue;">after</span> you control for the impact of <span class="math inline">\(epxer\)</span> on <span class="math inline">\(educ\)</span>?</p></li>
+<li><p>Is it uncorrelated with <span class="math inline">v</span> (<span class="math inline">ability</span> and all the other important unobservables)?</p></li>
+<li><p>Does it predict <span class="math inline">educ</span> after controlling for <span class="math inline">exper</span>?</p></li>
 </ul>
 </div>
 <div id="tabset-7-5">
+<details class="transcript">
+<summary>
+Lecturer transcript
+</summary>
+<p>Number of siblings may reduce educational resources per child and thus predict schooling. But family size can be associated with parental preferences, income, birth order, neighborhood, and other background factors that influence wages directly. It may be relevant while still invalid. Whether it can serve as an instrument depends on a defensible institutional argument and controls; the variable’s presence in a textbook dataset is not evidence of validity.</p>
+</details>
 <p><strong>The model</strong></p>
-<p><span class="math inline">\(log(wage) = \beta_0 + \beta_1 educ + \beta_2 exper + v \;\; ( = \beta_3 ability + u)\)</span></p>
+<p><span class="math inline">\log(wage)=\beta_0+\beta_1 educ+\beta_2 exper+v, \qquad v=\beta_3 ability+u</span></p>
 <p><br> <strong>Instrument</strong></p>
 <p>Number of siblings</p>
 <p><br></p>
 <p><strong>Question</strong></p>
 <ul>
-<li><p>Is it uncorrelated with <span class="math inline">\(v\)</span> (<span class="math inline">\(ability\)</span> and all the other important unobservables)?</p></li>
-<li><p>does it have explanatory power on <span class="math inline">\(educ\)</span> <span style="color: blue;">after</span> you control for the impact of <span class="math inline">\(epxer\)</span> on <span class="math inline">\(educ\)</span>?</p></li>
+<li><p>Is it uncorrelated with <span class="math inline">v</span> (<span class="math inline">ability</span> and all the other important unobservables)?</p></li>
+<li><p>Does it predict <span class="math inline">educ</span> after controlling for <span class="math inline">exper</span>?</p></li>
 </ul>
 </div>
 </div>
@@ -2403,46 +2861,64 @@ Answer
 <ul id="tabset-8" class="panel-tabset-tabby"><li><a data-tabby-default="" href="#tabset-8-1">Introduction</a></li><li><a href="#tabset-8-2">Dataset</a></li><li><a href="#tabset-8-3">How</a></li><li><a href="#tabset-8-4">Results</a></li><li><a href="#tabset-8-5">Comparison</a></li><li><a href="#tabset-8-6">Fixed effects</a></li><li><a href="#tabset-8-7">Clustered SE</a></li></ul>
 <div class="tab-content">
 <div id="tabset-8-1">
+<details class="transcript">
+<summary>
+Lecturer transcript
+</summary>
+<p>For the implementation example, education is the endogenous regressor, experience is included as exogenous, and siblings plus father’s education are candidate excluded instruments. Calling them instruments describes their role in the formula, not proof that they are valid. Experience also belongs to the instrument set because every included exogenous variable instruments for itself. A complete analysis would defend the family-background exclusions before interpreting the resulting education coefficient causally.</p>
+</details>
 <p><strong>Model</strong></p>
-<p><span class="math inline">\(log(wage) = \beta_0 + \beta_1 educ + \beta_2 exper + v \;\; (=\beta_3 ability + u)\)</span></p>
+<p><span class="math inline">\log(wage)=\beta_0+\beta_1 educ+\beta_2 exper+v, \qquad v=\beta_3 ability+u</span></p>
 <p>We believe</p>
 <ul>
-<li><p><span class="math inline">\(educ\)</span> is endogenous <span class="math inline">\((x_1)\)</span></p></li>
-<li><p><span class="math inline">\(exper\)</span> is exogenous <span class="math inline">\((x_2)\)</span></p></li>
-<li><p>we use the number of siblings <span class="math inline">\((sibs)\)</span> and father’s education <span class="math inline">\((feduc)\)</span> as the instruments (<span class="math inline">\(Z\)</span>)</p></li>
+<li><p><span class="math inline">educ</span> is endogenous <span class="math inline">(x_1)</span></p></li>
+<li><p><span class="math inline">exper</span> is exogenous <span class="math inline">(x_2)</span></p></li>
+<li><p>We use the number of siblings (<code>sibs</code>) and father’s education (<code>feduc</code>) as candidate excluded instruments <span class="math inline">Z</span> for this illustration. Their validity must be defended rather than assumed.</p></li>
 </ul>
 <p><br></p>
 <p><strong>Terminology</strong></p>
 <ul>
-<li><p>exogenous variable included in the model (here, <span class="math inline">\(exper\)</span>) is also called <span style="color: blue;">included instruments</span></p></li>
-<li><p>instruments that do not belong to the main model (here, <span class="math inline">\(sibs\)</span> and <span class="math inline">\(feduc\)</span>) are also called <span style="color: blue;">excluded instruments</span></p></li>
+<li><p>An exogenous variable included in the outcome equation (here, <span class="math inline">exper</span>) also serves as an <span style="color: blue;">included instrument</span>.</p></li>
+<li><p>Instruments excluded from the outcome equation (here, <span class="math inline">sibs</span> and <span class="math inline">feduc</span>) are called <span style="color: blue;">excluded instruments</span>.</p></li>
 <li><p>we refer to the collection of included and excluded instruments as <span style="color: blue;">instruments</span></p></li>
 </ul>
 </div>
 <div id="tabset-8-2">
+<details class="transcript inline">
+<summary>
+Lecturer transcript
+</summary>
+<p>Inspect the variables before estimating. Wage is observed in levels but the structural model uses its logarithm. Education is measured in years, while siblings and father’s education supply the proposed excluded variation. Also examine missingness and sample size because IV uses observations complete on the outcome, endogenous regressor, controls, and instruments. A first-stage relationship in this sample is only one part of the design.</p>
+</details>
 <div id="qwebr-insertion-location-3"></div>
 <noscript>Please enable JavaScript to experience the dynamic code cell content on this page.</noscript>
 </div>
 <div id="tabset-8-3">
-<p>We can continue to use the <code>fixest</code> package to run IV estimation method.</p>
+<details class="transcript">
+<summary>
+Lecturer transcript
+</summary>
+<p>Read the <code>fixest</code> IV formula in three pieces. Before the first vertical bar is the structural outcome equation and its included exogenous controls. After the bar is the endogenous variable followed by a tilde and the excluded instruments. Here the command estimates log wage on experience, instruments education with siblings and father’s education, and automatically includes experience in the first-stage instrument set. This single call supplies correct 2SLS coefficients and variance calculations.</p>
+</details>
+<p>We can use the <code>fixest</code> package to estimate the IV model.</p>
 <p><strong>Syntax</strong></p>
 <div class="cell">
-<div class="sourceCode cell-code" id="cb1"><pre class="sourceCode numberSource r number-lines code-with-copy"><code class="sourceCode r"><span id="cb1-1"><a></a>fixest<span class="sc">::</span><span class="fu">feols</span>(dep var <span class="sc">~</span> included instruments <span class="sc">|</span> first stage formula, <span class="at">data =</span> dataset)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode cell-code" id="cb1"><pre class="sourceCode numberSource r number-lines code-with-copy"><code class="sourceCode r"><span id="cb1-1"><a></a>fixest<span class="sc">::</span><span class="fu">feols</span>(dep_var <span class="sc">~</span> included_exogenous <span class="sc">|</span> endogenous <span class="sc">~</span> excluded_instruments, <span class="at">data =</span> dataset)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 </div>
 <ul>
-<li><code>included instruments</code>: exogenous included variables (do not include endogenous variables here)</li>
+<li><code>included_exogenous</code>: exogenous variables included in the structural outcome equation</li>
 </ul>
 <p><br></p>
-<p><strong>first stage formula</strong></p>
+<p><strong>First-stage formula</strong></p>
 <div class="cell">
-<div class="sourceCode cell-code" id="cb2"><pre class="sourceCode numberSource r number-lines code-with-copy"><code class="sourceCode r"><span id="cb2-1"><a></a>(endogenous vars <span class="sc">~</span> excluded instruments)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode cell-code" id="cb2"><pre class="sourceCode numberSource r number-lines code-with-copy"><code class="sourceCode r"><span id="cb2-1"><a></a>(endogenous_vars <span class="sc">~</span> excluded_instruments)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 </div>
 <p><br></p>
 <p><strong>Example</strong></p>
 <div id="qwebr-insertion-location-4"></div>
 <noscript>Please enable JavaScript to experience the dynamic code cell content on this page.</noscript>
 <ul>
-<li><code>included variable</code>:
+<li><code>included variables</code>:
 <ul>
 <li>exogenous included variables: <code>exper</code></li>
 <li>endogenous included variables: <code>educ</code></li>
@@ -2455,6 +2931,12 @@ Answer
 </ul>
 </div>
 <div id="tabset-8-4">
+<details class="transcript inline">
+<summary>
+Lecturer transcript
+</summary>
+<p>In the output, <code>educ(fit)</code> denotes the instrumented education regressor; it is the coefficient on education in the structural equation, not a coefficient from the first stage. Interpret it as a causal return to an additional year of schooling only if the instruments are relevant, sufficiently strong, excluded, and exogenous. The reported estimate alone cannot establish those conditions. We should inspect first-stage diagnostics and defend what siblings and father’s education can affect.</p>
+</details>
 <p><strong>IV regression results</strong></p>
 <div id="qwebr-insertion-location-5"></div>
 <noscript>Please enable JavaScript to experience the dynamic code cell content on this page.</noscript>
@@ -2466,6 +2948,12 @@ Answer
 </ul>
 </div>
 <div id="tabset-8-5">
+<details class="transcript inline">
+<summary>
+Lecturer transcript
+</summary>
+<p>The OLS and IV estimates need not match because they use different variation. OLS uses all residual education variation and is vulnerable to ability confounding. IV uses only the component associated with the proposed instruments and can be less precise. A difference between estimates does not prove OLS is biased or IV is correct. Ask whether family background strongly predicts schooling and whether it can influence wages through channels other than schooling. Those validity questions dominate a mechanical comparison of coefficient sizes.</p>
+</details>
 <div class="columns">
 <div class="column" style="width:60%;">
 <p><strong>Comparison of OLS and IV Estimation Results</strong></p>
@@ -2475,8 +2963,8 @@ Answer
 
     <script>
 
-      function styleCell_dkfx9t4knrhvn990v9hz(i, j, css_id) {
-          var table = document.getElementById("tinytable_dkfx9t4knrhvn990v9hz");
+      function styleCell_gkxahc3x23hiz8095vr9(i, j, css_id) {
+          var table = document.getElementById("tinytable_gkxahc3x23hiz8095vr9");
           var cell = table.rows[i]?.cells[j];  // Safe navigation to avoid errors
           if (cell) {
               console.log(`Styling cell at (${i}, ${j}) with class ${css_id}`);
@@ -2486,7 +2974,7 @@ Answer
           }
       }
       function insertSpanRow(i, colspan, content) {
-        var table = document.getElementById('tinytable_dkfx9t4knrhvn990v9hz');
+        var table = document.getElementById('tinytable_gkxahc3x23hiz8095vr9');
         var newRow = table.insertRow(i);
         var newCell = newRow.insertCell(0);
         newCell.setAttribute("colspan", colspan);
@@ -2494,8 +2982,8 @@ Answer
         // this may be unsafe, but innerText does not interpret <br>
         newCell.innerHTML = content;
       }
-      function spanCell_dkfx9t4knrhvn990v9hz(i, j, rowspan, colspan) {
-        var table = document.getElementById("tinytable_dkfx9t4knrhvn990v9hz");
+      function spanCell_gkxahc3x23hiz8095vr9(i, j, rowspan, colspan) {
+        var table = document.getElementById("tinytable_gkxahc3x23hiz8095vr9");
         const targetRow = table.rows[i];
         const targetCell = targetRow.cells[j];
         for (let r = 0; r < rowspan; r++) {
@@ -2525,20 +3013,20 @@ Answer
       window.addEventListener('load', function () {
           var cellsToStyle = [
             // tinytable style arrays after
-          { positions: [ { i: 8, j: 0 },  ], css_id: 'tinytable_css_yi1ej5ppqkf4e7f55b80',}, 
-          { positions: [ { i: 2, j: 1 }, { i: 3, j: 1 }, { i: 4, j: 1 }, { i: 1, j: 1 }, { i: 6, j: 1 }, { i: 7, j: 1 }, { i: 3, j: 2 }, { i: 5, j: 1 }, { i: 10, j: 1 }, { i: 11, j: 1 }, { i: 7, j: 2 }, { i: 9, j: 1 }, { i: 1, j: 2 }, { i: 2, j: 2 }, { i: 11, j: 2 }, { i: 4, j: 2 }, { i: 5, j: 2 }, { i: 6, j: 2 }, { i: 9, j: 2 }, { i: 10, j: 2 },  ], css_id: 'tinytable_css_wyhe5ab78cu4y8h7lvny',}, 
-          { positions: [ { i: 12, j: 0 },  ], css_id: 'tinytable_css_lkz1wdw0rgppegyyys3w',}, 
-          { positions: [ { i: 1, j: 0 }, { i: 2, j: 0 }, { i: 3, j: 0 }, { i: 4, j: 0 }, { i: 5, j: 0 }, { i: 6, j: 0 }, { i: 7, j: 0 }, { i: 9, j: 0 }, { i: 10, j: 0 }, { i: 11, j: 0 },  ], css_id: 'tinytable_css_b81wri3vxrllea09tzqp',}, 
-          { positions: [ { i: 12, j: 1 }, { i: 12, j: 2 },  ], css_id: 'tinytable_css_9upklcqqjcz5zujspjpe',}, 
-          { positions: [ { i: 8, j: 1 }, { i: 8, j: 2 },  ], css_id: 'tinytable_css_7hgnxw7wxco3q4qimbzv',}, 
-          { positions: [ { i: 0, j: 1 }, { i: 0, j: 2 },  ], css_id: 'tinytable_css_6tkd2iz6rjzaqlys7or5',}, 
-          { positions: [ { i: 0, j: 0 },  ], css_id: 'tinytable_css_31tl3yq0ri05m4i06a7y',}, 
+          { positions: [ { i: 8, j: 0 },  ], css_id: 'tinytable_css_ty196l97nkv1ggylujex',}, 
+          { positions: [ { i: 2, j: 1 }, { i: 3, j: 1 }, { i: 4, j: 1 }, { i: 1, j: 1 }, { i: 6, j: 1 }, { i: 7, j: 1 }, { i: 3, j: 2 }, { i: 5, j: 1 }, { i: 10, j: 1 }, { i: 11, j: 1 }, { i: 7, j: 2 }, { i: 9, j: 1 }, { i: 1, j: 2 }, { i: 2, j: 2 }, { i: 11, j: 2 }, { i: 4, j: 2 }, { i: 5, j: 2 }, { i: 6, j: 2 }, { i: 9, j: 2 }, { i: 10, j: 2 },  ], css_id: 'tinytable_css_nmjvs5kp7ktp85it460j',}, 
+          { positions: [ { i: 12, j: 1 }, { i: 12, j: 2 },  ], css_id: 'tinytable_css_lkwjdmx57rd79qp34u2f',}, 
+          { positions: [ { i: 12, j: 0 },  ], css_id: 'tinytable_css_jl35he6amu9homqltlrq',}, 
+          { positions: [ { i: 0, j: 0 },  ], css_id: 'tinytable_css_gchdi388paz4jkxkv4bh',}, 
+          { positions: [ { i: 8, j: 1 }, { i: 8, j: 2 },  ], css_id: 'tinytable_css_cjhljh3e2eqnsbw8uz6q',}, 
+          { positions: [ { i: 1, j: 0 }, { i: 2, j: 0 }, { i: 3, j: 0 }, { i: 4, j: 0 }, { i: 5, j: 0 }, { i: 6, j: 0 }, { i: 7, j: 0 }, { i: 9, j: 0 }, { i: 10, j: 0 }, { i: 11, j: 0 },  ], css_id: 'tinytable_css_9d0ibdq3t5qtjt5tyqky',}, 
+          { positions: [ { i: 0, j: 1 }, { i: 0, j: 2 },  ], css_id: 'tinytable_css_12z6gbftd8jqcne2hy0j',}, 
           ];
 
           // Loop over the arrays to style the cells
           cellsToStyle.forEach(function (group) {
               group.positions.forEach(function (cell) {
-                  styleCell_dkfx9t4knrhvn990v9hz(cell.i, cell.j, group.css_id);
+                  styleCell_gkxahc3x23hiz8095vr9(cell.i, cell.j, group.css_id);
               });
           });
       });
@@ -2546,40 +3034,40 @@ Answer
 
     <style>
       /* tinytable css entries after */
-      .table td.tinytable_css_yi1ej5ppqkf4e7f55b80, .table th.tinytable_css_yi1ej5ppqkf4e7f55b80 { text-align: left; border-bottom: solid black 0.05em; }
-      .table td.tinytable_css_wyhe5ab78cu4y8h7lvny, .table th.tinytable_css_wyhe5ab78cu4y8h7lvny { text-align: center; }
-      .table td.tinytable_css_lkz1wdw0rgppegyyys3w, .table th.tinytable_css_lkz1wdw0rgppegyyys3w { text-align: left; border-bottom: solid #d3d8dc 0.1em; }
-      .table td.tinytable_css_b81wri3vxrllea09tzqp, .table th.tinytable_css_b81wri3vxrllea09tzqp { text-align: left; }
-      .table td.tinytable_css_9upklcqqjcz5zujspjpe, .table th.tinytable_css_9upklcqqjcz5zujspjpe { text-align: center; border-bottom: solid #d3d8dc 0.1em; }
-      .table td.tinytable_css_7hgnxw7wxco3q4qimbzv, .table th.tinytable_css_7hgnxw7wxco3q4qimbzv { text-align: center; border-bottom: solid black 0.05em; }
-      .table td.tinytable_css_6tkd2iz6rjzaqlys7or5, .table th.tinytable_css_6tkd2iz6rjzaqlys7or5 { text-align: center; border-top: solid #d3d8dc 0.1em; border-bottom: solid #d3d8dc 0.05em; }
-      .table td.tinytable_css_31tl3yq0ri05m4i06a7y, .table th.tinytable_css_31tl3yq0ri05m4i06a7y { text-align: left; border-top: solid #d3d8dc 0.1em; border-bottom: solid #d3d8dc 0.05em; }
+      .table td.tinytable_css_ty196l97nkv1ggylujex, .table th.tinytable_css_ty196l97nkv1ggylujex { text-align: left; border-bottom: solid black 0.05em; }
+      .table td.tinytable_css_nmjvs5kp7ktp85it460j, .table th.tinytable_css_nmjvs5kp7ktp85it460j { text-align: center; }
+      .table td.tinytable_css_lkwjdmx57rd79qp34u2f, .table th.tinytable_css_lkwjdmx57rd79qp34u2f { text-align: center; border-bottom: solid #d3d8dc 0.1em; }
+      .table td.tinytable_css_jl35he6amu9homqltlrq, .table th.tinytable_css_jl35he6amu9homqltlrq { text-align: left; border-bottom: solid #d3d8dc 0.1em; }
+      .table td.tinytable_css_gchdi388paz4jkxkv4bh, .table th.tinytable_css_gchdi388paz4jkxkv4bh { text-align: left; border-top: solid #d3d8dc 0.1em; border-bottom: solid #d3d8dc 0.05em; }
+      .table td.tinytable_css_cjhljh3e2eqnsbw8uz6q, .table th.tinytable_css_cjhljh3e2eqnsbw8uz6q { text-align: center; border-bottom: solid black 0.05em; }
+      .table td.tinytable_css_9d0ibdq3t5qtjt5tyqky, .table th.tinytable_css_9d0ibdq3t5qtjt5tyqky { text-align: left; }
+      .table td.tinytable_css_12z6gbftd8jqcne2hy0j, .table th.tinytable_css_12z6gbftd8jqcne2hy0j { text-align: center; border-top: solid #d3d8dc 0.1em; border-bottom: solid #d3d8dc 0.05em; }
     </style>
     <div class="container">
-      <table class="table table-borderless" id="tinytable_dkfx9t4knrhvn990v9hz" style="width: auto; margin-left: auto; margin-right: auto;" data-quarto-disable-processing="true">
+      <table class="table table-borderless" id="tinytable_gkxahc3x23hiz8095vr9" style="width: auto; margin-left: auto; margin-right: auto;" data-quarto-disable-processing="true">
         <thead>
         
               <tr>
                 <th scope="col"> </th>
-                <th scope="col">(1)</th>
-                <th scope="col">(2)</th>
+                <th scope="col">OLS</th>
+                <th scope="col">IV</th>
               </tr>
         </thead>
         <tfoot><tr><td colspan="3">+ p &lt; 0.1, * p &lt; 0.05, ** p &lt; 0.01, *** p &lt; 0.001</td></tr></tfoot>
         <tbody>
                 <tr>
                   <td>(Intercept)</td>
-                  <td>5.503***</td>
+                  <td>5.497***</td>
                   <td>4.507***</td>
                 </tr>
                 <tr>
                   <td></td>
-                  <td>(0.112)</td>
+                  <td>(0.123)</td>
                   <td>(0.316)</td>
                 </tr>
                 <tr>
                   <td>educ</td>
-                  <td>0.078***</td>
+                  <td>0.077***</td>
                   <td></td>
                 </tr>
                 <tr>
@@ -2589,12 +3077,12 @@ Answer
                 </tr>
                 <tr>
                   <td>exper</td>
-                  <td>0.020***</td>
+                  <td>0.023***</td>
                   <td>0.037***</td>
                 </tr>
                 <tr>
                   <td></td>
-                  <td>(0.003)</td>
+                  <td>(0.004)</td>
                   <td>(0.006)</td>
                 </tr>
                 <tr>
@@ -2609,12 +3097,12 @@ Answer
                 </tr>
                 <tr>
                   <td>Num.Obs.</td>
-                  <td>935</td>
+                  <td>741</td>
                   <td>741</td>
                 </tr>
                 <tr>
                   <td>R2</td>
-                  <td>0.131</td>
+                  <td>0.138</td>
                   <td>0.053</td>
                 </tr>
                 <tr>
@@ -2633,22 +3121,40 @@ Answer
 <!-- hack to avoid NA insertion in last line -->
 </div>
 </div>
+<div title="Compare like with like">
+<div class="callout callout-important no-icon callout-titled callout-style-default">
+<div class="callout-body">
+<div class="callout-title">
+<p><strong>Compare like with like</strong></p>
+</div>
+<div class="callout-content">
+<p><code>feduc</code> is missing for 194 of the 935 observations in <code>wage2</code>, and IV silently drops them. If you run OLS on the full sample and IV on the reduced one, part of the difference between the two columns is just a <span style="color: red;">change of sample</span>, not endogeneity. Both columns above use the same 741 observations.</p>
+</div>
+</div>
+</div>
+</div>
 </div><!--end of the 1st column--><div class="column" style="width:40%;">
 <p><strong>Question</strong></p>
-<p>Do you think <span class="math inline">\(sibs\)</span> and <span class="math inline">\(feduc\)</span> are good instruments?</p>
+<p>Do you think <code>sibs</code> and <code>feduc</code> are valid and sufficiently strong instruments?</p>
 <ul>
-<li>Condition 1: weak instruments?</li>
-<li>Condition 2: uncorrelated with the error term?</li>
+<li>Relevance and strength: do they strongly predict education conditional on experience?</li>
+<li>Exclusion and exogeneity: could family background affect wages through channels other than education?</li>
 </ul>
 </div><!--end of the 2nd column-->
 </div>
 <!--end of the columns-->
 </div>
 <div id="tabset-8-6">
+<details class="transcript">
+<summary>
+Lecturer transcript
+</summary>
+<p>IV and fixed effects can be combined. The second formula section absorbs the listed fixed effects, while the final section defines the endogenous variable and excluded instruments. The instrument must retain relevant variation after those fixed effects and controls are removed, and validity must hold for that within-group variation. In this toy syntax example, treating binary marital status and region as fixed-effect groups is computationally possible, but an applied specification should be motivated by the actual panel or grouping structure.</p>
+</details>
 <p>You can include fixed effects in your IV estimation.</p>
 <p><strong>Syntax</strong></p>
 <div class="cell">
-<div class="sourceCode cell-code" id="cb3"><pre class="sourceCode numberSource r number-lines code-with-copy"><code class="sourceCode r"><span id="cb3-1"><a></a>fixest<span class="sc">::</span><span class="fu">feols</span>(dep var <span class="sc">~</span> included instruments <span class="sc">|</span> FE <span class="sc">|</span> <span class="dv">1</span>st stage formula, <span class="at">data =</span> dataset)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode cell-code" id="cb3"><pre class="sourceCode numberSource r number-lines code-with-copy"><code class="sourceCode r"><span id="cb3-1"><a></a>fixest<span class="sc">::</span><span class="fu">feols</span>(dep_var <span class="sc">~</span> included_exogenous <span class="sc">|</span> fixed_effects <span class="sc">|</span> endogenous <span class="sc">~</span> excluded_instruments, <span class="at">data =</span> dataset)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 </div>
 <p><br></p>
 <p><strong>Example</strong></p>
@@ -2677,40 +3183,37 @@ F-test (1st stage), educ: stat = 62.0     , p &lt; 2.2e-16 , on 2 and 736 DoF.
 </div>
 </div>
 <div id="tabset-8-7">
-<p>You can just add <code>cluster =</code> option just like we previously did.</p>
+<details class="transcript">
+<summary>
+Lecturer transcript
+</summary>
+<p>IV does not eliminate dependence in regression errors. If observations share shocks within states, schools, firms, or people over time, cluster at the level justified by the design. The placeholder <code>cluster_id</code> emphasizes that the clustering variable is not chosen for convenience or because it is binary; it represents groups within which errors may be correlated. As with OLS, few clusters or dependence across clusters may require methods beyond conventional clustered standard errors.</p>
+</details>
+<p>Add the <code>cluster</code> argument when the research design calls for clustered inference. The clustering variable must represent the groups within which errors may be dependent; it should not be chosen merely because it is available.</p>
 <div class="cell">
-<div class="sourceCode cell-code" id="cb6"><pre class="sourceCode numberSource r number-lines code-with-copy"><code class="sourceCode r"><span id="cb6-1"><a></a>fixest<span class="sc">::</span><span class="fu">feols</span>(<span class="fu">log</span>(wage) <span class="sc">~</span> exper <span class="sc">|</span> married <span class="sc">+</span> south <span class="sc">|</span> educ <span class="sc">~</span> feduc <span class="sc">+</span> sibs, <span class="at">cluster =</span> <span class="sc">~</span>black, <span class="at">data =</span> wage2)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
-<div class="cell-output cell-output-stdout">
-<pre><code>TSLS estimation - Dep. Var.: log(wage)
-                  Endo.    : educ
-                  Instr.   : feduc, sibs
-Second stage: Dep. Var.: log(wage)
-Observations: 741
-Fixed-effects: married: 2,  south: 2
-Standard-errors: Clustered (black) 
-         Estimate Std. Error t value Pr(&gt;|t|)    
-fit_educ 0.124355   0.005258 23.6526 0.026899 *  
-exper    0.032128   0.002798 11.4842 0.055295 .  
----
-Signif. codes:  0 '***' 0.001 '**' 0.01 '*' 0.05 '.' 0.1 ' ' 1
-RMSE: 0.391178     Adj. R2: 0.116588
-                 Within R2: 0.069595
-F-test (1st stage), educ: stat = 61.9     , p &lt; 2.2e-16 , on 2 and 735 DoF.
-              Wu-Hausman: stat =  8.98498 , p = 0.002814, on 1 and 735 DoF.
-                  Sargan: stat =  0.169226, p = 0.6808  , on 1 DoF.</code></pre>
-</div>
+<div class="sourceCode cell-code" id="cb6"><pre class="sourceCode numberSource r number-lines code-with-copy"><code class="sourceCode r"><span id="cb6-1"><a></a>fixest<span class="sc">::</span><span class="fu">feols</span>(</span>
+<span id="cb6-2"><a></a>  outcome <span class="sc">~</span> controls <span class="sc">|</span> fixed_effects <span class="sc">|</span> endogenous <span class="sc">~</span> excluded_instruments,</span>
+<span id="cb6-3"><a></a>  <span class="at">cluster =</span> <span class="sc">~</span>cluster_id,</span>
+<span id="cb6-4"><a></a>  <span class="at">data =</span> dataset</span>
+<span id="cb6-5"><a></a>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 </div>
 </div>
 </div>
 </div>
 <!--end of panel-->
 </section>
-<section id="weak-instrument" class="slide level2">
-<h2>Weak instrument</h2>
+<section id="weak-instruments" class="slide level2">
+<h2>Weak instruments</h2>
 <div class="panel-tabset">
 <ul id="tabset-12" class="panel-tabset-tabby"><li><a data-tabby-default="" href="#tabset-12-1">What is it?</a></li><li><a href="#tabset-12-2">How?</a></li><li><a href="#tabset-12-3">Consequences of weak instruments</a></li></ul>
 <div class="tab-content">
 <div id="tabset-12-1">
+<details class="transcript">
+<summary>
+Lecturer transcript
+</summary>
+<p>A weak instrument is related to the endogenous regressor, but only slightly after included controls are removed. Weakness is about the amount of identifying information, not merely whether a first-stage coefficient is exactly zero. When the first stage is weak, the instrument-induced variation is easily overwhelmed by sampling noise. Point estimates can become unstable, finite-sample bias can be substantial, and standard Wald tests and confidence intervals can have poor coverage.</p>
+</details>
 <div title="Definition: weak instrument">
 <div class="callout callout-note no-icon callout-titled callout-style-default">
 <div class="callout-body">
@@ -2718,7 +3221,7 @@ F-test (1st stage), educ: stat = 61.9     , p &lt; 2.2e-16 , on 2 and 735 DoF.
 <p><strong>Definition: weak instrument</strong></p>
 </div>
 <div class="callout-content">
-<p>The external instrument(s) does not have <strong>enough</strong> explanatory power on the instrumented (endogenous) variabl beyond the other controls.</p>
+<p>Excluded instruments are weak when they provide too little variation in the endogenous regressor after conditioning on the included exogenous variables.</p>
 </div>
 </div>
 </div>
@@ -2730,7 +3233,7 @@ F-test (1st stage), educ: stat = 61.9     , p &lt; 2.2e-16 , on 2 and 735 DoF.
 <p><strong>Important</strong></p>
 </div>
 <div class="callout-content">
-<p>We can always test if the excluded instruments are weak or not!</p>
+<p>First-stage diagnostics can reveal weak identification concerns, but no single cutoff or test resolves every weak-instrument problem.</p>
 </div>
 </div>
 </div>
@@ -2741,22 +3244,34 @@ F-test (1st stage), educ: stat = 61.9     , p &lt; 2.2e-16 , on 2 and 735 DoF.
 <ul id="tabset-9" class="panel-tabset-tabby"><li><a data-tabby-default="" href="#tabset-9-1">Steps</a></li><li><a href="#tabset-9-2">R implementation</a></li></ul>
 <div class="tab-content">
 <div id="tabset-9-1">
-<p>Run the 1st stage regression</p>
-<span class="math display">\[\begin{align*}
+<details class="transcript">
+<summary>
+Lecturer transcript
+</summary>
+<p>Estimate the first stage and jointly test whether the coefficients on all excluded instruments are zero. The joint test asks whether they add predictive content beyond experience. Rejecting exact zero is necessary evidence of relevance, but not a guarantee of adequate strength. The familiar F-greater-than-ten rule is a rough heuristic for simple homoskedastic settings, not a universal pass-fail standard. The appropriate weak-identification diagnostic depends on the number of instruments, endogenous variables, and variance estimator.</p>
+</details>
+<p>Run the first-stage regression:</p>
+<span class="math display">\begin{align*}
 educ = \alpha_0 + \alpha_1 exper + \alpha_2 sibs + \alpha_3 feduc + v
-\end{align*}\]</span>
+\end{align*}</span>
 <p><br></p>
-<p>Then, test the joint significance of <span class="math inline">\(\alpha_2\)</span> and <span class="math inline">\(\alpha_3\)</span> (<span class="math inline">\(F\)</span>-test)</p>
-<p>If excluded instruments <span class="math inline">\((sibs\)</span> and <span class="math inline">\(feduc\)</span>, here) are jointly significant, then it would mean that <span class="math inline">\(sibs\)</span> and <span class="math inline">\(feduc\)</span> are not weak instruments, satisfying condition 1.</p>
+<p>Then test <span class="math inline">H_0:\alpha_2=\alpha_3=0</span> with a first-stage F test.</p>
+<p>Rejecting this null establishes that the instruments add some predictive power, but statistical significance alone does not guarantee that the first stage is strong enough for conventional IV inference.</p>
 </div>
 <div id="tabset-9-2">
+<details class="transcript inline">
+<summary>
+Lecturer transcript
+</summary>
+<p><code>fixest</code> reports the first-stage information with the IV result, and the first-stage model can also be inspected directly. Here the null of no excluded-instrument explanatory power is rejected. That tells us siblings and father’s education are not jointly irrelevant in this sample. It does not establish that they are strong enough for every conventional approximation, and it says nothing about exclusion or exogeneity. Report the statistic in context rather than reducing the design to one cutoff.</p>
+</details>
 <div class="columns">
 <div class="column" style="width:60%;">
-<p>When we ran the IV estimation using <code>fixest::feols()</code> earlier, it automatically calculated the F-statistic for the weak instrument test.</p>
+<p>When we estimated the IV model with <code>fixest::feols()</code>, the output included a first-stage F statistic for the excluded instruments.</p>
 <div id="qwebr-insertion-location-6"></div>
 <noscript>Please enable JavaScript to experience the dynamic code cell content on this page.</noscript>
 <p><br></p>
-<p>Here, F-test for the null hypothesis of the excluded instruments (<code>sibs</code> and <code>feduc</code>) do not have any explanatory power on the endogenous variable (<code>educ</code>) beyond the included instrument (<code>exper</code>) is rejected.</p>
+<p>Here, the F test rejects the null that <code>sibs</code> and <code>feduc</code> have no first-stage explanatory power for <code>educ</code> after controlling for <code>exper</code>.</p>
 <br>
 <details>
 <summary>
@@ -2774,11 +3289,11 @@ Alternatively
 </div>
 <div class="callout-content">
 <ul>
-<li><p>It is generally recommended that you have <span class="math inline">\(F\)</span>-stat of over <span class="math inline">\(10\)</span> (this is not a clear-cut criteria that applied to all the empirical cases)</p></li>
-<li><p>Even if you reject the null if <span class="math inline">\(F\)</span>-stat is small, you may have a problem</p></li>
-<li><p>You know nothing about if your excluded instruments satisfy Condition 2.</p></li>
-<li><p>If you cannot reject the null, it is a strong indication that your instruments are weak. Look for other instruments.</p></li>
-<li><p>Always, always report this test. There is no reason not to.</p></li>
+<li><p>The familiar first-stage <span class="math inline">F&gt;10</span> rule is only a rough diagnostic for relatively simple homoskedastic models; appropriate weak-identification diagnostics depend on the design and variance estimator.</p></li>
+<li><p>A statistically significant but small first-stage F statistic can still indicate weak identification.</p></li>
+<li><p>First-stage diagnostics provide no evidence about exclusion or exogeneity.</p></li>
+<li><p>Failure to reject the zero-first-stage null is strong evidence that the proposed instruments are not useful for conventional IV estimation.</p></li>
+<li><p>Always report appropriate first-stage and weak-identification diagnostics.</p></li>
 </ul>
 </div>
 </div>
@@ -2796,6 +3311,12 @@ Alternatively
 <ul id="tabset-11" class="panel-tabset-tabby"><li><a data-tabby-default="" href="#tabset-11-1">Data generating process</a></li><li><a href="#tabset-11-2">Estimation</a></li><li><a href="#tabset-11-3">Comparison of the weak instrument tests</a></li><li><a href="#tabset-11-4">MC simulation</a></li></ul>
 <div class="tab-content">
 <div id="tabset-11-1">
+<details class="transcript inline">
+<summary>
+Lecturer transcript
+</summary>
+<p>The simulation creates an endogenous x because <code>u_common</code> enters both x and the outcome error. Both proposed instruments are built from <code>z_common</code>, which is independent of the outcome error, so they are valid by construction. The strong instrument contains a substantial share of <code>z_common</code>; the weak instrument contains only one percent and is dominated by unrelated noise. The true structural coefficient on x is one. This lets us isolate strength while holding validity fixed.</p>
+</details>
 <p><strong>Data generation</strong></p>
 <div id="qwebr-insertion-location-8"></div>
 <noscript>Please enable JavaScript to experience the dynamic code cell content on this page.</noscript>
@@ -2805,6 +3326,12 @@ Alternatively
 <noscript>Please enable JavaScript to experience the dynamic code cell content on this page.</noscript>
 </div>
 <div id="tabset-11-2">
+<details class="transcript inline">
+<summary>
+Lecturer transcript
+</summary>
+<p>Estimate the same structural model twice, changing only the instrument. With the strong instrument, the estimate should usually sit reasonably near the true value of one. With the weak instrument, a single sample can produce a very large or erratic estimate and a misleading conventional standard error. Do not generalize from one random draw; the next Monte Carlo experiment repeats the design to reveal the sampling distributions.</p>
+</details>
 <p><strong>Estimation with the strong instrumental variable</strong></p>
 <div id="qwebr-insertion-location-10"></div>
 <noscript>Please enable JavaScript to experience the dynamic code cell content on this page.</noscript>
@@ -2820,10 +3347,16 @@ Alternatively
 <summary>
 Answer
 </summary>
-The coefficient estimate on <span class="math inline">\(x\_end\)</span> is far away from the true value in the weak instrument case.
+In this draw, the coefficient estimate on <code>x_end</code> is far from the true value in the weak-instrument case. Weak instruments generally produce unstable estimates and unreliable conventional inference.
 </details>
 </div>
 <div id="tabset-11-3">
+<details class="transcript inline">
+<summary>
+Lecturer transcript
+</summary>
+<p>The first-stage outputs should mirror the construction. The strong instrument explains a meaningful portion of x, while the weak instrument contributes almost none and may fail to reject the zero-first-stage null. These diagnostics concern relevance and strength only. Both instruments are exogenous in the simulation because we generated them independently of the outcome error, a fact we know only because we control the data-generating process.</p>
+</details>
 <div class="columns">
 <div class="column" style="width:50%;">
 <p><strong>diagnostics (strong instrument)</strong></p>
@@ -2843,7 +3376,7 @@ The coefficient estimate on <span class="math inline">\(x\_end\)</span> is far a
 <p><strong>Note</strong></p>
 </div>
 <div class="callout-content">
-<p>You cannot reject the null hypothesis of weak instrument in the weak instrument case.</p>
+<p>In the weak-instrument design, the first-stage diagnostic fails to reject the null that the excluded instrument has zero first-stage explanatory power.</p>
 </div>
 </div>
 </div>
@@ -2853,58 +3386,72 @@ The coefficient estimate on <span class="math inline">\(x\_end\)</span> is far a
 <ul id="tabset-10" class="panel-tabset-tabby"><li><a data-tabby-default="" href="#tabset-10-1">Run</a></li><li><a href="#tabset-10-2">Visualization of the results</a></li></ul>
 <div class="tab-content">
 <div id="tabset-10-1">
+<details class="transcript">
+<summary>
+Lecturer transcript
+</summary>
+<p>Now repeat the experiment one thousand times. Each iteration regenerates the shared components, estimates IV with the strong instrument and then with the weak instrument, and stores both coefficient estimates. The structural coefficient remains one in every replication. Comparing the stored distributions shows how much sampling variability comes from the instrument’s first-stage strength rather than from a change in the target parameter or validity.</p>
+</details>
 <div class="cell">
-<div class="sourceCode cell-code" id="cb8"><pre class="sourceCode numberSource r number-lines code-with-copy"><code class="sourceCode r"><span id="cb8-1"><a></a><span class="fu">set.seed</span>(<span class="dv">238354</span>)</span>
-<span id="cb8-2"><a></a>B <span class="ot">&lt;-</span> <span class="dv">1000</span> <span class="co"># the number of experiments</span></span>
-<span id="cb8-3"><a></a>N <span class="ot">&lt;-</span> <span class="dv">500</span> <span class="co"># number of observations</span></span>
-<span id="cb8-4"><a></a>beta_hat_store <span class="ot">&lt;-</span> <span class="fu">matrix</span>(<span class="dv">0</span>, B, <span class="dv">2</span>) <span class="co"># storage of beta hat</span></span>
-<span id="cb8-5"><a></a></span>
-<span id="cb8-6"><a></a><span class="cf">for</span> (i <span class="cf">in</span> <span class="dv">1</span><span class="sc">:</span>B) {</span>
-<span id="cb8-7"><a></a></span>
-<span id="cb8-8"><a></a>  <span class="co">#--- data generation ---#</span></span>
-<span id="cb8-9"><a></a>  u_common <span class="ot">&lt;-</span> <span class="fu">runif</span>(N)</span>
-<span id="cb8-10"><a></a>  z_common <span class="ot">&lt;-</span> <span class="fu">runif</span>(N)</span>
-<span id="cb8-11"><a></a>  x_end <span class="ot">&lt;-</span> u_common <span class="sc">+</span> z_common <span class="sc">+</span> <span class="fu">runif</span>(N)</span>
-<span id="cb8-12"><a></a>  z_strong <span class="ot">&lt;-</span> z_common <span class="sc">+</span> <span class="fu">runif</span>(N)</span>
-<span id="cb8-13"><a></a>  z_weak <span class="ot">&lt;-</span> <span class="fl">0.01</span> <span class="sc">*</span> z_common <span class="sc">+</span> <span class="fl">0.99995</span> <span class="sc">*</span> <span class="fu">runif</span>(N)</span>
-<span id="cb8-14"><a></a>  u <span class="ot">&lt;-</span> u_common <span class="sc">+</span> <span class="fu">runif</span>(N)</span>
-<span id="cb8-15"><a></a>  y <span class="ot">&lt;-</span> x_end <span class="sc">+</span> u</span>
-<span id="cb8-16"><a></a>  data <span class="ot">&lt;-</span> <span class="fu">data.table</span>(y, x_end, z_strong, z_weak)</span>
-<span id="cb8-17"><a></a></span>
-<span id="cb8-18"><a></a>  <span class="co">#--- IV estimation with a strong instrument ---#</span></span>
-<span id="cb8-19"><a></a>  iv_strong <span class="ot">&lt;-</span> fixest<span class="sc">::</span><span class="fu">feols</span>(y <span class="sc">~</span> <span class="dv">1</span> <span class="sc">|</span> x_end <span class="sc">~</span> z_strong, <span class="at">data =</span> data)</span>
-<span id="cb8-20"><a></a>  beta_hat_store[i, <span class="dv">1</span>] <span class="ot">&lt;-</span> iv_strong<span class="sc">$</span>coefficients[<span class="dv">2</span>]</span>
-<span id="cb8-21"><a></a></span>
-<span id="cb8-22"><a></a>  <span class="co">#--- IV estimation with a weak instrument ---#</span></span>
-<span id="cb8-23"><a></a>  iv_weak <span class="ot">&lt;-</span> fixest<span class="sc">::</span><span class="fu">feols</span>(y <span class="sc">~</span> <span class="dv">1</span> <span class="sc">|</span> x_end <span class="sc">~</span> z_weak, <span class="at">data =</span> data)</span>
-<span id="cb8-24"><a></a>  beta_hat_store[i, <span class="dv">2</span>] <span class="ot">&lt;-</span> iv_weak<span class="sc">$</span>coefficients[<span class="dv">2</span>]</span>
-<span id="cb8-25"><a></a>}</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode cell-code" id="cb7"><pre class="sourceCode numberSource r number-lines code-with-copy"><code class="sourceCode r"><span id="cb7-1"><a></a><span class="fu">set.seed</span>(<span class="dv">238354</span>)</span>
+<span id="cb7-2"><a></a>B <span class="ot">&lt;-</span> <span class="dv">1000</span> <span class="co"># the number of experiments</span></span>
+<span id="cb7-3"><a></a>N <span class="ot">&lt;-</span> <span class="dv">500</span> <span class="co"># number of observations</span></span>
+<span id="cb7-4"><a></a>beta_hat_store <span class="ot">&lt;-</span> <span class="fu">matrix</span>(<span class="dv">0</span>, B, <span class="dv">2</span>) <span class="co"># storage of beta hat</span></span>
+<span id="cb7-5"><a></a></span>
+<span id="cb7-6"><a></a><span class="cf">for</span> (i <span class="cf">in</span> <span class="dv">1</span><span class="sc">:</span>B) {</span>
+<span id="cb7-7"><a></a></span>
+<span id="cb7-8"><a></a>  <span class="co">#--- data generation ---#</span></span>
+<span id="cb7-9"><a></a>  u_common <span class="ot">&lt;-</span> <span class="fu">runif</span>(N)</span>
+<span id="cb7-10"><a></a>  z_common <span class="ot">&lt;-</span> <span class="fu">runif</span>(N)</span>
+<span id="cb7-11"><a></a>  x_end <span class="ot">&lt;-</span> u_common <span class="sc">+</span> z_common <span class="sc">+</span> <span class="fu">runif</span>(N)</span>
+<span id="cb7-12"><a></a>  z_strong <span class="ot">&lt;-</span> z_common <span class="sc">+</span> <span class="fu">runif</span>(N)</span>
+<span id="cb7-13"><a></a>  z_weak <span class="ot">&lt;-</span> <span class="fl">0.01</span> <span class="sc">*</span> z_common <span class="sc">+</span> <span class="fl">0.99995</span> <span class="sc">*</span> <span class="fu">runif</span>(N)</span>
+<span id="cb7-14"><a></a>  u <span class="ot">&lt;-</span> u_common <span class="sc">+</span> <span class="fu">runif</span>(N)</span>
+<span id="cb7-15"><a></a>  y <span class="ot">&lt;-</span> x_end <span class="sc">+</span> u</span>
+<span id="cb7-16"><a></a>  data <span class="ot">&lt;-</span> <span class="fu">data.table</span>(y, x_end, z_strong, z_weak)</span>
+<span id="cb7-17"><a></a></span>
+<span id="cb7-18"><a></a>  <span class="co">#--- IV estimation with a strong instrument ---#</span></span>
+<span id="cb7-19"><a></a>  iv_strong <span class="ot">&lt;-</span> fixest<span class="sc">::</span><span class="fu">feols</span>(y <span class="sc">~</span> <span class="dv">1</span> <span class="sc">|</span> x_end <span class="sc">~</span> z_strong, <span class="at">data =</span> data)</span>
+<span id="cb7-20"><a></a>  beta_hat_store[i, <span class="dv">1</span>] <span class="ot">&lt;-</span> iv_strong<span class="sc">$</span>coefficients[<span class="dv">2</span>]</span>
+<span id="cb7-21"><a></a></span>
+<span id="cb7-22"><a></a>  <span class="co">#--- IV estimation with a weak instrument ---#</span></span>
+<span id="cb7-23"><a></a>  iv_weak <span class="ot">&lt;-</span> fixest<span class="sc">::</span><span class="fu">feols</span>(y <span class="sc">~</span> <span class="dv">1</span> <span class="sc">|</span> x_end <span class="sc">~</span> z_weak, <span class="at">data =</span> data)</span>
+<span id="cb7-24"><a></a>  beta_hat_store[i, <span class="dv">2</span>] <span class="ot">&lt;-</span> iv_weak<span class="sc">$</span>coefficients[<span class="dv">2</span>]</span>
+<span id="cb7-25"><a></a>}</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 </div>
 </div>
 <div id="tabset-10-2">
+<details class="transcript inline">
+<summary>
+Lecturer transcript
+</summary>
+<p>The strong-instrument estimates concentrate around the red line at the true value. The weak-instrument distribution is far more dispersed and irregular. For readability, the graph omits estimates whose absolute value exceeds five; those omitted extremes are evidence of the instability, not harmless outliers to be ignored. The exercise explains why conventional IV inference can fail even when an instrument is technically relevant and valid but predicts too little of the endogenous variable.</p>
+</details>
 <div class="cell">
 <details class="code-fold">
 <summary>Code</summary>
-<div class="sourceCode cell-code" id="cb9"><pre class="sourceCode numberSource r number-lines code-with-copy"><code class="sourceCode r"><span id="cb9-1"><a></a>melted <span class="ot">&lt;-</span> <span class="fu">melt</span>(<span class="fu">data.table</span>(beta_hat_store))</span>
-<span id="cb9-2"><a></a>melted[variable <span class="sc">==</span> <span class="st">"V1"</span>, variable <span class="sc">:</span><span class="er">=</span> <span class="st">"Strong"</span>]</span>
-<span id="cb9-3"><a></a>melted[variable <span class="sc">==</span> <span class="st">"V2"</span>, variable <span class="sc">:</span><span class="er">=</span> <span class="st">"Weak"</span>]</span>
-<span id="cb9-4"><a></a></span>
-<span id="cb9-5"><a></a><span class="fu">ggplot</span>(<span class="at">data =</span> melted[<span class="fu">abs</span>(value) <span class="sc">&lt;</span> <span class="dv">5</span>, ]) <span class="sc">+</span></span>
-<span id="cb9-6"><a></a>  <span class="fu">geom_density</span>(<span class="fu">aes</span>(<span class="at">x =</span> value, <span class="at">fill =</span> variable), <span class="at">alpha =</span> <span class="fl">0.3</span>) <span class="sc">+</span></span>
-<span id="cb9-7"><a></a>  <span class="fu">geom_vline</span>(<span class="at">xintercept =</span> <span class="dv">1</span>, <span class="at">color =</span> <span class="st">"red"</span>) <span class="sc">+</span></span>
-<span id="cb9-8"><a></a>  <span class="fu">scale_fill_discrete</span>(<span class="at">name =</span> <span class="st">""</span>) <span class="sc">+</span></span>
-<span id="cb9-9"><a></a>  <span class="fu">theme</span>(</span>
-<span id="cb9-10"><a></a>    <span class="at">legend.position =</span> <span class="st">"bottom"</span></span>
-<span id="cb9-11"><a></a>  )</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode cell-code" id="cb8"><pre class="sourceCode numberSource r number-lines code-with-copy"><code class="sourceCode r"><span id="cb8-1"><a></a>melted <span class="ot">&lt;-</span> <span class="fu">melt</span>(<span class="fu">data.table</span>(beta_hat_store))</span>
+<span id="cb8-2"><a></a>melted[variable <span class="sc">==</span> <span class="st">"V1"</span>, variable <span class="sc">:</span><span class="er">=</span> <span class="st">"Strong"</span>]</span>
+<span id="cb8-3"><a></a>melted[variable <span class="sc">==</span> <span class="st">"V2"</span>, variable <span class="sc">:</span><span class="er">=</span> <span class="st">"Weak"</span>]</span>
+<span id="cb8-4"><a></a></span>
+<span id="cb8-5"><a></a><span class="fu">ggplot</span>(<span class="at">data =</span> melted[<span class="fu">abs</span>(value) <span class="sc">&lt;</span> <span class="dv">5</span>, ]) <span class="sc">+</span></span>
+<span id="cb8-6"><a></a>  <span class="fu">geom_density</span>(<span class="fu">aes</span>(<span class="at">x =</span> value, <span class="at">fill =</span> variable), <span class="at">alpha =</span> <span class="fl">0.3</span>) <span class="sc">+</span></span>
+<span id="cb8-7"><a></a>  <span class="fu">geom_vline</span>(<span class="at">xintercept =</span> <span class="dv">1</span>, <span class="at">color =</span> <span class="st">"red"</span>) <span class="sc">+</span></span>
+<span id="cb8-8"><a></a>  <span class="fu">scale_fill_discrete</span>(<span class="at">name =</span> <span class="st">""</span>) <span class="sc">+</span></span>
+<span id="cb8-9"><a></a>  <span class="fu">theme_bw</span>(<span class="at">base_size =</span> <span class="dv">30</span>) <span class="sc">+</span></span>
+<span id="cb8-10"><a></a>  <span class="fu">theme</span>(</span>
+<span id="cb8-11"><a></a>    <span class="at">legend.position =</span> <span class="st">"bottom"</span></span>
+<span id="cb8-12"><a></a>  )</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 </details>
 <div class="cell-output-display">
 <div>
 <figure>
-<p><img data-src="11-iv_files/figure-revealjs/unnamed-chunk-10-1.png" width="4000"></p>
+<p><img data-src="11-iv_files/figure-revealjs/unnamed-chunk-10-1.png" width="2800"></p>
 </figure>
 </div>
 </div>
 </div>
+<p>The plot omits estimates with absolute value greater than 5 so that the central portions of the distributions remain visible; extreme estimates are themselves a symptom of weak identification.</p>
 </div>
 </div>
 </div>
@@ -2920,6 +3467,12 @@ The coefficient estimate on <span class="math inline">\(x\_end\)</span> is far a
 </section>
 <section id="flow-of-iv-estimation-in-practice" class="slide level2 scrollable">
 <h2>Flow of IV Estimation in Practice</h2>
+<details class="transcript">
+<summary>
+Lecturer transcript
+</summary>
+<p>Use this sequence as a checklist. Begin with the structural equation and explain why each endogenous variable is endogenous. Propose excluded instruments and defend exclusion and exogeneity using the institutional setting. Then establish that they predict the endogenous variables after all controls and fixed effects, using appropriate weak-identification diagnostics. Finally, estimate with standard errors that match the sampling design and report assumptions, first stages, diagnostics, and sensitivity checks. IV credibility comes from the entire chain, not from the final coefficient alone.</p>
+</details>
 <div title="Flow">
 <div class="callout callout-note no-icon callout-titled callout-style-default">
 <div class="callout-body">
@@ -2928,11 +3481,11 @@ The coefficient estimate on <span class="math inline">\(x\_end\)</span> is far a
 </div>
 <div class="callout-content">
 <ol type="1">
-<li><p>Identify endogenous variable(s) and included instrument(s)</p></li>
-<li><p>Identify potential excluded instrument(s)</p></li>
-<li><p><span style="color: blue;"> Argue </span> why the excluded instrument(s) you pick is uncorrelated with the error term (<strong>condition 2</strong>)</p></li>
-<li><p>Once you decide what variable(s) to use as excluded instruments, <span style="color: red;">test</span> whether the excluded instrument(s) is weak or not ( <strong>condition 1</strong>)</p></li>
-<li><p>Implement IV estimation and report the results</p></li>
+<li><p>Identify the endogenous variables and the exogenous controls included in the structural equation.</p></li>
+<li><p>Identify candidate excluded instruments.</p></li>
+<li><p><span style="color: blue;">Argue</span> why the excluded instruments satisfy exclusion and exogeneity (<strong>validity</strong>).</p></li>
+<li><p>Assess first-stage relevance and <span style="color: red;">weak-identification diagnostics</span> (<strong>strength</strong>).</p></li>
+<li><p>Estimate the IV model with appropriate standard errors and report the first stage, diagnostics, identifying assumptions, and sensitivity checks.</p></li>
 </ol>
 </div>
 </div>
@@ -2961,7 +3514,6 @@ The coefficient estimate on <span class="math inline">\(x\_end\)</span> is far a
   <script src="../../site_libs/revealjs/plugin/notes/notes.js"></script>
   <script src="../../site_libs/revealjs/plugin/search/search.js"></script>
   <script src="../../site_libs/revealjs/plugin/zoom/zoom.js"></script>
-  <script src="../../site_libs/revealjs/plugin/math/math.js"></script>
   <script>window.define = window.backupDefine; window.backupDefine = undefined;</script>
 
   <script>
@@ -3129,27 +3681,9 @@ The coefficient estimate on <span class="math inline">\(x\_end\)</span> is far a
         // Factor of the display size that should remain empty around the content
         margin: 0.1,
 
-        math: {
-          mathjax: 'https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.9/MathJax.js',
-          config: 'TeX-AMS_HTML-full',
-          tex2jax: {
-            inlineMath: [['\\(','\\)']],
-            displayMath: [['\\[','\\]']],
-            balanceBraces: true,
-            processEscapes: false,
-            processRefs: true,
-            processEnvironments: true,
-            preview: 'TeX',
-            skipTags: ['script','noscript','style','textarea','pre','code'],
-            ignoreClass: 'tex2jax_ignore',
-            processClass: 'tex2jax_process'
-          },
-        },
-
         // reveal.js plugins
         plugins: [QuartoLineHighlight, PdfExport, RevealMenu, QuartoSupport,
 
-          RevealMath,
           RevealNotes,
           RevealSearch,
           RevealZoom

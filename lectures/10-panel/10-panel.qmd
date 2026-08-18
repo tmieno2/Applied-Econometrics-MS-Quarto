@@ -2,20 +2,28 @@
 title: "10: Panel Data Methods"
 format: 
   revealjs: 
+    html-math-method: katex
     theme: [default, ../custom.scss, ../notebook.scss]
     fontsize: 1.2em
     callout-icon: false
     scrollable: true
     echo: true
     fig-dpi: 400
+    include-in-header:
+      - ../transcript-support.html
+      - ../webr-layout.html
     footer: "[back to course website with lecture slides](https://tmieno2.github.io/Applied-Econometrics-MS-Quarto/lectures/)"
 execute:
   echo: true
-  out-width: 80%
+  out-width: 55%
 webr:
   packages: ['fixest', 'dplyr', 'data.table', 'ggplot2', 'wooldridge', 'gt', 'broom']
   cell-options:
     editor-font-scale: 0.8
+    dpi: 216
+    fig-width: 7
+    fig-height: 4.5
+    out-width: 55%
 filters:
   - webr
 ---
@@ -42,10 +50,17 @@ library(modelsummary)
 
 ### Panel data
 
+<details class="transcript">
+<summary>Lecturer transcript</summary>
+
+Panel data add a time dimension to cross-sectional data. The defining feature is not simply that observations come from several years; it is that we observe the same units repeatedly. A dataset containing a different random sample each year is a repeated cross-section, not a panel. Tracking the same people, firms, or places lets us compare a unit with itself. That within-unit comparison is valuable because many characteristics—ability, geography, organizational culture, or soil type—may be difficult to observe but relatively stable over the study period.
+
+</details>
+
 **Definition**
 
   
-Data follow the <span style = "color: blue;"> same </span> individuals, families, firms, cities, states or whatever, across time.
+Panel data follow the <span style = "color: blue;">same</span> individuals, families, firms, cities, states, or other units over time.
 
 <br>
 
@@ -53,9 +68,16 @@ Data follow the <span style = "color: blue;"> same </span> individuals, families
 
 + Randomly select people from a population at a given point in time
 
-+ Then the same people are reinterviewed at several subsequent points in time, which would result in data on wages, hours, education, and so on, for the same group of people in different years.
++ Reinterview the same people at several later dates, producing observations on wages, hours, education, and other variables for the same group in different years.
 
 ### Example panel data
+
+<details class="transcript inline">
+<summary>Lecturer transcript</summary>
+
+This table shows the panel structure explicitly. `fcode` identifies a factory, and each factory can contribute observations in multiple years. The unit of observation is therefore a factory-year, not just a factory. Variables such as employment and sales can change within a factory over time, while other factory characteristics may remain constant. Before estimating any panel model, identify the unit index, the time index, whether every unit appears in every period, and which variables actually vary within units. A fixed-effects coefficient cannot be learned from a regressor that never changes within its unit.
+
+</details>
 
 **Panel Data as `data.frame`**
 
@@ -76,7 +98,14 @@ dplyr::select(jtrain, year, fcode, employ, sales) %>%
 
 ### Central Question
 
-Can we do anything to deal with endogeneity problem taking advantage of the panel data structure? 
+<details class="transcript">
+<summary>Lecturer transcript</summary>
+
+The central question is whether repeated observations can help with endogeneity. The answer is yes, but only for particular sources. Panel methods can remove unobserved unit characteristics that do not change over time. They cannot automatically remove time-varying confounders, measurement error, reverse causality, or feedback from past outcomes to future regressors. Throughout the lecture, keep asking two questions: what variation identifies the coefficient, and which omitted factors are eliminated by that comparison?
+
+</details>
+
+Can we use the panel structure to address some sources of endogeneity?
 
 :::
 <!--end of panel-->
@@ -122,7 +151,14 @@ massage_data %>% gt()
 
 #### Question 1
 
-Across the four cities, how are price and quantity are associated? Positive or negative? 
+<details class="transcript">
+<summary>Lecturer transcript</summary>
+
+Read the four-city table as a cross-section. Cities with higher massage prices also have more massages per capita, so the raw association is positive. It would be a mistake to read this as an upward-sloping demand curve. Cross-city prices can differ because the product and the market differ. The observation illustrates an identification problem: the regression line can describe the data correctly while failing to estimate the causal response of quantity demanded to a price change.
+
+</details>
+
+Across the four cities, how are price and quantity associated—positively or negatively?
 
 <br>
 <details>
@@ -131,6 +167,13 @@ They are positively correlated. So, does that mean people want more massages as 
 </details>
 
 #### Question 2
+
+<details class="transcript">
+<summary>Lecturer transcript</summary>
+
+We need a factor that differs across cities, affects massage demand, and is related to price. Income is one possibility, but it may be observable. Massage quality is more troublesome: higher-quality services can command higher prices and attract more customers. Local occupations, tourism, demographics, and preferences could work similarly. The purpose of brainstorming is not to make an endless list. It is to understand why comparing Chicago with Peoria does not hold the demand environment fixed.
+
+</details>
 
 What could be causing the positive correlation?
 
@@ -146,6 +189,13 @@ What could be causing the positive correlation?
 <!--end of panel-->
 
 ### What's hidden?
+
+<details class="transcript inline">
+<summary>Lecturer transcript</summary>
+
+The quality column reveals the confounder that was hidden in the first table. High-quality cities have both higher prices and higher quantities. If quality is omitted, its effect enters the error term, and price is correlated with that error. We cannot fix the problem by saying quality matters; we would need to measure it credibly and control for it. The panel strategy will instead exploit the fact that this example defines each city's quality as constant over time.
+
+</details>
 
 **Demand for massage (cross-sectional)**
 
@@ -171,7 +221,7 @@ gt(massage_data)
 
 **Key**
 
-Massage quality was hidden (omitted) affecting <span style = "color: blue;">both</span> price and massages per capita. 
+Massage quality was hidden (omitted) and affects <span style = "color: blue;">both</span> price and massages per capita.
 
 <br>
 
@@ -179,16 +229,23 @@ Massage quality was hidden (omitted) affecting <span style = "color: blue;">both
 
 Massage quality is not observable, and thus cannot be controlled for.
 
-### Mathenmatically
+### Mathematically
+
+<details class="transcript">
+<summary>Lecturer transcript</summary>
+
+Write the omitted-quality model as a regression with a composite error v. Quality affects quantity through beta two, but it is not included as a regressor. Because price is related to quality, price is related to v. This is the same omitted-variable logic from Lecture 09. The panel solution will not estimate quality's coefficient; it will transform the data so that a time-invariant quality term cancels. That distinction matters: fixed effects control for stable differences without requiring us to observe or name each one separately.
+
+</details>
 
 **Mathematically**
 
-$Q  = \beta_0 + \beta_1 P + v \;\;( = \beta_2 + Ql + u)$ 
+$Q=\beta_0+\beta_1P+v, \qquad v=\beta_2Ql+u$
 
 + $P$: the price of one massage
 + $Q$: the number of massages received per capita  
-+ $Ql$: the quality of massages
-+ $u$: everything else that affect $P$
++ $Ql$: an index of massage quality
++ $u$: all other determinants of $Q$
 
 <br>
 
@@ -232,14 +289,28 @@ massage_data_2p %>% gt()
 
 #### Key
 
-There are two kinds of variations:
+<details class="transcript inline">
+<summary>Lecturer transcript</summary>
 
-+ inte-rcity (across city) variation 
-+ intra-city (within city) variation
+The two-period table contains two sources of variation. Between-city variation compares, for example, Chicago with Peoria. Within-city variation compares Chicago in 2004 with Chicago in 2003. The cross-sectional regression mixes both. Panel estimators can discard the between-city component and use only changes within each city. That is useful here because the omitted quality index varies between cities but is fixed within a city over these two years.
 
-The cross-sectional data offers only the inte-rcity (across city) variations.
+</details>
+
+There are two kinds of variation:
+
++ intercity (between-city) variation
++ intracity (within-city) variation
+
+Cross-sectional data offer only between-city variation.
 
 #### within-city
+
+<details class="transcript inline">
+<summary>Lecturer transcript</summary>
+
+Compare each city with itself. Where price rises, quantity falls; where price falls, quantity rises. The within-city association is negative even though the between-city association was positive. This is not a paradox. The comparisons answer different questions and hold different things fixed. Within a city, our constructed quality measure stays constant, so it cannot explain the year-to-year movement. The example shows why the source of variation behind a coefficient matters at least as much as its numerical sign.
+
+</details>
 
 Now, compare the massage price and massages per capita <span style = "color: blue;"> within </span> each city (over time). What do you see?
 
@@ -251,12 +322,19 @@ Price and quantity are <span style = "color: red;"> negatively </span> correlate
 
 #### Question
 
-Why looking at the <span style = "color: blue;"> intra-city (within city) </span> variation seemed to help us estimate the impact of massage price on demand more credibly?
+<details class="transcript">
+<summary>Lecturer transcript</summary>
+
+Within-city comparisons help because any city characteristic that is exactly constant over time is held fixed automatically. Here massage quality does not change, so it cannot confound the relationship between changes in price and changes in quantity. Be precise about the claim: within variation removes this time-invariant omitted factor. If income, local employment, or quality changes and those changes are related to price, endogeneity can remain. Panel data create an opportunity for cleaner comparisons; they do not make every comparison causal.
+
+</details>
+
+Why does looking at <span style = "color: blue;">within-city</span> variation seem to help us estimate the effect of massage price on demand more credibly?
 
 <br>
 <details>
   <summary>Answer</summary>
-The omitted variable, massage quality, did not change over time within city, which means it is controlled for as long as you look only at the intra-city variations (you do not compare <span style = "color: blue;">across</span> cities).
+The omitted variable, massage quality, did not change over time within a city. Restricting attention to within-city variation therefore removes this particular source of confounding.
 </details>
 
 :::
@@ -265,21 +343,28 @@ The omitted variable, massage quality, did not change over time within city, whi
 :::
 <!--end of panel-->
 
-## Using only the intra-city variations
+## Using only within-city variation
 
 ::: {.panel-tabset}
 
-### first-differencing
+### First differencing
+
+<details class="transcript inline">
+<summary>Lecturer transcript</summary>
+
+First differencing turns levels into changes within each city. For every variable, subtract the first-period value from the second-period value. The first observation for each city has no lag, so its difference is missing; the highlighted second row supplies one usable change. Quality's difference is zero in every city because quality was constant. Regressing change in quantity on change in price therefore uses only within-city movement and discards all fixed level differences across cities.
+
+</details>
 
 **Question**
 
-So, how do we use only the intra-city variations in a regression framework?
+How do we use only within-city variation in a regression framework?
 
 <br>
 
-**first-differencing**
+**First differencing**
 
-One way to do this is to compute the changes in prices and th changes in quantities in each city $(\Delta P$ and $\Delta Q)$ and then regress $\Delta Q$ and $\Delta P$.
+One approach is to compute the changes in price and quantity within each city ($\Delta P$ and $\Delta Q$) and then regress $\Delta Q$ on $\Delta P$.
 
 <br>
 
@@ -320,7 +405,7 @@ massage_data_fd %>%
       cell_fill(color = "orange")
     ),
     locations = cells_body(
-      columns = vars(P_dif, Q_dif, Ql_dif),
+      columns = c(P_dif, Q_dif, Ql_dif),
       rows = c(2, 4, 6, 8)
     )
   )
@@ -330,7 +415,7 @@ massage_data_fd %>%
 ::: {.column width="30%"}
 **Key**
 
-Variations in quality is eliminated after first differentiation!! (quality is controlled for) 
+Variation in quality is eliminated after first differencing because quality is constant within each city.
 :::
 <!--end of the 2nd column-->
 :::
@@ -340,9 +425,16 @@ Variations in quality is eliminated after first differentiation!! (quality is co
 
 ### first-differenced model
 
+<details class="transcript">
+<summary>Lecturer transcript</summary>
+
+The subscripts separate the city dimension i from the time dimension t. Subtract the period-one equation from the period-two equation. The intercept cancels because it is the same in both periods, and any time-invariant quality term cancels because its change is zero. What remains is a regression of changes. For beta one to have a causal interpretation, the change in price must still be unrelated to the change in the remaining error. A time-varying demand shock can violate that condition, so differencing solves a specific omitted-variable problem rather than all endogeneity.
+
+</details>
+
 **A new way of writing a model**
 
-$Q_{i,t}  = \beta_0 + \beta_1 P_{i,t} + v_{i,t} \;\; ( = \beta_2 Ql_{i,t} + u_{i,t})$ 
+$Q_{i,t}=\beta_0+\beta_1P_{i,t}+\beta_2Ql_{i,t}+u_{i,t}$
 
 + `i`: indicates city
 + `t`: indicates time
@@ -351,23 +443,32 @@ $Q_{i,t}  = \beta_0 + \beta_1 P_{i,t} + v_{i,t} \;\; ( = \beta_2 Ql_{i,t} + u_{i
 
 **First differencing**
 
-$Q_{i,1}  = \beta_0 + \beta_1 P_{i,1} + v_{i,1} \;\; ( = \beta_2 Ql_{i,1} + u_{i,1})$ 
+$Q_{i,1}=\beta_0+\beta_1P_{i,1}+\beta_2Ql_{i,1}+u_{i,1}$
 
-$Q_{i,2}  = \beta_0 + \beta_1 P_{i,2} + v_{i,2} \;\; ( = \beta_2 Ql_{i,2} + u_{i,2})$
+$Q_{i,2}=\beta_0+\beta_1P_{i,2}+\beta_2Ql_{i,2}+u_{i,2}$
 
 $\Rightarrow$
 
-$\Delta Q  = \beta_1 \Delta P + \Delta v ( = \beta_2 \Delta Ql + \Delta u)$
+$\Delta Q_i=\beta_1\Delta P_i+\beta_2\Delta Ql_i+\Delta u_i$
 
 <br>
 
 **Endogeneity Problem?**
 
-Since $Ql_{i,1} = Ql_{i,2}$, $\Delta Ql = 0 \Rightarrow \Delta Q  = \beta_0 + \beta_1 \Delta P + \Delta u$
+Since $Ql_{i,1}=Ql_{i,2}$, $\Delta Ql_i=0$, so
 
-No endogeneity problem after first differentiation!
+$$\Delta Q_i=\beta_1\Delta P_i+\Delta u_i.$$
+
+First differencing removes endogeneity caused by time-invariant massage quality. It does not remove endogeneity from time-varying omitted factors or reverse causality; we still need $\Delta P_i$ to be uncorrelated with $\Delta u_i$.
 
 ### Estimate the model
+
+<details class="transcript inline">
+<summary>Lecturer transcript</summary>
+
+The two regressions demonstrate the reversal. OLS in levels uses the mixture of between- and within-city variation and produces the positive cross-sectional relationship. The first-differenced regression keeps one change per city and produces the negative within-city relationship. With only four cities, this is an illustration rather than credible empirical evidence. Focus on why the coefficient changes: differencing removes the stable quality differences that drove the positive comparison across cities.
+
+</details>
 
 **Data**
 
@@ -402,10 +503,17 @@ fixest::feols(Q_dif ~ P_dif, data = massage_data_fd) %>%
 <!--end of the columns-->
 
 ### Summary
- 
-+ As long as the omitted variable that affects both the dependent and independent variables are constant over time (time-invariant), then using only the variations over time (ignoring variations across cross-sectional units) can eliminate the omitted variable bias
 
-+ First-differencing the data and then regressing changes on changes does the trick of ignoring variations across cross-sectional units
+<details class="transcript">
+<summary>Lecturer transcript</summary>
+
+The takeaway from the two-period example is narrow but powerful. When an omitted confounder is constant within a unit, comparing changes within the unit eliminates it. First differencing is one way to operationalize that comparison. It requires repeated observations on the same units, and it identifies the coefficient only from units whose explanatory variable changes. It does not solve confounding from factors that change over time, so the remaining change in the regressor still needs an exogeneity argument.
+
+</details>
+ 
++ When an omitted variable affecting both the dependent and independent variables is constant over time, using within-unit variation can eliminate the bias caused by that variable.
+
++ First-differencing the data and regressing changes on changes removes between-unit variation.
 
 + Of course, first-differencing is possible only because the same cross-sectional units are observed multiple times over time.
 :::
@@ -416,10 +524,16 @@ fixest::feols(Q_dif ~ P_dif, data = massage_data_fd) %>%
 
 ::: {.panel-tabset}
 
-### deviation from the mean
+### Deviation from the mean
 
+<details class="transcript inline">
+<summary>Lecturer transcript</summary>
 
-**within-transformation**
+With more than two periods, demeaning is a convenient way to isolate within-unit variation. For each city, compute its time average and subtract that average from every observation. A positive deviation means the variable is above that city's usual level; a negative deviation means it is below. Because a time-invariant variable always equals its own time average, all of its deviations are zero. The highlighted columns show the transformed variables that feed the fixed-effects regression.
+
+</details>
+
+**Within transformation**
 
 + If we have lots of years of data, we could, in principle, compute all of the first differences (i.e., 2004 versus 2003, 2005 versus 2004, etc.) and then run a single regression. But there is an easier way.  
 
@@ -427,7 +541,7 @@ fixest::feols(Q_dif ~ P_dif, data = massage_data_fd) %>%
 
 **Example**
 
-How much each observation differs from the average for that city?
+How much does each observation differ from its city average?
 
 ```{webr-r}
 #| context: setup
@@ -471,7 +585,7 @@ massage_data_wth %>%
       cell_fill(color = "orange")
     ),
     locations = cells_body(
-      columns = vars(P_dev, Q_dev, Ql_dev)
+      columns = c(P_dev, Q_dev, Ql_dev)
     )
   )
 ```
@@ -480,12 +594,19 @@ massage_data_wth %>%
 
 **Note**
 
-We call this data transformation <span style = "color: red;"> within-transformation </span> or <span style = "color: red;"> demeaning </span>.
+We call this transformation the <span style = "color: red;">within transformation</span>, or <span style = "color: red;">demeaning</span>.
 
 ### Fixed Effects Regression
 
 ::: {.panel-tabset}
 #### Example
+
+<details class="transcript">
+<summary>Lecturer transcript</summary>
+
+The fixed-effects regression uses the demeaned quantity and price variables. Quality has no remaining variation because each city's quality is constant, so `Ql_dev` equals zero throughout. The price coefficient is estimated from whether quantity is unusually high or low when price is unusually high or low relative to the same city's average. This is the multi-period version of comparing a city with itself.
+
+</details>
 
 **Model**
 
@@ -494,33 +615,47 @@ We call this data transformation <span style = "color: red;"> within-transformat
 
 **Key**
 
-In calculating `P_dev` (deviation from the mean by city), `Ql_dev` is eliminated.
+Because `Ql` is constant within each city, demeaning makes `Ql_dev` equal to zero.
 
 #### within-transformation
 
-$Q_{i,1}  = \beta_0 + \beta_1 P_{i,1} + v_{i,1} \;\; ( = \beta_2 Ql_{i,1} + u_{i,1})$ 
+<details class="transcript">
+<summary>Lecturer transcript</summary>
 
-$Q_{i,2}  = \beta_0 + \beta_1 P_{i,2} + v_{i,2} \;\; ( = \beta_2 Ql_{i,2} + u_{i,2})$
+Average the T equations for a city and subtract that average equation from each original equation. The intercept disappears, and every variable is expressed as a deviation from its city mean. The quality term is still shown at this stage so that we can see the algebra. In the next tab, its deviation becomes zero because quality is constant over time. The transformed disturbance is also demeaned, which is why the exogeneity condition for fixed effects must account for errors across all periods.
+
+</details>
+
+$Q_{i,1}=\beta_0+\beta_1P_{i,1}+\beta_2Ql_{i,1}+u_{i,1}$
+
+$Q_{i,2}=\beta_0+\beta_1P_{i,2}+\beta_2Ql_{i,2}+u_{i,2}$
 
 $\vdots$
 
-$Q_{i,T}  = \beta_0 + \beta_1 P_{i,T} + v_{i,T} \;\; ( = \beta_2 Ql_{i,T} + u_{i,T})$
+$Q_{i,T}=\beta_0+\beta_1P_{i,T}+\beta_2Ql_{i,T}+u_{i,T}$
 
 $\Rightarrow$
 
-$Q_{i,t} - \bar{Q_{i}}   = \beta_1 [P_{i,t} - \bar{P_{i}}] + [v_{i,t} - \bar{v_{i}}] ( = \beta_2 [Ql_{i,t} - \bar{Ql_{i}}] + [u_{i,t} - \bar{u_{i}}])$
+$Q_{i,t}-\bar Q_i=\beta_1(P_{i,t}-\bar P_i)+\beta_2(Ql_{i,t}-\overline{Ql}_i)+(u_{i,t}-\bar u_i)$
 
 #### Endogeneity Problem?
 
-$Ql_{i,1} = Ql_{i,2} = \dots = Ql_{i,T} = \bar{Ql_i}$  
+<details class="transcript">
+<summary>Lecturer transcript</summary>
+
+Since quality equals the same value in every period for a city, its time average is that same value. Subtracting the two gives zero, and the omitted quality effect vanishes from the transformed equation. Price may be correlated with the level of quality, but that between-city correlation is no longer used. Other endogeneity can survive. In particular, a temporary demand shock can affect both this period's quantity and price, leaving transformed price correlated with the transformed error.
+
+</details>
+
+$Ql_{i,1}=Ql_{i,2}=\dots=Ql_{i,T}=\overline{Ql}_i$
 
 $\Rightarrow$
 
-$Q_{i,t} - \bar{Q_{i}}   = \beta_1 [P_{i,t} - \bar{P_{i}}] + [u_{i,t} - \bar{u_{i}}]$
+$Q_{i,t}-\bar Q_i=\beta_1(P_{i,t}-\bar P_i)+(u_{i,t}-\bar u_i)$
 
 <br>
 
-No endogeneity problem after the within-transformation because $Ql$ is gone.
+The within transformation removes the endogeneity caused by time-invariant $Ql$. Other sources of endogeneity may remain.
 
 :::
 <!--end of panel-->
@@ -538,36 +673,57 @@ Consider the following general model
 
 $y_{i,t}=\beta_1 x_{i,t} + \alpha_i + u_{i,t}$
 
-+ $\alpha_i$: the impact of time-invariant <span style = "color: blue;"> unobserved </span> factor that is specific to $i$ (also termed <span style = "color: blue;">individual fixed effect</span>) 
-+ $\alpha_i$ is thought to be correlated with $x_{i,t}$ 
++ $\alpha_i$: the combined effect of time-invariant <span style = "color: blue;">unobserved</span> factors specific to unit $i$ (the <span style = "color: blue;">individual fixed effect</span>)
++ $\alpha_i$ may be correlated with $x_{i,t}$
 
 ::: {.panel-tabset}
 
 #### Find individual averages
 
-For each $i$, average this equation over time, we get
+<details class="transcript">
+<summary>Lecturer transcript</summary>
 
-$\frac{\sum_{t=1}^T y_{i,t}}{T} = \frac{\sum_{t=1}^T x_{i,t}}{T} + \alpha_i  + \frac{\sum_{t=1}^T u_{i,t}}{T}$
+This is the general fixed-effects algebra. Alpha i collects all time-invariant characteristics of unit i, observed or unobserved. It can be correlated with x, which is exactly the correlation pooled OLS cannot tolerate. When we average the model over time, alpha i remains alpha i because the same value is repeated in every period. The bars denote unit-specific time averages; they are not averages across different individuals.
 
-We use $\bar{z}_i$ to indicate the average of $\bar{z}_{i,t}$ over time for individual $i$. Using this notation,
+</details>
 
-$\bar{y}_i = \bar{x}_i + \alpha_i  + \bar{u}_i$
+For each $i$, averaging this equation over time gives
+
+$\frac{1}{T}\sum_{t=1}^T y_{i,t}=\beta_1\frac{1}{T}\sum_{t=1}^T x_{i,t}+\alpha_i+\frac{1}{T}\sum_{t=1}^T u_{i,t}$
+
+We use $\bar z_i$ to denote the time average of $z_{i,t}$ for unit $i$. Thus,
+
+$\bar y_i=\beta_1\bar x_i+\alpha_i+\bar u_i.$
 
 Note that $\frac{\sum_{t=1}^T \alpha_{i}}{T} = \alpha_i$
 
-#### within-transformation
+#### Within transformation
+
+<details class="transcript">
+<summary>Lecturer transcript</summary>
+
+Subtract the unit-average equation from the original observation. Alpha i minus itself is zero, so all stable unit characteristics are removed in one step. We do not estimate a separate coefficient for each unobserved characteristic and do not need to observe them. The transformation also removes every observed regressor that is constant within a unit. That is the cost of relying exclusively on within-unit variation.
+
+</details>
 
 Subtracting the equation of the average from the original model,
 
-$(y_{i,t}-\bar{y}_i=\beta_1 (x_{i,t} -\bar{x}_i) + (u_{i,t} -\bar{u}_i) + a_i - a_i$
+$y_{i,t}-\bar y_i=\beta_1(x_{i,t}-\bar x_i)+(u_{i,t}-\bar u_i)+\alpha_i-\alpha_i$
 
 <br>
 
-:::{.callout-important}
+::: {.callout-important}
 $\alpha_i$ is gone!
 :::
 
 #### Estimation of $\beta$s
+
+<details class="transcript">
+<summary>Lecturer transcript</summary>
+
+After demeaning, estimate beta one by OLS using the transformed outcome and transformed regressor. The coefficient answers a within-unit question: when x differs from its usual value for a unit, how does y differ from its usual value? Units with no within variation in x provide no identifying information for beta one. Software performs this transformation efficiently, often without creating the demeaned variables explicitly.
+
+</details>
 
 We then regress $(y_{i,t}-\bar{y}_i)$ on $(x_{i,t}-\bar{x}_i)$ to estimate $\beta_1$.
 
@@ -575,6 +731,13 @@ We then regress $(y_{i,t}-\bar{y}_i)$ on $(x_{i,t}-\bar{x}_i)$ to estimate $\bet
 <!--end of panel-->
 
 ### When is FE estimation unbiased?
+
+<details class="transcript">
+<summary>Lecturer transcript</summary>
+
+Removing alpha i is not the end of the identification argument. The demeaned regressor must be uncorrelated with the demeaned disturbance. A standard sufficient condition is strict exogeneity: every period's error has conditional mean zero given the unit's entire history of regressors and its fixed effect. This rules out contemporaneous confounding and also feedback from today's shock to future x. For example, if an unexpected increase in y this year causes the unit to choose a different x next year, strict exogeneity fails even though x may be predetermined at the start of each period.
+
+</details>
 
 Here is the model after within-transformation:
 
@@ -586,21 +749,29 @@ y_{i,t}-\bar{y}_i=\beta_1 (x_{i,t} -\bar{x}_i) + (u_{i,t} -\bar{u}_i)
 
 So,
 
-$x_{i,t} -\bar{x}_i$ needs to be uncorrelated with $u_{i,t} -\bar{u}_i$.
+$x_{i,t}-\bar x_i$ must be uncorrelated with $u_{i,t}-\bar u_i$.
 
 <br>
 
-:::{.callout-important}
-The above condition is satisfied if
+::: {.callout-important title="Strict exogeneity"}
+A sufficient condition is
 
-$E[u_{i,s}|x_{i,t}] = 0 \;\; ^\forall s, \;\; t, \;\;\mbox{and} \;\;j$
+$E[u_{i,t}\mid x_{i,1},x_{i,2},\dots,x_{i,T},\alpha_i]=0
+\qquad\text{for every }t.$
 
-e.g., $E[u_{i,1}|x_{i,4}]=0$
+Thus, regressors in any period must be unrelated to shocks in every period. For example, $E[u_{i,1}\mid x_{i,4},\alpha_i]=0$.
 :::
 
 
 
 ### Example
+
+<details class="transcript">
+<summary>Lecturer transcript</summary>
+
+This command estimates the demeaned massage equation directly. The input columns are already deviations, so no fixed-effects formula is needed here. The price coefficient matches the first-difference result in a two-period panel; with exactly two periods, demeaning and first differencing contain the same identifying information, differing only by scale. In applications, we generally let fixed-effects software operate on the original variables rather than constructing deviations ourselves.
+
+</details>
 
 **Fixed effects estimation**
 
@@ -615,17 +786,24 @@ fixest::feols(Q_dev ~ P_dev, data = massage_data_wth)
 <!--end of panel-->
 
 
-## An alternative way to view the Fixed Effects estimation methods
+## An alternative view of fixed-effects estimation
 
 ::: {.panel-tabset}
 
 ### two equivalent models
 
+<details class="transcript">
+<summary>Lecturer transcript</summary>
+
+There are two algebraically equivalent ways to remove unit-specific intercepts. The within estimator subtracts unit means. The least-squares dummy-variable estimator keeps the original data and gives each unit its own intercept through indicator variables. Both produce the same slope coefficients when specified consistently. Demeaning makes the source of variation transparent; dummy variables make the intercept differences explicit. Modern software can absorb fixed effects without literally adding thousands of dummy columns.
+
+</details>
+
 **Important**
 
 The two approaches below will result in the same coefficient estimates (mathematically identical). 
 
-+ Running OLS on the within-tranformed (demeaned) data
++ Running OLS on the within-transformed (demeaned) data
 + Running OLS on the untransformed data but including the dummy variables for the individuals (city in our example)
 
 ### Estimation with the alternative model
@@ -635,6 +813,13 @@ You can use the original data (no within-transformation) and include dummy varia
 ::: {.panel-tabset}
 
 #### Create dummy variables 
+
+<details class="transcript">
+<summary>Lecturer transcript</summary>
+
+With four cities and an overall intercept, we create only three city indicators. Chicago is the omitted reference category. Each included dummy allows its city's intercept to differ from Chicago's. Including all four indicators together with an intercept would create perfect multicollinearity, the dummy-variable trap. These indicators absorb any fixed city characteristic, not only the quality variable we happened to name.
+
+</details>
 
 ```{webr-r}
 #| autorun: true
@@ -649,6 +834,13 @@ You can use the original data (no within-transformation) and include dummy varia
 ```
 
 #### Estimate with dummy variables
+
+<details class="transcript">
+<summary>Lecturer transcript</summary>
+
+The regression uses the original quantity and price levels plus the three city indicators. Compare the coefficient on price with the demeaned regression: it is exactly the same. The dummy coefficients themselves describe level differences relative to Chicago, but they are not our main target. Their role is to prevent stable cross-city differences from contributing to the estimated price slope.
+
+</details>
 
 ```{webr-r}
 #| autorun: true
@@ -666,12 +858,19 @@ Note that the coefficient estimate on `P` is exactly the same as the one we saw 
 
 ### What does this tell us? 
 
-By including individual dummies (individual fixed effects), you are effectively eliminating the between (inter-city) variations and using only the clean within (within-city) variations for estimation.
+<details class="transcript">
+<summary>Lecturer transcript</summary>
+
+Fixed effects change the comparison behind a coefficient. City fixed effects eliminate comparisons between different cities' average levels, so beta one is learned from price changes within the same city. Generalize that rule: firm fixed effects use within-firm variation, farmer fixed effects use within-farmer variation, and so on. This can be cleaner when stable differences confound the cross-section, but the correct fixed effect is dictated by the assignment mechanism and the level at which the troublesome unobservables operate.
+
+</details>
+
+By including individual dummies (individual fixed effects), you effectively remove between-city variation and estimate $\beta_1$ using within-city variation.
 
 <br>
 
-:::{.callout-note title="Very Important"}
-More generally, including dummy variables of a categorical variable (like city in the example above), eliminates the variations <span style = "color: red;"> between </span> the elements of the category (e.g., different cities), and use only the variations <span style = "color: blue;"> within </span> each of the element of the category.
+::: {.callout-note title="Very important"}
+More generally, including fixed effects for a category (such as city) absorbs differences <span style = "color: red;">between</span> its groups and identifies other coefficients from variation <span style = "color: blue;">within</span> those groups.
 :::
 
 :::
@@ -684,6 +883,13 @@ More generally, including dummy variables of a categorical variable (like city i
 ::: {.panel-tabset}
 
 ### How
+
+<details class="transcript">
+<summary>Lecturer transcript</summary>
+
+In practice, keep the variables in their original units and tell `feols` which fixed effect to absorb after the vertical bar. This reduces coding mistakes, handles many groups efficiently, and reports the model in a recognizable form. The slope regressors go before the bar; fixed-effect identifiers go after it. The software internally obtains the same within estimator we derived. We still need to choose fixed effects based on the research design rather than treating the formula as a mechanical recipe.
+
+</details>
 
 **Advice**
 
@@ -705,10 +911,17 @@ fixest::feols(dep_var ~ indep_vars | FE, data)
 ```
 
 + `FE`: the name of the variable that identifies the cross-sectional units that are observed over time (`Location` in our example) 
-+ `dep_var`: (non-transformed) dependet variable
++ `dep_var`: untransformed dependent variable
 + `indep_vars`: list of (non-transformed) independent variables
 
 ### Demonstration
+
+<details class="transcript inline">
+<summary>Lecturer transcript</summary>
+
+Here the original two-period data go directly into `feols`, with `Location` specified as the fixed effect. The estimated coefficient on price agrees with both the manually demeaned and dummy-variable regressions. This equality is a useful diagnostic when learning the syntax. In a real dataset, also inspect how many observations and fixed-effect groups remain and whether the regressor has sufficient within-group variation.
+
+</details>
 
 **Data**
 
@@ -728,21 +941,28 @@ fixest::feols(Q ~ P | Location, data = massage_data_2p)
 
 ### Random Effects (RE) Model
 
+<details class="transcript">
+<summary>Lecturer transcript</summary>
+
+Random effects retains both within- and between-unit information by imposing a stronger orthogonality assumption: the unit effect alpha i must be uncorrelated with the regressors in every period. If credible, RE can be more efficient and can estimate coefficients on variables that never change within a unit. If that assumption fails, standard RE is inconsistent, while FE can remain consistent under strict exogeneity. The choice should follow substantive knowledge about how x is assigned, not a preference for whichever estimator yields smaller standard errors.
+
+</details>
+
 **How is it different from the FE model?**
 
-+ Can be more efficient (lower variance) than FE under certain cases
++ Random effects (RE) assumes $\alpha_i$ is uncorrelated with every explanatory variable in every period.
 
-+ If $\alpha_i$ and independent variables are correlated, then RE estimators are biased
++ Under that assumption, RE is consistent and can be more efficient than FE. It can also estimate coefficients on time-invariant regressors.
 
-+ Unless $\alpha_i$ and independent variables are not correlated (which does not hold most of the time unless you got data from controlled experiments), $RE$ is not an attractive option
++ If $\alpha_i$ is correlated with the explanatory variables, the standard RE estimator is inconsistent, whereas FE remains consistent under strict exogeneity.
 
-+ You almost never see this estimation method used in papers that use non-experimental data 
++ The choice between FE and RE should be based on the research design and the plausibility of the RE orthogonality assumption.
 
 <br>
 
 **Note**
 
-We do not cover this estimation method as you almost certainly would not use this estimation method.
+We do not develop RE estimation further in this lecture.
 
 :::
 <!--end of panel-->
@@ -753,7 +973,14 @@ We do not cover this estimation method as you almost certainly would not use thi
 
 ### Avocado data
 
-```{r echo = F, fig.cap = "Weekly Sales of Avocados in California, Jan 2015 - Match 2018"}
+<details class="transcript inline">
+<summary>Lecturer transcript</summary>
+
+This application asks for the demand response to avocado price using weekly California data. The scatterplot is descriptive: it shows how total sales and average price move together, not yet a causal demand curve. Price is an equilibrium outcome determined jointly by supply and demand. Weather, promotions, supply disruptions, and demand shifts can move both variables. We therefore need to identify a subset of price variation that is plausibly unrelated to unobserved demand shocks.
+
+</details>
+
+```{r echo = F, fig.cap = "Weekly sales of avocados in California, January 2015–March 2018"}
 
 dfavo <-
   data.table::fread("avocado.csv") %>%
@@ -786,6 +1013,13 @@ You are interested in understanding the impact of avocado price on its consumpti
 
 ### Observations
 
+<details class="transcript inline">
+<summary>Lecturer transcript</summary>
+
+The raw relationship is negative, which is consistent with downward-sloping demand, but the sign alone does not establish causality. A supply increase can lower price and raise quantity, also producing a negative association. A positive demand shock can raise both price and sales. Because market price and quantity are jointly determined, reverse causality or simultaneity is the default concern. We need institutional knowledge about when and how prices are set before treating the fitted relationship as a demand effect.
+
+</details>
+
 ::: {.columns}
 
 ::: {.column width="30%"}
@@ -800,7 +1034,7 @@ You are interested in understanding the impact of avocado price on its consumpti
 
 **Question**
 
-If you just regress avocado sales on its price, is the estimation of the coefficient on the pirce unbiased?
+If you regress avocado sales on price, is the coefficient estimator necessarily unbiased?
 
 <br>
 <details>
@@ -832,6 +1066,13 @@ g_avocado
 
 ### Endogeneity problem
 
+<details class="transcript">
+<summary>Lecturer transcript</summary>
+
+The proposed timing rule is an identifying assumption, not a fact supplied by the data. Suppose suppliers set all weekly prices at the start of a month and do not revise them after seeing realized weekly demand. Then demand shocks later in that month cannot feed back into those planned prices. Month fixed effects remove all differences between months, leaving weekly price variation within a month. The design is credible only if planned within-month prices are also unrelated to other weekly demand shocks such as promotions or holidays.
+
+</details>
+
 **Problem**
 
 Reverse Causality: Price affects demand and demand affects price.
@@ -840,17 +1081,24 @@ Reverse Causality: Price affects demand and demand affects price.
 
 **contextual knowledge**
 
-Now, suppose you learned the following fact after studying the supply and purchasing mechanism on the avocado market:
+Now suppose that, after studying the supply and purchasing mechanism in the avocado market, you can credibly defend the following assumption:
 
-<span style = "color: blue;"> At the beginning of each month, avocado suppliers make a plan for what avocado prices will be each week in that month, and never change their plans until the next month. </span>
+<span style = "color: blue;">At the beginning of each month, avocado suppliers set the price for each week of that month and do not revise those prices in response to realized weekly demand.</span>
 
-This means that within the same month changes in avocado price every week is not a function of how much avocado has been bought in the previous weeks, effectively breaking the causal effect of demand on price. 
+Under this assumption, within-month weekly price changes do not respond to realized weekly demand shocks. This breaks the reverse-causality channel within a month, provided the planned prices are also unrelated to other within-month demand shocks.
 
-So, our estimation strategy would be to just look at the variations in demand and price <span style = "color: blue;"> within </span> individual months, but ignore variations in price <span style = "color: blue;"> between</span> months.
+The proposed strategy therefore uses variation in demand and price <span style = "color: blue;">within</span> months while absorbing variation <span style = "color: blue;">between</span> months.
 
 ### Clean variations
 
-The figure below presents avocado sales and price of avocado in March, 2015. This is an example of clean variations in price (intra-month observations). 
+<details class="transcript inline">
+<summary>Lecturer transcript</summary>
+
+The March 2015 points illustrate the variation that would remain after adding month-by-year fixed effects. We compare weeks within this single pricing period rather than March with February or with March in another year. Under the hypothetical price-setting rule, these movements are candidate exogenous price variation. The graph cannot verify the assumption; it only helps us see which observations make the comparison. Credibility comes from evidence about the pricing mechanism and the absence of correlated within-month demand shocks.
+
+</details>
+
+The figure below presents avocado sales and prices in March 2015. Under the stated timing assumption, these within-month price changes are candidate identifying variation.
 
 ```{r echo = F, cache = F}
 
@@ -883,6 +1131,13 @@ dfavo %>%
 
 #### Case 1
 
+<details class="transcript">
+<summary>Lecturer transcript</summary>
+
+With three months of weekly observations, include an indicator for each month, omitting one reference group. This absorbs every factor that is constant within a month but differs across the three months. The price coefficient is then estimated from week-to-week price variation inside each month. The answer follows the assumed timing of price assignment: the fixed-effect group should match the period over which common confounders and the pricing plan are shared.
+
+</details>
+
 We have three months of avocado purchase and price observed weekly.
 
 <br>
@@ -900,6 +1155,13 @@ Include month dummy variables.
 
 #### Case 2
 
+<details class="transcript">
+<summary>Lecturer transcript</summary>
+
+Over two years, month-of-year indicators are not enough. A January dummy would group January 2015 with January 2016 and allow the regression to use their between-year difference. The design calls for a separate fixed effect for each calendar month-year, such as January 2015, February 2015, and January 2016. That specification keeps only weekly deviations within the same month-year and matches the hypothetical monthly price-setting rule.
+
+</details>
+
 We have two years of avocado purchase and price observed weekly.
 
 <br>
@@ -913,7 +1175,7 @@ What should we do?
   <summary>Answer</summary>
 + Include <span style = "color: blue;"> month-year </span> dummy variables. 
 
-+ Including <span style = "color: blue;"> month </span> dummy variables will not do it. Because the observations in the same month in two different years are considered to belong to the same group. That is, variations between two different years of the same month will be used for estimation. (e.g., January in 2014 and January in 2015)
++ Month-of-year dummies alone are insufficient because, for example, January 2014 and January 2015 would belong to the same group. The regression would still use variation between those two month-years.
 </details>
 
 :::
@@ -921,15 +1183,22 @@ What should we do?
 
 ### Key message
 
+<details class="transcript">
+<summary>Lecturer transcript</summary>
+
+Fixed effects are not a substitute for understanding the market. The raw price-sales relationship mixes many sources of variation, some endogenous. Contextual knowledge suggests which comparisons might be cleaner, and fixed effects let us isolate those comparisons. In this illustration, the pricing rule is hypothetical; an actual study would need evidence that prices were set in advance and that no other within-month shocks jointly affected planned price and demand. The general workflow is mechanism first, specification second.
+
+</details>
+
 **Message 1**
 
-By understanding the data generating process (knowing how any economic market works), we recognize the problem of simply looking at the relationship between the avocado price and demand to conclude the causal impact of price on demand (reverse causality).
+Understanding the data-generating process reveals why the raw relationship between avocado price and sales need not identify the causal effect of price on demand.
 
 <br>
 
 **Message 2**
 
-We study the context very well and how the avocado market works in California (of course it is not really how CA avocado market works in reality) and make use of the information to identify the "clean" variations in avocado price to identify its impact on demand.
+A credible causal design requires contextual knowledge that identifies which price variation is plausibly unrelated to unobserved demand shocks. The pricing rule here is hypothetical and is used only to illustrate that logic.
 
 :::
 <!--end of panel-->
@@ -940,26 +1209,40 @@ We study the context very well and how the avocado market works in California (o
 
 ### What is it?
 
-Just a collection of year dummies, which takes 1 if in a specific year, 0 otherwise.
+<details class="transcript inline">
+<summary>Lecturer transcript</summary>
+
+Year fixed effects are indicators shared by every observation in a calendar year. The toy table makes the pattern visible: all four units have `FE_2015` equal to one in 2015, and so forth. With an intercept, one year is omitted as the reference. Do not confuse year fixed effects with unit fixed effects. Unit effects compare an observation with the same unit's average; year effects remove shocks common to all units at a date.
+
+</details>
+
+A set of year indicators, each equal to 1 in a particular year and 0 otherwise.
 
 ```{webr-r}
 #| context: output
 year_fe <- data.frame(
-  id = rep(1:3, each = 4),
-  year = rep(2015:2017, 4),
+  id = rep(1:4, each = 3),
+  year = rep(2015:2017, times = 4),
   income = c(77, 82, 84, 110, 120, 131, 56, 60, 61, 70, 71, 74),
   educ = c(12:14, 18:20, 10:12, 13:15),
-  FE_2015 = rep(c(1, 0, 0), 4),
-  FE_2016 = rep(c(0, 1, 0), 4),
-  FE_2017 = rep(c(0, 0, 1), 4)
+  FE_2015 = rep(c(1, 0, 0), times = 4),
+  FE_2016 = rep(c(0, 1, 0), times = 4),
+  FE_2017 = rep(c(0, 0, 1), times = 4)
 )
 year_fe
 ```
 
 ### What do year FEs do? 
 
+<details class="transcript">
+<summary>Lecturer transcript</summary>
 
-They capture anything that happened to <span style = "color: red;"> all </span> the individuals for a specific year relative to the base year
+A year coefficient captures a common shift relative to the omitted year, holding the included covariates and other fixed effects constant. In the log-income example, sigma one compares 2012 with the 2014 base year. A coefficient of 0.05 is approximately a five-percent difference; exponentiating gives the exact 5.13 percent. Year effects can absorb recessions, inflation, nationwide policy, or other aggregate shocks, but they do not absorb shocks that vary differently across units within the same year.
+
+</details>
+
+
+They absorb shocks common to <span style = "color: red;">all</span> units in a particular year, measured relative to an omitted base year.
 
 <br>
 
@@ -967,31 +1250,38 @@ They capture anything that happened to <span style = "color: red;"> all </span> 
 
 Education and wage data from $2012$ to $2014$,
 
-$log(income) = \beta_0 + \beta_1 educ + \beta_2 exper  + \sigma_1 FE_{2012} + \sigma_2 FE_{2013}$
+$\log(income) = \beta_0 + \beta_1 educ + \beta_2 exper + \sigma_1 FE_{2012} + \sigma_2 FE_{2013}$
 
-+ $\sigma_1$: captures the difference in $log(income)$ between $2012$ and $2014$ (base year) 
++ $\sigma_1$: captures the difference in $\log(income)$ between $2012$ and $2014$ (the base year)
 
-+ $\sigma_2$: captures the difference in $log(income)$ between $2013$ and $2014$ (base year)
++ $\sigma_2$: captures the difference in $\log(income)$ between $2013$ and $2014$ (the base year)
 
 <br> 
 
 **Interpretation**
  
-$\sigma_1=0.05$ would mean that $log(income)$ is greater in $2012$ than $2014$ by $5\%$ on average for whatever reasons with everything else fixed.
+$\sigma_1=0.05$ means that, holding the included covariates fixed, expected income in 2012 is approximately $5\%$ higher than in 2014. The exact percentage is $100[\exp(0.05)-1]\approx5.13\%$.
 
 ### Recommendation
 
+<details class="transcript">
+<summary>Lecturer transcript</summary>
+
+Annual panels often include year effects because trending regressors can otherwise pick up a common economic trend. If education rises over time while the entire economy also raises incomes, a regression without year effects may attribute part of that aggregate growth to education. Adding year effects removes the common year component. It is a sensible default when such shocks are plausible, but it is not costless: a variable that takes the same value for everyone in a year is perfectly collinear with the year indicators.
+
+</details>
+
 **Recommendation**
 
-It is almost always a good practice to include year FEs if you are using a panel dataset with annual observations.
+Including year fixed effects is often a sensible default in annual panel data when common year shocks could confound the relationship of interest.
 
 <br>
 
 **Why?**
 
-+ Remember year FEs capture <span style = "color: blue;">anything</span> that happened to all the individuals for a specific year relative to the base year
++ Year fixed effects absorb aggregate shocks shared by all units in a given year, relative to the base year.
 
-+ In other words, <span style = "color: blue;">all the unobserved factors</span> that are common to all the individuals in a specific year is <span style = "color: blue;">controlled for (taken out of the error term)</span>
++ Thus, <span style = "color: blue;">unobserved factors common to all units</span> in a particular year are removed from the error term.
 
 <br>
 
@@ -999,17 +1289,24 @@ It is almost always a good practice to include year FEs if you are using a panel
 
 Economic trend in:
 
-$log(income) =  \beta_0 + \beta_1 educ + \sigma_1 FE_{2012} + \sigma_2 FE_{2013}$
+$\log(income) = \beta_0 + \beta_1 educ + \sigma_1 FE_{2012} + \sigma_2 FE_{2013}$
 
 + Education is non-decreasing through time
 
 + Economy might have either been going down or up during the observed period
 
-Without year FE, $\beta_1$ may capture the impact of overall economic trend. 
+Without year fixed effects, $\beta_1$ may partly capture the overall economic trend.
 
 ### R implementation
 
-In order to include year FEs to individual FEs, you can simply add the variable that indicates year like below:  
+<details class="transcript">
+<summary>Lecturer transcript</summary>
+
+The fixed-effects portion after the vertical bar can contain multiple dimensions. `id + year` absorbs both stable person differences and common year shocks. The education coefficient is then identified from education changes within a person after netting out the average movement in each year. The caveat explains an identification limit: with a full set of year effects, a national variable that changes only by year has no independent variation left. Dropping year effects just to recover its coefficient may reintroduce aggregate confounding.
+
+</details>
+
+To include year fixed effects alongside individual fixed effects, add the year variable to the fixed-effects portion of the formula:
   
 ```{webr-r}
 #| autorun: true
@@ -1017,10 +1314,10 @@ fixest::feols(I(log(income)) ~ educ | id + year, data = year_fe) %>%
   tidy()
 ```
 
-:::{.callout-important title="Caveats"}
-+ Year FEs would be perfectly collinear with variables that change only across time, but not across individuals.
+::: {.callout-important title="Caveats"}
++ Year fixed effects are perfectly collinear with variables that vary only over time and not across units.
 
-+ If your variable of interest is such a variable, you cannot include year FEs, which would then make your estimation subject to omitted variable bias due to <span style = "color: blue;">other</span> unobserved yearly-changing factors.
++ Consequently, a coefficient on a time-only variable cannot be estimated separately from a full set of year effects. Identifying it requires a different source of variation or additional structure; simply omitting year effects may introduce confounding from other aggregate shocks.
 :::
 
 :::
@@ -1031,64 +1328,85 @@ fixest::feols(I(log(income)) ~ educ | id + year, data = year_fe) %>%
 
 ::: {.panel-tabset}
 
-### non-homegeneous error
+### Dependence and heteroskedasticity
+
+<details class="transcript">
+<summary>Lecturer transcript</summary>
+
+Panel observations for the same unit are usually not independent. An unobserved shock can persist, making this year's error related to next year's error for the same person, firm, or state. This is serial correlation. Error variance can also differ across units or time. Fixed effects address certain omitted variables in the conditional mean; they do not automatically make the errors homoskedastic or independent. Standard-error estimation must reflect the dependence structure separately from coefficient estimation.
+
+</details>
 
 **Heteroskedasticity**
 
-Just like we saw for OLS using cross-sectional data, heteroskedasticity leads to biased estimation of the standard error of the coefficient estimators if not taken into account
+As with cross-sectional OLS, ignoring heteroskedasticity generally produces inconsistent standard-error estimates.
 
 <br>
 
 **Serial Correlation**
 
-Correlation of errors over time, which we call <span style = "color: blue;">serial correlation</span>
+Errors for the same unit may be correlated over time; this is called <span style = "color: blue;">serial correlation</span>.
 
 
 ### Consequences?
 
-+ just like heteroskedasticity, serial correlation could lead to biased estimation of the standard error of the coefficient estimators if not taken into account
+<details class="transcript">
+<summary>Lecturer transcript</summary>
 
-+ do not affect the unbiasedness and consistency property of your estimators
+If the exogeneity assumptions hold, serial correlation does not by itself bias the fixed-effects slope, but conventional standard errors can be badly wrong. Persistent treatments and outcomes make the problem especially severe because repeated observations from one unit contain less independent information than ordinary formulas assume. The Bertrand, Duflo, and Mullainathan placebo exercise makes the stakes concrete: a nominal five-percent procedure rejected far too often when grouped dependence was ignored. The lesson is to align inference with the level at which shocks are correlated.
 
-:::{.callout-important}
-+ Taking into account the potential of serial correlation when estimating the standard error of the coefficient estimators can dramatically change your conclusions about the statistical significance of some independent variables!!
+</details>
 
-+ When serial correlation is ignored, you tend to underestimate the standard error (why?), inflating $t$-statistic, which in turn leads to over-rejection that you should.
++ Like heteroskedasticity, unmodeled serial correlation generally makes conventional standard errors inconsistent.
 
-**Bertrand, Duflo, and Mullainathan (2004)**
++ Serial correlation alone does not bias the FE coefficient estimator when the required exogeneity assumptions hold, but it does affect efficiency and inference.
 
-+ Examined how problematic serial correlation is in terms of inference via Monte Carlo simulation
+::: {.callout-important}
++ Accounting for serial correlation can substantially change conclusions about statistical significance.
 
-  * generate a fake treatment dummy variable in a way that it has no impact on the outcome (dependent variable) in the dataset of women's wages from the Current Population Survey (CPS)
++ With persistent outcomes and treatments, ignoring positive serial correlation often understates standard errors, inflates t-statistics, and causes excessive rejection of true null hypotheses.
 
-  * run regression of the oucome on the treatment variable
+**[Bertrand, Duflo, and Mullainathan (2004)](https://www.nber.org/papers/w8841)**
 
-  * test if the treatment variable has statistically significant effect via $t$-test
++ Examined inference problems using placebo-law simulations in Current Population Survey data on women's wages.
 
-+ They rejected the null $67.5\%$ at the $5\%$ significance level!!
+  * Randomly generate placebo treatment laws that have no true effect.
+
+  * Regress the outcome on the placebo treatment and controls.
+
+  * Test whether the placebo treatment appears statistically significant.
+
++ In their baseline CPS microdata specification without correction for grouped errors, they rejected the null in $67.5\%$ of simulations using a nominal $5\%$ test.
 
 :::
 
 ### What to do and R implementation
 
+<details class="transcript">
+<summary>Lecturer transcript</summary>
+
+Clustering by unit allows arbitrary heteroskedasticity and serial correlation within each unit while relying on independence across units and a sufficiently large number of clusters. In `feols`, `cluster = ~id` requests that estimator. Clustering is not a universal correction: it does not handle common shocks across units, and conventional cluster approximations can perform poorly with few clusters. This example has only four people, so the command teaches syntax, not defensible inference. In an application, justify the cluster level from the error-generating and treatment-assignment processes.
+
+</details>
+
 **SE robust to heteroskedasticity and serial correlation**
 
-+ You can take into account <span style = "color: blue;"> both </span> heteroskedasticity and serial correlation by clustering by individual (whatever the unit of individual is: state, county, farmer)
++ With many independent units, clustering by unit (e.g., state, county, or farmer) allows arbitrary heteroskedasticity and within-unit serial correlation.
 
-+ Cluster by individual can take into account the correlation within individuals (over time) 
++ Unit-clustered standard errors do not address dependence across units, and conventional cluster asymptotics can be unreliable with few clusters.
 
 <br>
 
 **R implementation**
 
-The last partition is used for clustering standard error estimation by variable like below.
+The `cluster` argument specifies the clustering variable:
   
 ```{webr-r}
 #| autorun: true
 fixest::feols(I(log(income)) ~ educ | id + year, cluster = ~id, data = year_fe) %>% tidy()
 ```
 
+This toy dataset has only four clusters, so the output illustrates syntax rather than reliable cluster-based inference.
+
 :::
 <!--end of panel-->
-
-

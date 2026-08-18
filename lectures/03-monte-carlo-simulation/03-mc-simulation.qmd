@@ -1,22 +1,29 @@
 ---
 title: "03: Monte Carlo Simulation"
 format: 
-  revealjs: 
+  revealjs:
+    html-math-method: katex
     theme: [default, ../custom.scss, ../notebook.scss]
     fontsize: 1.2em
     callout-icon: false
     scrollable: true
     echo: true
     fig-dpi: 400
-    include-in-header: ../transcript-support.html
+    include-in-header:
+      - ../transcript-support.html
+      - ../webr-layout.html
     footer: "[back to course website with lecture slides](https://tmieno2.github.io/Applied-Econometrics-MS-Quarto/lectures/)"
 execute:
   echo: true
-  out-width: 80%
+  out-width: 55%
 webr:
   packages: ['fixest', 'dplyr', 'data.table', 'ggplot2', 'modelsummary']
   cell-options:
     editor-font-scale: 0.8
+    dpi: 216
+    fig-width: 7
+    fig-height: 4.5
+    out-width: 55%
 filters:
   - webr
 ---
@@ -107,7 +114,7 @@ Read the word in blue: you. You generate the data, and that single fact is what 
 <details class="transcript">
 <summary>Lecturer transcript</summary>
 
-Before we simulate anything we need to be able to generate data, which means random numbers. Note the word in blue: approximate. A computer cannot produce truly random numbers; it runs a deterministic algorithm whose output has the statistical properties of randomness. For our purposes that is entirely good enough. Run the first cell. Runif of 5 gives you five draws from a uniform distribution between zero and one, which is the default. Then run the second, which draws ten thousand and plots a histogram. Look at the shape: flat, because every value between zero and one is equally likely.
+Before we simulate anything we need to generate random-looking numbers. The standard generators used by statistical software are pseudorandom: a deterministic algorithm produces a sequence designed to have the statistical properties of random draws. Hardware sources of physical randomness do exist, but simulation normally uses pseudorandom generators because they are fast and reproducible. Run the first cell. `runif(5)` gives five draws from a uniform distribution between zero and one. Then run the second, which draws ten thousand and plots a histogram. Look at the approximately flat shape, because equal-length intervals between zero and one have equal probability.
 
 </details>
 
@@ -267,7 +274,7 @@ ggplot() +
     "text",
     label = paste0("dnorm(-1) = ", round(dnorm(-1), digits = 2)),
     y = 0.25, x = -2,
-    size = 3
+    size = 8
   ) +
   geom_line(
     data = data.table(y = seq(0, dnorm(-1), length = 20), x = -1),
@@ -283,7 +290,7 @@ ggplot() +
     "text",
     label = paste0("dnorm(2) = ", round(dnorm(2), digits = 2)),
     y = 0.1, x = 2.5,
-    size = 3
+    size = 8
   ) +
   geom_line(
     data = data.table(y = seq(0, dnorm(2), length = 20), x = 2),
@@ -292,7 +299,7 @@ ggplot() +
   ) +
   geom_hline(yintercept = 0) +
   geom_vline(xintercept = 0) +
-  theme_bw()
+  theme_bw(base_size = 30)
 ```
 
 ### `pnorm()`
@@ -323,11 +330,11 @@ ggplot() +
     "text",
     label = paste0("pnorm(-1) = ", round(pnorm(-1), digits = 2)),
     y = 0.05, x = 0,
-    size = 3
+    size = 8
   ) +
   geom_hline(yintercept = 0) +
   geom_vline(xintercept = 0) +
-  theme_bw()
+  theme_bw(base_size = 30)
 ```
 
 #### pnorm(2)
@@ -353,11 +360,11 @@ ggplot() +
     "text",
     label = paste0("pnorm(2) = ", round(pnorm(2), digits = 2)),
     y = 0.05, x = 0,
-    size = 3
+    size = 8
   ) +
   geom_hline(yintercept = 0) +
   geom_vline(xintercept = 0) +
-  theme_bw()
+  theme_bw(base_size = 30)
 ```
 
 #### Exercise
@@ -433,18 +440,18 @@ ggplot() +
     "text",
     label = "qnorm(0.95)=1.64",
     x = 2.2, y = 0.3,
-    size = 3
+    size = 8
   ) +
   geom_point(aes(y = 0, x = 1.64)) +
   annotate(
     "text",
     label = "1.64",
     x = 1.64, y = 0.03,
-    size = 3
+    size = 8
   ) +
   geom_hline(yintercept = 0) +
   geom_vline(xintercept = 0) +
-  theme_bw()
+  theme_bw(base_size = 30)
 ```
 
 #### Exercise
@@ -452,7 +459,7 @@ ggplot() +
 <details class="transcript">
 <summary>Lecturer transcript</summary>
 
-Your turn again, and this one has a shortcut worth seeing. You want the eighty-eight percent quantile of a Normal with mean zero and standard deviation nine. Do it directly first, in the work cell. Then read the note under the answer. The standard Normal quantile is about one point one seven, and scaling the standard deviation by nine scales the quantile by nine too, giving about ten point six. That is a general property: quantiles scale with the standard deviation. It is also why standardising a variable is such a common move, since it converts every distribution back to the one you have memorised.
+Your turn again, and this one has a shortcut worth seeing. You want the eighty-eight percent quantile of a Normal with mean zero and standard deviation nine. Do it directly first, in the work cell. Then read the note under the answer. The standard Normal quantile is about one point one seven, and multiplying the standard deviation by nine multiplies this zero-mean Normal quantile by nine, giving about ten point six. More generally, a Normal quantile is $\mu+\sigma z_p$. That is why standardising a Normal variable is useful: it converts it to the standard Normal whose quantiles you know.
 
 </details>
 
@@ -870,7 +877,8 @@ One last look, because averages hide things. This plots the whole distribution o
 ```{webr-r}
 ggplot(data = data.frame(x = V_beta_storage)) +
   geom_density(aes(x = x)) +
-  geom_vline(xintercept = round(4 / SST_X, digits = 4))
+  geom_vline(xintercept = round(4 / SST_X, digits = 4)) +
+  theme_bw(base_size = 30)
 ```
 :::
 <!--end of panel-->
@@ -958,11 +966,13 @@ sd(beta_2s)
 <details class="transcript">
 <summary>Lecturer transcript</summary>
 
-And here it is as a picture, which is worth more than the four numbers. Two densities, both centered on the true value of one, so unbiasedness is not what separates them. But the distribution for equation two, with the more spread out x, is dramatically narrower. Same truth, same sample size, same conditions satisfied, and yet one estimator is far more precise. That is the practical lesson: variation in your independent variable is information, and an x that barely moves gives OLS almost nothing to work with, however many observations you collect.
+And here it is as a picture, which is worth more than the four numbers. Two densities, both centered on the true value of one, so unbiasedness is not what separates them. But the distribution for equation two, with the more spread out x, is dramatically narrower. Same truth, same sample size, same conditions satisfied, and yet one estimator is far more precise. That is the practical lesson: variation in your independent variable is information. An x that barely moves gives OLS little information per observation, although increasing the sample size can still improve precision.
 
 </details>
 
 ```{webr-r}
+#| fig-width: 9
+#| fig-height: 6.5
 
 plot_data_1 <- data.table(x = beta_1s, type = "Equation 1")
 plot_data_2 <- data.table(x = beta_2s, type = "Equation 2")
@@ -971,13 +981,10 @@ ggplot(data = plot_data) +
   geom_density(aes(x = x, fill = type), alpha = 0.5) +
   scale_fill_discrete(name = "") +
   xlab("Coefficient Estimate") +
+  theme_bw(base_size = 30) +
   theme(
     legend.position = "bottom"
   )
 ```
 :::
 <!--end of panel-->
-
-
-
-

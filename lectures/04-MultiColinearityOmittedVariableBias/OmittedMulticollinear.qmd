@@ -1,22 +1,29 @@
 ---
 title: "04: Omitted Variable Bias and Multicollinearity"
 format: 
-  revealjs: 
+  revealjs:
+    html-math-method: katex
     theme: [default, ../custom.scss, ../notebook.scss]
     fontsize: 1.2em
     callout-icon: false
     scrollable: true
     echo: true
     fig-dpi: 400
-    include-in-header: ../transcript-support.html
+    include-in-header:
+      - ../transcript-support.html
+      - ../webr-layout.html
     footer: "[back to course website with lecture slides](https://tmieno2.github.io/Applied-Econometrics-MS-Quarto/lectures/)"
 execute:
   echo: true
-  out-width: 80%
+  out-width: 55%
 webr:
   packages: ['fixest', 'dplyr', 'data.table', 'ggplot2']
   cell-options:
     editor-font-scale: 0.8
+    dpi: 216
+    fig-width: 7
+    fig-height: 4.5
+    out-width: 55%
 filters:
   - webr
 ---
@@ -167,7 +174,7 @@ $y_i=\beta_0 + \beta_1 x_{1,i} + \beta_2 x_{2,i} + u_i$
 + $E[u_i|x_{1,i},x_{2,i}]=0$
 
 :::{.callout-note title="Example"}
-$\mbox{corn yield} = \beta_0 + \beta_1 \times N + \beta_2 \times \mbox{farmer's height} + u$
+$\text{corn yield} = \beta_0 + \beta_1 \times N + \beta_2 \times \text{farmer's height} + u$
 
 + a farmer's height does not affect yield ($\beta_2 = 0$), and it is not related to how much nitrogen they apply ($cor(x_1,x_2)=0$)
 :::
@@ -185,7 +192,7 @@ We will estimate the following models:
 
 <br>
 
-$EE_1$: $y_i=\beta_0 + \beta_1 x_{1,i} + v_i \mbox{ , where } (v_i = \beta_2 x_{2,i} + u_i)$
+$EE_1$: $y_i=\beta_0 + \beta_1 x_{1,i} + v_i \text{ , where } (v_i = \beta_2 x_{2,i} + u_i)$
 
 $EE_2$: $y_i=\beta_0 + \beta_1 x_{1,i} + \beta_2 x_{2,i} + u_i$
 
@@ -267,6 +274,7 @@ g_case_1 <- ggplot(data = plot_data) +
   scale_fill_discrete(name = "Estimating Equation") +
   geom_vline(xintercept = 1, color = "blue", linewidth = 1) + # the true beta_1
   xlab("Estimate of beta_1") +
+  theme_bw(base_size = 30) +
   theme(legend.position = "bottom")
 ```
 
@@ -276,11 +284,13 @@ g_case_1 <- ggplot(data = plot_data) +
 <details class="transcript">
 <summary>Lecturer transcript</summary>
 
-Two densities, and the blue line is the true beta-one of one. Look at three things. Both densities are centered on the blue line, so both estimating equations are unbiased, which is what you would hope. Their widths are essentially identical, so including x-two cost you nothing in precision. And they overlap almost perfectly. That is case one in a picture: an irrelevant, uncorrelated variable is simply harmless. Keep this image in mind, because in the next three cases one or both of those observations will fail, and you will be able to see exactly which.
+Two densities, and the blue line is the true beta-one of one. Look at three things. Both densities are centered on the blue line, so both estimating equations are unbiased, which is what you would hope. Their widths are nearly identical in this simulation. In a finite sample, the sample correlation will not be exactly zero and estimating an extra coefficient uses a degree of freedom, so the added variable is not literally free. But an irrelevant variable that is orthogonal to x-one has no systematic precision benefit, and its cost becomes negligible here. Keep this image in mind, because in the next three cases one or both of those observations will fail.
 
 </details>
 
 ```{webr-r}
+#| fig-width: 9
+#| fig-height: 6.5
 g_case_1
 ```
 
@@ -529,7 +539,7 @@ $$
 <details class="transcript">
 <summary>Lecturer transcript</summary>
 
-Here is the comparison laid out. Read the three columns. Both models have R-squared-j equal to zero and both have error variance sigma-u squared, and the formula in the third column takes only those two inputs plus the sum of squares of x-one, which does not depend on which model you run. Every ingredient is identical, so the variances are identical. That is the answer, and it is worth saying what it means practically: adding a useless, uncorrelated control variable is free. It does not help, but it costs you nothing either.
+Here is the population comparison laid out. When x-two is orthogonal to x-one, the multicollinearity term is zero, and both models have error variance sigma-u squared. In an actual finite sample, their sample correlation will generally be small rather than exactly zero, and the larger model also estimates one more coefficient. Thus the variances need not be exactly identical, although they are nearly so in this design. The practical lesson is that an irrelevant, nearly uncorrelated control offers no precision gain and usually has only a small precision cost.
 
 </details>
 
@@ -613,7 +623,7 @@ $y_i=\beta_0 + \beta_1 x_{1,i} + \beta_2 x_{2,i} + u_i$
 + $E[u_i|x_{1,i},x_{2,i}]=0$
 
 :::{.callout-note title="Example"}
-$\mbox{corn yield} = \beta_0 + \beta_1 \times N + \beta_2 \times \mbox{fertilizer expenditure} + u$
+$\text{corn yield} = \beta_0 + \beta_1 \times N + \beta_2 \times \text{fertilizer expenditure} + u$
 
 + fertilizer expenditure is almost entirely determined by how much nitrogen is applied ($cor(x_1,x_2)\ne 0$), but once you know $N$ it tells you nothing more about yield ($\beta_2 = 0$)
 :::
@@ -631,7 +641,7 @@ We will estimate the following models:
 
 <br>
 
-$EE_1$: $y_i=\beta_0 + \beta_1 x_{1,i} + v_i \mbox{ , where } (v_i = \beta_2 x_{2,i} + u_i)$
+$EE_1$: $y_i=\beta_0 + \beta_1 x_{1,i} + v_i \text{ , where } (v_i = \beta_2 x_{2,i} + u_i)$
 
 $EE_2$: $y_i=\beta_0 + \beta_1 x_{1,i} + \beta_2 x_{2,i} + u_i$
 
@@ -715,6 +725,7 @@ g_case_2 <-
   scale_fill_discrete(name = "Estimating Equation") +
   geom_vline(xintercept = 1, color = "blue", linewidth = 1) + # the true beta_1
   xlab("Estimate of beta_1") +
+  theme_bw(base_size = 30) +
   theme(legend.position = "bottom")
 ```
 
@@ -728,6 +739,8 @@ Now look at the difference from case one. Both densities are still centered on t
 </details>
 
 ```{webr-r}
+#| fig-width: 9
+#| fig-height: 6.5
 g_case_2
 ```
 
@@ -1073,7 +1086,7 @@ $y_i=\beta_0 + \beta_1 x_{1,i} + \beta_2 x_{2,i} + u_i$
 + $E[u_i|x_{1,i},x_{2,i}]=0$
 
 :::{.callout-note title="Example"}
-$\mbox{corn yield} = \beta_0 + \beta_1 \times N + \beta_2 \times \mbox{growing season rainfall} + u$
+$\text{corn yield} = \beta_0 + \beta_1 \times N + \beta_2 \times \text{growing season rainfall} + u$
 
 + rainfall clearly affects yield ($\beta_2 \ne 0$), but a farmer chooses their nitrogen rate before the season starts, so it is unrelated to the rain they end up getting ($cor(x_1,x_2) = 0$)
 :::
@@ -1091,7 +1104,7 @@ We will estimate the following models:
 
 <br>
 
-$EE_1$: $y_i=\beta_0 + \beta_1 x_{1,i} + v_i \mbox{ , where } (v_i = \beta_2 x_{2,i} + u_i)$
+$EE_1$: $y_i=\beta_0 + \beta_1 x_{1,i} + v_i \text{ , where } (v_i = \beta_2 x_{2,i} + u_i)$
 
 $EE_2$: $y_i=\beta_0 + \beta_1 x_{1,i} + \beta_2 x_{2,i} + u_i$
 
@@ -1174,6 +1187,7 @@ g_case_3 <-
   scale_fill_discrete(name = "Estimating Equation") +
   geom_vline(xintercept = 1, color = "blue", linewidth = 1) + # the true beta_1
   xlab("Estimate of beta_1") +
+  theme_bw(base_size = 30) +
   theme(legend.position = "bottom")
 ```
 
@@ -1187,6 +1201,8 @@ And here is the surprise, if you predicted bias. Both densities are still center
 </details>
 
 ```{webr-r}
+#| fig-width: 9
+#| fig-height: 6.5
 g_case_3
 ```
 
@@ -1370,7 +1386,7 @@ Var(error) & = Var(v_i) \\
 <details class="transcript">
 <summary>Lecturer transcript</summary>
 
-And for the model that includes x-two, both terms are back to their smallest values. R-squared-j is zero on average, since x-one and x-two are uncorrelated, so the denominator is untouched. And the error variance is just sigma-u squared, because x-two is properly accounted for rather than dumped into the error. Run the cell if you want to see R-squared-j come out near zero. So this model has the smaller numerator and the same denominator, which settles the comparison before we even get to the next tab.
+And for the model that includes x-two, both terms are back near their smallest values. The population relationship between x-one and x-two is zero, so sample R-squared-j is near zero rather than exactly zero. The error variance is just sigma-u squared, because x-two is properly accounted for rather than dumped into the error. The large reduction in the numerator drives the comparison in this design; the small finite-sample denominator and degrees-of-freedom differences do not overturn it.
 
 </details>
 
@@ -1448,7 +1464,7 @@ $$
 <details class="transcript">
 <summary>Lecturer transcript</summary>
 
-The comparison, and now it runs the other way. Both have R-squared-j equal to zero, so the denominators match. But the numerators differ: the model omitting x-two carries beta-two squared times the variance of x-two on top of sigma-u squared, while the model including it carries only sigma-u squared. Bigger numerator, same denominator, bigger variance. So including x-two is strictly better here. Compare this against case two, where including it was strictly worse. Same formula, opposite conclusion, because a different term moved.
+The comparison now runs the other way. At the population level the regressors are orthogonal, so the multicollinearity denominator is unchanged. But the error variances differ: the model omitting x-two carries beta-two squared times the variance of x-two on top of sigma-u squared, while the model including it carries only sigma-u squared. In this design that precision gain easily dominates the small finite-sample cost of estimating another coefficient. Compare this against case two, where strong collinearity made inclusion costly.
 
 </details>
 
@@ -1531,7 +1547,7 @@ $y_i=\beta_0 + \beta_1 x_{1,i} + \beta_2 x_{2,i} + u_i$
 + $E[u_i|x_{1,i},x_{2,i}]=0$
 
 :::{.callout-note title="Example"}
-$\mbox{corn yield} = \beta_0 + \beta_1 \times N + \beta_2 \times \mbox{soil quality} + u$
+$\text{corn yield} = \beta_0 + \beta_1 \times N + \beta_2 \times \text{soil quality} + u$
 
 + better soil raises yield ($\beta_2 \ne 0$), and farmers apply nitrogen differently on good and poor ground ($cor(x_1,x_2) \ne 0$)
 + this is the case that actually happens in practice, and the one you have to worry about
@@ -1550,7 +1566,7 @@ We will estimate the following models:
 
 <br>
 
-$EE_1$: $y_i=\beta_0 + \beta_1 x_{1,i} + v_i \mbox{ , where } (v_i = \beta_2 x_{2,i} + u_i)$
+$EE_1$: $y_i=\beta_0 + \beta_1 x_{1,i} + v_i \text{ , where } (v_i = \beta_2 x_{2,i} + u_i)$
 
 $EE_2$: $y_i=\beta_0 + \beta_1 x_{1,i} + \beta_2 x_{2,i} + u_i$
 
@@ -1635,6 +1651,7 @@ g_case_4 <-
   geom_vline(xintercept = 1, color = "blue", linewidth = 1) + # the true beta_1
   geom_vline(xintercept = 1.988, color = "red", linetype = 2, linewidth = 1) + # predicted plim of EE1
   xlab("Estimate of beta_1") +
+  theme_bw(base_size = 30) +
   theme(legend.position = "bottom")
 ```
 
@@ -1648,6 +1665,8 @@ And there it is. The two densities are no longer on top of each other, and one o
 </details>
 
 ```{webr-r}
+#| fig-width: 9
+#| fig-height: 6.5
 g_case_4
 ```
 
@@ -1938,7 +1957,7 @@ $$
 <details class="transcript">
 <summary>Lecturer transcript</summary>
 
-Look at the columns and you will see why the answer is, honestly, it depends. The model omitting x-two has the larger numerator but an untouched denominator. The model including it has the smaller numerator but a denominator shrunk by R-squared-j. Neither dominates. Which one has the smaller variance depends on the actual numbers: how strong the correlation is, how large beta-two is, how spread out x-two is. The next two tabs work through one setting of those numbers and then deliberately reverse them.
+This comparison needs more care than the first three cases. The familiar variance formula assumes the regression error satisfies the exogeneity condition. In EE1 here, the composite error contains x-two and is correlated with x-one, so we cannot obtain its sampling variance by simply inserting the unconditional variance of that composite error into the usual formula. The Monte Carlo distributions can still illustrate bias and dispersion for this particular data-generating process, but the columns below are intuition, not a valid general variance derivation for EE1.
 
 </details>
 
@@ -1986,7 +2005,7 @@ It depends.
 <details class="transcript">
 <summary>Lecturer transcript</summary>
 
-Let's put numbers on it for the simulation we just ran. Run the cell: R-squared-j is about zero point nine seven six, so one minus it is about zero point zero two four, and the denominator for the including model is shrunk by a factor of roughly forty. Meanwhile the omitting model's numerator rose only from one to about one point eight two, so its penalty is a near-doubling. A factor of two against a factor of forty is no contest. That is why the omitting model came out with the lower variance here.
+Let's put numbers on the correctly specified EE2: R-squared-j is about zero point nine seven six, so one minus it is about zero point zero two four. That strong collinearity makes the EE2 estimate imprecise. The simulation shows that the biased EE1 estimate is less dispersed in this design. Do not justify EE1's dispersion by plugging 1.82 into the standard exogenous-error formula, however; EE1 violates the condition under which that formula was derived.
 
 </details>
 
@@ -2014,7 +2033,7 @@ A near-doubling of the numerator is no match for a denominator shrunk by a facto
 <details class="transcript">
 <summary>Lecturer transcript</summary>
 
-Now let's deliberately reverse the magnitudes and watch the ranking flip. X-one and x-two now share almost nothing, so R-squared-j is tiny and the denominator is barely touched. But beta-two is five and the variance of x-two is about five, so omitting x-two inflates the numerator enormously. Run both cells. The variances come out around one point eight against zero point zero one three, the reverse of before. Same formula, same four conditions, opposite answer, purely because the numbers changed. Nothing here is a rule of thumb.
+Now let's deliberately change the data-generating process and watch the simulated ranking flip. X-one and x-two share almost nothing, so including x-two creates little multicollinearity, while x-two has a large effect and substantial independent variation. Run both cells. The simulated variances reverse their earlier ranking. This demonstrates that a biased estimator can be more or less dispersed than the correctly specified estimator depending on the design; it does not restore the invalid plug-in variance calculation for EE1.
 
 </details>
 
@@ -2052,6 +2071,8 @@ c(EE1 = var(storage_rev[, 1]), EE2 = var(storage_rev[, 2]))
 <br>
 
 ```{webr-r}
+#| fig-width: 9
+#| fig-height: 6.5
 plot_data_rev <- rbind(
   data.table(bhat = storage_rev[, 1], type = "EE 1"),
   data.table(bhat = storage_rev[, 2], type = "EE 2")
@@ -2062,6 +2083,7 @@ ggplot(data = plot_data_rev) +
   scale_fill_discrete(name = "Estimating Equation") +
   geom_vline(xintercept = 1, color = "blue", linewidth = 1) +
   xlab("Estimate of beta_1") +
+  theme_bw(base_size = 30) +
   theme(legend.position = "bottom")
 ```
 
@@ -2181,7 +2203,7 @@ The four sign combinations, and they follow directly from the formula. Bias is b
 
 **Magnitude of bias**
 
-+ The greater the correlation between $x_1$ and $x_2$, the greater the bias
++ Holding the standard deviations of $x_1$ and $x_2$ fixed, the greater $|Cor(x_1,x_2)|$ is, the greater the absolute bias
 
 + The greater $|\beta_2|$ is, the greater the bias
 
@@ -2205,7 +2227,7 @@ Work this one out yourself before I say anything. Nitrogen is your variable of i
 
 $$
 \begin{aligned}
-\mbox{corn yield} = \alpha + \beta \cdot N + (\gamma \cdot \mbox{soil erodability}  + \mu)
+\text{corn yield} = \alpha + \beta \cdot N + (\gamma \cdot \text{soil erodability}  + \mu)
 \end{aligned}
 $$
 
@@ -2225,7 +2247,7 @@ This is the classic housing example, and it is worth knowing because it appears 
 
 $$
 \begin{aligned}
-\mbox{house price} = \alpha + \beta \cdot \mbox{dist to incinerators} + (\gamma \cdot \mbox{dist to city center}  + \mu)
+\text{house price} = \alpha + \beta \cdot \text{dist to incinerators} + (\gamma \cdot \text{dist to city center}  + \mu)
 \end{aligned}
 $$
 
@@ -2245,13 +2267,13 @@ One from my own field. You are estimating the effect of precipitation on groundw
 
 $$
 \begin{aligned}
-\mbox{groundwater use} = \alpha + \beta \cdot \mbox{precipitation} + (\gamma \cdot \mbox{center pivot}  + \mu)
+\text{groundwater use} = \alpha + \beta \cdot \text{precipitation} + (\gamma \cdot \text{center pivot}  + \mu)
 \end{aligned}
 $$
 
-$\mbox{groundwater use}$: groundwater use by a farmer for irrigated production
+$\text{groundwater use}$: groundwater use by a farmer for irrigated production
 
-$\mbox{center pivot}$: 1 if center pivot is used, 0 if flood irrigation (less effective) is used
+$\text{center pivot}$: 1 if center pivot is used, 0 if flood irrigation (less effective) is used
 
 + Farmers who have relatively low precipitation during the growing season tend to adopt center pivot more
 + center pivot applied water more efficiently than flood irrigation $(\gamma < 0)$
@@ -2277,7 +2299,7 @@ Here is why signing the bias is worth the effort. The true effect is minus ten, 
 
 $$
 \begin{aligned}
-\mbox{groundwater use} = \alpha + \beta \cdot \mbox{precipitation} + (\gamma \cdot \mbox{center pivot}  + \mu)
+\text{groundwater use} = \alpha + \beta \cdot \text{precipitation} + (\gamma \cdot \text{center pivot}  + \mu)
 \end{aligned}
 $$
 
@@ -2298,7 +2320,7 @@ And here is the case where the same reasoning gives you nothing. True effect min
 
 $$
 \begin{aligned}
-\mbox{house price} = \alpha + \beta \cdot \mbox{dist to incinerators} + (\gamma \cdot \mbox{dist to city center}  + \mu)
+\text{house price} = \alpha + \beta \cdot \text{dist to incinerators} + (\gamma \cdot \text{dist to city center}  + \mu)
 \end{aligned}
 $$
 
@@ -2313,8 +2335,3 @@ You believe the direction of bias is negative, and the estimated coefficient is 
 
 :::
 <!--end of panel-->
-
-
-
-
-
