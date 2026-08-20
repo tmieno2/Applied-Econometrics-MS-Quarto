@@ -36,15 +36,32 @@ filters:
 # NOTE: a webr setup cell renders a loading widget wherever it sits, so keep it
 # inside a content slide rather than on a section divider (or, worse, above the
 # first heading, where it becomes an untitled slide of its own).
-theme_lecture <-
-  theme_bw(base_size = 30) +
-  theme(
-    axis.text = element_text(size = 30),
-    axis.title = element_text(size = 30),
-    legend.text = element_text(size = 27),
-    legend.title = element_text(size = 27),
-    strip.text = element_text(size = 30)
-  )
+# Mirror of lecture_theme() in lectures/_lecture-theme.R — WebR cannot source
+# that file. Edit it first, then run `Rscript lectures/check-lecture-theme.R`,
+# which fails if this copy has drifted.
+lecture_theme <- function(base_size = 16) {
+  ggplot2::theme_bw(base_size = base_size) +
+    ggplot2::theme(
+      axis.text = ggplot2::element_text(size = base_size * 0.9),
+      axis.title = ggplot2::element_text(size = base_size),
+      legend.text = ggplot2::element_text(size = base_size * 0.9),
+      legend.title = ggplot2::element_text(size = base_size * 0.9),
+      plot.background = ggplot2::element_rect(fill = "transparent", colour = NA),
+      panel.background = ggplot2::element_rect(fill = "transparent", colour = NA),
+      legend.background = ggplot2::element_rect(fill = "transparent", colour = NA),
+      legend.key = ggplot2::element_rect(fill = "transparent", colour = NA),
+      # theme_bw's grey92 grid was chosen against a white panel and all but
+      # disappears on the warm paper once the panel stops being opaque.
+      panel.grid = ggplot2::element_line(colour = "grey87")
+    )
+}
+# The WebR canvas is 7x4.5in at out-width 55% of its output track
+# (lectures/_metadata.yml) — a similar pixels-per-inch to the 10in knitr canvas,
+# but often narrower when the cell renders side by side, so it runs a little
+# larger than the 16pt default. 30pt did not fit this canvas at all: the panel
+# collapsed into the top third and the legend clipped.
+theme_lecture <- lecture_theme(18) +
+  ggplot2::theme(strip.text = ggplot2::element_text(size = 18))
 ```
 
 ::: {.panel-tabset}
@@ -182,7 +199,7 @@ g_biased <-
   annotate(
     "text",
     x = 0, y = Inf, label = "true value",
-    color = "red", vjust = 1.6, hjust = -0.1, size = 4
+    color = "red", vjust = 1.6, hjust = -0.1, size = 3.5
   ) +
   theme_lecture +
   theme(legend.position = "bottom")

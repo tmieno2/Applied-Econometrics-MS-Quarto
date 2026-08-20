@@ -1,0 +1,483 @@
+<!-- Served by doGet() in Code.gs. Apps Script wraps this in its own
+     <html>/<head>, so this file is the page body plus its own styles. -->
+<style>
+  :root {
+    --bg: #ffffff;
+    --panel: #f7f8fa;
+    --ink: #1a1d21;
+    --muted: #5b6470;
+    --line: #d9dee5;
+    --accent: #9d2235;      /* UNL scarlet */
+    --accent-ink: #ffffff;
+    --ok: #1c6b3f;
+    --ok-bg: #e8f4ed;
+    --warn: #8a5a00;
+    --warn-bg: #fdf3e0;
+    --err: #a02020;
+    --err-bg: #fbeaea;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #16181c;
+      --panel: #1e2126;
+      --ink: #e8eaed;
+      --muted: #9aa3af;
+      --line: #333941;
+      --accent: #d4485c;
+      --accent-ink: #16181c;
+      --ok: #7cd6a4;
+      --ok-bg: #14301f;
+      --warn: #e5b567;
+      --warn-bg: #33280f;
+      --err: #f08585;
+      --err-bg: #331717;
+    }
+  }
+
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    padding: 1.75rem 1rem 4rem;
+    background: var(--bg);
+    color: var(--ink);
+    font: 16px/1.55 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  }
+  main { max-width: 40rem; margin: 0 auto; }
+
+  h1 { font-size: 1.4rem; margin: 0 0 .25rem; letter-spacing: -.01em; }
+  .sub { color: var(--muted); font-size: .9rem; margin: 0 0 1.75rem; }
+
+  label { display: block; font-weight: 600; font-size: .85rem; margin-bottom: .3rem; }
+  .hint { font-weight: 400; color: var(--muted); }
+
+  input[type=text], input[type=email], select {
+    width: 100%;
+    padding: .55rem .65rem;
+    font: inherit;
+    color: var(--ink);
+    background: var(--bg);
+    border: 1px solid var(--line);
+    border-radius: 6px;
+  }
+  input:focus, select:focus, button:focus-visible, .drop:focus-within {
+    outline: 2px solid var(--accent);
+    outline-offset: 1px;
+  }
+
+  .row { margin-bottom: 1.1rem; }
+  .two { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
+  @media (max-width: 30rem) { .two { grid-template-columns: 1fr; gap: 0; } .two .row { margin-bottom: 1.1rem; } }
+
+  .drop {
+    border: 1.5px dashed var(--line);
+    background: var(--panel);
+    border-radius: 8px;
+    padding: 1.25rem;
+    text-align: center;
+    color: var(--muted);
+    font-size: .9rem;
+    cursor: pointer;
+  }
+  .drop.over { border-color: var(--accent); color: var(--ink); }
+  .drop input { display: none; }
+  .drop b { color: var(--ink); }
+
+  ul.files { list-style: none; margin: .75rem 0 0; padding: 0; }
+  ul.files li {
+    display: flex; align-items: center; gap: .6rem;
+    padding: .45rem .6rem;
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    margin-bottom: .35rem;
+    font-size: .875rem;
+    background: var(--bg);
+  }
+  .fname { flex: 1; overflow-wrap: anywhere; }
+  .fsize { color: var(--muted); font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .fstate { white-space: nowrap; font-size: .8rem; }
+  .fstate.done { color: var(--ok); }
+  .fstate.fail { color: var(--err); }
+  .drop-x {
+    border: 0; background: none; color: var(--muted);
+    font-size: 1.1rem; line-height: 1; cursor: pointer; padding: 0 .2rem;
+  }
+  .drop-x:hover { color: var(--err); }
+
+  button.go {
+    width: 100%;
+    padding: .7rem 1rem;
+    font: inherit; font-weight: 650;
+    color: var(--accent-ink);
+    background: var(--accent);
+    border: 0; border-radius: 6px;
+    cursor: pointer;
+  }
+  button.go:disabled { opacity: .5; cursor: default; }
+
+  .note { border-radius: 6px; padding: .7rem .85rem; font-size: .875rem; margin-bottom: 1.1rem; }
+  .note.err { background: var(--err-bg); color: var(--err); }
+  .note.warn { background: var(--warn-bg); color: var(--warn); }
+  .note.ok { background: var(--ok-bg); color: var(--ok); }
+  .note ul { margin: .4rem 0 0; padding-left: 1.1rem; }
+
+  .receipt code {
+    display: block; font-size: .85rem; overflow-wrap: anywhere;
+  }
+  .hidden { display: none; }
+  footer { margin-top: 2rem; font-size: .8rem; color: var(--muted); }
+</style>
+
+<main>
+  <h1>Submit an assignment</h1>
+  <p class="sub" id="course"></p>
+
+  <div id="alert" class="note err hidden" role="alert"></div>
+
+  <form id="form" novalidate>
+    <div class="two">
+      <div class="row">
+        <label for="firstName">First name</label>
+        <input id="firstName" type="text" autocomplete="given-name" required>
+      </div>
+      <div class="row">
+        <label for="lastName">Last name</label>
+        <input id="lastName" type="text" autocomplete="family-name" required>
+      </div>
+    </div>
+
+    <div class="row">
+      <label for="email">Email <span class="hint">— your receipt goes here</span></label>
+      <input id="email" type="email" autocomplete="email" placeholder="you@huskers.unl.edu" required>
+    </div>
+
+    <div class="row">
+      <label for="assignment">Which assignment</label>
+      <select id="assignment" required></select>
+    </div>
+
+    <div class="row">
+      <label>Files <span class="hint">— both the .qmd and the rendered .html are required</span></label>
+      <div class="drop" id="drop" tabindex="0" role="button" aria-controls="files">
+        <b>Choose files</b> or drag them here
+        <input id="picker" type="file" multiple>
+      </div>
+      <ul class="files" id="files"></ul>
+    </div>
+
+    <div id="softwarn" class="note warn hidden"></div>
+
+    <button class="go" id="go" type="submit">Submit</button>
+  </form>
+
+  <div id="receipt" class="note ok receipt hidden"></div>
+
+  <footer id="foot"></footer>
+</main>
+
+<script>
+  var CONFIG = <?!= JSON.stringify(config) ?>;
+
+  var picked = [];       // {file, state, storedName}
+  var uploading = false;
+
+  var $ = function (id) { return document.getElementById(id); };
+
+  // ---- initial render ------------------------------------------------------
+
+  $('course').textContent = CONFIG.course + ' · filed under ' + CONFIG.year;
+
+  var sel = $('assignment');
+  sel.appendChild(new Option('Choose…', ''));
+  CONFIG.assignments.forEach(function (a) {
+    sel.appendChild(new Option(a.label, a.id));
+  });
+
+  $('foot').textContent =
+    'Accepted: ' + CONFIG.allowedExt.map(function (e) { return '.' + e; }).join(' ') +
+    ' · up to ' + CONFIG.maxFiles + ' files, ' + mb(CONFIG.maxFileBytes) + ' MB each. ' +
+    'Nothing you submit is ever overwritten — a resubmission is kept alongside as _v2.';
+
+  // ---- picking files -------------------------------------------------------
+
+  var drop = $('drop'), picker = $('picker');
+
+  drop.addEventListener('click', function () { picker.click(); });
+  drop.addEventListener('keydown', function (e) {
+    if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); picker.click(); }
+  });
+  picker.addEventListener('change', function () {
+    add(Array.prototype.slice.call(picker.files));
+    picker.value = '';
+  });
+
+  ['dragenter', 'dragover'].forEach(function (ev) {
+    drop.addEventListener(ev, function (e) { e.preventDefault(); drop.classList.add('over'); });
+  });
+  ['dragleave', 'drop'].forEach(function (ev) {
+    drop.addEventListener(ev, function (e) { e.preventDefault(); drop.classList.remove('over'); });
+  });
+  drop.addEventListener('drop', function (e) {
+    if (e.dataTransfer && e.dataTransfer.files) {
+      add(Array.prototype.slice.call(e.dataTransfer.files));
+    }
+  });
+
+  function add(files) {
+    var problems = [];
+    files.forEach(function (f) {
+      var ext = (f.name.split('.').pop() || '').toLowerCase();
+      if (f.name.indexOf('.') === -1 || CONFIG.allowedExt.indexOf(ext) === -1) {
+        problems.push('"' + f.name + '" is not an accepted file type.');
+        return;
+      }
+      if (f.size > CONFIG.maxFileBytes) {
+        problems.push('"' + f.name + '" is ' + mb(f.size) + ' MB — the limit is ' +
+                      mb(CONFIG.maxFileBytes) + ' MB.');
+        return;
+      }
+      if (picked.some(function (p) { return p.file.name === f.name && p.file.size === f.size; })) {
+        return; // already in the list
+      }
+      if (picked.length >= CONFIG.maxFiles) {
+        problems.push('You can attach at most ' + CONFIG.maxFiles + ' files.');
+        return;
+      }
+      picked.push({ file: f, state: 'waiting', storedName: '' });
+    });
+
+    showAlert(problems.length ? problems : null);
+    render();
+  }
+
+  function render() {
+    var ul = $('files');
+    ul.innerHTML = '';
+
+    picked.forEach(function (p, i) {
+      var li = document.createElement('li');
+
+      var name = document.createElement('span');
+      name.className = 'fname';
+      name.textContent = p.file.name;
+
+      var size = document.createElement('span');
+      size.className = 'fsize';
+      size.textContent = mb(p.file.size) + ' MB';
+
+      li.appendChild(name);
+      li.appendChild(size);
+
+      if (p.state === 'waiting' && !uploading) {
+        var x = document.createElement('button');
+        x.type = 'button';
+        x.className = 'drop-x';
+        x.title = 'Remove ' + p.file.name;
+        x.setAttribute('aria-label', 'Remove ' + p.file.name);
+        x.textContent = '×';
+        x.addEventListener('click', function () { picked.splice(i, 1); render(); });
+        li.appendChild(x);
+      } else {
+        var st = document.createElement('span');
+        st.className = 'fstate' + (p.state === 'stored' ? ' done' : p.state === 'failed' ? ' fail' : '');
+        st.textContent = p.state === 'stored' ? 'stored as ' + p.storedName
+                       : p.state === 'sending' ? 'uploading…'
+                       : p.state === 'failed' ? 'failed'
+                       : 'waiting';
+        li.appendChild(st);
+      }
+      ul.appendChild(li);
+    });
+
+    var missing = missingKinds();
+    var box = $('softwarn');
+    if (picked.length && missing.length) {
+      box.textContent = 'Still needed: ' + missing.join(' and ') +
+        '. A submission must include both the .qmd and the rendered .html.';
+      box.classList.remove('hidden');
+    } else {
+      box.classList.add('hidden');
+    }
+
+    $('go').disabled = uploading || picked.length === 0 || missing.length > 0;
+  }
+
+  /**
+   * A submission is incomplete without both the source and the rendered
+   * output, so the form refuses to send one. Checked here rather than on the
+   * server because the server sees one file at a time -- by the time it could
+   * notice a missing .html, the .qmd would already be stored.
+   */
+  function missingKinds() {
+    var exts = picked.map(function (p) { return (p.file.name.split('.').pop() || '').toLowerCase(); });
+    var missing = [];
+    if (exts.indexOf('qmd') === -1 && exts.indexOf('rmd') === -1) missing.push('a .qmd file');
+    if (exts.indexOf('html') === -1 && exts.indexOf('htm') === -1) missing.push('a rendered .html file');
+    return missing;
+  }
+
+  // ---- submitting ----------------------------------------------------------
+
+  $('form').addEventListener('submit', function (e) {
+    e.preventDefault();
+    if (uploading) return;
+
+    var meta = {
+      firstName: $('firstName').value.trim(),
+      lastName: $('lastName').value.trim(),
+      email: $('email').value.trim(),
+      assignment: $('assignment').value
+    };
+
+    var missing = [];
+    if (!meta.firstName) missing.push('your first name');
+    if (!meta.lastName) missing.push('your last name');
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(meta.email)) missing.push('a valid email address');
+    if (!meta.assignment) missing.push('which assignment this is');
+    if (!picked.length) missing.push('your files');
+    if (missing.length) { showAlert(['Please give ' + missing.join(', ') + '.']); return; }
+
+    var incomplete = missingKinds();
+    if (incomplete.length) {
+      showAlert(['Attach ' + incomplete.join(' and ') + ' before submitting.']);
+      return;
+    }
+
+    showAlert(null);
+    uploading = true;
+    render();
+    $('go').textContent = 'Uploading…';
+
+    // Seed with anything a previous attempt already stored, so the receipt
+    // and the confirmation email list the whole submission, not just the retry.
+    uploadNext(meta, 0, picked.filter(function (p) { return p.state === 'stored'; })
+      .map(function (p) { return { storedName: p.storedName, originalName: p.file.name }; }));
+  });
+
+  /**
+   * One file per google.script.run call, in sequence: a single request holding
+   * every file would run into the payload limit, and this way a student can see
+   * exactly which file failed.
+   */
+  function uploadNext(meta, i, stored) {
+    if (i >= picked.length) return done(meta, stored);
+
+    var p = picked[i];
+    // On "submit the rest" after a failure, do not upload again what already
+    // landed -- that would file a needless _v2 copy.
+    if (p.state === 'stored') return uploadNext(meta, i + 1, stored);
+
+    p.state = 'sending';
+    render();
+
+    readBase64(p.file, function (data) {
+      google.script.run
+        .withSuccessHandler(function (res) {
+          p.state = 'stored';
+          p.storedName = res.storedName;
+          stored.push(res);
+          render();
+          uploadNext(meta, i + 1, stored);
+        })
+        .withFailureHandler(function (err) {
+          p.state = 'failed';
+          render();
+          var msg = (err && err.message) ? String(err.message) : '';
+          // A server-side throw carries its own message; anything else is the
+          // request itself failing, and the file's size is the useful clue.
+          if (!msg || msg === 'undefined' || /^\[object/.test(msg)) {
+            msg = 'The server rejected "' + p.file.name + '" (' + mb(p.file.size) +
+                  ' MB) without giving a reason.';
+          }
+          fail(msg, stored);
+        })
+        .submitFile(meta, { name: p.file.name, data: data });
+    }, function () {
+      p.state = 'failed';
+      render();
+      fail('Could not read "' + p.file.name + '" from your computer.', stored);
+    });
+  }
+
+  function done(meta, stored) {
+    google.script.run
+      .withSuccessHandler(function (res) { showReceipt(meta, stored, res); })
+      .withFailureHandler(function () { showReceipt(meta, stored, { when: '', emailed: false, note: '' }); })
+      .finishSubmission(meta, stored);
+  }
+
+  function showReceipt(meta, stored, res) {
+    uploading = false;
+    $('form').classList.add('hidden');
+
+    var box = $('receipt');
+    box.innerHTML = '';
+
+    var h = document.createElement('strong');
+    h.textContent = 'Submitted. ' + stored.length +
+      (stored.length === 1 ? ' file was' : ' files were') + ' stored' +
+      (res.when ? ' at ' + res.when : '') + '.';
+    box.appendChild(h);
+
+    var ul = document.createElement('ul');
+    stored.forEach(function (s) {
+      var li = document.createElement('li');
+      li.textContent = s.storedName;
+      ul.appendChild(li);
+    });
+    box.appendChild(ul);
+
+    var tail = document.createElement('p');
+    tail.style.marginBottom = '0';
+    tail.textContent = res.emailed
+      ? 'A confirmation has been emailed to ' + meta.email + '. Keep it as your record.'
+      : (res.note || 'Take a screenshot of this page as your record.');
+    box.appendChild(tail);
+
+    box.classList.remove('hidden');
+    box.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  }
+
+  function fail(message, stored) {
+    uploading = false;
+    $('go').textContent = 'Submit the rest';
+    render();
+    showAlert([
+      message,
+      stored.length
+        ? stored.length + ' file(s) already uploaded successfully and were kept. ' +
+          'Remove them from the list and submit again, or email your instructor.'
+        : 'Nothing was uploaded. Try again, or email your instructor.'
+    ]);
+  }
+
+  // ---- utilities -----------------------------------------------------------
+
+  function readBase64(file, ok, bad) {
+    var reader = new FileReader();
+    reader.onload = function () {
+      // strip the "data:<mime>;base64," prefix
+      var s = String(reader.result);
+      ok(s.slice(s.indexOf(',') + 1));
+    };
+    reader.onerror = bad;
+    reader.readAsDataURL(file);
+  }
+
+  function showAlert(lines) {
+    var box = $('alert');
+    if (!lines || !lines.length) { box.classList.add('hidden'); box.textContent = ''; return; }
+    box.innerHTML = '';
+    lines.forEach(function (line) {
+      var p = document.createElement('p');
+      p.style.margin = '0 0 .3rem';
+      p.textContent = line;
+      box.appendChild(p);
+    });
+    box.classList.remove('hidden');
+    box.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  }
+
+  function mb(bytes) { return (bytes / 1024 / 1024).toFixed(1); }
+
+  render();
+</script>

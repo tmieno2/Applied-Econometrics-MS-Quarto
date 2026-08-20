@@ -41,6 +41,8 @@ library(DiagrammeR)
 library(dplyr)
 library(data.table)
 library(ggplot2)
+
+source(here::here("lectures/_lecture-theme.R"))
 ```
 
 
@@ -140,7 +142,13 @@ tidy_ggdag <- dagify(
   tidy_dagitty()
 
 ggdag(tidy_ggdag) +
-  theme_dag()
+  # theme_dag() is a complete theme and paints its own white background, so the
+  # transparency has to be added back on top of it rather than via lecture_theme.
+  theme_dag() +
+  theme(
+    plot.background = element_rect(fill = "transparent", colour = NA),
+    panel.background = element_rect(fill = "transparent", colour = NA)
+  )
 ```
 
 #### Causal diagram with an instrument
@@ -1294,7 +1302,7 @@ ggplot(data = melted[abs(value) < 5, ]) +
   geom_density(aes(x = value, fill = variable), alpha = 0.3) +
   geom_vline(xintercept = 1, color = "red") +
   scale_fill_discrete(name = "") +
-  theme_bw(base_size = 30) +
+  theme_lecture +
   theme(
     legend.position = "bottom"
   )

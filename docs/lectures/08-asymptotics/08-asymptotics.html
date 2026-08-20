@@ -6,13 +6,13 @@
 <script src="../../site_libs/quarto-html/tippy.umd.min.js"></script>
 <link href="../../site_libs/quarto-html/tippy.css" rel="stylesheet">
 <link href="../../site_libs/quarto-html/light-border.css" rel="stylesheet">
-<link href="../../site_libs/quarto-html/quarto-syntax-highlighting-e1a5c8363afafaef2c763b6775fbf3ca.css" rel="stylesheet" id="quarto-text-highlighting-styles">
+<link href="../../site_libs/quarto-html/quarto-syntax-highlighting-37eea08aefeeee20ff55810ff984fec1.css" rel="stylesheet" id="quarto-text-highlighting-styles">
 <meta name="shinylive:serviceworker_dir" content="../..">
 <script src="../../site_libs/quarto-contrib/shinylive-0.9.1/shinylive/load-shinylive-sw.js" type="module"></script>
 <script src="../../site_libs/quarto-contrib/shinylive-0.9.1/shinylive/run-python-blocks.js" type="module"></script>
 <link href="../../site_libs/quarto-contrib/shinylive-0.9.1/shinylive/shinylive.css" rel="stylesheet">
 <link href="../../site_libs/quarto-contrib/shinylive-quarto-css/shinylive-quarto.css" rel="stylesheet"><meta charset="utf-8">
-  <meta name="generator" content="quarto-1.7.31">
+  <meta name="generator" content="quarto-1.7.32">
 
   <title>Applied Econometrics (AECN 896-004) – 08: OLS Asymptotics</title>
   <meta name="apple-mobile-web-app-capable" content="yes">
@@ -818,7 +818,7 @@
   };
 
   // Store cell data
-  globalThis.qwebrCellDetails = [{"code":"#--- Preparation ---#\nB <- 1000 # the number of iterations\nN_list <- c(100, 1000, 10000) # sample size\nN_len <- length(N_list)\nestimate_storage <- matrix(0, B, N_len) # estimates storage\n\nfor (j in 1:N_len) {\n  temp_N <- N_list[j]\n  for (i in 1:B) {\n    #--- generate data ---#\n    x <- rnorm(temp_N) # independent variable\n    u <- rnorm(temp_N) * 0.2 # error\n    y <- 1 + x + u # dependent variable 1\n    data <- data.frame(y = y, x = x)\n\n    #--- OLS ---#\n    reg <- lm(y ~ x, data = data) # OLS\n\n    #--- store coef estimates ---#\n    estimate_storage[i, j] <- reg$coef[2]\n  }\n}","id":1,"options":{"autorun":"false","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.8","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"4.5","fig-width":"7","label":"unnamed-chunk-1","message":"true","out-height":"","out-width":"55%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"plot_data <- melt(as.data.table(estimate_storage), measure.vars = 1:N_len)\n\n#--- create a figure ---#\ng_co_ex <-\n  ggplot(data = plot_data) +\n  geom_density(aes(x = value, fill = variable), alpha = 0.4) +\n  geom_vline(xintercept = 1) +\n  xlim(0.9, 1.1) +\n  scale_fill_discrete(\n    name = \"Sample Size\",\n    labels = c(\"N=100 \", \"N=1,000 \", \"N=10,000\")\n  ) +\n  theme_bw(base_size = 30) +\n  theme(\n    legend.position = \"bottom\"\n  )\n\ng_co_ex","id":2,"options":{"autorun":"false","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.8","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"4.5","fig-width":"7","label":"unnamed-chunk-2","message":"true","out-height":"","out-width":"55%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"#--- Preparation ---#\nB <- 1000 # the number of iterations\nN_list <- c(100, 1000, 10000) # sample size\nN_len <- length(N_list)\nestimate_storage <- matrix(0, B, N_len) # estimates storage\n\nfor (j in 1:N_len) {\n  temp_N <- N_list[j]\n  for (i in 1:B) {\n    #--- generate data ---#\n    mu <- rnorm(temp_N) # shared term between x and u #<<\n    x <- rnorm(temp_N) + 0.5 * mu # <<\n    u <- rnorm(temp_N) + 0.5 * mu # <<\n    y <- 1 + x + u # dependent variable\n    data <- data.frame(y = y, x = x)\n\n    #--- OLS ---#\n    reg <- lm(y ~ x, data = data) # OLS\n\n    #--- store coef estimates ---#\n    estimate_storage[i, j] <- reg$coef[2]\n  }\n}","id":3,"options":{"autorun":"false","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.8","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"4.5","fig-width":"7","label":"unnamed-chunk-3","message":"true","out-height":"","out-width":"55%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"#--- wide to long format ---#\nplot_data <- melt(as.data.table(estimate_storage), measure.vars = 1:N_len)\n\n#--- create a figure ---#\ng_inco_ex <- ggplot(data = plot_data) +\n  geom_density(aes(x = value, fill = variable), alpha = 0.4) +\n  geom_vline(xintercept = 1, linetype = \"dashed\") +\n  geom_vline(xintercept = 1.2) +\n  scale_fill_discrete(\n    name = \"Sample Size\",\n    labels = c(\"N=100 \", \"N=1,000 \", \"N=10,000\")\n  ) +\n  theme_bw(base_size = 30) +\n  theme(\n    legend.position = \"bottom\"\n  )\n\ng_inco_ex","id":4,"options":{"autorun":"false","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.8","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"4.5","fig-width":"7","label":"unnamed-chunk-4","message":"true","out-height":"","out-width":"55%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"(\nx <- rbinom(10, size = 1, prob = 0.3)\n)\n\nsqrt(10) * (mean(x) - 0.3)","id":5,"options":{"autorun":"true","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.8","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"4.5","fig-width":"7","label":"unnamed-chunk-5","message":"true","out-height":"","out-width":"55%","output":"true","read-only":"false","results":"markup","warning":"true"}}];
+  globalThis.qwebrCellDetails = [{"code":"# NOTE: a webr setup cell renders a loading widget wherever it sits, so keep it\n# inside a content slide rather than on a section divider (or, worse, above the\n# first heading, where it becomes an untitled slide of its own).\n# Mirror of lecture_theme() in lectures/_lecture-theme.R. WebR runs in the\n# browser, against a virtual filesystem that does not hold the repo, so it\n# cannot source that file. Edit the file first, then run\n#     Rscript lectures/check-lecture-theme.R\n# which fails if this copy has drifted from it.\nlecture_theme <- function(base_size = 16) {\n  ggplot2::theme_bw(base_size = base_size) +\n    ggplot2::theme(\n      axis.text = ggplot2::element_text(size = base_size * 0.9),\n      axis.title = ggplot2::element_text(size = base_size),\n      legend.text = ggplot2::element_text(size = base_size * 0.9),\n      legend.title = ggplot2::element_text(size = base_size * 0.9),\n      plot.background = ggplot2::element_rect(fill = \"transparent\", colour = NA),\n      panel.background = ggplot2::element_rect(fill = \"transparent\", colour = NA),\n      legend.background = ggplot2::element_rect(fill = \"transparent\", colour = NA),\n      legend.key = ggplot2::element_rect(fill = \"transparent\", colour = NA),\n      # theme_bw's grey92 grid was chosen against a white panel and all but\n      # disappears on the warm paper once the panel stops being opaque.\n      panel.grid = ggplot2::element_line(colour = \"grey87\")\n    )\n}\n\n# The WebR canvas is 7x4.5in at out-width 55% of its output track\n# (lectures/_metadata.yml) — a similar pixels-per-inch to the 10in knitr canvas,\n# but often narrower when the cell renders side by side, so it runs a little\n# larger than the 16pt default. 30pt did not fit this canvas at all: the panel\n# collapsed into the top third and the legend clipped.\ntheme_lecture <- lecture_theme(18)","id":1,"options":{"autorun":"true","classes":"","comment":"","context":"setup","dpi":"216","editor-font-scale":"0.8","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"4.5","fig-width":"7","label":"unnamed-chunk-1","message":"true","out-height":"","out-width":"55%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"#--- Preparation ---#\nB <- 1000 # the number of iterations\nN_list <- c(100, 1000, 10000) # sample size\nN_len <- length(N_list)\nestimate_storage <- matrix(0, B, N_len) # estimates storage\n\nfor (j in 1:N_len) {\n  temp_N <- N_list[j]\n  for (i in 1:B) {\n    #--- generate data ---#\n    x <- rnorm(temp_N) # independent variable\n    u <- rnorm(temp_N) * 0.2 # error\n    y <- 1 + x + u # dependent variable 1\n    data <- data.frame(y = y, x = x)\n\n    #--- OLS ---#\n    reg <- lm(y ~ x, data = data) # OLS\n\n    #--- store coef estimates ---#\n    estimate_storage[i, j] <- reg$coef[2]\n  }\n}","id":2,"options":{"autorun":"false","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.8","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"4.5","fig-width":"7","label":"unnamed-chunk-2","message":"true","out-height":"","out-width":"55%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"plot_data <- melt(as.data.table(estimate_storage), measure.vars = 1:N_len)\n\n#--- create a figure ---#\ng_co_ex <-\n  ggplot(data = plot_data) +\n  geom_density(aes(x = value, fill = variable), alpha = 0.4) +\n  geom_vline(xintercept = 1) +\n  xlim(0.9, 1.1) +\n  scale_fill_discrete(\n    name = \"Sample Size\",\n    labels = c(\"N=100 \", \"N=1,000 \", \"N=10,000\")\n  ) +\n  theme_lecture +\n  theme(\n    legend.position = \"bottom\"\n  )\n\ng_co_ex","id":3,"options":{"autorun":"false","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.8","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"4.5","fig-width":"7","label":"unnamed-chunk-3","message":"true","out-height":"","out-width":"55%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"#--- Preparation ---#\nB <- 1000 # the number of iterations\nN_list <- c(100, 1000, 10000) # sample size\nN_len <- length(N_list)\nestimate_storage <- matrix(0, B, N_len) # estimates storage\n\nfor (j in 1:N_len) {\n  temp_N <- N_list[j]\n  for (i in 1:B) {\n    #--- generate data ---#\n    mu <- rnorm(temp_N) # shared term between x and u #<<\n    x <- rnorm(temp_N) + 0.5 * mu # <<\n    u <- rnorm(temp_N) + 0.5 * mu # <<\n    y <- 1 + x + u # dependent variable\n    data <- data.frame(y = y, x = x)\n\n    #--- OLS ---#\n    reg <- lm(y ~ x, data = data) # OLS\n\n    #--- store coef estimates ---#\n    estimate_storage[i, j] <- reg$coef[2]\n  }\n}","id":4,"options":{"autorun":"false","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.8","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"4.5","fig-width":"7","label":"unnamed-chunk-4","message":"true","out-height":"","out-width":"55%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"#--- wide to long format ---#\nplot_data <- melt(as.data.table(estimate_storage), measure.vars = 1:N_len)\n\n#--- create a figure ---#\ng_inco_ex <- ggplot(data = plot_data) +\n  geom_density(aes(x = value, fill = variable), alpha = 0.4) +\n  geom_vline(xintercept = 1, linetype = \"dashed\") +\n  geom_vline(xintercept = 1.2) +\n  scale_fill_discrete(\n    name = \"Sample Size\",\n    labels = c(\"N=100 \", \"N=1,000 \", \"N=10,000\")\n  ) +\n  theme_lecture +\n  theme(\n    legend.position = \"bottom\"\n  )\n\ng_inco_ex","id":5,"options":{"autorun":"false","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.8","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"4.5","fig-width":"7","label":"unnamed-chunk-5","message":"true","out-height":"","out-width":"55%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"(\nx <- rbinom(10, size = 1, prob = 0.3)\n)\n\nsqrt(10) * (mean(x) - 0.3)","id":6,"options":{"autorun":"true","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.8","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"4.5","fig-width":"7","label":"unnamed-chunk-6","message":"true","out-height":"","out-width":"55%","output":"true","read-only":"false","results":"markup","warning":"true"}}];
 
   </script>
   <script type="module">
@@ -2398,6 +2398,8 @@ Lecturer transcript
 </details>
 <div id="qwebr-insertion-location-1"></div>
 <noscript>Please enable JavaScript to experience the dynamic code cell content on this page.</noscript>
+<div id="qwebr-insertion-location-2"></div>
+<noscript>Please enable JavaScript to experience the dynamic code cell content on this page.</noscript>
 </div>
 <div id="tabset-1-4">
 <details class="transcript inline">
@@ -2406,7 +2408,7 @@ Lecturer transcript
 </summary>
 <p>Three densities, one per sample size, all centered on the true value of one. What changes is the spread: it tightens as n grows, and it keeps tightening without limit. You can read consistency directly off this picture. Pick any interval around one, however narrow, and the share of the distribution inside it approaches one as the sample grows. Notice also that unbiasedness alone would have given us three densities centered at one with no requirement that they narrow. Consistency is the extra statement about collapsing.</p>
 </details>
-<div id="qwebr-insertion-location-2"></div>
+<div id="qwebr-insertion-location-3"></div>
 <noscript>Please enable JavaScript to experience the dynamic code cell content on this page.</noscript>
 <p><strong>Consistency of OLS estimators</strong></p>
 <p>Under <span class="math inline">MLR.1</span> through <span class="math inline">MLR.4</span>, OLS estimators are consistent.</p>
@@ -2443,7 +2445,7 @@ Lecturer transcript
 </summary>
 <p>The mechanism is the shared component mu, which enters both x and u. That is what makes x endogenous: it carries information about the error term. Everything else about the simulation is unchanged from the consistent case. Because we built the correlation ourselves, we can compute exactly what the estimator converges to, which is what the results tab reports.</p>
 </details>
-<div id="qwebr-insertion-location-3"></div>
+<div id="qwebr-insertion-location-4"></div>
 <noscript>Please enable JavaScript to experience the dynamic code cell content on this page.</noscript>
 </div>
 <div id="tabset-2-3">
@@ -2453,7 +2455,7 @@ Lecturer transcript
 </summary>
 <p>The distributions narrow just as before, but they narrow around one point two rather than around one. The dashed line is the truth and the solid line is the probability limit, which works out to one plus the covariance of x and u over the variance of x, or one plus zero point two five over one point two five. This is the central lesson of the section: more data buys precision, not correctness. A large sample gives you a very tight confidence interval around the wrong number.</p>
 </details>
-<div id="qwebr-insertion-location-4"></div>
+<div id="qwebr-insertion-location-5"></div>
 <noscript>Please enable JavaScript to experience the dynamic code cell content on this page.</noscript>
 <p>The dashed line is the true coefficient, <span class="math inline">\beta_1=1</span>. The solid line is the probability limit:</p>
 <p><span class="math display">
@@ -2555,7 +2557,7 @@ Lecturer transcript
 </ul>
 </div><!--end of the 1st column--><div class="column" style="width:50%;">
 <p>This is what 10 random draws and the transformed sample mean look like:</p>
-<div id="qwebr-insertion-location-5"></div>
+<div id="qwebr-insertion-location-6"></div>
 <noscript>Please enable JavaScript to experience the dynamic code cell content on this page.</noscript>
 </div><!--end of the 2nd column-->
 </div>
@@ -2628,13 +2630,16 @@ Lecturer transcript
 <span id="cb1-50"><a></a>        ) +</span>
 <span id="cb1-51"><a></a>        xlab(expression(sqrt(N) * (bar(x) - 0.3))) +</span>
 <span id="cb1-52"><a></a>        ylab("Density") +</span>
-<span id="cb1-53"><a></a>        theme_bw(base_size = 30)</span>
-<span id="cb1-54"><a></a>    })</span>
-<span id="cb1-55"><a></a>  })</span>
-<span id="cb1-56"><a></a>}</span>
-<span id="cb1-57"><a></a></span>
-<span id="cb1-58"><a></a># Run the application</span>
-<span id="cb1-59"><a></a>shinyApp(ui = ui, server = server)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<span id="cb1-53"><a></a>        # This app is compiled standalone and runs in its own iframe, so it can</span>
+<span id="cb1-54"><a></a>        # see neither lecture_theme() nor the slide background. Only the size is</span>
+<span id="cb1-55"><a></a>        # brought into line with the rest of the site.</span>
+<span id="cb1-56"><a></a>        theme_bw(base_size = 18)</span>
+<span id="cb1-57"><a></a>    })</span>
+<span id="cb1-58"><a></a>  })</span>
+<span id="cb1-59"><a></a>}</span>
+<span id="cb1-60"><a></a></span>
+<span id="cb1-61"><a></a># Run the application</span>
+<span id="cb1-62"><a></a>shinyApp(ui = ui, server = server)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 </div>
 </div>
 </div>

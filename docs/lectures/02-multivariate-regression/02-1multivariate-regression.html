@@ -6,8 +6,8 @@
 <script src="../../site_libs/quarto-html/tippy.umd.min.js"></script>
 <link href="../../site_libs/quarto-html/tippy.css" rel="stylesheet">
 <link href="../../site_libs/quarto-html/light-border.css" rel="stylesheet">
-<link href="../../site_libs/quarto-html/quarto-syntax-highlighting-e1a5c8363afafaef2c763b6775fbf3ca.css" rel="stylesheet" id="quarto-text-highlighting-styles"><meta charset="utf-8">
-  <meta name="generator" content="quarto-1.7.31">
+<link href="../../site_libs/quarto-html/quarto-syntax-highlighting-37eea08aefeeee20ff55810ff984fec1.css" rel="stylesheet" id="quarto-text-highlighting-styles"><meta charset="utf-8">
+  <meta name="generator" content="quarto-1.7.32">
 
   <title>Applied Econometrics (AECN 896-004) – 02: Multivariate Regression</title>
   <meta name="apple-mobile-web-app-capable" content="yes">
@@ -813,7 +813,7 @@
   };
 
   // Store cell data
-  globalThis.qwebrCellDetails = [{"code":"# NOTE: a webr setup cell draws a loading widget wherever it sits, so keep it\n# inside a content slide rather than on a section divider.\ntheme_lecture <-\n  theme_bw(base_size = 30) +\n  theme(\n    axis.text = element_text(size = 30),\n    axis.title = element_text(size = 30),\n    legend.text = element_text(size = 27),\n    legend.title = element_text(size = 27),\n    strip.text = element_text(size = 30)\n  )","id":1,"options":{"autorun":"true","classes":"","comment":"","context":"setup","dpi":"216","editor-font-scale":"0.8","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"4.5","fig-width":"7","label":"unnamed-chunk-1","message":"true","out-height":"","out-width":"55%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"#--- load the fixest package ---#\nlibrary(fixest)\n\n#--- generate data ---#\nset.seed(2024) # so everyone sees the same numbers\nN <- 100 # sample size\nx1 <- rnorm(N) # independent variable\nx2 <- rnorm(N) # independent variable\nu <- rnorm(N) # error\ny <- 1 + x1 + x2 + u # dependent variable\ndata_sim <- data.frame(y = y, x1 = x1, x2 = x2)\n\n#--- OLS ---#\nreg <- feols(y ~ x1 + x2, data = data_sim)\n\n#* print the results\nreg","id":2,"options":{"autorun":"true","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.8","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"4.5","fig-width":"7","label":"unnamed-chunk-2","message":"true","out-height":"","out-width":"55%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"library(fixest)\n\n#--- simulate data where x1 is correlated with x2 and x3 ---#\nset.seed(4891)\nN <- 200\nx2 <- rnorm(N)\nx3 <- rnorm(N)\nx1 <- 0.5 * x2 - 0.3 * x3 + rnorm(N)\ny <- 1 + 2 * x1 + 3 * x2 - x3 + rnorm(N)\nd <- data.frame(y, x1, x2, x3)\n\n#--- Method 1: regress y on everything at once ---#\nm1 <- feols(y ~ x1 + x2 + x3, data = d)\n\n#--- Method 2: partial x2 and x3 out of both y and x1, then regress ---#\nd$u_y <- resid(feols(y ~ x2 + x3, data = d))\nd$u_x1 <- resid(feols(x1 ~ x2 + x3, data = d))\nm2 <- feols(u_y ~ u_x1, data = d)\n\n#--- compare ---#\nc(method_1 = coef(m1)[\"x1\"], method_2 = coef(m2)[\"u_x1\"])","id":3,"options":{"autorun":"true","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.8","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"4.5","fig-width":"7","label":"unnamed-chunk-3","message":"true","out-height":"","out-width":"55%","output":"true","read-only":"false","results":"markup","warning":"true"}}];
+  globalThis.qwebrCellDetails = [{"code":"# NOTE: a webr setup cell draws a loading widget wherever it sits, so keep it\n# inside a content slide rather than on a section divider.\n# Mirror of lecture_theme() in lectures/_lecture-theme.R — WebR cannot source\n# that file. Edit it first, then run `Rscript lectures/check-lecture-theme.R`,\n# which fails if this copy has drifted.\nlecture_theme <- function(base_size = 16) {\n  ggplot2::theme_bw(base_size = base_size) +\n    ggplot2::theme(\n      axis.text = ggplot2::element_text(size = base_size * 0.9),\n      axis.title = ggplot2::element_text(size = base_size),\n      legend.text = ggplot2::element_text(size = base_size * 0.9),\n      legend.title = ggplot2::element_text(size = base_size * 0.9),\n      plot.background = ggplot2::element_rect(fill = \"transparent\", colour = NA),\n      panel.background = ggplot2::element_rect(fill = \"transparent\", colour = NA),\n      legend.background = ggplot2::element_rect(fill = \"transparent\", colour = NA),\n      legend.key = ggplot2::element_rect(fill = \"transparent\", colour = NA),\n      # theme_bw's grey92 grid was chosen against a white panel and all but\n      # disappears on the warm paper once the panel stops being opaque.\n      panel.grid = ggplot2::element_line(colour = \"grey87\")\n    )\n}\n# The WebR canvas is 7x4.5in at out-width 55% of its output track\n# (lectures/_metadata.yml) — a similar pixels-per-inch to the 10in knitr canvas,\n# but often narrower when the cell renders side by side, so it runs a little\n# larger than the 16pt default. 30pt did not fit this canvas at all: the panel\n# collapsed into the top third and the legend clipped.\ntheme_lecture <- lecture_theme(18) +\n  ggplot2::theme(strip.text = ggplot2::element_text(size = 18))","id":1,"options":{"autorun":"true","classes":"","comment":"","context":"setup","dpi":"216","editor-font-scale":"0.8","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"4.5","fig-width":"7","label":"unnamed-chunk-1","message":"true","out-height":"","out-width":"55%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"#--- load the fixest package ---#\nlibrary(fixest)\n\n#--- generate data ---#\nset.seed(2024) # so everyone sees the same numbers\nN <- 100 # sample size\nx1 <- rnorm(N) # independent variable\nx2 <- rnorm(N) # independent variable\nu <- rnorm(N) # error\ny <- 1 + x1 + x2 + u # dependent variable\ndata_sim <- data.frame(y = y, x1 = x1, x2 = x2)\n\n#--- OLS ---#\nreg <- feols(y ~ x1 + x2, data = data_sim)\n\n#* print the results\nreg","id":2,"options":{"autorun":"true","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.8","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"4.5","fig-width":"7","label":"unnamed-chunk-2","message":"true","out-height":"","out-width":"55%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"library(fixest)\n\n#--- simulate data where x1 is correlated with x2 and x3 ---#\nset.seed(4891)\nN <- 200\nx2 <- rnorm(N)\nx3 <- rnorm(N)\nx1 <- 0.5 * x2 - 0.3 * x3 + rnorm(N)\ny <- 1 + 2 * x1 + 3 * x2 - x3 + rnorm(N)\nd <- data.frame(y, x1, x2, x3)\n\n#--- Method 1: regress y on everything at once ---#\nm1 <- feols(y ~ x1 + x2 + x3, data = d)\n\n#--- Method 2: partial x2 and x3 out of both y and x1, then regress ---#\nd$u_y <- resid(feols(y ~ x2 + x3, data = d))\nd$u_x1 <- resid(feols(x1 ~ x2 + x3, data = d))\nm2 <- feols(u_y ~ u_x1, data = d)\n\n#--- compare ---#\nc(method_1 = coef(m1)[\"x1\"], method_2 = coef(m2)[\"u_x1\"])","id":3,"options":{"autorun":"true","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.8","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"4.5","fig-width":"7","label":"unnamed-chunk-3","message":"true","out-height":"","out-width":"55%","output":"true","read-only":"false","results":"markup","warning":"true"}}];
 
   </script>
   <script type="module">
@@ -2517,7 +2517,7 @@ Lecturer transcript
 
       function styleCell_0dabqsot01j4qc1hkug1(i, j, css_id) {
           var table = document.getElementById("tinytable_0dabqsot01j4qc1hkug1");
-          var cell = table.rows[i]?.cells[j];  // Safe navigation to avoid errors
+          var cell = table.querySelector(`[data-row="${i}"][data-col="${j}"]`);
           if (cell) {
               console.log(`Styling cell at (${i}, ${j}) with class ${css_id}`);
               cell.classList.add(css_id);
@@ -2525,54 +2525,46 @@ Lecturer transcript
               console.warn(`Cell at (${i}, ${j}) not found.`);
           }
       }
-      function insertSpanRow(i, colspan, content) {
-        var table = document.getElementById('tinytable_0dabqsot01j4qc1hkug1');
-        var newRow = table.insertRow(i);
-        var newCell = newRow.insertCell(0);
-        newCell.setAttribute("colspan", colspan);
-        // newCell.innerText = content;
-        // this may be unsafe, but innerText does not interpret <br>
-        newCell.innerHTML = content;
-      }
       function spanCell_0dabqsot01j4qc1hkug1(i, j, rowspan, colspan) {
         var table = document.getElementById("tinytable_0dabqsot01j4qc1hkug1");
-        const targetRow = table.rows[i];
-        const targetCell = targetRow.cells[j];
+        const targetCell = table.querySelector(`[data-row="${i}"][data-col="${j}"]`);
+        if (!targetCell) {
+          console.warn(`Cell at (${i}, ${j}) not found.`);
+        }
+
+        // Get all cells that need to be removed
+        const cellsToRemove = [];
         for (let r = 0; r < rowspan; r++) {
-          // Only start deleting cells to the right for the first row (r == 0)
-          if (r === 0) {
-            // Delete cells to the right of the target cell in the first row
-            for (let c = colspan - 1; c > 0; c--) {
-              if (table.rows[i + r].cells[j + c]) {
-                table.rows[i + r].deleteCell(j + c);
-              }
-            }
-          }
-          // For rows below the first, delete starting from the target column
-          if (r > 0) {
-            for (let c = colspan - 1; c >= 0; c--) {
-              if (table.rows[i + r] && table.rows[i + r].cells[j]) {
-                table.rows[i + r].deleteCell(j);
-              }
+          for (let c = 0; c < colspan; c++) {
+            if (r === 0 && c === 0) continue; // Skip the target cell
+            const cell = table.querySelector(`[data-row="${i + r}"][data-col="${j + c}"]`);
+            if (cell) {
+              cellsToRemove.push(cell);
             }
           }
         }
-        // Set rowspan and colspan of the target cell
-        targetCell.rowSpan = rowspan;
-        targetCell.colSpan = colspan;
+
+        // Remove all cells
+        cellsToRemove.forEach(cell => cell.remove());
+
+        // Set rowspan and colspan of the target cell if it exists
+        if (targetCell) {
+          targetCell.rowSpan = rowspan;
+          targetCell.colSpan = colspan;
+        }
       }
       // tinytable span after
       window.addEventListener('load', function () {
           var cellsToStyle = [
             // tinytable style arrays after
-          { positions: [ { i: 0, j: 0 },  ], css_id: 'tinytable_css_vxbtsfzu3jmlehulwxjv',}, 
-          { positions: [ { i: 6, j: 1 },  ], css_id: 'tinytable_css_ue4bm7bxibsdnep8zqav',}, 
-          { positions: [ { i: 1, j: 0 }, { i: 2, j: 0 }, { i: 3, j: 0 }, { i: 4, j: 0 }, { i: 5, j: 0 }, { i: 7, j: 0 }, { i: 8, j: 0 }, { i: 9, j: 0 },  ], css_id: 'tinytable_css_ikltoj9gn14is5iv1ccc',}, 
-          { positions: [ { i: 6, j: 0 },  ], css_id: 'tinytable_css_eyrgq5ouizn95yuh0sl8',}, 
-          { positions: [ { i: 1, j: 1 }, { i: 2, j: 1 }, { i: 3, j: 1 }, { i: 4, j: 1 }, { i: 5, j: 1 }, { i: 7, j: 1 }, { i: 8, j: 1 }, { i: 9, j: 1 },  ], css_id: 'tinytable_css_avjs1kj72jhft4z10avn',}, 
-          { positions: [ { i: 10, j: 1 },  ], css_id: 'tinytable_css_8jbh0amy15xodchlkq8r',}, 
-          { positions: [ { i: 0, j: 1 },  ], css_id: 'tinytable_css_1j0sp546d7xkd5t38daj',}, 
-          { positions: [ { i: 10, j: 0 },  ], css_id: 'tinytable_css_07nkpawhr8h607xddfp7',}, 
+          { positions: [ { i: '10', j: 1 },  ], css_id: 'tinytable_css_8jbh0amy15xodchlkq8r',}, 
+          { positions: [ { i: '6', j: 1 },  ], css_id: 'tinytable_css_ue4bm7bxibsdnep8zqav',}, 
+          { positions: [ { i: '1', j: 1 }, { i: '2', j: 1 }, { i: '3', j: 1 }, { i: '4', j: 1 }, { i: '5', j: 1 }, { i: '7', j: 1 }, { i: '8', j: 1 }, { i: '9', j: 1 },  ], css_id: 'tinytable_css_avjs1kj72jhft4z10avn',}, 
+          { positions: [ { i: '0', j: 1 },  ], css_id: 'tinytable_css_1j0sp546d7xkd5t38daj',}, 
+          { positions: [ { i: '10', j: 0 },  ], css_id: 'tinytable_css_07nkpawhr8h607xddfp7',}, 
+          { positions: [ { i: '6', j: 0 },  ], css_id: 'tinytable_css_eyrgq5ouizn95yuh0sl8',}, 
+          { positions: [ { i: '1', j: 0 }, { i: '2', j: 0 }, { i: '3', j: 0 }, { i: '4', j: 0 }, { i: '5', j: 0 }, { i: '7', j: 0 }, { i: '8', j: 0 }, { i: '9', j: 0 },  ], css_id: 'tinytable_css_ikltoj9gn14is5iv1ccc',}, 
+          { positions: [ { i: '0', j: 0 },  ], css_id: 'tinytable_css_vxbtsfzu3jmlehulwxjv',}, 
           ];
 
           // Loop over the arrays to style the cells
@@ -2586,65 +2578,65 @@ Lecturer transcript
 
     <style>
       /* tinytable css entries after */
-      .table td.tinytable_css_vxbtsfzu3jmlehulwxjv, .table th.tinytable_css_vxbtsfzu3jmlehulwxjv { text-align: left; border-top: solid #d3d8dc 0.1em; border-bottom: solid #d3d8dc 0.05em; }
-      .table td.tinytable_css_ue4bm7bxibsdnep8zqav, .table th.tinytable_css_ue4bm7bxibsdnep8zqav { text-align: center; border-bottom: solid black 0.05em; }
-      .table td.tinytable_css_ikltoj9gn14is5iv1ccc, .table th.tinytable_css_ikltoj9gn14is5iv1ccc { text-align: left; }
-      .table td.tinytable_css_eyrgq5ouizn95yuh0sl8, .table th.tinytable_css_eyrgq5ouizn95yuh0sl8 { text-align: left; border-bottom: solid black 0.05em; }
-      .table td.tinytable_css_avjs1kj72jhft4z10avn, .table th.tinytable_css_avjs1kj72jhft4z10avn { text-align: center; }
       .table td.tinytable_css_8jbh0amy15xodchlkq8r, .table th.tinytable_css_8jbh0amy15xodchlkq8r { text-align: center; border-bottom: solid #d3d8dc 0.1em; }
+      .table td.tinytable_css_ue4bm7bxibsdnep8zqav, .table th.tinytable_css_ue4bm7bxibsdnep8zqav { text-align: center; border-bottom: solid black 0.05em; }
+      .table td.tinytable_css_avjs1kj72jhft4z10avn, .table th.tinytable_css_avjs1kj72jhft4z10avn { text-align: center; }
       .table td.tinytable_css_1j0sp546d7xkd5t38daj, .table th.tinytable_css_1j0sp546d7xkd5t38daj { text-align: center; border-top: solid #d3d8dc 0.1em; border-bottom: solid #d3d8dc 0.05em; }
       .table td.tinytable_css_07nkpawhr8h607xddfp7, .table th.tinytable_css_07nkpawhr8h607xddfp7 { text-align: left; border-bottom: solid #d3d8dc 0.1em; }
+      .table td.tinytable_css_eyrgq5ouizn95yuh0sl8, .table th.tinytable_css_eyrgq5ouizn95yuh0sl8 { text-align: left; border-bottom: solid black 0.05em; }
+      .table td.tinytable_css_ikltoj9gn14is5iv1ccc, .table th.tinytable_css_ikltoj9gn14is5iv1ccc { text-align: left; }
+      .table td.tinytable_css_vxbtsfzu3jmlehulwxjv, .table th.tinytable_css_vxbtsfzu3jmlehulwxjv { text-align: left; border-top: solid #d3d8dc 0.1em; border-bottom: solid #d3d8dc 0.05em; }
     </style>
     <div class="container">
       <table class="table table-borderless" id="tinytable_0dabqsot01j4qc1hkug1" style="width: auto; margin-left: auto; margin-right: auto;" data-quarto-disable-processing="true">
         <thead>
         
               <tr>
-                <th scope="col"> </th>
-                <th scope="col">(1)</th>
+                <th scope="col" data-row="0" data-col="0"> </th>
+                <th scope="col" data-row="0" data-col="1">(1)</th>
               </tr>
         </thead>
         <tfoot><tr><td colspan="2">+ p &lt; 0.1, * p &lt; 0.05, ** p &lt; 0.01, *** p &lt; 0.001</td></tr></tfoot>
         <tbody>
                 <tr>
-                  <td>(Intercept)</td>
-                  <td>1.075***</td>
+                  <td data-row="1" data-col="0">(Intercept)</td>
+                  <td data-row="1" data-col="1">1.075***</td>
                 </tr>
                 <tr>
-                  <td></td>
-                  <td>(0.091)</td>
+                  <td data-row="2" data-col="0"></td>
+                  <td data-row="2" data-col="1">(0.091)</td>
                 </tr>
                 <tr>
-                  <td>x1</td>
-                  <td>0.926***</td>
+                  <td data-row="3" data-col="0">x1</td>
+                  <td data-row="3" data-col="1">0.926***</td>
                 </tr>
                 <tr>
-                  <td></td>
-                  <td>(0.089)</td>
+                  <td data-row="4" data-col="0"></td>
+                  <td data-row="4" data-col="1">(0.089)</td>
                 </tr>
                 <tr>
-                  <td>x2</td>
-                  <td>0.992***</td>
+                  <td data-row="5" data-col="0">x2</td>
+                  <td data-row="5" data-col="1">0.992***</td>
                 </tr>
                 <tr>
-                  <td></td>
-                  <td>(0.089)</td>
+                  <td data-row="6" data-col="0"></td>
+                  <td data-row="6" data-col="1">(0.089)</td>
                 </tr>
                 <tr>
-                  <td>Num.Obs.</td>
-                  <td>100</td>
+                  <td data-row="7" data-col="0">Num.Obs.</td>
+                  <td data-row="7" data-col="1">100</td>
                 </tr>
                 <tr>
-                  <td>R2</td>
-                  <td>0.720</td>
+                  <td data-row="8" data-col="0">R2</td>
+                  <td data-row="8" data-col="1">0.720</td>
                 </tr>
                 <tr>
-                  <td>RMSE</td>
-                  <td>0.89</td>
+                  <td data-row="9" data-col="0">RMSE</td>
+                  <td data-row="9" data-col="1">0.89</td>
                 </tr>
                 <tr>
-                  <td>Std.Errors</td>
-                  <td>IID</td>
+                  <td data-row="10" data-col="0">Std.Errors</td>
+                  <td data-row="10" data-col="1">IID</td>
                 </tr>
         </tbody>
       </table>

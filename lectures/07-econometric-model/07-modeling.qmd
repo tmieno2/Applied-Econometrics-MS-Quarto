@@ -41,6 +41,8 @@ library(data.table)
 library(dplyr)
 library(modelsummary)
 library(car)
+
+source(here::here("lectures/_lecture-theme.R"))
 ```
 
 ## Functional form
@@ -230,7 +232,7 @@ g_log_linear <-
   theme(
     legend.position = "bottom"
   ) +
-  theme_bw(base_size = 30)
+  theme_lecture
 )
 ```
 
@@ -320,7 +322,7 @@ ggplot(data = wage, aes(y = wage, x = educ)) +
   geom_line(data = log_fit, aes(y = y, x = x, color = "Log Fit"), linewidth = 1) +
   scale_color_manual(values = col, name = "") +
   ylim(0, 15) +
-  theme_bw(base_size = 30)+
+  theme_lecture+
   theme(
     legend.position = "bottom"
   )
@@ -394,7 +396,7 @@ ggplot(data = plot_data) +
   theme(
     legend.position = "bottom"
   ) +
-  theme_bw(base_size = 30)
+  theme_lecture
 ```
 
 :::
@@ -450,11 +452,11 @@ y_2_data <- data.table(
 
 g_quad_1 <- ggplot(data = y_1_data) +
   geom_line(aes(y = y, x = x), color = "red") +
-  theme_bw(base_size = 30)
+  theme_lecture
 
 g_quad_2 <- ggplot(data = y_2_data) +
   geom_line(aes(y = y, x = x), color = "red") +
-  theme_bw(base_size = 30)
+  theme_lecture
 ```
 
 ::: {.panel-tabset}
@@ -557,6 +559,41 @@ In R, any transformation of an existing variable goes inside the I function, whi
 When you want to include a variable that is a transformation of an existing variable, you can use `I()` function in which you write the mathematical expression of the desired transformation.
 
 ```{webr-r}
+#| context: setup
+# NOTE: a webr setup cell renders a loading widget wherever it sits, so keep it
+# inside a content slide rather than on a section divider (or, worse, above the
+# first heading, where it becomes an untitled slide of its own).
+# Mirror of lecture_theme() in lectures/_lecture-theme.R. WebR runs in the
+# browser, against a virtual filesystem that does not hold the repo, so it
+# cannot source that file. Edit the file first, then run
+#     Rscript lectures/check-lecture-theme.R
+# which fails if this copy has drifted from it.
+lecture_theme <- function(base_size = 16) {
+  ggplot2::theme_bw(base_size = base_size) +
+    ggplot2::theme(
+      axis.text = ggplot2::element_text(size = base_size * 0.9),
+      axis.title = ggplot2::element_text(size = base_size),
+      legend.text = ggplot2::element_text(size = base_size * 0.9),
+      legend.title = ggplot2::element_text(size = base_size * 0.9),
+      plot.background = ggplot2::element_rect(fill = "transparent", colour = NA),
+      panel.background = ggplot2::element_rect(fill = "transparent", colour = NA),
+      legend.background = ggplot2::element_rect(fill = "transparent", colour = NA),
+      legend.key = ggplot2::element_rect(fill = "transparent", colour = NA),
+      # theme_bw's grey92 grid was chosen against a white panel and all but
+      # disappears on the warm paper once the panel stops being opaque.
+      panel.grid = ggplot2::element_line(colour = "grey87")
+    )
+}
+
+# The WebR canvas is 7x4.5in at out-width 55% of its output track
+# (lectures/_metadata.yml) — a similar pixels-per-inch to the 10in knitr canvas,
+# but often narrower when the cell renders side by side, so it runs a little
+# larger than the 16pt default. 30pt did not fit this canvas at all: the panel
+# collapsed into the top third and the legend clipped.
+theme_lecture <- lecture_theme(18)
+```
+
+```{webr-r}
 #| autorun: true
 #--- prepare a dataset ---#
 data("wage1", package = "wooldridge")
@@ -592,7 +629,7 @@ g_quad_ex <-
   ggplot() +
   geom_point(data = wage1, aes(y = wage, x = educ), size = 0.4) +
   geom_line(data = data, aes(y = y, x = x)) +
-  theme_bw(base_size = 30)
+  theme_lecture
 
 g_quad_ex
 ```
@@ -991,14 +1028,14 @@ g_marginal <-
   ylab("Marginal impact\nof experience") +
   xlab("Education (years)") +
   geom_hline(yintercept = 0) +
-  theme_bw(base_size = 30)
+  theme_lecture
 
 g_hist <- 
   ggplot(data = wage1) +
   geom_histogram(aes(educ)) +
   ylab("Count") +
   xlab("Education (years)") +
-  theme_bw(base_size = 30)
+  theme_lecture
 ```
 
 ::: {.columns}
@@ -1238,14 +1275,14 @@ g_comp <- ggplot(data = plot_data) +
   geom_line(aes(x = x, y = y, color = type)) +
   geom_text(
     data = text_data, aes(x, y, label = label),
-    size = 8, parse = TRUE, family = "Times"
+    size = 4.3, parse = TRUE, family = "Times"
   ) +
   geom_vline(xintercept = 0) +
   geom_hline(yintercept = 0) +
   ylab("Hourly Wage ($)") +
   xlab("Education (years)") +
   scale_color_discrete(name = "") +
-  theme_bw(base_size = 30) +
+  theme_lecture +
   theme(
     legend.position = "bottom"
   )
@@ -1458,14 +1495,14 @@ g_comp_i <- ggplot(data = plot_data) +
   geom_line(aes(x = x, y = y, color = type)) +
   geom_text(
     data = text_data, aes(x, y, label = label),
-    size = 8, parse = TRUE, family = "Times"
+    size = 4.3, parse = TRUE, family = "Times"
   ) +
   geom_vline(xintercept = 0) +
   geom_hline(yintercept = 0) +
   ylab("Hourly Wage ($)") +
   xlab("Education (years)") +
   scale_color_discrete(name = "") +
-  theme_bw(base_size = 30) +
+  theme_lecture +
   theme(
     legend.position = "bottom"
   )

@@ -1,10 +1,30 @@
 # Shared plot sizing for lecture notes. Individual figures can still override
-# these defaults when their layout requires a different aspect ratio or width.
+# these defaults when their layout requires a different aspect ratio or width —
+# but a figure that changes fig-width must also change the base_size it passes
+# to lecture_theme(), or its type no longer matches the rest of the site. See
+# the sizing note in lectures/_lecture-theme.R.
+#
+# 10x6in shown at 75% of the 1050px slide is 787px wide, which puts the default
+# lecture_theme() 16pt axis titles at ~17.5px against 19.2px body text. The
+# previous 7x4.5 at 55% was small enough that decks compensated with 30pt type,
+# which then did not fit the canvas.
 execute:
-  fig-width: 7
-  fig-height: 4.5
+  fig-width: 10
+  fig-height: 6
   fig-dpi: 216
-  out-width: 55%
+  out-width: 75%
+
+# Figures are drawn on a transparent device so they sit on the slide's paper
+# colour ($nb-paper in notebook.scss) rather than on a white card. This only
+# clears the background the device itself paints; a deck's ggplot theme still
+# has to set plot.background/panel.background to transparent, or the theme
+# paints white back over it.
+# `bg` is accepted by both grDevices::png() and ragg::agg_png(), so this does
+# not pin the device.
+knitr:
+  opts_chunk:
+    dev.args:
+      bg: transparent
 
 webr:
   cell-options:

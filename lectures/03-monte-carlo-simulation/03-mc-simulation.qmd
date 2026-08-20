@@ -129,6 +129,41 @@ Algorithms for generating a sequence of numbers whose properties <span style = "
 Draw from a uniform distribution:
 
 ```{webr-r}
+#| context: setup
+# NOTE: a webr setup cell renders a loading widget wherever it sits, so keep it
+# inside a content slide rather than on a section divider (or, worse, above the
+# first heading, where it becomes an untitled slide of its own).
+# Mirror of lecture_theme() in lectures/_lecture-theme.R. WebR runs in the
+# browser, against a virtual filesystem that does not hold the repo, so it
+# cannot source that file. Edit the file first, then run
+#     Rscript lectures/check-lecture-theme.R
+# which fails if this copy has drifted from it.
+lecture_theme <- function(base_size = 16) {
+  ggplot2::theme_bw(base_size = base_size) +
+    ggplot2::theme(
+      axis.text = ggplot2::element_text(size = base_size * 0.9),
+      axis.title = ggplot2::element_text(size = base_size),
+      legend.text = ggplot2::element_text(size = base_size * 0.9),
+      legend.title = ggplot2::element_text(size = base_size * 0.9),
+      plot.background = ggplot2::element_rect(fill = "transparent", colour = NA),
+      panel.background = ggplot2::element_rect(fill = "transparent", colour = NA),
+      legend.background = ggplot2::element_rect(fill = "transparent", colour = NA),
+      legend.key = ggplot2::element_rect(fill = "transparent", colour = NA),
+      # theme_bw's grey92 grid was chosen against a white panel and all but
+      # disappears on the warm paper once the panel stops being opaque.
+      panel.grid = ggplot2::element_line(colour = "grey87")
+    )
+}
+
+# The WebR canvas is 7x4.5in at out-width 55% of its output track
+# (lectures/_metadata.yml) — a similar pixels-per-inch to the 10in knitr canvas,
+# but often narrower when the cell renders side by side, so it runs a little
+# larger than the 16pt default. 30pt did not fit this canvas at all: the panel
+# collapsed into the top third and the legend clipped.
+theme_lecture <- lecture_theme(18)
+```
+
+```{webr-r}
 runif(5) # default is min=0 and max=1
 ```
 
@@ -274,7 +309,7 @@ ggplot() +
     "text",
     label = paste0("dnorm(-1) = ", round(dnorm(-1), digits = 2)),
     y = 0.25, x = -2,
-    size = 8
+    size = 4.8
   ) +
   geom_line(
     data = data.table(y = seq(0, dnorm(-1), length = 20), x = -1),
@@ -290,7 +325,7 @@ ggplot() +
     "text",
     label = paste0("dnorm(2) = ", round(dnorm(2), digits = 2)),
     y = 0.1, x = 2.5,
-    size = 8
+    size = 4.8
   ) +
   geom_line(
     data = data.table(y = seq(0, dnorm(2), length = 20), x = 2),
@@ -299,7 +334,7 @@ ggplot() +
   ) +
   geom_hline(yintercept = 0) +
   geom_vline(xintercept = 0) +
-  theme_bw(base_size = 30)
+  theme_lecture
 ```
 
 ### `pnorm()`
@@ -330,11 +365,11 @@ ggplot() +
     "text",
     label = paste0("pnorm(-1) = ", round(pnorm(-1), digits = 2)),
     y = 0.05, x = 0,
-    size = 8
+    size = 4.8
   ) +
   geom_hline(yintercept = 0) +
   geom_vline(xintercept = 0) +
-  theme_bw(base_size = 30)
+  theme_lecture
 ```
 
 #### pnorm(2)
@@ -360,11 +395,11 @@ ggplot() +
     "text",
     label = paste0("pnorm(2) = ", round(pnorm(2), digits = 2)),
     y = 0.05, x = 0,
-    size = 8
+    size = 4.8
   ) +
   geom_hline(yintercept = 0) +
   geom_vline(xintercept = 0) +
-  theme_bw(base_size = 30)
+  theme_lecture
 ```
 
 #### Exercise
@@ -440,18 +475,18 @@ ggplot() +
     "text",
     label = "qnorm(0.95)=1.64",
     x = 2.2, y = 0.3,
-    size = 8
+    size = 4.8
   ) +
   geom_point(aes(y = 0, x = 1.64)) +
   annotate(
     "text",
     label = "1.64",
     x = 1.64, y = 0.03,
-    size = 8
+    size = 4.8
   ) +
   geom_hline(yintercept = 0) +
   geom_vline(xintercept = 0) +
-  theme_bw(base_size = 30)
+  theme_lecture
 ```
 
 #### Exercise
@@ -878,7 +913,7 @@ One last look, because averages hide things. This plots the whole distribution o
 ggplot(data = data.frame(x = V_beta_storage)) +
   geom_density(aes(x = x)) +
   geom_vline(xintercept = round(4 / SST_X, digits = 4)) +
-  theme_bw(base_size = 30)
+  theme_lecture
 ```
 :::
 <!--end of panel-->
@@ -981,7 +1016,7 @@ ggplot(data = plot_data) +
   geom_density(aes(x = x, fill = type), alpha = 0.5) +
   scale_fill_discrete(name = "") +
   xlab("Coefficient Estimate") +
-  theme_bw(base_size = 30) +
+  theme_lecture +
   theme(
     legend.position = "bottom"
   )

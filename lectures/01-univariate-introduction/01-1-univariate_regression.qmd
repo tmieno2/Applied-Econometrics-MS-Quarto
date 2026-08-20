@@ -22,14 +22,7 @@ library(flextable)
 library(dplyr)
 library(ggplot2)
 
-theme_lecture <- 
-  theme_bw(base_size = 30) +
-  theme(
-    axis.text = element_text(size = 30),
-    axis.title = element_text(size = 30),
-    legend.text = element_text(size = 27),
-    legend.title = element_text(size = 27)
-  )
+source(here::here("lectures/_lecture-theme.R"))
 ```
 
 # Univariate Regression: Introduction
@@ -239,9 +232,11 @@ The same thing as a picture, and I want you to connect each symbol to something 
 :::
 <!--end of the 1st column-->
 ::: {.column width="70%"}
-```{r out.width="100%"}
-#| fig-height: 8
+```{r}
 #| echo: false
+#| fig-width: 9
+#| fig-height: 7
+#| out-width: "100%"
 x <- seq(0, 5, length = 1000)
 y <- 1 + 2 * x
 (
@@ -252,13 +247,15 @@ g_1 <-
   geom_vline(xintercept = 0) +
   # beta_0: where the line crosses x = 0
   annotate("point", x = 0, y = 1, size = 3, color = "blue") +
-  annotate("text", x = 0.55, y = 1.7, label = "beta[0]==1", parse = TRUE, size = 8, color = "blue") +
+  annotate("text", x = 0.55, y = 1.7, label = "beta[0]==1", parse = TRUE, size = 5.5, color = "blue") +
   # beta_1: one step right, beta_1 steps up
   annotate("segment", x = 2, xend = 3, y = 5, yend = 5, color = "red", linewidth = 0.8) +
   annotate("segment", x = 3, xend = 3, y = 5, yend = 7, color = "red", linewidth = 0.8) +
-  annotate("text", x = 2.5, y = 4.2, label = "1 unit of x", size = 6, color = "red") +
-  annotate("text", x = 3.6, y = 6, label = "beta[1]==2", parse = TRUE, size = 8, color = "red") +
-  theme_lecture
+  annotate("text", x = 2.5, y = 4.2, label = "1 unit of x", size = 4.5, color = "red") +
+  annotate("text", x = 3.6, y = 6, label = "beta[1]==2", parse = TRUE, size = 5.5, color = "red") +
+  # 9in wide inside a 70% column is a narrower canvas than the shared 10in one
+  # shown at 75%, so it needs its own, smaller base_size to match.
+  lecture_theme(14)
 )
 ```
 :::
@@ -373,7 +370,7 @@ Now look at what is actually in the data. Each dot is a person, ability along th
 + blue line: $E[income|B, ability]$
 :::
 
-```{r cp, out.width = "75%"}
+```{r cp}
 #| echo: false
 g_CI <-
   ggplot(data = data) +
@@ -381,8 +378,10 @@ g_CI <-
   geom_smooth(aes(x = x, y = yline, color = University), method = "lm", se = FALSE, linewidth = 0.8) +
   geom_hline(yintercept = mean_inc_A, color = "red") +
   geom_hline(yintercept = mean_inc_B, color = "blue") +
-  annotate("text", x = 0.7, y = mean_inc_A + 12, label = paste(round(mean_inc_A, 0), sep = ""), family = "Times", color = "red") +
-  annotate("text", x = 0.7, y = mean_inc_B - 12, label = paste(round(mean_inc_B, 0), sep = ""), family = "Times", color = "blue") +
+  # hjust = 0 keeps the label inside the panel: x = 0.7 is left of the data, so
+  # a centred label straddles the axis.
+  annotate("text", x = 0.7, y = mean_inc_A + 12, label = paste(round(mean_inc_A, 0), sep = ""), family = "Times", color = "red", size = 6, hjust = 0) +
+  annotate("text", x = 0.7, y = mean_inc_B - 12, label = paste(round(mean_inc_B, 0), sep = ""), family = "Times", color = "blue", size = 6, hjust = 0) +
   xlab("ability") +
   ylab("Annual Income") +
   theme_lecture +
@@ -672,7 +671,6 @@ The horizontal lines are the two group averages: their gap is the `r round(mean(
 
 ```{r}
 #| echo: false
-#| out-width: "75%"
 g_CI
 ```
 
@@ -689,7 +687,6 @@ This is what it would look like if college choice and ability were not correlate
 
 ```{r}
 #| echo: false
-#| out-width: "72%"
 ggplot(data = data_cI) +
   geom_point(aes(x = x, y = y, color = University), size = 0.5) +
   geom_smooth(aes(x = x, y = yline, color = University), method = "lm", se = FALSE) +
@@ -701,7 +698,9 @@ ggplot(data = data_cI) +
     y = mean_inc_A_r + 6,
     label = paste(round(mean_inc_A_r, 0), sep = ""),
     family = "Times",
-    color = "red"
+    color = "red",
+    size = 6,
+    hjust = 0
   ) +
   annotate(
     "text",
@@ -709,7 +708,9 @@ ggplot(data = data_cI) +
     y = mean_inc_B_r - 6,
     label = paste(round(mean_inc_B_r, 0), sep = ""),
     family = "Times",
-    color = "blue"
+    color = "blue",
+    size = 6,
+    hjust = 0
   ) +
   xlab("ability") +
   ylab("Annual Income") +

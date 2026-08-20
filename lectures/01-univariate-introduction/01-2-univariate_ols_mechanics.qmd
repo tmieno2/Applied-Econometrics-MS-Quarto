@@ -57,14 +57,31 @@ uni_reg <- feols(price ~ lotsize, data = HousePrices)
 # above it renders its loading widget as an untitled slide of its own.
 data(HousePrices, package = "AER")
 
-theme_lecture <-
-  theme_bw(base_size = 30) +
-  theme(
-    axis.text = element_text(size = 30),
-    axis.title = element_text(size = 30),
-    legend.text = element_text(size = 27),
-    legend.title = element_text(size = 27)
-  )
+# Mirror of lecture_theme() in lectures/_lecture-theme.R — WebR cannot source
+# that file. Edit it first, then run `Rscript lectures/check-lecture-theme.R`,
+# which fails if this copy has drifted.
+lecture_theme <- function(base_size = 16) {
+  ggplot2::theme_bw(base_size = base_size) +
+    ggplot2::theme(
+      axis.text = ggplot2::element_text(size = base_size * 0.9),
+      axis.title = ggplot2::element_text(size = base_size),
+      legend.text = ggplot2::element_text(size = base_size * 0.9),
+      legend.title = ggplot2::element_text(size = base_size * 0.9),
+      plot.background = ggplot2::element_rect(fill = "transparent", colour = NA),
+      panel.background = ggplot2::element_rect(fill = "transparent", colour = NA),
+      legend.background = ggplot2::element_rect(fill = "transparent", colour = NA),
+      legend.key = ggplot2::element_rect(fill = "transparent", colour = NA),
+      # theme_bw's grey92 grid was chosen against a white panel and all but
+      # disappears on the warm paper once the panel stops being opaque.
+      panel.grid = ggplot2::element_line(colour = "grey87")
+    )
+}
+# The WebR canvas is 7x4.5in at out-width 55% of its output track
+# (lectures/_metadata.yml) — a similar pixels-per-inch to the 10in knitr canvas,
+# but often narrower when the cell renders side by side, so it runs a little
+# larger than the 16pt default. 30pt did not fit this canvas at all: the panel
+# collapsed into the top third and the legend clipped.
+theme_lecture <- lecture_theme(18)
 ```
 
 ::: {.panel-tabset}
@@ -853,16 +870,16 @@ g_hp +
   annotate("text",
     x = x_i - 1100, y = (y_bar + yhat_i) / 2,
     label = "hat(y)[i] - bar(y)", parse = TRUE, color = "darkgreen",
-    size = 7, hjust = 0.5
+    size = 4.2, hjust = 0.5
   ) +
   annotate("text",
     x = x_i + 350, y = (yhat_i + y_i) / 2,
     label = "hat(u)[i]", parse = TRUE, color = "purple",
-    size = 7, hjust = 0
+    size = 4.2, hjust = 0
   ) +
   annotate("text",
     x = 3000, y = y_bar * 1.12, label = "bar(y)",
-    parse = TRUE, color = "red", size = 5
+    parse = TRUE, color = "red", size = 3
   )
 ```
 

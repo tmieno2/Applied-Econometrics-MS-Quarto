@@ -44,6 +44,8 @@ This lecture changes the question we ask about OLS. Everything so far has been a
 library(ggplot2)
 library(dplyr)
 library(data.table)
+
+source(here::here("lectures/_lecture-theme.R"))
 ```
 
 **Large Sample Properties of OLS**
@@ -136,6 +138,41 @@ The nested loops implement exactly that. The outer loop walks through the sample
 </details>
 
 ```{webr-r}
+#| context: setup
+# NOTE: a webr setup cell renders a loading widget wherever it sits, so keep it
+# inside a content slide rather than on a section divider (or, worse, above the
+# first heading, where it becomes an untitled slide of its own).
+# Mirror of lecture_theme() in lectures/_lecture-theme.R. WebR runs in the
+# browser, against a virtual filesystem that does not hold the repo, so it
+# cannot source that file. Edit the file first, then run
+#     Rscript lectures/check-lecture-theme.R
+# which fails if this copy has drifted from it.
+lecture_theme <- function(base_size = 16) {
+  ggplot2::theme_bw(base_size = base_size) +
+    ggplot2::theme(
+      axis.text = ggplot2::element_text(size = base_size * 0.9),
+      axis.title = ggplot2::element_text(size = base_size),
+      legend.text = ggplot2::element_text(size = base_size * 0.9),
+      legend.title = ggplot2::element_text(size = base_size * 0.9),
+      plot.background = ggplot2::element_rect(fill = "transparent", colour = NA),
+      panel.background = ggplot2::element_rect(fill = "transparent", colour = NA),
+      legend.background = ggplot2::element_rect(fill = "transparent", colour = NA),
+      legend.key = ggplot2::element_rect(fill = "transparent", colour = NA),
+      # theme_bw's grey92 grid was chosen against a white panel and all but
+      # disappears on the warm paper once the panel stops being opaque.
+      panel.grid = ggplot2::element_line(colour = "grey87")
+    )
+}
+
+# The WebR canvas is 7x4.5in at out-width 55% of its output track
+# (lectures/_metadata.yml) — a similar pixels-per-inch to the 10in knitr canvas,
+# but often narrower when the cell renders side by side, so it runs a little
+# larger than the 16pt default. 30pt did not fit this canvas at all: the panel
+# collapsed into the top third and the legend clipped.
+theme_lecture <- lecture_theme(18)
+```
+
+```{webr-r}
 #--- Preparation ---#
 B <- 1000 # the number of iterations
 N_list <- c(100, 1000, 10000) # sample size
@@ -182,7 +219,7 @@ g_co_ex <-
     name = "Sample Size",
     labels = c("N=100 ", "N=1,000 ", "N=10,000")
   ) +
-  theme_bw(base_size = 30) +
+  theme_lecture +
   theme(
     legend.position = "bottom"
   )
@@ -278,7 +315,7 @@ g_inco_ex <- ggplot(data = plot_data) +
     name = "Sample Size",
     labels = c("N=100 ", "N=1,000 ", "N=10,000")
   ) +
-  theme_bw(base_size = 30) +
+  theme_lecture +
   theme(
     legend.position = "bottom"
   )
@@ -486,7 +523,10 @@ server <- function(input, output) {
         ) +
         xlab(expression(sqrt(N) * (bar(x) - 0.3))) +
         ylab("Density") +
-        theme_bw(base_size = 30)
+        # This app is compiled standalone and runs in its own iframe, so it can
+        # see neither lecture_theme() nor the slide background. Only the size is
+        # brought into line with the rest of the site.
+        theme_bw(base_size = 18)
     })
   })
 }
@@ -621,7 +661,7 @@ plot_data <- data.table(
 ggplot(data = plot_data) +
   geom_line(aes(y = value, x = x, color = variable)) +
   scale_color_discrete(name = "", guide = guide_legend(nrow = 2)) +
-  theme_bw(base_size = 30) +
+  theme_lecture +
   theme(
     legend.position = "bottom"
   )

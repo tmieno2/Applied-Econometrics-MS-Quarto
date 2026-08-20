@@ -1,5 +1,5 @@
 ---
-title: "Course Calendar — Fall 2026"
+title: "Course Calendar"
 format:
   html:
     page-layout: full
@@ -10,27 +10,20 @@ format:
 #| include: false
 
 # ---------------------------------------------------------------------------
-# Fall 2026 course calendar.
+# Course calendar.
 #
-# Everything below is driven by the `events` table. To change a date, edit the
-# table -- the month grids, the legend, and the key-dates list all follow.
-#
-# UNL Fall 2026 (registrar): classes Aug 24 - Dec 12, Labor Day Sep 7,
-# fall break Oct 19-20, Thanksgiving Nov 25-29, finals Dec 14-18.
+# NO DATES LIVE IN THIS FILE. Everything comes from course-dates.json, where
+# deadlines are stored as (week, day) offsets from the first week of class. To
+# roll the course to a new year, edit the `term` block of that file -- the month
+# grids, the legend and the key-dates table all follow.
 # ---------------------------------------------------------------------------
 
-term_start <- as.Date("2026-08-24")
-term_end   <- as.Date("2026-12-12")
+source(here::here("course-dates.R"))
+cal <- read_course_dates()
 
-# Days with no class even though they fall on a normal meeting day
-no_class <- as.Date(c(
-  "2026-09-07", # Labor Day
-  "2026-10-19", # Fall break (Mon)
-  "2026-10-20", # Fall break (Tue)
-  "2026-11-25", # Student holiday
-  "2026-11-26", # Thanksgiving
-  "2026-11-27"  # Thanksgiving break (Fri)
-))
+term_start <- cal$first_class_day
+term_end   <- cal$last_class_day
+no_class   <- cal$no_class$date
 
 new_event <- function(date, time, label, type) {
   data.frame(
@@ -39,52 +32,30 @@ new_event <- function(date, time, label, type) {
   )
 }
 
-# --- recurring meetings ----------------------------------------------------
-all_days <- seq(term_start, term_end, by = "day")
-dow <- weekdays(all_days)
-
-# A midterm *is* that day's lecture, so it replaces the routine chip rather
-# than stacking on top of it.
-exam_days <- as.Date(c("2026-10-07", "2026-11-18"))
-
-lecture_days <- all_days[dow %in% c("Monday", "Wednesday") &
-                           !all_days %in% no_class &
-                           !all_days %in% exam_days]
-lab_days     <- all_days[dow == "Friday" & !all_days %in% no_class]
+# Finals week runs Monday to Friday from the registrar's start date.
+finals_days <- cal$finals_week_starts + 0:4
 
 events <- rbind(
-  new_event(lecture_days, "3 PM", "Lecture", "lecture"),
-  new_event(lab_days,     "1 PM", "R Lab",   "lab"),
+  # --- recurring meetings -------------------------------------------------
+  # A midterm *is* that day's lecture, so read_course_dates() has already
+  # removed exam days from `lecture_days` rather than stacking two chips.
+  new_event(cal$lecture_days, cal$lecture_time, "Lecture", "lecture"),
+  new_event(cal$lab_days,     cal$lab_time,     "R Lab",   "lab"),
 
-  # --- exams -------------------------------------------------------------
-  new_event(exam_days[1], "3 PM", "Midterm 1", "exam"),
-  new_event(exam_days[2], "3 PM", "Midterm 2", "exam"),
-
-  # --- final paper milestones --------------------------------------------
-  new_event("2026-10-16", "due", "Topic &amp; data approval", "deadline"),
-  new_event("2026-10-23", "due", "Paper proposal",            "deadline"),
-  new_event("2026-12-18", "due", "Final paper",               "deadline"),
+  # --- everything scheduled: exams, releases, deadlines -------------------
+  new_event(cal$events$date, cal$events$time, cal$events$title, cal$events$type),
 
   # --- university calendar ------------------------------------------------
-  new_event("2026-08-24", "",  "First day of classes", "term"),
-  new_event("2026-09-07", "",  "Labor Day — no class", "holiday"),
-  new_event("2026-10-19", "",  "Fall break",           "holiday"),
-  new_event("2026-10-20", "",  "Fall break",           "holiday"),
-  new_event("2026-11-25", "",  "Student holiday",      "holiday"),
-  new_event("2026-11-26", "",  "Thanksgiving",         "holiday"),
-  new_event("2026-11-27", "",  "Thanksgiving break",   "holiday"),
-  new_event("2026-12-11", "",  "Last R Lab",           "term"),
-  new_event("2026-12-14", "",  "Finals week",          "finals"),
-  new_event("2026-12-15", "",  "Finals week",          "finals"),
-  new_event("2026-12-16", "",  "Finals week",          "finals"),
-  new_event("2026-12-17", "",  "Finals week",          "finals"),
-  new_event("2026-12-18", "",  "Finals week",          "finals")
+  new_event(term_start, "", "First day of classes", "term"),
+  new_event(no_class,   "", cal$no_class$label,     "holiday"),
+  new_event(max(cal$lab_days), "", "Last R Lab",    "term"),
+  new_event(finals_days, "", "Finals week",         "finals")
 )
 
 # Chips within a day are ordered by type, not by insertion, so a deadline never
 # hides below the routine lecture chip.
-type_rank <- c(exam = 1, deadline = 2, lecture = 3, lab = 4, term = 5,
-               holiday = 6, finals = 7)
+type_rank <- c(exam = 1, deadline = 2, release = 3, lecture = 4, lab = 5,
+               term = 6, holiday = 7, finals = 8)
 events <- events[order(events$date, type_rank[events$type]), ]
 
 chip_html <- function(rows) {
@@ -203,6 +174,9 @@ month_html <- function(year, month) {
 .cal-lab      { background: var(--cal-tint);      border-left-color: var(--cal-accent); color: #1d3557; }
 .cal-exam     { background: #f6dfd4; border-left-color: #b3341b; color: #7d2413; font-weight: 600; }
 .cal-deadline { background: var(--cal-sienna); border-left-color: #7d3d1f; color: #fff; font-weight: 600; }
+/* An assignment going out is the quiet counterpart of one coming due, so it
+   gets a tinted chip rather than the solid fill deadlines use. */
+.cal-release  { background: #e6f2f2; border-left-color: #2a7a7a; color: #1d5252; }
 .cal-deadline .cal-time { opacity: 0.85; }
 .cal-term     { background: #e4efe4; border-left-color: #3f7a46; color: #27502c; }
 .cal-holiday  { background: #ececec; border-left-color: #9a9a9a; color: #4f4f4f; }
@@ -220,15 +194,16 @@ month_html <- function(year, month) {
 </style>
 ```
 
-Lectures meet **MW 3:00–4:30 PM**; R labs meet **F 1:00–2:30 PM**.
-Semester dates follow the [UNL 2026–2027 academic calendar](https://registrar.unl.edu/calendars/academic-calendar/projected-calendars/academic-calendar-2026-2027/).
+`r cal$label`. Lectures meet **MW 3:00–4:30 PM**; R labs meet **F 1:00–2:30 PM**.
+Semester dates follow the [UNL academic calendar](`r cal$registrar_calendar`).
 
 ```{=html}
 <div class="cal-legend">
   <span><i class="cal-swatch cal-lecture"></i> Lecture (MW)</span>
   <span><i class="cal-swatch cal-lab"></i> R Lab (F)</span>
   <span><i class="cal-swatch cal-exam"></i> Midterm</span>
-  <span><i class="cal-swatch cal-deadline"></i> Final paper milestone</span>
+  <span><i class="cal-swatch cal-release"></i> Assignment released</span>
+  <span><i class="cal-swatch cal-deadline"></i> Due date</span>
   <span><i class="cal-swatch cal-term"></i> Term milestone</span>
   <span><i class="cal-swatch cal-holiday"></i> No class</span>
   <span><i class="cal-swatch cal-finals"></i> Finals week</span>
@@ -237,17 +212,26 @@ Semester dates follow the [UNL 2026–2027 academic calendar](https://registrar.
 
 ## Key dates
 
-| Date | Item |
-|:-----------------|:--------------------------------------------------|
-| **Mon, Aug 24**  | First day of classes |
-| **Wed, Oct 7**   | Midterm 1 (in class, open book) |
-| **Fri, Oct 16**  | Research topic and dataset approved by instructor |
-| **Fri, Oct 23**  | Paper proposal due |
-| **Wed, Nov 18**  | Midterm 2 (in class, open book) |
-| **Fri, Dec 11**  | Last R lab |
-| **Fri, Dec 18**  | Final paper due |
+```{r}
+#| echo: false
+#| results: asis
 
-: {tbl-colwidths="[22,78]"}
+key <- events[events$type %in% c("exam", "deadline", "release", "term"), ]
+key <- key[order(key$date, type_rank[key$type]), ]
+
+# The note column in course-dates.json carries the detail worth showing here
+# ("in class, open book"); fall back to the bare title when there is none.
+notes <- setNames(cal$events$note, cal$events$title)
+detail <- ifelse(!is.na(notes[key$label]), notes[key$label], "")
+
+cat(": {tbl-colwidths=\"[22,78]\"}\n\n")
+cat("| Date | Item |\n|:-----------------|:----------------------------------|\n")
+cat(paste0(
+  "| **", format(key$date, "%a, %b %e"), "** | ", key$label,
+  ifelse(nzchar(detail), paste0(" — ", detail), ""), " |"
+), sep = "\n")
+cat("\n")
+```
 
 ## Month by month
 
@@ -255,5 +239,10 @@ Semester dates follow the [UNL 2026–2027 academic calendar](https://registrar.
 #| echo: false
 #| results: asis
 
-for (m in 8:12) cat(month_html(2026, m))
+months <- seq(as.Date(format(term_start, "%Y-%m-01")),
+              as.Date(format(max(events$date), "%Y-%m-01")), by = "month")
+for (m in months) {
+  m <- as.Date(m, origin = "1970-01-01")
+  cat(month_html(as.integer(format(m, "%Y")), as.integer(format(m, "%m"))))
+}
 ```
