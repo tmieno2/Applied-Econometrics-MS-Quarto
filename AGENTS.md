@@ -107,7 +107,8 @@ R the resolution, so at `dpi: 216` (chosen to match the knitr figures' pixel
 density) every point, mm and font size comes out one third of its intended
 size. Each webR setup cell therefore defines `webr_scale <- 216 / 72` and
 multiplies ggplot2's `.pt` and `.stroke` constants and the theme `base_size`
-by it; any explicit `element_text(size = ...)` in a webR cell must be
+by it (and pins the theme `line`/`rect` widths back to `18 / 22`, since those are
+in mm and would otherwise scale twice); any explicit `element_text(size = ...)` in a webR cell must be
 multiplied by `webr_scale` too. `geom_*` and `annotate()` sizes need no
 change, they go through `.pt`. Base graphics (`hist()`, `plot()`) are scaled
 by the device `pointsize` instead, which our vendored
