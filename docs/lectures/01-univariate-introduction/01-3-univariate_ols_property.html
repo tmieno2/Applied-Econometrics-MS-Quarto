@@ -401,7 +401,9 @@
         return;
       }
 
-      setTracks(host, 1 - outputNeed);
+      // The split is fixed by the code once it is measured; it must not move when
+      // the output arrives, or the code block visibly shrinks on Run. If the
+      // output does not fit in the share it has, stack instead.
       requestAnimationFrame(function () {
         if (pre.scrollWidth > pre.clientWidth * 1.08) stack(host);
       });
@@ -427,8 +429,8 @@
       }
       host.dataset.webrLayout = "side";
 
-      // Estimate an initial split from the longest source line. The output is
-      // intentionally favoured; actual output dimensions refine it after a run.
+      // Estimate an initial split from the longest source line. This split is
+      // final; a run can only fall back to stacking, never re-split.
       var initialCodeShare = (metrics.maxChars + 10) / 145;
       setTracks(host, initialCodeShare);
       measureRenderedCode(area, host, details.code, 0);
