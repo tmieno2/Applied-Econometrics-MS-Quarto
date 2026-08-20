@@ -100,3 +100,12 @@ stacked figure at 380px tall (`object-fit: contain`, aspect ratio kept), which
 is what a 700px slide has left after a title, a tab bar and a callout. Do not
 work around it per slide with `fig-height` or `out-width`; if a capped figure
 is too small to read, the slide has too much on it and should be split.
+
+**WebR `dpi` must stay 72.** The webr extension sizes the canvas at
+`fig-width * dpi` pixels but never tells R the resolution, so R draws at
+72 dpi regardless: at `dpi: 216` an 18pt label is 18px on a 1512px canvas,
+one third the intended size, and point sizes and line widths shrink the same
+way. At 72 a point is a pixel and `lecture_theme(18)` comes out as designed.
+The extension also hard-codes a white canvas background; our vendored copy of
+`_extensions/coatless/webr/qwebr-compute-engine.js` sets it to transparent.
+Re-apply that one-word change if the extension is ever updated.

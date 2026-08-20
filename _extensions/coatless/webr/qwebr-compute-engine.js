@@ -132,7 +132,7 @@ globalThis.qwebrComputeEngine = async function(
         captureOutputOptions.captureGraphics = {
             width: fig_width,
             height: fig_height,
-            bg: "white", // default: transparent
+            bg: "transparent", // was "white"; the slide paper colour must show through (see AGENTS.md)
             pointsize: 12,
             capture: true
         };
