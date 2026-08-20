@@ -101,11 +101,17 @@ is what a 700px slide has left after a title, a tab bar and a callout. Do not
 work around it per slide with `fig-height` or `out-width`; if a capped figure
 is too small to read, the slide has too much on it and should be split.
 
-**WebR `dpi` must stay 72.** The webr extension sizes the canvas at
-`fig-width * dpi` pixels but never tells R the resolution, so R draws at
-72 dpi regardless: at `dpi: 216` an 18pt label is 18px on a 1512px canvas,
-one third the intended size, and point sizes and line widths shrink the same
-way. At 72 a point is a pixel and `lecture_theme(18)` comes out as designed.
-The extension also hard-codes a white canvas background; our vendored copy of
-`_extensions/coatless/webr/qwebr-compute-engine.js` sets it to transparent.
-Re-apply that one-word change if the extension is ever updated.
+**WebR figures: R draws the canvas at 72 dpi whatever `dpi` says.** The webr
+extension sizes the canvas at `fig-width * dpi` pixels but has no way to tell
+R the resolution, so at `dpi: 216` (chosen to match the knitr figures' pixel
+density) every point, mm and font size comes out one third of its intended
+size. Each webR setup cell therefore defines `webr_scale <- 216 / 72` and
+multiplies ggplot2's `.pt` and `.stroke` constants and the theme `base_size`
+by it; any explicit `element_text(size = ...)` in a webR cell must be
+multiplied by `webr_scale` too. `geom_*` and `annotate()` sizes need no
+change, they go through `.pt`. Base graphics (`hist()`, `plot()`) are scaled
+by the device `pointsize` instead, which our vendored
+`_extensions/coatless/webr/qwebr-compute-engine.js` sets to `12 * dpi / 72`;
+the same file sets the canvas background to transparent (upstream hard-codes
+white). Re-apply both edits if the extension is ever updated. Changing `dpi`
+means changing `webr_scale` in every deck.

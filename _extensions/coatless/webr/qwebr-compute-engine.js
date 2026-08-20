@@ -133,7 +133,9 @@ globalThis.qwebrComputeEngine = async function(
             width: fig_width,
             height: fig_height,
             bg: "transparent", // was "white"; the slide paper colour must show through (see AGENTS.md)
-            pointsize: 12,
+            // R draws this canvas at 72 dpi whatever `dpi` is, so base graphics
+            // text (hist(), plot()) must be scaled here to stay legible.
+            pointsize: 12 * options["dpi"] / 72,
             capture: true
         };
     }  else {

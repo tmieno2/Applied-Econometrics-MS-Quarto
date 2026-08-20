@@ -21,7 +21,7 @@ webr:
   packages: ['fixest', 'dplyr', 'data.table', 'ggplot2']
   cell-options:
     editor-font-scale: 0.8
-    dpi: 72
+    dpi: 216
     fig-width: 7
     fig-height: 4.5
     out-width: 55%
@@ -169,7 +169,14 @@ lecture_theme <- function(base_size = 16) {
 # but often narrower when the cell renders side by side, so it runs a little
 # larger than the 16pt default. 30pt did not fit this canvas at all: the panel
 # collapsed into the top third and the legend clipped.
-theme_lecture <- lecture_theme(18)
+# webR draws its canvas at 72 dpi no matter what `dpi` says, so on a 216-dpi
+# canvas everything ggplot measures in points or mm comes out a third of its
+# size. Scale ggplot2's mm-to-point constants and the theme by the same
+# factor and the figure matches the knitr ones. Keep in step with `dpi` above.
+webr_scale <- 216 / 72
+assignInNamespace(".pt", ggplot2::.pt * webr_scale, "ggplot2")
+assignInNamespace(".stroke", ggplot2::.stroke * webr_scale, "ggplot2")
+theme_lecture <- lecture_theme(18 * webr_scale)
 ```
 
 ```{webr-r}
