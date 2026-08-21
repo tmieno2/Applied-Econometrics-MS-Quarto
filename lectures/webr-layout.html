@@ -10,30 +10,53 @@
   // ~9.2px, and erring high is what keeps the editor from wrapping when the
   // real measurement below has not landed yet.
   var FALLBACK_CHAR_PX = 11;
-  // Breathing room on each measured need. Side by side is a bonus, not a goal:
-  // the vertical stack is a perfectly good layout, so a cell that only fits by
-  // cramming should simply stay stacked. Slack here buys that judgement — it
-  // makes the fit test stricter AND leaves each column wider than its content.
+  // Breathing room on the measured code width, so the editor is never sized to
+  // the exact pixel its longest line needs.
   var CODE_SLACK = 1.15;
-  var OUTPUT_SLACK = 1.08;
-  // Going side by side saves exactly one thing: the height of the code block,
-  // which no longer sits above the output. Against a tall output that saving is
-  // trivial — a 3-line editor beside a 34-line print of `mtcars` reclaims about
-  // a tenth of the cell's height and splits the slide in half to do it.
+  // 0.58 was too mean. A cell whose longest line needed 66% of the width was
+  // refused a side-by-side layout even when its output was `[1] 20` — two
+  // characters that would have been perfectly happy in the remaining third.
+  // The code asks for what it needs; the output takes the rest.
+  var MAX_CODE_SHARE = 0.70;
+  // The floor is in PIXELS, not in share, because what sets it is not the code
+  // at all: it is the extension's own toolbar. Below this the label wraps onto
+  // a second line — which is what a share-based floor of 0.18 did to `5 == 5`,
+  // a cell whose code genuinely wants no width at all.
   //
-  // 0.4 means the output may be at most ~1.5x the height of the code block.
-  // Calibrated against real cells, not picked: one line of code beside a 10-line
-  // tibble scores 0.31 and must be rejected; the 5-line piping example beside
-  // its 2 lines of output scores 0.81 and must be kept. An earlier 0.25 sat
-  // below the first of those and let it through.
-  var MIN_VERTICAL_SAVING = 0.4;
-  var MAX_CODE_SHARE = 0.58;
-  // The floor exists only so the editor never becomes unusably narrow. It used
-  // to be 0.30, which padded a one-line call like `class(mtcars)` (160px of
-  // content including Monaco's gutter) out to 329px and charged the difference
-  // to the output.
+  // MEASURED, not guessed, and re-measurable: clone `.qwebr-editor-toolbar`
+  // with `width: max-content` and read its width, remembering that a rect on a
+  // reveal slide is multiplied by the deck's scale (0.8396 in the window it was
+  // measured in). 247.1 rect / 0.8396 = 294 CSS px, with the toolbar showing
+  // its longest state, the "Loading webR..." status. 320 leaves margin for a
+  // course whose font scale differs slightly. A first attempt at 240 was under
+  // it and still wrapped.
+  var MIN_CODE_PX = 320;
   var MIN_CODE_SHARE = 0.18;
-  var MAX_OUTPUT_SHARE = 0.82;
+  // Slack on the measured output width, same purpose as CODE_SLACK: a column
+  // that fits only exactly is not a column that fits.
+  var OUTPUT_SLACK = 1.08;
+  // Side by side saves exactly one thing: the height of the code block, which
+  // no longer sits above the output. 0.4 means the output may be at most about
+  // 1.5x the height of the code. Calibrated against real cells: one line of
+  // code beside a 10-line tibble scores 0.31 and is refused; the 5-line piping
+  // example beside its 2 lines of output scores 0.81 and is kept.
+  var MIN_VERTICAL_SAVING = 0.4;
+
+  // What every cell PRINTS, measured in R at render time by
+  // measure-webr-output.R and shipped beside the deck as
+  // <deck>.webr-output.json. This is the whole point of that script: the output
+  // gets a say in a decision taken before the cell has ever run.
+  //
+  // Missing file, missing cell, failed fetch — all mean the same thing and are
+  // all safe: that cell falls back to judging on its code alone.
+  var outputSizes = (function () {
+    if (!/\.html$/.test(location.pathname) || typeof fetch !== "function") {
+      return Promise.resolve({});
+    }
+    return fetch(location.pathname.replace(/\.html$/, "") + ".webr-output.json")
+      .then(function (r) { return r.ok ? r.json() : {}; })
+      .catch(function () { return {}; });
+  })();
 
   function detailsFor(area) {
     var match = area.id && area.id.match(/qwebr-interactive-area-(\d+)/);
@@ -41,17 +64,64 @@
     return globalThis.qwebrCellDetails[Number(match[1]) - 1] || null;
   }
 
+  // Does this code print anything at all?
+  //
+  // The layout is chosen from the code before the cell has ever run, so a cell
+  // whose every statement is silent — an assignment, library(), set.seed() —
+  // would otherwise open beside an Output panel that stays empty for good. R
+  // prints the value of every top-level expression that is not invisible, so
+  // "silent" means EVERY top-level statement is silent, not just the last one.
+  //
+  // Statements are found by tracking bracket depth: a line that leaves a
+  // bracket open continues the same statement, which is what makes a wrapped
+  // call such as `x <- st_sfc(\n  list(...)\n)` count as one assignment.
+  //
+  // When in doubt this returns false, so an unrecognised cell keeps today's
+  // behaviour and goes side by side.
+  var SILENT_CALL = /^(library|require|suppressWarnings|suppressMessages|set\.seed|data|invisible|webr::install|install\.packages|source|assignInNamespace|theme_set|ggplot2::theme_set|options|par)\s*\(/;
+  var CONTINUES = /(<<-|<-|\||\|>|%[^\s%]*%|[-+*/,~&=<>!]|&&|\|\|)\s*$/;
+  var ASSIGNMENT = /^[A-Za-z._][\w."'\[\]$@:]*\s*(<<-|<-|=(?!=))/;
+
+  function printsNothing(code) {
+    var depth = 0, statement = "", statements = [];
+    String(code || "").split("\n").forEach(function (raw) {
+      var line = raw.replace(/(^|[^\\])#.*$/, "$1").trim();
+      if (!line) return;
+      statement += (statement ? " " : "") + line;
+      for (var i = 0; i < line.length; i++) {
+        var ch = line[i];
+        if (ch === "(" || ch === "[" || ch === "{") depth++;
+        else if (ch === ")" || ch === "]" || ch === "}") depth--;
+      }
+      // A statement also continues when the line ends on an operator that
+      // cannot end an expression, which is how `nc <-` on its own line joins
+      // the `st_read(...)` beneath it. Without this the two are read as
+      // separate statements and the cell looks like it prints.
+      if (depth <= 0 && !CONTINUES.test(statement)) {
+        statements.push(statement); statement = ""; depth = 0;
+      }
+    });
+    if (statement) statements.push(statement);
+    if (!statements.length) return false;
+    return statements.every(function (st) {
+      return ASSIGNMENT.test(st) || SILENT_CALL.test(st);
+    });
+  }
+
   function codeMetrics(code) {
     var lines = String(code || "").split("\n");
     var substantive = lines.filter(function (line) {
       return line.trim() && !/^\s*#/.test(line);
     });
+    var longest = lines.reduce(function (best, line) {
+      var flat = line.replace(/\t/g, "  ");
+      return flat.length > best.length ? flat : best;
+    }, "");
     return {
       code: String(code || ""),
       lines: substantive.length,
-      maxChars: lines.reduce(function (n, line) {
-        return Math.max(n, line.replace(/\t/g, "  ").length);
-      }, 0)
+      longest: longest,
+      maxChars: longest.length
     };
   }
 
@@ -78,7 +148,9 @@
     host.style.setProperty("--webr-gutter-centre", centre.toFixed(1) + "px");
   }
 
-  function setTracks(host, codeShare) {
+  function setTracks(host, area, codeShare) {
+    var available = Math.max(1, (area && area.clientWidth ? area.clientWidth : 1005) - 16);
+    codeShare = Math.max(codeShare, MIN_CODE_PX / available);
     codeShare = Math.max(MIN_CODE_SHARE, Math.min(MAX_CODE_SHARE, codeShare));
     var outputShare = 1 - codeShare;
     host.style.setProperty("--webr-code-track", codeShare + "fr");
@@ -115,43 +187,12 @@
     // Remember it in pixels. The share alone is not enough: the split has to be
     // recomputed against the OUTPUT's measured width once the cell has run.
     host.dataset.webrCodePx = Math.ceil(widest + EDITOR_CHROME);
-    setTracks(host, ((widest + EDITOR_CHROME) * CODE_SLACK) / available);
+    setTracks(host, area, ((widest + EDITOR_CHROME) * CODE_SLACK) / available);
 
     // The measured code column is now the real one, so check straight away that
     // Monaco is not wrapping in it. Before, this ran only after a cell had been
     // run; a cell that opens side by side needs it on arrival.
     ensureNoWrap(area, host, sourceLineCount(code), 0);
-  }
-
-  // The natural width of the output text. `pre` cannot be measured directly:
-  // notebook.scss gives it `width: 100%`, so its scrollWidth reports the track
-  // it currently sits in, not the text inside it. Reading that back is a
-  // feedback loop — it made every cell claim the maximum output share however
-  // short its output was, starving the code column down to the floor until the
-  // editor wrapped a one-line call across three lines.
-  function naturalTextSize(pre) {
-    var cs = getComputedStyle(pre);
-    var probe = document.createElement("pre");
-    probe.style.cssText = "position:absolute;left:-9999px;top:0;visibility:hidden;" +
-      "white-space:pre;margin:0;padding:0;width:auto";
-    probe.style.fontFamily = cs.fontFamily;
-    probe.style.fontSize = cs.fontSize;
-    probe.style.fontWeight = cs.fontWeight;
-    probe.style.letterSpacing = cs.letterSpacing;
-    probe.textContent = pre.innerText || "";
-    document.body.appendChild(probe);
-    var size = { w: probe.scrollWidth, h: probe.scrollHeight };
-    probe.parentNode.removeChild(probe);
-    return size;
-  }
-
-  // Height of the code block as it stands: the editor plus its toolbar.
-  function codeBlockHeight(area) {
-    var editor = area.querySelector(".qwebr-editor");
-    var bar = area.querySelector(".qwebr-editor-toolbar");
-    var h = editor ? editor.getBoundingClientRect().height : 0;
-    if (bar) h += bar.getBoundingClientRect().height;
-    return h;
   }
 
   // A cell is a candidate while it is "pending" (rendered as the ordinary
@@ -161,11 +202,9 @@
     return mode === "pending" || mode === "side";
   }
 
-  // A cell is put side by side as soon as its code has been measured, so the
-  // layout the reader first sees is the layout it keeps. The output cannot be
-  // measured until the cell has run, so assessOutput may still send a cell back
-  // to the vertical stack afterwards — that is the price of not making the
-  // reader wait for a run to see the final shape.
+  // A cell is put side by side as soon as its code has been measured, which
+  // happens while the page is still loading. That decision is final: the layout
+  // the reader first sees is the layout it keeps for good.
   function promote(host) {
     if (host.dataset.webrLayout === "side") return;
     host.classList.add("side-out");
@@ -201,7 +240,7 @@
       stack(host, true);
       return;
     }
-    setTracks(host, share + 0.02);
+    setTracks(host, area, share + 0.02);
     // Monaco relayouts asynchronously off its own resize observer; give it a
     // frame or two before reading the line count again.
     setTimeout(function () {
@@ -209,100 +248,97 @@
     }, 60);
   }
 
+  // Measure a string in the font the OUTPUT is printed in. That `pre` exists
+  // from the start — the extension creates it hidden and reveals it on the
+  // first run — so its font can be read before anything has been printed into
+  // it. Both columns use the same size ($nb-code-size), so this stands in for
+  // the editor's font too, until Monaco renders and is measured for real.
+  function textWidthPx(area, text) {
+    var probe = area.querySelector(".qwebr-output-code-area pre") || area;
+    var cs = getComputedStyle(probe);
+    var canvas = textWidthPx.canvas ||
+      (textWidthPx.canvas = document.createElement("canvas"));
+    var context = canvas.getContext("2d");
+    context.font = [cs.fontStyle, cs.fontWeight, cs.fontSize, cs.fontFamily]
+      .filter(Boolean).join(" ");
+    return context.measureText(text).width;
+  }
+
+  function lineHeightPx(area) {
+    var probe = area.querySelector(".qwebr-output-code-area pre") || area;
+    var lh = parseFloat(getComputedStyle(probe).lineHeight);
+    return lh > 0 ? lh : 20;
+  }
+
+  // THE COMFORT TEST, and the reason measure-webr-output.R exists.
+  //
+  // It is the rule that was always meant to govern this: side by side only when
+  // the code and its output BOTH sit comfortably, and only when splitting the
+  // cell saves enough height to be worth halving the slide for. What changed is
+  // only WHEN it runs. It used to run after a student clicked Run, on output the
+  // browser had just printed, which meant the slide reshaped itself under them.
+  // It now runs at load, on the same two numbers measured in R at render time —
+  // how many characters wide the printed output is, and how many lines tall.
+  // Same judgement, taken before anyone is looking, and never revisited.
+  function sideBySideFits(area, metrics, entry) {
+    // No measurement for this cell: it was added or edited since the last run of
+    // measure-webr-output.R, or R could not evaluate it. Judge on the code alone
+    // rather than refuse, so an unmeasured deck still behaves reasonably.
+    if (!entry) return true;
+    // A plot is not text: it is drawn to whatever width its column has, so it
+    // always fits. (The height cap in notebook.scss keeps it in bounds.)
+    if (entry.plot) return true;
+    // Ran and printed nothing. There is no right-hand content to show, so the
+    // code keeps the full width rather than facing an empty Output banner.
+    if (!entry.rows || !entry.cols) return false;
+
+    var available = Math.max(1, (area.clientWidth || 1005) - 16);
+    var codePx = Math.max(MIN_CODE_PX,
+      (textWidthPx(area, metrics.longest) + EDITOR_CHROME) * CODE_SLACK);
+    codePx = Math.min(codePx, MAX_CODE_SHARE * available);
+    var outputPx = (textWidthPx(area, repeatChar("0", entry.cols)) + 24) * OUTPUT_SLACK;
+    // Width is the FIT test: the output must live in what the code did not take.
+    // The code column is never narrowed to make room for it.
+    if (outputPx > available - codePx) return false;
+
+    // Height is a WORTHWHILENESS test, not a fit one — the decks scroll, so a
+    // tall slide scrolls in either layout. What a split buys is the height of
+    // the code block, and against a tall print that is next to nothing.
+    var lh = lineHeightPx(area);
+    var codeH = sourceLineCount(metrics.code) * lh + 38;   // + the toolbar
+    var outH = entry.rows * lh;
+    return codeH / (codeH + outH) >= MIN_VERTICAL_SAVING;
+  }
+
+  function repeatChar(ch, n) {
+    return new Array(Math.max(0, Math.min(400, n)) + 1).join(ch);
+  }
+
+  // The one remaining way out of the side-by-side layout, and it can only fire
+  // during load: the code will not fit on one line even in the widest column
+  // allowed. Nothing a cell does at RUN time reaches here.
   function stack(host, force) {
-    // `::: {.side-out}` is a REQUEST, not an override. It decides that a cell
-    // would like to be side by side; it cannot suspend the rules that say when
-    // side by side is acceptable — no wrapped code, output that fits, a split
-    // worth making. Every one of those gates passes force = true. What the
-    // exemption still buys is that ordinary measurement noise will not tear a
-    // deliberate wrapper down.
+    // `::: {.side-out}` is a REQUEST, not an override: it cannot make code fit
+    // that does not fit. What the exemption buys is that ordinary measurement
+    // noise will not tear a deliberate wrapper down.
     if (host.dataset.webrLayoutManual === "true" && !force) return;
     host.classList.remove("side-out");
     host.dataset.webrLayout = "stacked";
   }
 
-  function assessOutput(area, host, metrics) {
-    if (!eligibleNow(host)) return;
-    var graph = area.querySelector(".qwebr-output-graph-area canvas, .qwebr-output-graph-area img");
-    if (graph) { // plots scale cleanly within their grid track
-      promote(host);
-      requestAnimationFrame(function () { markGutter(area, host); });
-      return;
-    }
-
-    var pre = area.querySelector(".qwebr-output-code-area pre");
-    if (!pre || getComputedStyle(pre).visibility === "hidden") return;
-
-    // Ran and printed nothing — an assignment, a library() call, anything
-    // invoked for its side effect. There is no right-hand content to show, so
-    // the code keeps the full width rather than facing an empty Output banner.
-    if (!(pre.innerText || "").trim()) { stack(host, true); return; }
-
-    var style = getComputedStyle(area);
-    var gap = parseFloat(style.columnGap) || 16;
-    var available = Math.max(1, area.clientWidth - gap);
-    // The code column was sized when the code was measured and MUST NOT move
-    // now. Re-deriving it from the output made the editor jump to a different
-    // width the instant a student pressed Run — the one thing a code block on a
-    // lecture slide must never do. This is also what the invariants say: code
-    // width determines the split, output gets whatever is left.
-    var codeTrack = Math.min(MAX_CODE_SHARE, Math.max(MIN_CODE_SHARE,
-      (Number(host.dataset.webrCodePx) ||
-        (metrics.maxChars * FALLBACK_CHAR_PX + EDITOR_CHROME)) * CODE_SLACK / available))
-      * available;
-    var natural = naturalTextSize(pre);
-    var outputPx = (natural.w + 24) * OUTPUT_SLACK;
-
-    // Is the split worth making? Stacked costs code + output; side by side costs
-    // whichever is taller. The saving is therefore the code block's height, and
-    // it has to be a real fraction of what the cell occupies now.
-    var codeH = codeBlockHeight(area);
-    var outH = natural.h;
-    if (!codeH || !outH) {
-      // Fall back to line counts rather than skipping the test. Skipping it is
-      // how a cell slips through: an unmeasurable height silently became an
-      // exemption from the rule.
-      var lineH = parseFloat(getComputedStyle(pre).lineHeight) || 20;
-      codeH = codeH || (metrics.lines * lineH + 38);
-      outH = outH || ((pre.innerText || "").split("\n").length * lineH);
-    }
-    if (codeH / (codeH + outH) < MIN_VERTICAL_SAVING) {
-      stack(host, true);
-      return;
-    }
-
-    // Side by side must never wrap a line of code. If the code cannot fit in the
-    // widest column it is allowed, there is no acceptable side-by-side layout
-    // for this cell — do not settle for a narrower one.
-    if (codeTrack < (Number(host.dataset.webrCodePx) || 0) * CODE_SLACK) {
-      stack(host, true);
-      return;
-    }
-
-    // Both needs already carry their slack, so this is a lenient test on
-    // purpose: anything that does not fit comfortably stays vertical.
-    // Width is the FIT constraint; the height test above is a separate,
-    // worthwhileness one. Height is not a fit constraint — these decks are
-    // `scrollable: true`, so a tall slide scrolls either way — but a tall output
-    // still makes the split pointless, which is what MIN_VERTICAL_SAVING covers.
-    // The only question left is whether the output fits in the space the code
-    // did not take. If it does not, the cell stacks — the code column is never
-    // narrowed to make room.
-    if (outputPx > available - codeTrack) {
-      stack(host, true);
-      return;
-    }
-
-    // Note: no setTracks() here, deliberately. The layout is already correct and
-    // touching it would move the editor.
-    promote(host);
+  // Called whenever the cell's DOM changes, which in practice means "the cell
+  // has been run". It does exactly one thing: re-centre the gutter caret.
+  //
+  // It MUST NOT change the layout. Running a cell used to be able to send it
+  // back to the vertical stack — because its output was wide, or tall, or empty
+  // — and every one of those was a slide reshaping itself under the reader at
+  // the exact moment they were looking at the result they had just asked for.
+  // The layout is decided from the code while the page loads, and that decision
+  // is final. Output that is wider than its column scrolls inside it; that is
+  // what the extension's own `overflow: scroll` on the output box is for.
+  function assessOutput(area, host) {
+    if (host.dataset.webrLayout !== "side") return;
     requestAnimationFrame(function () { markGutter(area, host); });
-    ensureNoWrap(area, host, sourceLineCount(metrics.code), 0);
-    requestAnimationFrame(function () {
-      // Same trap as above — compare against the measured text, not scrollWidth,
-      // which a `width: 100%` pre can never exceed.
-      if (naturalTextSize(pre).w > pre.clientWidth * 1.08) stack(host);
-    });
   }
 
   function configure(area) {
@@ -313,6 +349,8 @@
     if (!details || !details.options || details.options.context === "setup") return;
     var metrics = codeMetrics(details.code);
     if (!metrics.lines || metrics.lines > MAX_CODE_LINES || metrics.maxChars > 88) return;
+    // Nothing to put in the Output panel, so do not open one.
+    if (printsNothing(details.code)) return;
 
     var existingWrapper = area.closest(".side-out");
 
@@ -335,12 +373,31 @@
     var host = existingWrapper || area.closest(".cell") || area.parentElement;
     if (!host) return;
 
-    // Open side by side. `::: {.side-out}` only adds the manual flag, which
-    // stops routine measurement noise from tearing the wrapper down; it still
-    // cannot suspend the gates in assessOutput, all of which force.
+    // `::: {.side-out}` only adds the manual flag, which stops routine
+    // measurement noise from tearing the wrapper down.
     if (existingWrapper) host.dataset.webrLayoutManual = "true";
-    promote(host);
 
+    // Wait for the measured output sizes — a fetch of a small JSON sitting
+    // beside the deck, so this resolves in milliseconds, long before WebR is
+    // interactive and before anyone can have clicked anything. THIS is the one
+    // moment the layout is decided. Nothing later may revisit it.
+    outputSizes.then(function (sizes) {
+      var entry = sizes[String(details.code || "").trim()] || null;
+      if (!sideBySideFits(area, metrics, entry)) {
+        // force: a `::: {.side-out}` wrapper is a request, and the class is in
+        // the markup, so it must be REMOVED here or the stylesheet lays the cell
+        // out in two columns whatever this script decided.
+        stack(host, true);
+        return;
+      }
+      promote(host);
+      layOut(area, host, details, metrics);
+    });
+  }
+
+  // Everything below runs only for a cell that IS side by side: size its code
+  // column, keep Monaco from wrapping in it, and keep the gutter caret centred.
+  function layOut(area, host, details, metrics) {
     // Estimate an initial split from the longest source line, in pixels against
     // the width this cell actually has. The old form was `(maxChars + 10) / 145`,
     // which assumed ~145 characters span the full width; the real figure is ~109,
@@ -348,7 +405,7 @@
     // which open side by side at once and never reach the measured split until
     // they are run — wrapped on arrival.
     var initialAvailable = Math.max(1, (area.clientWidth || 1005) - 16);
-    setTracks(host,
+    setTracks(host, area,
       (metrics.maxChars * FALLBACK_CHAR_PX + EDITOR_CHROME) / initialAvailable);
     measureRenderedCode(area, host, details.code, 0);
 
@@ -368,11 +425,11 @@
     }
 
     var observer = new MutationObserver(function () {
-      requestAnimationFrame(function () { assessOutput(area, host, metrics); });
+      requestAnimationFrame(function () { assessOutput(area, host); });
     });
     observer.observe(area, { childList: true, subtree: true, characterData: true,
       attributes: true, attributeFilter: ["style", "class"] });
-    requestAnimationFrame(function () { assessOutput(area, host, metrics); });
+    requestAnimationFrame(function () { assessOutput(area, host); });
   }
 
   function scan() {
