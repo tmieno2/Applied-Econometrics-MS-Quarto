@@ -2,7 +2,9 @@
 title: "06: Standard Error Estimation"
 format: 
   revealjs:
-    html-math-method: katex
+    html-math-method:
+      method: katex
+      url: "https://cdn.jsdelivr.net/npm/katex@0.18.4/dist/"
     theme: [default, ../custom.scss, ../notebook.scss]
     fontsize: 1.2em
     callout-icon: false
@@ -12,6 +14,7 @@ format:
     include-in-header:
       - ../transcript-support.html
       - ../webr-layout.html
+      - ../katex-amd-fix.html
     footer: "[back to course website with lecture slides](https://tmieno2.github.io/Applied-Econometrics-MS-Quarto/lectures/)"
 execute:
   echo: true
@@ -19,7 +22,7 @@ execute:
 webr:
   packages: ['fixest', 'dplyr', 'data.table', 'ggplot2', 'wooldridge', 'broom', 'lmtest', 'MASS']
   cell-options:
-    editor-font-scale: 0.8
+    editor-font-scale: 0.7
     dpi: 216
     fig-width: 7
     fig-height: 4.5
@@ -57,7 +60,7 @@ source(here::here("lectures/_lecture-theme.R"))
 ### Review
 
 <details class="transcript">
-<summary>Lecturer transcript</summary>
+<summary>Transcript</summary>
 
 Two definitions, and the whole lecture turns on the difference between them. Homoskedasticity says the variance of the error, conditional on x, is a constant: the same number wherever you look. Heteroskedasticity says it is a function of x, so the spread of the errors changes as x changes. Read the three bullets underneath, because they tell you where this fits. This is MLR five, the assumption every standard error in lecture 05 rested on, and it also came free with the normality assumption there. Today we ask what breaks when it fails.
 
@@ -84,7 +87,7 @@ Read the difference: under homoskedasticity the spread of the error is the <span
 ### Visualization 
 
 <details class="transcript inline">
-<summary>Lecturer transcript</summary>
+<summary>Transcript</summary>
 
 Two panels of simulated data, both from the same true line. On the left, homoskedastic errors: the cloud of points has the same vertical thickness at every value of x. On the right, heteroskedastic: it fans out, narrow on the left and wide on the right. Both fitted lines run through the middle of their clouds, and that is the first thing to notice. Heteroskedasticity does not tilt the line. What it changes is how confident you should be about where the line sits, and that is a statement about standard errors, not coefficients.
 
@@ -124,7 +127,7 @@ ggplot(data=data) +
 ### Central Questions 
 
 <details class="transcript">
-<summary>Lecturer transcript</summary>
+<summary>Transcript</summary>
 
 Two questions, and it matters that we ask them separately, because they get different answers. Does heteroskedasticity break your coefficient estimates? Does it break your estimate of how uncertain those coefficients are? People often lump these together and assume that if an assumption fails, everything downstream is ruined. That is not what happens here. Keep the two apart in your head as we go, because the practical advice at the end of the lecture depends entirely on one of them being fine and the other not.
 
@@ -142,7 +145,7 @@ What are the consequences of assuming the error is homoskedastic when it is hete
 #### Question
 
 <details class="transcript">
-<summary>Lecturer transcript</summary>
+<summary>Transcript</summary>
 
 Take the first question on its own. Are the OLS estimators of the coefficients unbiased when the error is heteroskedastic? Think back to lecture 01-3, where we actually proved unbiasedness, and ask which assumptions that proof used. Go through them: the model is linear in parameters, the sample is random, there is variation in x, and the expected value of u given x is zero. Was homoskedasticity anywhere in that argument? Answer before you click, because the answer is the reason this lecture is a repair job rather than a demolition.
 
@@ -153,7 +156,7 @@ Are OLS estimators unbiased when error is heteroskedastic?
 #### Answer
 
 <details class="transcript">
-<summary>Lecturer transcript</summary>
+<summary>Transcript</summary>
 
 Yes, still unbiased, and read the reason: the proof never used homoskedasticity. MLR five came in later, only when we wanted a formula for the variance. So heteroskedasticity leaves your coefficient estimates exactly where they were. That is genuinely good news, and it shapes everything that follows. Nothing in this lecture will ask you to change a coefficient. The entire fix is about the second question, and specifically about replacing one formula for the standard error with another.
 
@@ -171,7 +174,7 @@ Yes. We do not need to use the homoskedasticity assumption to prove that the OLS
 #### homoskedastic error
 
 <details class="transcript">
-<summary>Lecturer transcript</summary>
+<summary>Transcript</summary>
 
 Here is the variance formula we have been carrying since lecture 02, and the estimator we built from it in lecture 05: replace the unknown sigma squared with sigma-hat squared, the average squared residual. Now read the callout, because it is the practical fact that makes this lecture necessary. This is what R gives you by default. Every standard error you have seen printed in a regression table so far came from this formula, and this formula is only correct when the errors are homoskedastic.
 
@@ -203,7 +206,7 @@ $Var(\widehat{\beta}_j) \ne \frac{\sigma^2}{SST_x(1-R^2_j)}$
 ##### Question
 
 <details class="transcript">
-<summary>Lecturer transcript</summary>
+<summary>Transcript</summary>
 
 The precise question, written formally. If we keep using the default estimator when the errors are actually heteroskedastic, does it still get the right answer on average? That is what the expression asks: is the expected value of the default variance estimator equal to the true variance of beta-hat? Notice how carefully this is posed. We are not asking whether the formula looks wrong, we are asking whether it is unbiased for the thing we want, which is the only question that matters for testing.
 
@@ -214,7 +217,7 @@ Is $E[\widehat{Var(\widehat{\beta}_j)}_{default}] \equiv E\Big[\frac{\widehat{\s
 ##### Answer
 
 <details class="transcript">
-<summary>Lecturer transcript</summary>
+<summary>Transcript</summary>
 
 No. The default estimator is not unbiased for the true variance once the errors are heteroskedastic, and that is the whole problem. Note what the answer does not say: it does not say the estimator is too big or too small. The direction depends on how the variance of the error relates to x in your particular data, which is why the deck says later that the direction of bias is ambiguous in general. What we can say is that it is wrong, and the next tab says what wrong costs you.
 
@@ -238,7 +241,7 @@ $\;\;\;\;\downarrow$
 ##### Question
 
 <details class="transcript">
-<summary>Lecturer transcript</summary>
+<summary>Transcript</summary>
 
 A question about vocabulary that is worth pinning down, because people say biased testing loosely. Your standard errors are wrong, so your t-statistics are wrong, so your decisions to reject or not reject are wrong. But wrong in what sense? A test is not a number you can be off by. Think about what the significance level was supposed to guarantee, and what it would mean for that guarantee to fail. That is the precise sense in which a test can be biased.
 
@@ -249,7 +252,7 @@ What does it mean to have hypothesis testing biased?
 ##### Answer
 
 <details class="transcript">
-<summary>Lecturer transcript</summary>
+<summary>Transcript</summary>
 
 You over-reject or under-reject relative to what you intended. Recall that the five percent significance level was a promise: if the null is true, you will wrongly reject it five percent of the time. That promise was computed using the default variance formula. Break the formula and the promise breaks with it. You might be rejecting ten percent of the time while believing you are at five, which means every p-value you report is misleading. The next slide measures exactly this with a simulation.
 
@@ -295,7 +298,7 @@ $y = 1 + \beta x + u$, where $\beta = 0$
 #### Question
 
 <details class="transcript">
-<summary>Lecturer transcript</summary>
+<summary>Transcript</summary>
 
 A quick check that you have the definition straight, because the simulation is only meaningful if you know what number to expect. We are about to test the null that beta equals zero, at the five percent level, in data where beta genuinely is zero. So the null is true every single time. How often should we reject it? Answer before clicking. If you have to hesitate, go back to the significance level tab in lecture 05, because this is exactly what that level means.
 
@@ -308,7 +311,7 @@ $Pr(\text{reject} \;\; H_0|H_0 \;\; \text{is true})=?$
 #### Answer
 
 <details class="transcript">
-<summary>Lecturer transcript</summary>
+<summary>Transcript</summary>
 
 Five percent, by construction. That is what choosing a five percent significance level buys you: a five percent chance of rejecting a true null. So in a thousand simulations we should reject about fifty times. Write that number down, because the whole point of the next few tabs is to run the simulation and see whether we get it. If we do not, the discrepancy is not bad luck, it is the cost of using the wrong variance formula.
 
@@ -327,7 +330,7 @@ $5\%$
 #### conceptual steps
 
 <details class="transcript">
-<summary>Lecturer transcript</summary>
+<summary>Transcript</summary>
 
 The recipe, and it is the same Monte Carlo structure from lecture 03 pointed at a new question. Generate data where the coefficient on x is genuinely zero. Estimate the model, get the coefficient and its standard error. Form the t-statistic and decide whether to reject. Repeat a thousand times. Then count. Notice what is being simulated here: not the distribution of an estimator, but the behaviour of a *test*. We are checking whether a procedure keeps its promise, which is a different kind of question.
 
@@ -345,7 +348,7 @@ $$y=\beta_0+\beta_1 x + u$$
 #### R implementation 
 
 <details class="transcript">
-<summary>Lecturer transcript</summary>
+<summary>Transcript</summary>
 
 Read the loop, and note the one line that makes this heteroskedastic. Inside `rnorm`, the standard deviation argument is `2 * x` rather than a constant, so the error's spread grows with x by construction. Then y is one plus that error, with no x term, so beta really is zero. The regression is a plain `lm`, and the t-statistic uses `vcov`, which is the default homoskedasticity-based formula. So we are deliberately using the wrong estimator on data we built to break it.
 
@@ -398,6 +401,7 @@ theme_lecture <- lecture_theme(18 * webr_scale) +
     line = ggplot2::element_line(linewidth = 18 / 22),
     rect = ggplot2::element_rect(linewidth = 18 / 22)
   )
+ggplot2::theme_set(theme_lecture)
 ```
 
 ```{webr-r}
@@ -462,7 +466,7 @@ for (i in 1:B){
 #### Results
 
 <details class="transcript">
-<summary>Lecturer transcript</summary>
+<summary>Transcript</summary>
 
 Count how often the absolute t-statistic exceeded the critical value, and read the number in the callout. We rejected about eleven percent of the time when we should have rejected five. So you are roughly twice as likely to declare a significant effect as you intended, on data where the true effect is exactly zero. Then work through the question in the middle: over-rejecting means the t-statistics were too big, which means the standard errors were too small, which means the default formula under-estimated the true variance. Open the answer to check.
 
@@ -518,7 +522,7 @@ We rejected the null hypothesis `r round(reject_default * 100, 1)`% of the time,
 ### What to do?
 
 <details class="transcript">
-<summary>Lecturer transcript</summary>
+<summary>Transcript</summary>
 
 Where we have got to: the default variance estimator is biased under heteroskedasticity, and that invalidates every test built on it. So can we estimate the variance credibly instead? Yes, and read the callout, particularly the phrase in red. Of unknown form. You do not have to model how the variance depends on x, or guess a functional form, or test for a particular pattern. That is what makes this estimator so useful in practice: it works without you having to understand the heteroskedasticity you have.
 
@@ -542,7 +546,7 @@ Can we credibly estimate the variance of the OLS estimators?
 ### Robust estimator of se
 
 <details class="transcript">
-<summary>Lecturer transcript</summary>
+<summary>Transcript</summary>
 
 Here is the formula, and read the callout in the middle before you read the formula, because it tells you what to do with it. We spend no time deriving this expression. What you actually need is the three bullets underneath: know why heteroskedasticity is a problem, know that a large-sample-consistent estimator addresses it, and know how to invoke it in R. Notice the denominator is the sum of squared residuals *squared*, which is easy to misread.
 
@@ -569,7 +573,7 @@ What you need is
 ### In practice 
 
 <details class="transcript">
-<summary>Lecturer transcript</summary>
+<summary>Transcript</summary>
 
 The working procedure, and it is short. Estimate by OLS as usual, with no changes. Assume the errors are heteroskedastic and use the robust variance estimator. Swap the default standard errors for the robust ones when you test. And read the last bullet, which is the one people get wrong: you never replace the coefficient estimates, because those were never broken. Note also the middle bullets about Breusch-Pagan and White tests. They exist, almost nobody runs them, and we will not learn them, because the answer would not change what you do.
 
@@ -602,7 +606,7 @@ Here is the well-accepted procedure in econometric analysis:
 #### Preparation
 
 <details class="transcript">
-<summary>Lecturer transcript</summary>
+<summary>Transcript</summary>
 
 A real regression to work with: log salary on years in the league and batting average, from the MLB data. This cell runs when the page loads, because everything on this slide and the next uses it. Nothing prints. Notice we are back to the same data we used for the F-test in lecture 05, which is convenient: you already have a sense of what these coefficients look like, so the changes we are about to make to their standard errors will stand out.
 
@@ -633,7 +637,7 @@ reg_mlb <- fixest::feols(log(salary) ~ years + bavg, data = mlb1)
 #### Obtaining Heteroskedasticity-robust SE estimates
 
 <details class="transcript">
-<summary>Lecturer transcript</summary>
+<summary>Transcript</summary>
 
 Two functions and one argument. `vcov` gives you the whole variance-covariance matrix, `se` gives you just the standard errors, and both take a `vcov` argument specifying which kind you want. Read the general syntax, then run the specific version with `vcov = "hetero"`. That string is the entire difference between the default and the White-Huber robust estimator. One argument. Given how much trouble the wrong standard errors cause, it is worth noticing how cheap the fix is.
 
@@ -676,7 +680,7 @@ fixest::se(reg_mlb, vcov = "hetero")
 #### Compare with the Default
 
 <details class="transcript">
-<summary>Lecturer transcript</summary>
+<summary>Transcript</summary>
 
 Now put the two side by side. Run both cells and compare the numbers term by term. The robust standard errors are noticeably larger here, particularly on the intercept where it roughly doubles. That direction is not guaranteed in general, but it is what happens with this data. And a reminder of what has not changed: run the regression itself and the coefficients are identical either way. We are only ever changing the second number, never the first.
 
@@ -706,7 +710,7 @@ Now put the two side by side. Run both cells and compare the numbers term by ter
 ### Reporting the regression results
 
 <details class="transcript inline">
-<summary>Lecturer transcript</summary>
+<summary>Transcript</summary>
 
 When you write this up you want a proper table, so here is how to build one with both sets of standard errors. Pass a list of models and a matching list of VCOV matrices to the `vcov` argument. Now read the table on the right, and read it down the columns. The coefficients are identical, as promised. The standard errors all differ. And look at `bavg`: it carries three stars with the default standard errors and a single plus with the robust ones. That is a variable moving from overwhelming significance to marginal, purely from changing the variance formula.
 
@@ -763,7 +767,7 @@ Column (1) uses the robust VCOV, column (2) the default. Read down the two colum
 ### Alternatively (Recommended)
 
 <details class="transcript inline">
-<summary>Lecturer transcript</summary>
+<summary>Transcript</summary>
 
 A cleaner way, and the one I would use. Put the `vcov` argument inside `feols` itself, and the regression object carries its robust standard errors around with it. Everything downstream, the summary, the table, the confidence intervals, then uses them automatically with no further intervention. That matters because the failure mode with the previous approach is silent: forget the override on one table and you have published default standard errors while believing they were robust. Setting it once at the source removes that possibility.
 
@@ -816,7 +820,7 @@ modelsummary::msummary(
 #### MC simulation
 
 <details class="transcript">
-<summary>Lecturer transcript</summary>
+<summary>Transcript</summary>
 
 Does the robust estimator actually deliver? Same test as before, so we can compare directly. The data generating process is identical, heteroskedastic errors and a true beta of zero. The regression is identical. The only change is on the highlighted line: the standard error now comes from `se` with `vcov = "hetero"` instead of the default. One line different from the simulation that over-rejected, so any change in the result is attributable to that line alone.
 
@@ -865,7 +869,7 @@ reject_robust <- mean(abs(t_stat_store) > c_value)
 #### MC simulation results 
 
 <details class="transcript">
-<summary>Lecturer transcript</summary>
+<summary>Transcript</summary>
 
 And there is the payoff. About five percent, against about eleven percent with the default estimator, and five percent is exactly what we were aiming for. Read the second bullet, because it is the sentence to take away from this whole half of the lecture. Nothing about the estimation changed. Same data, same OLS, same coefficient estimates, same everything except the formula used to compute one number. The test went from badly broken to essentially correct on the strength of that alone.
 
@@ -908,7 +912,7 @@ We reject `r round(reject_robust * 100, 1)`% of the time, against the `r round(r
 #### Example 1
 
 <details class="transcript">
-<summary>Lecturer transcript</summary>
+<summary>Transcript</summary>
 
 A different failure of the usual error assumptions, and it is worth seeing a concrete case first. You have students' GPAs from many colleges, and you regress college GPA on income and high-school GPA. Now think about what is left in the error term: everything about a college you did not measure, and grading policy is the obvious one. Two students at the same college share that unmeasured leniency, so their errors move together. The errors are not independent draws any more, and zero correlation across observations is one condition the default variance formula requires.
 
@@ -925,7 +929,7 @@ $GPA_{col} = \beta_0 + \beta_1 income + \beta_2 GPA_{hs} + u$
 #### Example 2
 
 <details class="transcript">
-<summary>Lecturer transcript</summary>
+<summary>Transcript</summary>
 
 The same structure with a different grouping, and this one you will meet constantly. Five hundred individuals, each observed over ten years, so five thousand observations. But the ten observations for one person are not ten independent pieces of evidence, because that person's innate ability sits in the error term in every one of those years. The cluster here is the individual, not the year. This shape, the same unit observed repeatedly, is what the panel data lecture is entirely about, so hold on to it.
 
@@ -948,7 +952,7 @@ Education Impacts on Income: cluster by individual
 #### Question 1
 
 <details class="transcript">
-<summary>Lecturer transcript</summary>
+<summary>Transcript</summary>
 
 The same first question we asked about heteroskedasticity, and you should be able to answer it by the same reasoning. Are the coefficient estimates biased when the errors are correlated within groups? Go back to what unbiasedness actually required: the expected value of u given x is zero. Does correlation *among the errors* violate that? Read the answer once you have decided, and note how precisely it distinguishes the two things: correlation between x and u is fatal, correlation among the u's is not.
 
@@ -966,7 +970,7 @@ No, the correlation between $x$ and $u$ would hurt you, but not correlation amon
 #### Question 2
 
 <details class="transcript">
-<summary>Lecturer transcript</summary>
+<summary>Transcript</summary>
 
 And the second question, also familiar. Is the default variance estimator valid under clustering? The usual formula requires both constant conditional variance and zero conditional covariance between different observations' errors. Homoskedasticity supplies the first condition; independent sampling supplies the second. Clustering violates the second by putting non-zero off-diagonal terms in the error variance-covariance matrix, so the usual formula estimates the wrong thing.
 
@@ -984,7 +988,7 @@ No. The usual variance estimator requires both homoskedasticity and no correlati
 #### Question 3
 
 <details class="transcript">
-<summary>Lecturer transcript</summary>
+<summary>Transcript</summary>
 
 The intuition question, and it is the one worth sitting with. Which carries more information, two independent errors or two correlated ones? Think of it as asking how much you learn from the second observation given the first. If they are independent, everything; if they are correlated, less, because you could partly have predicted it. So a dataset with clustered errors contains less information than its sample size suggests. Then answer the two fill-in-the-blanks below and check yourself against the answer.
 
@@ -1019,7 +1023,7 @@ Two independent errors carry more information than two correlated ones: if you a
 #### Conceptual steps
 
 <details class="transcript">
-<summary>Lecturer transcript</summary>
+<summary>Transcript</summary>
 
 The same Monte Carlo design as the heteroskedasticity case, so the results will be directly comparable. Generate data where the errors are correlated within clusters and beta is genuinely zero. Estimate, form the t-statistic using the default standard error, and record whether you reject. Repeat a thousand times and count. Since the null is true every time, we should reject about fifty times. Keep that number in mind, because what actually happens is far more dramatic than the heteroskedasticity case was.
 
@@ -1044,7 +1048,7 @@ $$
 #### Data Generating Process (R)
 
 <details class="transcript">
-<summary>Lecturer transcript</summary>
+<summary>Transcript</summary>
 
 Read how the correlation is manufactured. `mvrnorm` draws from a multivariate Normal, and the covariance matrix is a matrix of tens plus an identity. So every pair of errors within a group has covariance ten, while each has variance eleven. That is very strong within-group correlation. The same construction is applied to x, more weakly. Two thousand observations in fifty groups of forty. And y is one plus zero times x plus u, so beta is zero by construction, exactly as before.
 
@@ -1081,7 +1085,7 @@ data <- data.frame(y = y, x = x, group = rep(1:G, each = Ng))
 #### Visualization of clustered error
 
 <details class="transcript">
-<summary>Lecturer transcript</summary>
+<summary>Transcript</summary>
 
 Worth running, because clustering is easier to see than to describe. Each column of points is one group. If the errors were independent you would see a uniform band across the whole picture. Instead whole columns sit high or low together: a group with a large positive shared component has all forty of its observations pushed up. That vertical displacement of entire groups is the clustering. And notice how few effectively independent pieces of information there really are here: closer to fifty than to two thousand.
 
@@ -1100,7 +1104,7 @@ ggplot(data) +
 #### MC simulation (R)
 
 <details class="transcript">
-<summary>Lecturer transcript</summary>
+<summary>Transcript</summary>
 
 The loop, with the data generation from two tabs ago inside it. The regression is plain OLS with no cluster argument, and `se(reg)` therefore returns the default standard error, which is what we are testing. Everything else follows the usual pattern: form the t-statistic, store it, repeat a thousand times. This will take a moment to run because each iteration draws two multivariate Normal samples. Predict the rejection rate before you look at the next tab.
 
@@ -1152,7 +1156,7 @@ for (i in 1:B){
 #### Results 
 
 <details class="transcript">
-<summary>Lecturer transcript</summary>
+<summary>Transcript</summary>
 
 Around seventy-five percent. Not five, not eleven, but seventy-five. Three times out of four you would declare a statistically significant effect for a variable whose true coefficient is exactly zero. Read the callout: the default estimator badly under-estimates the true variance, because it thinks it has two thousand independent observations when it effectively has about fifty. Compare this against the heteroskedasticity case. Clustering is by far the more dangerous of the two problems, and it is also the easier one to fail to notice.
 
@@ -1198,7 +1202,7 @@ reject_cl_default <- mean(abs(t_cl_default) > qt(0.975, N - 2))
 #### Cluster-robust SE estimation
 
 <details class="transcript">
-<summary>Lecturer transcript</summary>
+<summary>Transcript</summary>
 
 The fix, and the shape of it is the same as before. There are estimators of the variance that allow for correlation within clusters, and we call the standard errors from them cluster-robust. Read the sentence in blue: we neither derive nor display them, for the same reason as the heteroskedasticity case. And read the third bullet in the callout carefully, because it is a practical convenience worth knowing. These estimators handle heteroskedasticity at the same time, so you do not have to choose between the two fixes.
 
@@ -1230,7 +1234,7 @@ There exist estimators of $Var(\widehat{\beta})$ that take into account the poss
 #### R implementation 
 
 <details class="transcript">
-<summary>Lecturer transcript</summary>
+<summary>Transcript</summary>
 
 Before the demonstration, look at the data. The `nl` variable is one for the National League and zero for the American League, and that is what we will cluster on. Run the cell and look at a few rows. Now notice something about this choice that we will come back to at the end: clustering on `nl` means two clusters. Two. Hold that thought, because the cluster-robust estimator needs many groups to behave, and two is nowhere near many.
 
@@ -1255,7 +1259,7 @@ dplyr::select(mlb1, salary, years, bavg, nl) %>% head()
 #### R Demonstration 
 
 <details class="transcript">
-<summary>Lecturer transcript</summary>
+<summary>Transcript</summary>
 
 Two steps and the syntax mirrors the heteroskedasticity case exactly. Run the regression as normal, then apply `vcov` or `se` with a `cluster` argument. Note the argument is a formula, with a tilde before the variable name, not a bare column. That trips people up. Everything else is identical to what you did with `vcov = "hetero"`, which is the point: the interface for both robust estimators is the same, so once you can do one you can do the other.
 
@@ -1287,7 +1291,7 @@ se(reg_mlb, cluster = ~ nl)
 #### Compare 
 
 <details class="transcript">
-<summary>Lecturer transcript</summary>
+<summary>Transcript</summary>
 
 Run both and compare. The cluster-robust standard errors differ from the defaults, though with only two clusters you should not put much weight on the specific numbers. What matters is the mechanism: the estimator is accounting for the fact that players in the same league share unmeasured league-level factors, so their errors are not independent. Whether it does that *well* depends on the number of clusters, which is the caveat we return to at the end of the lecture.
 
@@ -1311,7 +1315,7 @@ se(reg_mlb, cluster = ~ nl)
 #### Alternatively (Recommended)
 
 <details class="transcript">
-<summary>Lecturer transcript</summary>
+<summary>Transcript</summary>
 
 The same recommendation as for heteroskedasticity, and for the same reason. Put the `cluster` argument inside `feols` and the regression object carries its clustered standard errors everywhere. Read the syntax, then run the example and tidy the result. Setting it at the source rather than at each table means you cannot accidentally report default standard errors while believing they were clustered, which is a mistake that is completely invisible in the output.
 
@@ -1346,7 +1350,7 @@ tidy(reg_mlb)
 ### In practice 
 
 <details class="transcript">
-<summary>Lecturer transcript</summary>
+<summary>Transcript</summary>
 
 The procedure, and it is deliberately identical in shape to the heteroskedasticity version several slides back. Estimate by OLS unchanged. Assume the errors are clustered and heteroskedastic. Swap in the cluster-robust standard errors for testing. Never touch the coefficients. If those four lines feel repetitive, that is the point: the two problems in this lecture are different in cause and identical in treatment, and the last slide draws that parallel out explicitly.
 
@@ -1376,7 +1380,7 @@ Let's run MC simulations to see if the use of the cluster-robust standard error 
 ### MC simulation: 50 groups
 
 <details class="transcript">
-<summary>Lecturer transcript</summary>
+<summary>Transcript</summary>
 
 The same test as before, so we can compare directly. Identical data-generating process, identical everything, except the highlighted line where `feols` now gets a `cluster` argument. There are fifty groups. That is enough to illustrate improvement but not enough to invoke a universal cutoff—cluster-robust accuracy also depends on cluster sizes, leverage, balance, and dependence strength. Run it and predict the answer first, without expecting exact five-percent size.
 
@@ -1471,7 +1475,7 @@ for (i in 1:B){
 ### Results: 50 groups
 
 <details class="transcript">
-<summary>Lecturer transcript</summary>
+<summary>Transcript</summary>
 
 Around nine percent, against seventy-five with the default. That is an enormous improvement and still not the five percent we want. Both things are worth saying. The estimator has taken a test that was useless and made it roughly usable, and it has not made it correct. The reason is in the callout: cluster-robust estimators are asymptotic in the number of *groups*, not the number of observations. Fifty groups is not many, and two thousand observations does not help.
 
@@ -1510,7 +1514,7 @@ Well, we are still rejecting more often than we should, but it is a different wo
 ### MC simulation: 1000 groups
 
 <details class="transcript">
-<summary>Lecturer transcript</summary>
+<summary>Transcript</summary>
 
 Same code with one number changed: a thousand groups instead of fifty. Read the note, because this cell is genuinely slow in the browser and it has not crashed. While it runs, think about what we are testing. If the problem at fifty groups was that the asymptotics had not kicked in, then more groups should improve things. If it were something else, more groups would not help. This is a diagnostic, not just a bigger simulation.
 
@@ -1567,7 +1571,7 @@ for (i in 1:B){
 ### Results: 1000 groups
 
 <details class="transcript">
-<summary>Lecturer transcript</summary>
+<summary>Transcript</summary>
 
 Better, and still not exactly five percent. So the diagnosis was right: the remaining over-rejection really is a small-number-of-groups problem, and it shrinks as the groups multiply. Read the last line, which is the honest summary of this whole section. Cluster-robust standard errors are not a guarantee of correctness. They are a large improvement over an estimator that was catastrophically wrong, and in applied work that is what you get to have.
 
@@ -1595,7 +1599,7 @@ Better. But, we are still over-rejecting. Don't forget it is certainly better th
 ### The same three steps twice
 
 <details class="transcript">
-<summary>Lecturer transcript</summary>
+<summary>Transcript</summary>
 
 Both halves of this lecture on one table, and read it across rather than down. Two different assumption failures, one caused by variance depending on x and one by errors being correlated within groups. In both, the coefficients survive untouched. In both, the default variance estimator breaks. In both, the fix is one argument to `feols`. Then compare the two rejection-rate rows, eleven percent against seventy-five. In this simulation design, clustering creates the larger distortion. That ranking is not universal; it depends on the form and strength of heteroskedasticity and within-group correlation.
 
@@ -1619,7 +1623,7 @@ Heteroskedasticity and clustered errors violate different parts of the usual err
 ### What to actually do
 
 <details class="transcript">
-<summary>Lecturer transcript</summary>
+<summary>Transcript</summary>
 
 Four rules, and they are what I would want you to still be doing in five years. Use heteroskedasticity-robust standard errors by default in large samples. They may differ from conventional standard errors in finite samples, even under homoskedasticity, but they protect inference against unknown heteroskedasticity. If your data has groups, cluster at a level justified by the sampling or treatment-assignment process. Do not bother testing for heteroskedasticity first, since the result would not change your decision. And never swap the coefficients. Then read the callout, which is honest about the limits and points forward: both fixes are asymptotic, which is where lecture 08 begins.
 

@@ -94,8 +94,8 @@
     code span.vs { color: #20794d; } /* VerbatimString */
     code span.wa { color: #5e5e5e; font-style: italic; } /* Warning */
   </style>
-  <link rel="stylesheet" href="../../site_libs/revealjs/dist/theme/quarto-ae2d755d4d34da603f33a3001b8a52fa.css">
-  <script>window.backupDefine = window.define; window.define = undefined;</script><script src="https://cdn.jsdelivr.net/npm/katex@latest/dist/katex.min.js"></script>
+  <link rel="stylesheet" href="../../site_libs/revealjs/dist/theme/quarto-bf1223c773699056cca1ada9baf1738b.css">
+  <script defer="" src="https://cdn.jsdelivr.net/npm/katex@0.18.4/dist/katex.min.js"></script>
   <script>document.addEventListener("DOMContentLoaded", function () {
  var mathElements = document.getElementsByClassName("math");
  var macros = [];
@@ -110,7 +110,7 @@
    });
 }}});
   </script>
-  <script>window.define = window.backupDefine; window.backupDefine = undefined;</script><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@latest/dist/katex.min.css">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.18.4/dist/katex.min.css">
   <link href="../../site_libs/revealjs/plugin/quarto-line-highlight/line-highlight.css" rel="stylesheet">
   <link href="../../site_libs/revealjs/plugin/reveal-menu/menu.css" rel="stylesheet">
   <link href="../../site_libs/revealjs/plugin/reveal-menu/quarto-menu.css" rel="stylesheet">
@@ -204,7 +204,7 @@
     }
   </style>
   <!--
-    Support for collapsible "Lecturer transcript" panels in revealjs decks.
+    Support for collapsible "Transcript" panels in revealjs decks.
 
     Include it from a deck's YAML header, with the path relative to the qmd:
 
@@ -216,7 +216,7 @@
     tabset, which is the usual case):
 
         <details class="transcript">
-        <summary>Lecturer transcript</summary>
+        <summary>Transcript</summary>
 
         What the lecturer says about this tab.
 
@@ -384,8 +384,36 @@
     "use strict";
 
     var MAX_CODE_LINES = 12;
+    // Monaco's line-number gutter (~75px) plus its vertical scrollbar (~15px).
+    var EDITOR_CHROME = 90;
+    // A deliberate OVER-estimate of one character. Menlo at 15.36px measures
+    // ~9.2px, and erring high is what keeps the editor from wrapping when the
+    // real measurement below has not landed yet.
+    var FALLBACK_CHAR_PX = 11;
+    // Breathing room on each measured need. Side by side is a bonus, not a goal:
+    // the vertical stack is a perfectly good layout, so a cell that only fits by
+    // cramming should simply stay stacked. Slack here buys that judgement — it
+    // makes the fit test stricter AND leaves each column wider than its content.
+    var CODE_SLACK = 1.15;
+    var OUTPUT_SLACK = 1.08;
+    // Going side by side saves exactly one thing: the height of the code block,
+    // which no longer sits above the output. Against a tall output that saving is
+    // trivial — a 3-line editor beside a 34-line print of `mtcars` reclaims about
+    // a tenth of the cell's height and splits the slide in half to do it.
+    //
+    // 0.4 means the output may be at most ~1.5x the height of the code block.
+    // Calibrated against real cells, not picked: one line of code beside a 10-line
+    // tibble scores 0.31 and must be rejected; the 5-line piping example beside
+    // its 2 lines of output scores 0.81 and must be kept. An earlier 0.25 sat
+    // below the first of those and let it through.
+    var MIN_VERTICAL_SAVING = 0.4;
     var MAX_CODE_SHARE = 0.58;
-    var MIN_CODE_SHARE = 0.30;
+    // The floor exists only so the editor never becomes unusably narrow. It used
+    // to be 0.30, which padded a one-line call like `class(mtcars)` (160px of
+    // content including Monaco's gutter) out to 329px and charged the difference
+    // to the output.
+    var MIN_CODE_SHARE = 0.18;
+    var MAX_OUTPUT_SHARE = 0.82;
 
     function detailsFor(area) {
       var match = area.id && area.id.match(/qwebr-interactive-area-(\d+)/);
@@ -399,11 +427,35 @@
         return line.trim() && !/^\s*#/.test(line);
       });
       return {
+        code: String(code || ""),
         lines: substantive.length,
         maxChars: lines.reduce(function (n, line) {
           return Math.max(n, line.replace(/\t/g, "  ").length);
         }, 0)
       };
+    }
+
+    // The caret lives in the 1rem gutter and must sit at its centre. Percentages
+    // cannot express that reliably here, so measure the laid-out editor and hand
+    // the CSS an exact pixel.
+    function markGutter(area, host) {
+      var style = getComputedStyle(area);
+      if (style.display !== "grid") return;
+
+      // Take the gutter straight from the resolved grid tracks. Every element in
+      // this cell has been tried as an anchor and each one lies: Monaco renders
+      // wider than its track, and `.qwebr-output-code-area` reports a left edge
+      // well right of where the output column actually starts, which put the caret
+      // inside the Output banner. `grid-template-columns` resolves to used pixel
+      // widths, so the first track plus half the gap IS the gutter centre, with
+      // nothing to misreport.
+      var tracks = style.gridTemplateColumns.split(/\s+/)
+        .map(parseFloat).filter(function (n) { return !isNaN(n); });
+      if (tracks.length < 2) return;
+      var gap = parseFloat(style.columnGap) || 16;
+      var padLeft = parseFloat(style.paddingLeft) || 0;
+      var centre = padLeft + tracks[0] + gap / 2;
+      host.style.setProperty("--webr-gutter-centre", centre.toFixed(1) + "px");
     }
 
     function setTracks(host, codeShare) {
@@ -415,10 +467,15 @@
     }
 
     function measureRenderedCode(area, host, code, attempt) {
-      if (host.dataset.webrLayout !== "side") return;
+      if (!eligibleNow(host)) return;
       var sample = area.querySelector(".view-line, .monaco-editor");
       if (!sample || !area.clientWidth) {
-        if (attempt < 20) setTimeout(function () {
+        // 20 attempts (2s) was not enough: on a deck with ~70 cells Monaco is
+        // still rendering, the measurement never lands, and the cell is left on
+        // the fallback estimate. Undersize it and Monaco wraps the line, after
+        // which the only thing left to measure is the wrapped fragments — the
+        // column can never recover on its own. 100 attempts is 10s.
+        if (attempt < 100) setTimeout(function () {
           measureRenderedCode(area, host, code, attempt + 1);
         }, 100);
         return;
@@ -431,10 +488,201 @@
       var widest = String(code || "").split("\n").reduce(function (width, line) {
         return Math.max(width, context.measureText(line.replace(/\t/g, "  ")).width);
       }, 0);
-      // Monaco's line-number gutter, padding, and scrollbar need about 76px in
-      // addition to the measured glyph width.
+      // Note this measures the SOURCE text, never the rendered `.view-line`
+      // elements: once the column is narrow enough to wrap, those hold fragments
+      // and measuring them would confirm the mistake instead of correcting it.
       var available = Math.max(1, area.clientWidth - 16);
-      setTracks(host, (widest + 76) / available);
+      // Remember it in pixels. The share alone is not enough: the split has to be
+      // recomputed against the OUTPUT's measured width once the cell has run.
+      host.dataset.webrCodePx = Math.ceil(widest + EDITOR_CHROME);
+      setTracks(host, ((widest + EDITOR_CHROME) * CODE_SLACK) / available);
+
+      // The measured code column is now the real one, so check straight away that
+      // Monaco is not wrapping in it. Before, this ran only after a cell had been
+      // run; a cell that opens side by side needs it on arrival.
+      ensureNoWrap(area, host, sourceLineCount(code), 0);
+    }
+
+    // The natural width of the output text. `pre` cannot be measured directly:
+    // notebook.scss gives it `width: 100%`, so its scrollWidth reports the track
+    // it currently sits in, not the text inside it. Reading that back is a
+    // feedback loop — it made every cell claim the maximum output share however
+    // short its output was, starving the code column down to the floor until the
+    // editor wrapped a one-line call across three lines.
+    function naturalTextSize(pre) {
+      var cs = getComputedStyle(pre);
+      var probe = document.createElement("pre");
+      probe.style.cssText = "position:absolute;left:-9999px;top:0;visibility:hidden;" +
+        "white-space:pre;margin:0;padding:0;width:auto";
+      probe.style.fontFamily = cs.fontFamily;
+      probe.style.fontSize = cs.fontSize;
+      probe.style.fontWeight = cs.fontWeight;
+      probe.style.letterSpacing = cs.letterSpacing;
+      probe.textContent = pre.innerText || "";
+      document.body.appendChild(probe);
+      var size = { w: probe.scrollWidth, h: probe.scrollHeight };
+      probe.parentNode.removeChild(probe);
+      return size;
+    }
+
+    // Height of the code block as it stands: the editor plus its toolbar.
+    function codeBlockHeight(area) {
+      var editor = area.querySelector(".qwebr-editor");
+      var bar = area.querySelector(".qwebr-editor-toolbar");
+      var h = editor ? editor.getBoundingClientRect().height : 0;
+      if (bar) h += bar.getBoundingClientRect().height;
+      return h;
+    }
+
+    // A cell is a candidate while it is "pending" (rendered as the ordinary
+    // vertical stack) or already "side". Manual wrappers are always "side".
+    function eligibleNow(host) {
+      var mode = host.dataset.webrLayout;
+      return mode === "pending" || mode === "side";
+    }
+
+    // A cell is put side by side as soon as its code has been measured, so the
+    // layout the reader first sees is the layout it keeps. The output cannot be
+    // measured until the cell has run, so assessOutput may still send a cell back
+    // to the vertical stack afterwards — that is the price of not making the
+    // reader wait for a run to see the final shape.
+    function promote(host) {
+      if (host.dataset.webrLayout === "side") return;
+      host.classList.add("side-out");
+      host.dataset.webrLayout = "side";
+    }
+
+    function sourceLineCount(code) {
+      return String(code || "").replace(/\s+$/, "").split("\n").length;
+    }
+
+    // Every width here is predicted — from a canvas measurement of the source in
+    // what we believe is the editor's font. Predictions travel badly: a different
+    // browser, a missing font, a different device pixel ratio, and the editor
+    // wraps even though the arithmetic said it fitted. So do not trust the
+    // prediction — read back what Monaco actually rendered, and widen the column
+    // until the rendered line count matches the source. This is the only check
+    // that cannot be wrong about wrapping, because it IS the wrapping.
+    function ensureNoWrap(area, host, srcLines, attempt) {
+      if (host.dataset.webrLayout !== "side") return;
+      var lines = area.querySelectorAll(".view-line");
+      if (!lines.length) {
+        if (attempt < 100) setTimeout(function () {
+          ensureNoWrap(area, host, srcLines, attempt + 1);
+        }, 100);
+        return;
+      }
+      if (lines.length <= srcLines) { markGutter(area, host); return; }
+      var share = parseFloat(host.style.getPropertyValue("--webr-code-share")) / 100;
+      if (!share) share = MIN_CODE_SHARE;
+      if (share >= MAX_CODE_SHARE || attempt > 40) {
+        // Even at the widest permitted code column the line will not fit, so the
+        // cell has no business being side by side at all.
+        stack(host, true);
+        return;
+      }
+      setTracks(host, share + 0.02);
+      // Monaco relayouts asynchronously off its own resize observer; give it a
+      // frame or two before reading the line count again.
+      setTimeout(function () {
+        ensureNoWrap(area, host, srcLines, attempt + 1);
+      }, 60);
+    }
+
+    function stack(host, force) {
+      // `::: {.side-out}` is a REQUEST, not an override. It decides that a cell
+      // would like to be side by side; it cannot suspend the rules that say when
+      // side by side is acceptable — no wrapped code, output that fits, a split
+      // worth making. Every one of those gates passes force = true. What the
+      // exemption still buys is that ordinary measurement noise will not tear a
+      // deliberate wrapper down.
+      if (host.dataset.webrLayoutManual === "true" && !force) return;
+      host.classList.remove("side-out");
+      host.dataset.webrLayout = "stacked";
+    }
+
+    function assessOutput(area, host, metrics) {
+      if (!eligibleNow(host)) return;
+      var graph = area.querySelector(".qwebr-output-graph-area canvas, .qwebr-output-graph-area img");
+      if (graph) { // plots scale cleanly within their grid track
+        promote(host);
+        requestAnimationFrame(function () { markGutter(area, host); });
+        return;
+      }
+
+      var pre = area.querySelector(".qwebr-output-code-area pre");
+      if (!pre || getComputedStyle(pre).visibility === "hidden") return;
+
+      // Ran and printed nothing — an assignment, a library() call, anything
+      // invoked for its side effect. There is no right-hand content to show, so
+      // the code keeps the full width rather than facing an empty Output banner.
+      if (!(pre.innerText || "").trim()) { stack(host, true); return; }
+
+      var style = getComputedStyle(area);
+      var gap = parseFloat(style.columnGap) || 16;
+      var available = Math.max(1, area.clientWidth - gap);
+      // The code column was sized when the code was measured and MUST NOT move
+      // now. Re-deriving it from the output made the editor jump to a different
+      // width the instant a student pressed Run — the one thing a code block on a
+      // lecture slide must never do. This is also what the invariants say: code
+      // width determines the split, output gets whatever is left.
+      var codeTrack = Math.min(MAX_CODE_SHARE, Math.max(MIN_CODE_SHARE,
+        (Number(host.dataset.webrCodePx) ||
+          (metrics.maxChars * FALLBACK_CHAR_PX + EDITOR_CHROME)) * CODE_SLACK / available))
+        * available;
+      var natural = naturalTextSize(pre);
+      var outputPx = (natural.w + 24) * OUTPUT_SLACK;
+
+      // Is the split worth making? Stacked costs code + output; side by side costs
+      // whichever is taller. The saving is therefore the code block's height, and
+      // it has to be a real fraction of what the cell occupies now.
+      var codeH = codeBlockHeight(area);
+      var outH = natural.h;
+      if (!codeH || !outH) {
+        // Fall back to line counts rather than skipping the test. Skipping it is
+        // how a cell slips through: an unmeasurable height silently became an
+        // exemption from the rule.
+        var lineH = parseFloat(getComputedStyle(pre).lineHeight) || 20;
+        codeH = codeH || (metrics.lines * lineH + 38);
+        outH = outH || ((pre.innerText || "").split("\n").length * lineH);
+      }
+      if (codeH / (codeH + outH) < MIN_VERTICAL_SAVING) {
+        stack(host, true);
+        return;
+      }
+
+      // Side by side must never wrap a line of code. If the code cannot fit in the
+      // widest column it is allowed, there is no acceptable side-by-side layout
+      // for this cell — do not settle for a narrower one.
+      if (codeTrack < (Number(host.dataset.webrCodePx) || 0) * CODE_SLACK) {
+        stack(host, true);
+        return;
+      }
+
+      // Both needs already carry their slack, so this is a lenient test on
+      // purpose: anything that does not fit comfortably stays vertical.
+      // Width is the FIT constraint; the height test above is a separate,
+      // worthwhileness one. Height is not a fit constraint — these decks are
+      // `scrollable: true`, so a tall slide scrolls either way — but a tall output
+      // still makes the split pointless, which is what MIN_VERTICAL_SAVING covers.
+      // The only question left is whether the output fits in the space the code
+      // did not take. If it does not, the cell stacks — the code column is never
+      // narrowed to make room.
+      if (outputPx > available - codeTrack) {
+        stack(host, true);
+        return;
+      }
+
+      // Note: no setTracks() here, deliberately. The layout is already correct and
+      // touching it would move the editor.
+      promote(host);
+      requestAnimationFrame(function () { markGutter(area, host); });
+      ensureNoWrap(area, host, sourceLineCount(metrics.code), 0);
+      requestAnimationFrame(function () {
+        // Same trap as above — compare against the measured text, not scrollWidth,
+        // which a `width: 100%` pre can never exceed.
+        if (naturalTextSize(pre).w > pre.clientWidth * 1.08) stack(host);
+      });
     }
 
     function configure(area) {
@@ -447,26 +695,64 @@
       if (!metrics.lines || metrics.lines > MAX_CODE_LINES || metrics.maxChars > 88) return;
 
       var existingWrapper = area.closest(".side-out");
+
+      // A cell inside a reveal `.columns` block already has half a slide.
+      // Splitting that again leaves the code a QUARTER of the width, where even
+      // `mtcars[2:8, c(3, 5)]` wraps. custom.scss excludes these from its own
+      // automatic two-column rule with `:not(.column *)` for the same reason;
+      // match it. A manual wrapper is undone as well rather than merely skipped:
+      // the class is in the markup, so notebook.scss would lay the cell out in
+      // two columns regardless of what this script decides, and the halved width
+      // is not something the author who typed `::: {.side-out}` accounted for.
+      if (area.closest(".column")) {
+        if (existingWrapper) {
+          existingWrapper.classList.remove("side-out");
+          existingWrapper.dataset.webrLayout = "stacked";
+        }
+        return;
+      }
+
       var host = existingWrapper || area.closest(".cell") || area.parentElement;
       if (!host) return;
 
-      if (existingWrapper) {
-        host.dataset.webrLayoutManual = "true";
-      } else {
-        host.classList.add("side-out");
-      }
-      host.dataset.webrLayout = "side";
+      // Open side by side. `::: {.side-out}` only adds the manual flag, which
+      // stops routine measurement noise from tearing the wrapper down; it still
+      // cannot suspend the gates in assessOutput, all of which force.
+      if (existingWrapper) host.dataset.webrLayoutManual = "true";
+      promote(host);
 
-      // Estimate an initial split from the longest source line. This split is
-      // final; a run never changes it.
-      var initialCodeShare = (metrics.maxChars + 10) / 145;
-      setTracks(host, initialCodeShare);
+      // Estimate an initial split from the longest source line, in pixels against
+      // the width this cell actually has. The old form was `(maxChars + 10) / 145`,
+      // which assumed ~145 characters span the full width; the real figure is ~109,
+      // so it under-sized every editor by a third and manual `.side-out` cells —
+      // which open side by side at once and never reach the measured split until
+      // they are run — wrapped on arrival.
+      var initialAvailable = Math.max(1, (area.clientWidth || 1005) - 16);
+      setTracks(host,
+        (metrics.maxChars * FALLBACK_CHAR_PX + EDITOR_CHROME) / initialAvailable);
       measureRenderedCode(area, host, details.code, 0);
 
-      // Once side by side, always side by side. Output that is too wide or too
-      // long scrolls inside its column (notebook.scss); it never stacks the
-      // cell, because a layout that jumps when Run is pressed is worse than a
-      // scrollbar.
+      // A cell on a hidden slide or an inactive tab has clientWidth 0 for as long
+      // as it stays hidden, so measureRenderedCode above cannot measure anything
+      // and eventually gives up — leaving the cell on the character estimate for
+      // good. Whoever then navigates to that slide sees the estimate, which is
+      // exactly the wrapped editor this whole mechanism exists to avoid. Watch
+      // for the moment the cell gains a width instead.
+      if (typeof ResizeObserver === "function") {
+        var sizeObserver = new ResizeObserver(function () {
+          if (!area.clientWidth) return;
+          if (host.dataset.webrCodePx) { sizeObserver.disconnect(); return; }
+          measureRenderedCode(area, host, details.code, 0);
+        });
+        sizeObserver.observe(area);
+      }
+
+      var observer = new MutationObserver(function () {
+        requestAnimationFrame(function () { assessOutput(area, host, metrics); });
+      });
+      observer.observe(area, { childList: true, subtree: true, characterData: true,
+        attributes: true, attributeFilter: ["style", "class"] });
+      requestAnimationFrame(function () { assessOutput(area, host, metrics); });
     }
 
     function scan() {
@@ -484,6 +770,15 @@
       start();
     }
   })();
+  </script>
+  <!-- quarto-webr loads Monaco's AMD loader (define.amd). KaTeX ships UMD and
+       registers as an anonymous AMD module instead of setting window.katex, so
+       Quarto's inline renderer throws "katex is not defined" on every WebR deck.
+       Import the ESM build, which ignores AMD, and publish the global before
+       DOMContentLoaded so the stock renderer finds it. -->
+  <script type="module">
+    import katex from "https://cdn.jsdelivr.net/npm/katex@0.18.4/dist/katex.mjs";
+    window.katex = window.katex || katex;
   </script>
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/monaco-editor@0.47.0/min/vs/editor/editor.main.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
@@ -775,7 +1070,7 @@
   };
 
   // Store cell data
-  globalThis.qwebrCellDetails = [{"code":"data(\"wage2\", package = \"wooldridge\")\n\n#* regress educ on exper, IQ, and sibs\nfirst_reg <- fixest::feols(educ ~ exper + IQ + sibs, data = wage2)\n\n#* predict educ as a function of exper, IQ, and sibs\nwage2 <- dplyr::mutate(wage2, educ_hat = first_reg$fitted.values)\n\n#* see the predicted values\nwage2 %>%\n  dplyr::relocate(educ_hat) %>%\n  head()","id":1,"options":{"autorun":"true","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.8","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"4.5","fig-width":"7","label":"unnamed-chunk-1","message":"true","out-height":"","out-width":"55%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"#* coefficient demonstration only: these OLS standard errors are not valid for 2SLS\nsecond_reg <- fixest::feols(log(wage) ~ educ_hat + exper, data = wage2)\n\n#* see the results\nsecond_reg","id":2,"options":{"autorun":"true","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.8","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"4.5","fig-width":"7","label":"unnamed-chunk-2","message":"true","out-height":"","out-width":"55%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"#--- take a look at the data ---#\nwage2 %>%\n  select(wage, educ, sibs, feduc) %>%\n  head()","id":3,"options":{"autorun":"true","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.8","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"4.5","fig-width":"7","label":"unnamed-chunk-3","message":"true","out-height":"","out-width":"55%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"iv_res <- fixest::feols(log(wage) ~ exper | educ ~ sibs + feduc, data = wage2)","id":4,"options":{"autorun":"true","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.8","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"4.5","fig-width":"7","label":"unnamed-chunk-4","message":"true","out-height":"","out-width":"55%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"iv_res","id":5,"options":{"autorun":"true","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.8","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"4.5","fig-width":"7","label":"unnamed-chunk-5","message":"true","out-height":"","out-width":"55%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"iv_res","id":6,"options":{"autorun":"true","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.8","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"4.5","fig-width":"7","label":"unnamed-chunk-6","message":"true","out-height":"","out-width":"55%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"iv_res$iv_first_stage","id":7,"options":{"autorun":"true","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.8","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"4.5","fig-width":"7","label":"unnamed-chunk-7","message":"true","out-height":"","out-width":"55%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"set.seed(73289)\nN <- 500 # number of observations\n\nu_common <- runif(N) # the term shared by the endogenous variable and the error term\nz_common <- runif(N) # the term shared by the endogenous variable and instruments\nx_end <- u_common + z_common + runif(N) # the endogenous variable\nz_strong <- z_common + runif(N) # strong instrument\nz_weak <- 0.01 * z_common + 0.99995 * runif(N) # weak instrument\nu <- u_common + runif(N) # error term\ny <- x_end + u # dependent variable\n\ndata <- data.frame(y, x_end, z_strong, z_weak)","id":8,"options":{"autorun":"false","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.8","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"4.5","fig-width":"7","label":"unnamed-chunk-8","message":"true","out-height":"","out-width":"55%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"cor(data)","id":9,"options":{"autorun":"false","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.8","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"4.5","fig-width":"7","label":"unnamed-chunk-9","message":"true","out-height":"","out-width":"55%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"#--- IV estimation (strong) ---#\niv_strong <- fixest::feols(y ~ 1 | x_end ~ z_strong, data = data)\n\n#--- coefs (strong) ---#\ntidy(iv_strong)","id":10,"options":{"autorun":"false","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.8","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"4.5","fig-width":"7","label":"unnamed-chunk-10","message":"true","out-height":"","out-width":"55%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"#--- IV estimation (weak) ---#\niv_weak <- fixest::feols(y ~ 1 | x_end ~ z_weak, data = data)\n\n#--- coefs (weak) ---#\ntidy(iv_weak)","id":11,"options":{"autorun":"false","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.8","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"4.5","fig-width":"7","label":"unnamed-chunk-11","message":"true","out-height":"","out-width":"55%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"iv_strong$iv_first_stage","id":12,"options":{"autorun":"false","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.8","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"4.5","fig-width":"7","label":"unnamed-chunk-12","message":"true","out-height":"","out-width":"55%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"iv_weak$iv_first_stage","id":13,"options":{"autorun":"false","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.8","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"4.5","fig-width":"7","label":"unnamed-chunk-13","message":"true","out-height":"","out-width":"55%","output":"true","read-only":"false","results":"markup","warning":"true"}}];
+  globalThis.qwebrCellDetails = [{"code":"data(\"wage2\", package = \"wooldridge\")\n\n#* regress educ on exper, IQ, and sibs\nfirst_reg <- fixest::feols(educ ~ exper + IQ + sibs, data = wage2)\n\n#* predict educ as a function of exper, IQ, and sibs\nwage2 <- dplyr::mutate(wage2, educ_hat = first_reg$fitted.values)\n\n#* see the predicted values\nwage2 %>%\n  dplyr::relocate(educ_hat) %>%\n  head()","id":1,"options":{"autorun":"true","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.7","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"4.5","fig-width":"7","label":"unnamed-chunk-1","message":"true","out-height":"","out-width":"55%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"#* coefficient demonstration only: these OLS standard errors are not valid for 2SLS\nsecond_reg <- fixest::feols(log(wage) ~ educ_hat + exper, data = wage2)\n\n#* see the results\nsecond_reg","id":2,"options":{"autorun":"true","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.7","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"4.5","fig-width":"7","label":"unnamed-chunk-2","message":"true","out-height":"","out-width":"55%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"#--- take a look at the data ---#\nwage2 %>%\n  select(wage, educ, sibs, feduc) %>%\n  head()","id":3,"options":{"autorun":"true","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.7","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"4.5","fig-width":"7","label":"unnamed-chunk-3","message":"true","out-height":"","out-width":"55%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"iv_res <- fixest::feols(log(wage) ~ exper | educ ~ sibs + feduc, data = wage2)","id":4,"options":{"autorun":"true","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.7","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"4.5","fig-width":"7","label":"unnamed-chunk-4","message":"true","out-height":"","out-width":"55%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"iv_res","id":5,"options":{"autorun":"true","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.7","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"4.5","fig-width":"7","label":"unnamed-chunk-5","message":"true","out-height":"","out-width":"55%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"iv_res","id":6,"options":{"autorun":"true","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.7","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"4.5","fig-width":"7","label":"unnamed-chunk-6","message":"true","out-height":"","out-width":"55%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"iv_res$iv_first_stage","id":7,"options":{"autorun":"true","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.7","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"4.5","fig-width":"7","label":"unnamed-chunk-7","message":"true","out-height":"","out-width":"55%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"set.seed(73289)\nN <- 500 # number of observations\n\nu_common <- runif(N) # the term shared by the endogenous variable and the error term\nz_common <- runif(N) # the term shared by the endogenous variable and instruments\nx_end <- u_common + z_common + runif(N) # the endogenous variable\nz_strong <- z_common + runif(N) # strong instrument\nz_weak <- 0.01 * z_common + 0.99995 * runif(N) # weak instrument\nu <- u_common + runif(N) # error term\ny <- x_end + u # dependent variable\n\ndata <- data.frame(y, x_end, z_strong, z_weak)","id":8,"options":{"autorun":"false","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.7","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"4.5","fig-width":"7","label":"unnamed-chunk-8","message":"true","out-height":"","out-width":"55%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"cor(data)","id":9,"options":{"autorun":"false","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.7","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"4.5","fig-width":"7","label":"unnamed-chunk-9","message":"true","out-height":"","out-width":"55%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"#--- IV estimation (strong) ---#\niv_strong <- fixest::feols(y ~ 1 | x_end ~ z_strong, data = data)\n\n#--- coefs (strong) ---#\ntidy(iv_strong)","id":10,"options":{"autorun":"false","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.7","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"4.5","fig-width":"7","label":"unnamed-chunk-10","message":"true","out-height":"","out-width":"55%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"#--- IV estimation (weak) ---#\niv_weak <- fixest::feols(y ~ 1 | x_end ~ z_weak, data = data)\n\n#--- coefs (weak) ---#\ntidy(iv_weak)","id":11,"options":{"autorun":"false","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.7","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"4.5","fig-width":"7","label":"unnamed-chunk-11","message":"true","out-height":"","out-width":"55%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"iv_strong$iv_first_stage","id":12,"options":{"autorun":"false","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.7","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"4.5","fig-width":"7","label":"unnamed-chunk-12","message":"true","out-height":"","out-width":"55%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"iv_weak$iv_first_stage","id":13,"options":{"autorun":"false","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.7","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"4.5","fig-width":"7","label":"unnamed-chunk-13","message":"true","out-height":"","out-width":"55%","output":"true","read-only":"false","results":"markup","warning":"true"}}];
 
   </script>
   <script type="module">
@@ -2294,7 +2589,7 @@ globalThis.qwebrCreateMonacoEditorInstance = function (cellData) {
 <div id="tabset-4-1">
 <details class="transcript">
 <summary>
-Lecturer transcript
+Transcript
 </summary>
 <p>Instrumental variables address a setting where the explanatory variable of interest is correlated with the structural error. That correlation can come from omitted variables, selection, reverse causality, or measurement error. OLS then cannot separate the regressor’s causal effect from unobserved determinants of the outcome. IV does not make the original regressor exogenous. It searches for a distinct source of variation in that regressor that is unrelated to the outcome error.</p>
 </details>
@@ -2318,7 +2613,7 @@ Lecturer transcript
 <div id="tabset-1-1">
 <details class="transcript inline">
 <summary>
-Lecturer transcript
+Transcript
 </summary>
 <p>The diagram represents our education example. Education may affect income, which is the arrow we want to estimate. Ability and other omitted factors affect both education and income, creating a backdoor path from education to income. Experience is included as an observed control. Because the common cause in the error points into both education and income, a regression of income on education and experience generally mixes the causal education effect with confounding from ability.</p>
 </details>
@@ -2333,7 +2628,7 @@ Lecturer transcript
 <div id="tabset-1-2">
 <details class="transcript inline">
 <summary>
-Lecturer transcript
+Transcript
 </summary>
 <p>An instrument Z supplies variation that reaches income through education. Three ideas must hold. Relevance requires an arrow from Z to education after controls. Exclusion rules out a direct Z-to-income arrow. Exogeneity rules out an unobserved common cause linking Z to income. Under those conditions, the education variation induced by Z avoids the ability backdoor path. The diagram clarifies why predicting education is necessary but insufficient: a strong predictor that also affects income directly is not a valid instrument.</p>
 </details>
@@ -2359,7 +2654,7 @@ Lecturer transcript
 <div id="tabset-4-3">
 <details class="transcript">
 <summary>
-Lecturer transcript
+Transcript
 </summary>
 <p>In the structural model, x one is endogenous and x two is an included exogenous control. We seek excluded instruments Z that predict x one but belong outside the outcome equation. The first stage isolates the component of x one explained by Z and the exogenous controls. The second stage uses that component to estimate beta one. The phrase instrument-induced variation is important: IV identifies the effect for changes in x one generated by the instrument, subject to the validity assumptions.</p>
 </details>
@@ -2384,7 +2679,7 @@ Lecturer transcript
 <div id="tabset-2-1">
 <details class="transcript">
 <summary>
-Lecturer transcript
+Transcript
 </summary>
 <p>The first stage regresses the endogenous variable on every excluded instrument and every exogenous variable included in the structural equation. Including x two in both stages is essential; leaving it out of the first stage generally changes the estimator and can invalidate the projection. The fitted x one is the portion predictable from this instrument set. Relevance means the excluded instruments contribute predictive power after x two is held fixed.</p>
 </details>
@@ -2404,7 +2699,7 @@ Lecturer transcript
 <div id="tabset-2-2">
 <details class="transcript">
 <summary>
-Lecturer transcript
+Transcript
 </summary>
 <p>Conceptually, replace x one with its fitted value and regress y on that fitted component plus x two. This reproduces the 2SLS slope coefficient. However, ordinary OLS software in this manual second stage treats the fitted regressor as if it were observed data and reports the wrong uncertainty. A dedicated IV command accounts for how the fitted values were constructed and produces the correct 2SLS variance estimate. Use the two steps to understand the estimator, not as the recommended implementation.</p>
 </details>
@@ -2427,7 +2722,7 @@ Lecturer transcript
 <div id="tabset-3-1">
 <details class="transcript">
 <summary>
-Lecturer transcript
+Transcript
 </summary>
 <p>Education is endogenous because unobserved ability affects wages and is related to schooling. Experience is assumed exogenous for this illustration. IQ and number of siblings are candidate instruments, not automatically valid ones. IQ is likely related to ability, which threatens exogeneity and exclusion. Siblings may predict schooling through family resources, but family size could also proxy for background that affects wages directly. The example first demonstrates computation; later slides evaluate whether such variables deserve to be instruments.</p>
 </details>
@@ -2450,7 +2745,7 @@ Lecturer transcript
 <div id="tabset-3-2">
 <details class="transcript inline">
 <summary>
-Lecturer transcript
+Transcript
 </summary>
 <p>The first-stage equation predicts education using experience, IQ, and siblings. The code estimates that model and stores each person’s fitted years of education. Inspecting <code>educ_hat</code> helps make the projection concrete: it is not a cleaned version of education for each individual, but a linear prediction from the instrument set. The excluded instruments need to explain enough residual variation in education after experience for the second stage to be informative.</p>
 </details>
@@ -2469,7 +2764,7 @@ educ = \alpha_0 + \alpha_1 exper + \alpha_2 IQ + \alpha_3 sibs + r
 <div id="tabset-3-3">
 <details class="transcript">
 <summary>
-Lecturer transcript
+Transcript
 </summary>
 <p>The manual second stage uses log wage—not wage—because that is the specified structural outcome. Its coefficient on predicted education equals the 2SLS coefficient when the stages are constructed correctly. The printed OLS standard error is not valid for IV inference. This distinction is easy to miss because the regression runs without warning. Later we use <code>feols</code> IV syntax, which estimates the same coefficient and computes an appropriate variance in a single call.</p>
 </details>
@@ -2498,7 +2793,7 @@ Lecturer transcript
 <div id="tabset-6-1">
 <details class="transcript">
 <summary>
-Lecturer transcript
+Transcript
 </summary>
 <p>IV consistency rests on assumptions about the instruments, just as OLS consistency rests on assumptions about regressors and errors. The two broad requirements are relevance and validity. Relevance asks whether the excluded instruments move the endogenous variable after controls. Validity combines exclusion and exogeneity: the instruments must affect the outcome only through the endogenous regressor and must be unrelated to the structural error. A convincing IV study needs both statistical diagnostics and a substantive research-design argument.</p>
 </details>
@@ -2517,7 +2812,7 @@ Lecturer transcript
 <div id="tabset-6-2">
 <details class="transcript">
 <summary>
-Lecturer transcript
+Transcript
 </summary>
 <p>If the excluded instruments have zero first-stage coefficients, fitted x one contains nothing beyond the included exogenous controls. There is then no independent variation with which to identify beta one. Nonzero prediction is relevance, but useful IV also requires adequate strength. In finite samples, a weak first stage can make 2SLS unstable and conventional confidence intervals unreliable even if a significance test rejects exact zero. We will return to diagnostics near the end of the lecture.</p>
 </details>
@@ -2562,7 +2857,7 @@ Answer
 <div id="tabset-5-1">
 <details class="transcript">
 <summary>
-Lecturer transcript
+Transcript
 </summary>
 <p>The first-stage projection splits x one into a fitted component and a residual. Substitute that decomposition into the structural equation. The conceptual second-stage disturbance contains the original outcome error plus beta one times the first-stage residual. OLS on fitted x one requires that fitted component to be unrelated to this composite disturbance. Projection makes the fitted value orthogonal to the first-stage residual in sample, but we still need the instruments and included controls to be unrelated to the structural error u.</p>
 </details>
@@ -2592,7 +2887,7 @@ Answer
 <div id="tabset-5-2">
 <details class="transcript">
 <summary>
-Lecturer transcript
+Transcript
 </summary>
 <p>The algebra isolates the remaining requirement. Because the fitted value is built from x two, z one, and z two, those variables must not carry information about u. Orthogonality to the first-stage residual follows mechanically from least squares; orthogonality to the structural error does not. It comes from the design. This is why an excellent predictor can still be a bad instrument: predictive power addresses the first stage, while correlation with u invalidates the second-stage comparison.</p>
 </details>
@@ -2615,7 +2910,7 @@ Lecturer transcript
 <div id="tabset-5-3">
 <details class="transcript">
 <summary>
-Lecturer transcript
+Transcript
 </summary>
 <p>Validity has two related pieces. Exclusion says an excluded instrument has no direct pathway to y once x one and the included controls are held fixed. Exogeneity says it is uncorrelated with unobserved determinants in u. Neither condition can be verified by a first-stage regression because u and the excluded counterfactual pathways are unobserved. Overidentification tests can sometimes reject the joint restrictions when there are extra instruments, but passing does not certify that every instrument is valid. The main evidence must be institutional and causal reasoning.</p>
 </details>
@@ -2666,7 +2961,7 @@ Not directly, because the structural error is unobserved. With more excluded ins
 <div id="tabset-6-4">
 <details class="transcript">
 <summary>
-Lecturer transcript
+Transcript
 </summary>
 <p>Keep the conditions separate. Relevance and strength concern the relationship between Z and x one conditional on included exogenous variables; they can be investigated empirically. Exclusion and exogeneity concern pathways from Z to y and relationships with u; they require a research-design argument. A large first-stage F statistic cannot rescue an invalid instrument, and a beautifully exogenous variable that does not move x one cannot identify the effect. Both halves are indispensable.</p>
 </details>
@@ -2698,7 +2993,7 @@ Lecturer transcript
 <div id="tabset-6-5">
 <details class="transcript">
 <summary>
-Lecturer transcript
+Transcript
 </summary>
 <p>Two-stage least squares is named for the projection logic we have traced, but estimation should be performed by an IV routine. With valid and sufficiently relevant instruments, 2SLS is consistent as the sample grows. It is not generally unbiased in a finite sample, and weak instruments can make its finite-sample behavior especially poor. Report the structural estimate together with first-stage information, appropriate standard errors, the instrument-validity argument, and sensitivity analyses.</p>
 </details>
@@ -2722,7 +3017,7 @@ Lecturer transcript
 <div id="tabset-7-1">
 <details class="transcript">
 <summary>
-Lecturer transcript
+Transcript
 </summary>
 <p>Apply the abstract conditions to the wage equation. A candidate z must predict education after experience is controlled for. It must also be excluded from the wage equation and unrelated to ability and every other unobserved wage determinant in v. The second requirement is deliberately demanding. For each candidate, tell a causal story about why z changes schooling and then actively search for every other route by which it could be associated with wages.</p>
 </details>
@@ -2747,7 +3042,7 @@ Answer
 <div id="tabset-7-2">
 <details class="transcript">
 <summary>
-Lecturer transcript
+Transcript
 </summary>
 <p>The last digit of a Social Security number might appear plausibly random and therefore exogenous. But it almost certainly has no systematic relationship with education after experience, so it fails relevance. Random noise is not an instrument merely because it is unrelated to the outcome error. We need a variable that is both plausibly as-good-as-random with respect to u and capable of shifting the endogenous regressor.</p>
 </details>
@@ -2766,7 +3061,7 @@ Lecturer transcript
 <div id="tabset-7-3">
 <details class="transcript">
 <summary>
-Lecturer transcript
+Transcript
 </summary>
 <p>IQ probably predicts education, so relevance may be strong. Its validity is much less plausible because IQ can proxy for ability, which sits directly in the wage error, and it may affect productivity and wages outside its effect through schooling. This is a useful example of a strong predictor that is not automatically a valid excluded instrument. Controlling imperfectly for ability does not make the exclusion concern disappear.</p>
 </details>
@@ -2785,7 +3080,7 @@ Lecturer transcript
 <div id="tabset-7-4">
 <details class="transcript">
 <summary>
-Lecturer transcript
+Transcript
 </summary>
 <p>Mother’s education likely predicts a child’s education through expectations, resources, and access, satisfying relevance. Those same family-background channels can affect wages through networks, wealth, neighborhood, health, or inherited skills even holding the child’s schooling fixed. They can also be correlated with unobserved ability. The candidate therefore faces serious exclusion and exogeneity concerns. The point is to interrogate the full causal pathway, not simply to observe a first-stage relationship.</p>
 </details>
@@ -2804,7 +3099,7 @@ Lecturer transcript
 <div id="tabset-7-5">
 <details class="transcript">
 <summary>
-Lecturer transcript
+Transcript
 </summary>
 <p>Number of siblings may reduce educational resources per child and thus predict schooling. But family size can be associated with parental preferences, income, birth order, neighborhood, and other background factors that influence wages directly. It may be relevant while still invalid. Whether it can serve as an instrument depends on a defensible institutional argument and controls; the variable’s presence in a textbook dataset is not evidence of validity.</p>
 </details>
@@ -2831,7 +3126,7 @@ Lecturer transcript
 <div id="tabset-8-1">
 <details class="transcript">
 <summary>
-Lecturer transcript
+Transcript
 </summary>
 <p>For the implementation example, education is the endogenous regressor, experience is included as exogenous, and siblings plus father’s education are candidate excluded instruments. Calling them instruments describes their role in the formula, not proof that they are valid. Experience also belongs to the instrument set because every included exogenous variable instruments for itself. A complete analysis would defend the family-background exclusions before interpreting the resulting education coefficient causally.</p>
 </details>
@@ -2854,7 +3149,7 @@ Lecturer transcript
 <div id="tabset-8-2">
 <details class="transcript inline">
 <summary>
-Lecturer transcript
+Transcript
 </summary>
 <p>Inspect the variables before estimating. Wage is observed in levels but the structural model uses its logarithm. Education is measured in years, while siblings and father’s education supply the proposed excluded variation. Also examine missingness and sample size because IV uses observations complete on the outcome, endogenous regressor, controls, and instruments. A first-stage relationship in this sample is only one part of the design.</p>
 </details>
@@ -2864,7 +3159,7 @@ Lecturer transcript
 <div id="tabset-8-3">
 <details class="transcript">
 <summary>
-Lecturer transcript
+Transcript
 </summary>
 <p>Read the <code>fixest</code> IV formula in three pieces. Before the first vertical bar is the structural outcome equation and its included exogenous controls. After the bar is the endogenous variable followed by a tilde and the excluded instruments. Here the command estimates log wage on experience, instruments education with siblings and father’s education, and automatically includes experience in the first-stage instrument set. This single call supplies correct 2SLS coefficients and variance calculations.</p>
 </details>
@@ -2901,7 +3196,7 @@ Lecturer transcript
 <div id="tabset-8-4">
 <details class="transcript inline">
 <summary>
-Lecturer transcript
+Transcript
 </summary>
 <p>In the output, <code>educ(fit)</code> denotes the instrumented education regressor; it is the coefficient on education in the structural equation, not a coefficient from the first stage. Interpret it as a causal return to an additional year of schooling only if the instruments are relevant, sufficiently strong, excluded, and exogenous. The reported estimate alone cannot establish those conditions. We should inspect first-stage diagnostics and defend what siblings and father’s education can affect.</p>
 </details>
@@ -2918,7 +3213,7 @@ Lecturer transcript
 <div id="tabset-8-5">
 <details class="transcript inline">
 <summary>
-Lecturer transcript
+Transcript
 </summary>
 <p>The OLS and IV estimates need not match because they use different variation. OLS uses all residual education variation and is vulnerable to ability confounding. IV uses only the component associated with the proposed instruments and can be less precise. A difference between estimates does not prove OLS is biased or IV is correct. Ask whether family background strongly predicts schooling and whether it can influence wages through channels other than schooling. Those validity questions dominate a mechanical comparison of coefficient sizes.</p>
 </details>
@@ -2931,8 +3226,8 @@ Lecturer transcript
 
     <script>
 
-      function styleCell_2d2xiqzr2d7900581ttu(i, j, css_id) {
-          var table = document.getElementById("tinytable_2d2xiqzr2d7900581ttu");
+      function styleCell_evwxdubgpioja9kmhsz3(i, j, css_id) {
+          var table = document.getElementById("tinytable_evwxdubgpioja9kmhsz3");
           var cell = table.querySelector(`[data-row="${i}"][data-col="${j}"]`);
           if (cell) {
               console.log(`Styling cell at (${i}, ${j}) with class ${css_id}`);
@@ -2941,8 +3236,8 @@ Lecturer transcript
               console.warn(`Cell at (${i}, ${j}) not found.`);
           }
       }
-      function spanCell_2d2xiqzr2d7900581ttu(i, j, rowspan, colspan) {
-        var table = document.getElementById("tinytable_2d2xiqzr2d7900581ttu");
+      function spanCell_evwxdubgpioja9kmhsz3(i, j, rowspan, colspan) {
+        var table = document.getElementById("tinytable_evwxdubgpioja9kmhsz3");
         const targetCell = table.querySelector(`[data-row="${i}"][data-col="${j}"]`);
         if (!targetCell) {
           console.warn(`Cell at (${i}, ${j}) not found.`);
@@ -2973,20 +3268,20 @@ Lecturer transcript
       window.addEventListener('load', function () {
           var cellsToStyle = [
             // tinytable style arrays after
-          { positions: [ { i: '12', j: 1 }, { i: '12', j: 2 },  ], css_id: 'tinytable_css_o2qok88aqor729coj91f',}, 
-          { positions: [ { i: '8', j: 1 }, { i: '8', j: 2 },  ], css_id: 'tinytable_css_0lfvhcyny8c81ijwgybt',}, 
-          { positions: [ { i: '2', j: 1 }, { i: '3', j: 1 }, { i: '4', j: 1 }, { i: '1', j: 1 }, { i: '6', j: 1 }, { i: '7', j: 1 }, { i: '3', j: 2 }, { i: '5', j: 1 }, { i: '10', j: 1 }, { i: '11', j: 1 }, { i: '7', j: 2 }, { i: '9', j: 1 }, { i: '1', j: 2 }, { i: '2', j: 2 }, { i: '11', j: 2 }, { i: '4', j: 2 }, { i: '5', j: 2 }, { i: '6', j: 2 }, { i: '9', j: 2 }, { i: '10', j: 2 },  ], css_id: 'tinytable_css_g8gcn4og1jl9acw1cs86',}, 
-          { positions: [ { i: '0', j: 1 }, { i: '0', j: 2 },  ], css_id: 'tinytable_css_lg9huehpi0o82frrthrb',}, 
-          { positions: [ { i: '12', j: 0 },  ], css_id: 'tinytable_css_87uomu0s9422fp7kigey',}, 
-          { positions: [ { i: '8', j: 0 },  ], css_id: 'tinytable_css_0g6rm84b264uk4zz7eq5',}, 
-          { positions: [ { i: '1', j: 0 }, { i: '2', j: 0 }, { i: '3', j: 0 }, { i: '4', j: 0 }, { i: '5', j: 0 }, { i: '6', j: 0 }, { i: '7', j: 0 }, { i: '9', j: 0 }, { i: '10', j: 0 }, { i: '11', j: 0 },  ], css_id: 'tinytable_css_3a0pxu6qpxm749i4yc88',}, 
-          { positions: [ { i: '0', j: 0 },  ], css_id: 'tinytable_css_lmm6z9pifchjdd2q0691',}, 
+          { positions: [ { i: '12', j: 1 }, { i: '12', j: 2 },  ], css_id: 'tinytable_css_rhb4qqckg9v9egf05qac',}, 
+          { positions: [ { i: '8', j: 1 }, { i: '8', j: 2 },  ], css_id: 'tinytable_css_vz5tw1bqr23apa93wsvb',}, 
+          { positions: [ { i: '2', j: 1 }, { i: '3', j: 1 }, { i: '4', j: 1 }, { i: '1', j: 1 }, { i: '6', j: 1 }, { i: '7', j: 1 }, { i: '3', j: 2 }, { i: '5', j: 1 }, { i: '10', j: 1 }, { i: '11', j: 1 }, { i: '7', j: 2 }, { i: '9', j: 1 }, { i: '1', j: 2 }, { i: '2', j: 2 }, { i: '11', j: 2 }, { i: '4', j: 2 }, { i: '5', j: 2 }, { i: '6', j: 2 }, { i: '9', j: 2 }, { i: '10', j: 2 },  ], css_id: 'tinytable_css_vd339m5c14k1nm5xtezt',}, 
+          { positions: [ { i: '0', j: 1 }, { i: '0', j: 2 },  ], css_id: 'tinytable_css_4jg8cq2nbz71xj26qe9e',}, 
+          { positions: [ { i: '12', j: 0 },  ], css_id: 'tinytable_css_nytnddedzxdl55ms3yy6',}, 
+          { positions: [ { i: '8', j: 0 },  ], css_id: 'tinytable_css_8xq4qaz69gxgcdaxrpc5',}, 
+          { positions: [ { i: '1', j: 0 }, { i: '2', j: 0 }, { i: '3', j: 0 }, { i: '4', j: 0 }, { i: '5', j: 0 }, { i: '6', j: 0 }, { i: '7', j: 0 }, { i: '9', j: 0 }, { i: '10', j: 0 }, { i: '11', j: 0 },  ], css_id: 'tinytable_css_fzk3bmzag5fid9kb822r',}, 
+          { positions: [ { i: '0', j: 0 },  ], css_id: 'tinytable_css_4ol6p10hrkbm1z4stzw7',}, 
           ];
 
           // Loop over the arrays to style the cells
           cellsToStyle.forEach(function (group) {
               group.positions.forEach(function (cell) {
-                  styleCell_2d2xiqzr2d7900581ttu(cell.i, cell.j, group.css_id);
+                  styleCell_evwxdubgpioja9kmhsz3(cell.i, cell.j, group.css_id);
               });
           });
       });
@@ -2994,17 +3289,17 @@ Lecturer transcript
 
     <style>
       /* tinytable css entries after */
-      .table td.tinytable_css_o2qok88aqor729coj91f, .table th.tinytable_css_o2qok88aqor729coj91f { text-align: center; border-bottom: solid #d3d8dc 0.1em; }
-      .table td.tinytable_css_0lfvhcyny8c81ijwgybt, .table th.tinytable_css_0lfvhcyny8c81ijwgybt { text-align: center; border-bottom: solid black 0.05em; }
-      .table td.tinytable_css_g8gcn4og1jl9acw1cs86, .table th.tinytable_css_g8gcn4og1jl9acw1cs86 { text-align: center; }
-      .table td.tinytable_css_lg9huehpi0o82frrthrb, .table th.tinytable_css_lg9huehpi0o82frrthrb { text-align: center; border-top: solid #d3d8dc 0.1em; border-bottom: solid #d3d8dc 0.05em; }
-      .table td.tinytable_css_87uomu0s9422fp7kigey, .table th.tinytable_css_87uomu0s9422fp7kigey { text-align: left; border-bottom: solid #d3d8dc 0.1em; }
-      .table td.tinytable_css_0g6rm84b264uk4zz7eq5, .table th.tinytable_css_0g6rm84b264uk4zz7eq5 { text-align: left; border-bottom: solid black 0.05em; }
-      .table td.tinytable_css_3a0pxu6qpxm749i4yc88, .table th.tinytable_css_3a0pxu6qpxm749i4yc88 { text-align: left; }
-      .table td.tinytable_css_lmm6z9pifchjdd2q0691, .table th.tinytable_css_lmm6z9pifchjdd2q0691 { text-align: left; border-top: solid #d3d8dc 0.1em; border-bottom: solid #d3d8dc 0.05em; }
+      .table td.tinytable_css_rhb4qqckg9v9egf05qac, .table th.tinytable_css_rhb4qqckg9v9egf05qac { text-align: center; border-bottom: solid #d3d8dc 0.1em; }
+      .table td.tinytable_css_vz5tw1bqr23apa93wsvb, .table th.tinytable_css_vz5tw1bqr23apa93wsvb { text-align: center; border-bottom: solid black 0.05em; }
+      .table td.tinytable_css_vd339m5c14k1nm5xtezt, .table th.tinytable_css_vd339m5c14k1nm5xtezt { text-align: center; }
+      .table td.tinytable_css_4jg8cq2nbz71xj26qe9e, .table th.tinytable_css_4jg8cq2nbz71xj26qe9e { text-align: center; border-top: solid #d3d8dc 0.1em; border-bottom: solid #d3d8dc 0.05em; }
+      .table td.tinytable_css_nytnddedzxdl55ms3yy6, .table th.tinytable_css_nytnddedzxdl55ms3yy6 { text-align: left; border-bottom: solid #d3d8dc 0.1em; }
+      .table td.tinytable_css_8xq4qaz69gxgcdaxrpc5, .table th.tinytable_css_8xq4qaz69gxgcdaxrpc5 { text-align: left; border-bottom: solid black 0.05em; }
+      .table td.tinytable_css_fzk3bmzag5fid9kb822r, .table th.tinytable_css_fzk3bmzag5fid9kb822r { text-align: left; }
+      .table td.tinytable_css_4ol6p10hrkbm1z4stzw7, .table th.tinytable_css_4ol6p10hrkbm1z4stzw7 { text-align: left; border-top: solid #d3d8dc 0.1em; border-bottom: solid #d3d8dc 0.05em; }
     </style>
     <div class="container">
-      <table class="table table-borderless" id="tinytable_2d2xiqzr2d7900581ttu" style="width: auto; margin-left: auto; margin-right: auto;" data-quarto-disable-processing="true">
+      <table class="table table-borderless" id="tinytable_evwxdubgpioja9kmhsz3" style="width: auto; margin-left: auto; margin-right: auto;" data-quarto-disable-processing="true">
         <thead>
         
               <tr>
@@ -3107,7 +3402,7 @@ Lecturer transcript
 <div id="tabset-8-6">
 <details class="transcript">
 <summary>
-Lecturer transcript
+Transcript
 </summary>
 <p>IV and fixed effects can be combined. The second formula section absorbs the listed fixed effects, while the final section defines the endogenous variable and excluded instruments. The instrument must retain relevant variation after those fixed effects and controls are removed, and validity must hold for that within-group variation. In this toy syntax example, treating binary marital status and region as fixed-effect groups is computationally possible, but an applied specification should be motivated by the actual panel or grouping structure.</p>
 </details>
@@ -3145,7 +3440,7 @@ F-test (1st stage), educ: stat = 61.91514, p &lt; 2.2e-16 , on 2 and 735 DoF.
 <div id="tabset-8-7">
 <details class="transcript">
 <summary>
-Lecturer transcript
+Transcript
 </summary>
 <p>IV does not eliminate dependence in regression errors. If observations share shocks within states, schools, firms, or people over time, cluster at the level justified by the design. The placeholder <code>cluster_id</code> emphasizes that the clustering variable is not chosen for convenience or because it is binary; it represents groups within which errors may be correlated. As with OLS, few clusters or dependence across clusters may require methods beyond conventional clustered standard errors.</p>
 </details>
@@ -3170,7 +3465,7 @@ Lecturer transcript
 <div id="tabset-12-1">
 <details class="transcript">
 <summary>
-Lecturer transcript
+Transcript
 </summary>
 <p>A weak instrument is related to the endogenous regressor, but only slightly after included controls are removed. Weakness is about the amount of identifying information, not merely whether a first-stage coefficient is exactly zero. When the first stage is weak, the instrument-induced variation is easily overwhelmed by sampling noise. Point estimates can become unstable, finite-sample bias can be substantial, and standard Wald tests and confidence intervals can have poor coverage.</p>
 </details>
@@ -3206,7 +3501,7 @@ Lecturer transcript
 <div id="tabset-9-1">
 <details class="transcript">
 <summary>
-Lecturer transcript
+Transcript
 </summary>
 <p>Estimate the first stage and jointly test whether the coefficients on all excluded instruments are zero. The joint test asks whether they add predictive content beyond experience. Rejecting exact zero is necessary evidence of relevance, but not a guarantee of adequate strength. The familiar F-greater-than-ten rule is a rough heuristic for simple homoskedastic settings, not a universal pass-fail standard. The appropriate weak-identification diagnostic depends on the number of instruments, endogenous variables, and variance estimator.</p>
 </details>
@@ -3221,7 +3516,7 @@ educ = \alpha_0 + \alpha_1 exper + \alpha_2 sibs + \alpha_3 feduc + v
 <div id="tabset-9-2">
 <details class="transcript inline">
 <summary>
-Lecturer transcript
+Transcript
 </summary>
 <p><code>fixest</code> reports the first-stage information with the IV result, and the first-stage model can also be inspected directly. Here the null of no excluded-instrument explanatory power is rejected. That tells us siblings and father’s education are not jointly irrelevant in this sample. It does not establish that they are strong enough for every conventional approximation, and it says nothing about exclusion or exogeneity. Report the statistic in context rather than reducing the design to one cutoff.</p>
 </details>
@@ -3273,7 +3568,7 @@ Alternatively
 <div id="tabset-11-1">
 <details class="transcript inline">
 <summary>
-Lecturer transcript
+Transcript
 </summary>
 <p>The simulation creates an endogenous x because <code>u_common</code> enters both x and the outcome error. Both proposed instruments are built from <code>z_common</code>, which is independent of the outcome error, so they are valid by construction. The strong instrument contains a substantial share of <code>z_common</code>; the weak instrument contains only one percent and is dominated by unrelated noise. The true structural coefficient on x is one. This lets us isolate strength while holding validity fixed.</p>
 </details>
@@ -3288,7 +3583,7 @@ Lecturer transcript
 <div id="tabset-11-2">
 <details class="transcript inline">
 <summary>
-Lecturer transcript
+Transcript
 </summary>
 <p>Estimate the same structural model twice, changing only the instrument. With the strong instrument, the estimate should usually sit reasonably near the true value of one. With the weak instrument, a single sample can produce a very large or erratic estimate and a misleading conventional standard error. Do not generalize from one random draw; the next Monte Carlo experiment repeats the design to reveal the sampling distributions.</p>
 </details>
@@ -3313,7 +3608,7 @@ In this draw, the coefficient estimate on <code>x_end</code> is far from the tru
 <div id="tabset-11-3">
 <details class="transcript inline">
 <summary>
-Lecturer transcript
+Transcript
 </summary>
 <p>The first-stage outputs should mirror the construction. The strong instrument explains a meaningful portion of x, while the weak instrument contributes almost none and may fail to reject the zero-first-stage null. These diagnostics concern relevance and strength only. Both instruments are exogenous in the simulation because we generated them independently of the outcome error, a fact we know only because we control the data-generating process.</p>
 </details>
@@ -3348,7 +3643,7 @@ Lecturer transcript
 <div id="tabset-10-1">
 <details class="transcript">
 <summary>
-Lecturer transcript
+Transcript
 </summary>
 <p>Now repeat the experiment one thousand times. Each iteration regenerates the shared components, estimates IV with the strong instrument and then with the weak instrument, and stores both coefficient estimates. The structural coefficient remains one in every replication. Comparing the stored distributions shows how much sampling variability comes from the instrument’s first-stage strength rather than from a change in the target parameter or validity.</p>
 </details>
@@ -3383,7 +3678,7 @@ Lecturer transcript
 <div id="tabset-10-2">
 <details class="transcript inline">
 <summary>
-Lecturer transcript
+Transcript
 </summary>
 <p>The strong-instrument estimates concentrate around the red line at the true value. The weak-instrument distribution is far more dispersed and irregular. For readability, the graph omits estimates whose absolute value exceeds five; those omitted extremes are evidence of the instability, not harmless outliers to be ignored. The exercise explains why conventional IV inference can fail even when an instrument is technically relevant and valid but predicts too little of the endogenous variable.</p>
 </details>
@@ -3429,7 +3724,7 @@ Lecturer transcript
 <h2>Flow of IV Estimation in Practice</h2>
 <details class="transcript">
 <summary>
-Lecturer transcript
+Transcript
 </summary>
 <p>Use this sequence as a checklist. Begin with the structural equation and explain why each endogenous variable is endogenous. Propose excluded instruments and defend exclusion and exogeneity using the institutional setting. Then establish that they predict the endogenous variables after all controls and fixed effects, using appropriate weak-identification diagnostics. Finally, estimate with standard errors that match the sampling design and report assumptions, first stages, diagnostics, and sensitivity checks. IV credibility comes from the entire chain, not from the final coefficient alone.</p>
 </details>

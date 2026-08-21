@@ -2,7 +2,9 @@
 title: "01-2: Univariate Regression: OLS Mechanics and Implementation"
 format: 
   revealjs:
-    html-math-method: katex
+    html-math-method:
+      method: katex
+      url: "https://cdn.jsdelivr.net/npm/katex@0.18.4/dist/"
     theme: [default, ../custom.scss, ../notebook.scss]
     fontsize: 1.2em
     callout-icon: false
@@ -13,10 +15,11 @@ format:
     include-in-header:
       - ../transcript-support.html
       - ../webr-layout.html
+      - ../katex-amd-fix.html
 webr:
   packages: ['AER', 'fixest', 'dplyr', 'data.table', 'ggplot2']
   cell-options:
-    editor-font-scale: 0.8
+    editor-font-scale: 0.7
     message: false
     warning: false
     # 216 matches the knitr figures' pixel density. R still draws at 72 dpi,
@@ -95,6 +98,7 @@ theme_lecture <- lecture_theme(18 * webr_scale) +
     line = ggplot2::element_line(linewidth = 18 / 22),
     rect = ggplot2::element_rect(linewidth = 18 / 22)
   )
+ggplot2::theme_set(theme_lecture)
 ```
 
 ::: {.panel-tabset}
@@ -102,7 +106,7 @@ theme_lecture <- lecture_theme(18 * webr_scale) +
 ### Set up
 
 <details class="transcript">
-<summary>Lecturer transcript</summary>
+<summary>Transcript</summary>
 
 Let's start with a concrete data set, because everything from here on is done on real numbers. We have five hundred and forty-six houses, and for each one we know the sale price and the lot size. The model is on screen: price for house i equals beta-zero, plus beta-one times lot size for house i, plus u-i. Same shape as everything in the last lecture. And the objective is simple to state, estimate the impact of lot size on house price. Notice how much work u-i is doing. Bedrooms, bathrooms, the neighbourhood, the year of sale, all of it sits inside that one term.
 
@@ -131,7 +135,7 @@ Estimate the impact of lot size on house price
 ### R code to get data
 
 <details class="transcript">
-<summary>Lecturer transcript</summary>
+<summary>Transcript</summary>
 
 Here is the code that gets you the data, and this is a live R session running inside your browser, so you can edit it and press run. We load the AER package, which is where the HousePrices data lives, then call data to bring it into memory. The dataset has twelve columns, but the final line selects and previews only the two we use in this lecture: price and lot size. Do run it yourself rather than just reading it. The first time you press run it takes a moment, because R itself is downloading into the tab.
 
@@ -157,7 +161,7 @@ head(HousePrices[, c("price", "lotsize")])
 ### Data visualization
 
 <details class="transcript">
-<summary>Lecturer transcript</summary>
+<summary>Transcript</summary>
 
 Before you estimate anything, look at your data. This is house price up the vertical axis against lot size along the horizontal. Two things to notice. First, there is clearly a positive relationship; bigger lots do sell for more. Second, and more important, look at the vertical spread at any given lot size. Take lot size four thousand and run your eye upwards: prices there range from about thirty thousand to well over a hundred thousand. That spread is the error term, made visible. Our job is to put one line through this cloud, and the scatter tells you in advance that no line will fit it well.
 
@@ -190,7 +194,7 @@ g_hp
 ### Rough idea
 
 <details class="transcript">
-<summary>Lecturer transcript</summary>
+<summary>Transcript</summary>
 
 So here is the goal as a picture. We want to draw a line like this one through the cloud, and the slope of that line is our estimate of beta-one. The method is called ordinary least squares, OLS, and you will use it for the rest of your career. But notice I have quietly done something unjustified: I drew a line. Why this line, and not one slightly steeper, or shifted up a little? There are infinitely many lines available and I have not told you how to choose between them. The next few tabs are about answering that honestly.
 
@@ -215,7 +219,7 @@ g_hp + geom_smooth(aes(y = price, x = lotsize), method = "lm", se = F)
 #### Ex. 1: $\widehat{\beta}_0=20000$, $\widehat{\beta}_1=7$
 
 <details class="transcript">
-<summary>Lecturer transcript</summary>
+<summary>Transcript</summary>
 
 Let's take that question seriously by trying some lines out. Here is a candidate: an intercept of twenty thousand and a slope of seven. So this line claims a house with no lot at all is worth twenty thousand, and each extra unit of lot size adds seven dollars. Look at how it sits in the cloud. It is not absurd. It runs roughly through the middle of the data, and if you had to defend it in a seminar you probably could. Hold that impression, because the next tab shows a different line that also looks defensible, and they cannot both be best.
 
@@ -236,7 +240,7 @@ g_hp +
 #### Ex. 2: $\widehat{\beta}_0=70000$, $\widehat{\beta}_1=3.8$
 
 <details class="transcript">
-<summary>Lecturer transcript</summary>
+<summary>Transcript</summary>
 
 And here is the rival: intercept seventy thousand, slope three point eight. Higher starting point, flatter line. Flip back and forth between this tab and the previous one and you will see the problem. Both lines pass through the data. Neither is obviously wrong by eye. But they say completely different things about the world. One says an extra unit of lot size is worth seven dollars, the other says under four. If you were advising somebody on whether to buy more land, that gap matters enormously. Eyeballing is not going to settle it.
 
@@ -256,7 +260,7 @@ g_hp +
 #### So,
 
 <details class="transcript">
-<summary>Lecturer transcript</summary>
+<summary>Transcript</summary>
 
 Which brings us to the two questions in the box, and I want you to see that the second one is the real question. Asking which values of beta-hat-zero and beta-hat-one are best is meaningless until you say what best means. That is a decision we make, not something the data hands us. What we need is a criterion: a single number that scores any candidate line, so that comparing two lines becomes comparing two numbers. Once we have that, the whole thing turns into a minimization problem and the mathematics takes over. Defining that criterion is what the next tabs do.
 
@@ -273,7 +277,7 @@ Which brings us to the two questions in the box, and I want you to see that the 
 ### Residuals
 
 <details class="transcript">
-<summary>Lecturer transcript</summary>
+<summary>Transcript</summary>
 
 Here is the raw material for that criterion. Pick any values of beta-hat-zero and beta-hat-one, and that gives you a modeled value for every house: beta-hat-zero plus beta-hat-one times x-i. The residual is what is left over, the actual price minus the modeled price. Look at the figure, where I have taken twenty-five houses and drawn their residuals in red. Each red segment runs from a point to the line, so a long one means the line missed that house badly. Two things to keep straight. Residuals are computable, unlike the error term u, which you never see. And move the line, and every red segment changes.
 
@@ -318,7 +322,7 @@ ggplot(data = hp_few, aes(x = lotsize, y = price)) +
 ### OLS
 
 <details class="transcript">
-<summary>Lecturer transcript</summary>
+<summary>Transcript</summary>
 
 Now we can state the criterion, and it is the obvious one once you have seen those red segments: choose the line that makes them small overall. Specifically, square each residual, add them all up, and pick the beta-hats that make that sum as small as it can be. That is what ordinary least squares means, and the name is a literal description: least, squares. The mathematics below says exactly the same thing in symbols, minimize over beta-hat-zero and beta-hat-one the sum from i equals one to n of u-hat-i squared. That is the whole idea. Everything that follows is just carrying out the minimization.
 
@@ -339,7 +343,7 @@ $$Min_{\widehat{\beta}_0,\widehat{\beta}_1} \sum_{i=1}^n \widehat{u}_i^2, \text{
 ### Visualization
 
 <details class="transcript">
-<summary>Lecturer transcript</summary>
+<summary>Transcript</summary>
 
 Two questions on this slide, and I want you to think about them rather than take the squaring on faith. First, why square? Suppose you just added the raw residuals up. Points above the line contribute positive numbers, points below contribute negative ones, and they cancel, so a wildly wrong line could score zero. Squaring removes the sign, and it also punishes one enormous miss more than several small ones. Second, why not absolute values? You could, and that method exists; it is called least absolute deviations. Squares win mainly because they give you something you can differentiate and solve by hand, which is exactly what we do next.
 
@@ -385,7 +389,7 @@ ggplot() +
 ### Derivation
 
 <details class="transcript">
-<summary>Lecturer transcript</summary>
+<summary>Transcript</summary>
 
 Here is the calculus, and you should watch it once even if you never do it again. We are minimizing S, the sum of squared residuals, over two unknowns, so we take a partial derivative with respect to each and set both to zero. Now look at what the two first-order conditions say once you divide out the minus two. The sum of the residuals is zero, and the sum of x times the residuals is zero. Those are not assumptions we are making; they are consequences of the arithmetic, and they hold in every OLS regression you will ever run. Solve the pair and you get the formulas at the bottom.
 
@@ -435,7 +439,7 @@ $$
 ### Estimators vs Estimates
 
 <details class="transcript">
-<summary>Lecturer transcript</summary>
+<summary>Transcript</summary>
 
 This is a small distinction with a large payoff later, so let's be careful with it. An estimator is a rule, a formula that says what to do with whatever data you are handed. An estimate is the number that comes out when you feed that rule your particular data. The formula on screen is the estimator; six point five nine nine is the estimate, for these five hundred and forty-six houses. And here is why it matters. Hand the same estimator a different sample of houses and you get a different number out. The estimate moves around. That variability is the entire subject of the next lecture.
 
@@ -473,7 +477,7 @@ Feed the same estimator a different sample and you get a different estimate. Tha
 ### R code: hard way
 
 <details class="transcript">
-<summary>Lecturer transcript</summary>
+<summary>Transcript</summary>
 
 Let's compute beta-one-hat by hand, straight from the formula, so you can see there is no magic in it. Pull the price column out as y and the lot size column as x. The numerator is the sum of x minus its mean, times y minus its mean. The denominator is the sum of x minus its mean, squared. Divide one by the other and there is your estimate. Run it and note the number, because in the next tab we get the identical number a much shorter way. I am making you do it the long way exactly once, so that the short way never feels like a black box.
 
@@ -511,7 +515,7 @@ b1
 ### R code: a better way
 
 <details class="transcript">
-<summary>Lecturer transcript</summary>
+<summary>Transcript</summary>
 
 And here is the short way, which is what you will actually use. The feols function from the fixest package takes a formula, price tilde lotsize, read as price explained by lot size, and the data frame. That is the whole call. The comment shows the base R equivalent, lm, which works identically for a regression this simple; we use feols because it handles things later in the course that lm cannot. Run it and compare the slope against the number you computed by hand. They match exactly, because it is the same formula. The intercept comes along for free.
 
@@ -546,7 +550,7 @@ Lots of information is stored in the regression results (here, `uni_reg`), which
 #### What is in there
 
 <details class="transcript">
-<summary>Lecturer transcript</summary>
+<summary>Transcript</summary>
 
 What comes back from feols is not just two numbers, it is a list holding everything the regression computed, and it is worth knowing how to open it up. Applying ls to the results prints the names of everything inside. Run it and read the list. You will see coefficients, fitted values, residuals, and a number of things we have not met yet. The next four tabs pull out the ones that matter today. The general lesson is worth more than the specific names: in R, a model object is a container you can reach into, not a printout you have to squint at.
 
@@ -566,7 +570,7 @@ ls(uni_reg)
 #### Coefficients
 
 <details class="transcript">
-<summary>Lecturer transcript</summary>
+<summary>Transcript</summary>
 
 The first thing you will want is the estimated coefficients, and they live in the coefficients element. Run it and two labelled numbers come back: the intercept, and the one on lotsize. That second number, six point five nine nine, is beta-one-hat, the estimate we have been building towards for two lectures now. Read it as a sentence: one more unit of lot size is associated with about six dollars sixty more in sale price. And note the word associated. Whether you are also entitled to say caused depends on the zero conditional mean condition, which is where this course goes next.
 
@@ -583,7 +587,7 @@ uni_reg$coefficients
 #### Fitted values
 
 <details class="transcript">
-<summary>Lecturer transcript</summary>
+<summary>Transcript</summary>
 
 Fitted values are the model's predictions at the lot sizes you actually observed: beta-hat-zero plus beta-hat-one times x-i, worked out for every house. I am printing only the first five so it stays readable. Compare these against the actual prices and you have the residuals, which is the next tab. One thing to notice is that there is one fitted value per house, so this object is exactly as long as your data set. That is what the figure back on the Residuals tab was drawing: a line's worth of predictions, one for every point in the cloud.
 
@@ -603,7 +607,7 @@ uni_reg$fitted.values[1:5]
 #### Residuals
 
 <details class="transcript">
-<summary>Lecturer transcript</summary>
+<summary>Transcript</summary>
 
 And here are the residuals as numbers, the same quantity you saw as red segments earlier. Each one is an actual price minus the model's prediction for that house. Run it and look at the signs: some positive, some negative, which is the arithmetic guarantee we derived from the first-order condition, that they sum to zero. Then look at the magnitudes, because these are dollars, and some of them are large, tens of thousands. That is a useful reality check on a model with one explanatory variable. Lot size is genuinely informative about price, and it is nowhere near the whole story.
 
@@ -621,7 +625,7 @@ uni_reg$residuals[1:5]
 #### `summary()`
 
 <details class="transcript">
-<summary>Lecturer transcript</summary>
+<summary>Transcript</summary>
 
 If you simply want to look at a regression rather than pull pieces out of it, summary is the function. Run it and you get the standard printout: the coefficients, and beside each one some columns we have not defined yet, standard errors, t-values, p-values. Do not worry about those today. They are the machinery for deciding whether an estimate is distinguishable from zero, and lectures five and six are entirely about them. For now, read the estimate column, and notice the R-squared reported at the bottom, which is what we take apart at the end of this lecture.
 
@@ -647,7 +651,7 @@ summary(uni_reg)
 ### Estimated model
 
 <details class="transcript">
-<summary>Lecturer transcript</summary>
+<summary>Transcript</summary>
 
 Now that we have numbers we can write the estimated model out, and this is the object you would report in a paper. Price equals thirty-four thousand one hundred and thirty-six, plus six point five nine nine times lot size. It has a name worth knowing, the sample regression function, and it is our estimate of the population regression function, the expected value of price given lot size. Read the callout, because it holds the caveat students most often drop. Regression predicts an expected value, an average. It is not telling you what your house will sell for. It is telling you what houses like yours sell for on average.
 
@@ -682,7 +686,7 @@ This is called <span style = "color: blue;"> sample regression function (SRF) </
 ### Predicted values (R)
 
 <details class="transcript">
-<summary>Lecturer transcript</summary>
+<summary>Transcript</summary>
 
 This is the fitted values idea from a moment ago, met again where you would actually reach for it. The fitted values element gives you the model's prediction for each house in your data. That is useful when you want to compare predicted against actual: to plot one against the other, or to hunt down the houses your model gets most badly wrong. But notice the restriction. These are predictions at the lot sizes that happen to appear in your data. If you want a prediction at some other lot size, one nobody in your sample has, you need the next tab.
 
@@ -702,7 +706,7 @@ uni_reg$fitted.values[1:5]
 ### New predictions (R)
 
 <details class="transcript">
-<summary>Lecturer transcript</summary>
+<summary>Transcript</summary>
 
 Predicting at new values is a two-step move, and it is worth learning properly because you will use it constantly. First, build a small data frame holding the x values you care about, here lot sizes of three thousand, twelve thousand and fifteen thousand. The column name has to match the variable name in your model exactly, or predict will not know what to do with it. Second, hand that data frame to predict along with the regression results. Out come three numbers, the expected price at each lot size. Note that fifteen thousand is near the top of the observed range; predicting far outside it is a riskier business.
 
@@ -743,7 +747,7 @@ predict(uni_reg, newdata = new_data)
 #### Problem
 
 <details class="transcript">
-<summary>Lecturer transcript</summary>
+<summary>Transcript</summary>
 
 Here is a decision problem to work through yourself before you look at the solution. Your lot is three thousand. You can expand it by a thousand, and doing so costs you five thousand dollars. Should you? There is an empty code cell below for you, and you have the regression results already estimated. Read the note underneath as well, because there is a trap built into the question. I told you your current lot size is three thousand, and you do not need it. In a linear model the effect of one more unit is the same wherever you start from. That stops being true in lecture seven.
 
@@ -764,7 +768,7 @@ The answer does not depend on the 3000. In a linear model the effect of one more
 #### Solution
 
 <details class="transcript">
-<summary>Lecturer transcript</summary>
+<summary>Transcript</summary>
 
 Here is the answer. Pull out the coefficient on lotsize, multiply it by a thousand, because a thousand is what you are adding, and subtract the five thousand it costs. Six point five nine nine times a thousand is about six thousand six hundred; minus five thousand leaves roughly sixteen hundred dollars. Positive, so on these numbers, yes, expand. Now the honest caveat. This is an association, from a regression with a single explanatory variable and a great deal sitting in the error term. I would not stake my own five thousand on it. But the mechanics, coefficient times change, weighed against cost, are exactly right.
 
@@ -796,7 +800,7 @@ uni_reg$coefficients["lotsize"] * 1000 - 5000
 ### What is it?
 
 <details class="transcript">
-<summary>Lecturer transcript</summary>
+<summary>Transcript</summary>
 
 The last topic today is R-squared, and I want you to have the one-sentence version before any formulas arrive. R-squared measures how much better your model predicts the dependent variable than the laziest possible model does. And that lazy model is worth naming, because it is the benchmark the whole measure is built on: just guess the average price for every single house, ignoring lot size entirely. So R-squared answers one question. How much did knowing lot size actually buy me, over knowing nothing but the average? Everything in the next four tabs is machinery for turning that question into a number.
 
@@ -807,7 +811,7 @@ $R^2$ is a measure of how good your model is in predicting the dependent variabl
 ### Decompose $y$
 
 <details class="transcript">
-<summary>Lecturer transcript</summary>
+<summary>Transcript</summary>
 
 Before the formula, here is the decomposition it rests on, and it is only algebra. Any observed y-i splits into two pieces: the fitted value, y-hat-i, and the residual, u-hat-i. Now subtract the sample average, y-bar, from both sides, and read the three bullets. On the left, y-i minus y-bar, is how far this house's price sits from the average price; that is the total deviation you are trying to account for. On the right, y-hat-i minus y-bar is the part your model explains, and u-hat-i is the part it does not. Every measure of fit compares those two right-hand pieces.
 
@@ -832,7 +836,7 @@ $$
 ### Visualization
 
 <details class="transcript">
-<summary>Lecturer transcript</summary>
+<summary>Transcript</summary>
 
 Here is that split drawn for one real house, so the algebra has a picture attached to it. The red horizontal line is y-bar, the average price. The blue line is the fitted model. Now find the black dot over on the right: that is one house. The green arrow runs from the average up to the fitted line, and that is the explained part, what knowing this house's lot size buys you. The purple arrow runs from the fitted line to where the house actually sold, and that is the residual, what the model missed. Green plus purple is the total deviation.
 
@@ -903,7 +907,7 @@ g_hp +
 ### $R^2$ components
 
 <details class="transcript">
-<summary>Lecturer transcript</summary>
+<summary>Transcript</summary>
 
 Three sums, and the names are more confusing than the mathematics, so take them slowly. Total sum of squares, SST, adds up the squared total deviations: how much price varies overall. Explained sum of squares, SSE, adds up the squared explained parts, the green arrows. Residual sum of squares, SSR, adds up the squared residuals, the purple arrows, and you have met this one already, because it is exactly the quantity OLS was chosen to minimize. One warning: some textbooks swap the letters SSE and SSR completely, so read the definition rather than trusting the acronym.
 
@@ -928,7 +932,7 @@ $$
 ### Definition of $R^2$
 
 <details class="transcript">
-<summary>Lecturer transcript</summary>
+<summary>Transcript</summary>
 
 Now the definition. R-squared is one minus SSR over SST. Where that comes from is the three lines below: total equals explained plus residual, rearrange, divide through by SST. So R-squared is equally the explained share, SSE over SST, and it sits between zero and one as long as your model includes an intercept. And here is the number for our regression, computed just below: about zero point two nine. Lot size accounts for roughly twenty-nine percent of the variation in house price. The other seventy-one percent is everything in u, bedrooms, location, condition, the year it sold.
 
@@ -977,7 +981,7 @@ That is how much of the variation in house price lot size alone accounts for. Th
 ### Caveat
 
 <details class="transcript">
-<summary>Lecturer transcript</summary>
+<summary>Transcript</summary>
 
 Now the warning, and it is the most important thing on this slide. R-squared tells you nothing about whether you have estimated beta-one well. Read the two blocks. We can always check how well a model predicts the dependent variable, because we observe the dependent variable. We can never check how well we estimated beta-one, because nobody ever shows us the true beta-one. So we are in the awkward position of being able to measure the thing we do not much care about, and unable to measure the thing we do. That is exactly why the next topic is assumptions.
 

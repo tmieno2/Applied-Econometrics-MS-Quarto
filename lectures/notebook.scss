@@ -47,6 +47,15 @@ $nb-bar-bg:     #eeeeee;              // toolbar background
 $nb-bar-fg:     #000000;              // button label colour
 $nb-bar-font:   Arial, Helvetica, sans-serif;
 $nb-bar-size:   14.4px;               // button font-size
+
+// Code and printed output are ONE size, everywhere: knitr blocks, WebR editors,
+// and both kinds of output. 0.84rem is 13.44px at the 16px root, which is what
+// `editor-font-scale: 0.7` produces in a WebR editor (0.7 x the deck's 19.2px
+// body). Keep the two in step — change this and change `editor-font-scale` in
+// the deck YAML by the same proportion, or a WebR cell and a knitr block on the
+// same slide stop matching. Previously they never did: knitr code sat at 1rem
+// against a 0.7-or-0.8-scaled editor.
+$nb-code-size:  0.84rem;
 // Where the label's top-left corner actually lands inside the toolbar:
 //   top  = toolbar padding 3.2 + button border 1 + button padding 6  = 10.2px
 //   left = toolbar padding 8   + button border 1 + button padding 12 = 21px
@@ -153,6 +162,10 @@ div.cell-output.cell-output-stderr > pre > code { background-color: $nb-out-bg; 
   background-color: $nb-out-bg;
   border-left: 3px solid $nb-accent;
   border-radius: 0 2px 2px 0;
+  // Without this the 3px edge is added OUTSIDE the declared width, so the
+  // output box ends up 3px wider than the editor above it and the two blocks
+  // visibly fail to line up in the stacked layout.
+  box-sizing: border-box;
 }
 
 // Under the banner in a side-by-side cell the two must read as one object, so
@@ -160,10 +173,6 @@ div.cell-output.cell-output-stderr > pre > code { background-color: $nb-out-bg; 
 .reveal .side-out .qwebr-interactive-area div.qwebr-output-code-area pre {
   border-radius: 0 0 2px 0;
   margin-top: 0;
-  // The cell never stacks after a run, so output that does not fit its column
-  // scrolls here instead of reshaping the slide.
-  max-height: 440px;
-  overflow: auto;
 }
 
 // Plots get the same edge, but only once one exists — the graph area is present
@@ -475,8 +484,13 @@ div.overflow-guard div.margin { background-color: $nb-code-bg; }
 // column too — which is the common case in this course.
 .reveal .side-out .qwebr-interactive-area {
   position: relative;   // anchor for the gutter caret (::after, below)
-  width: 100%;          // override custom.scss's global 90% WebR width cap
-  max-width: 100%;
+  // MUST match every other code block on the slide ($nb-code-w, the same 90%
+  // custom.scss gives `.qwebr-interactive-area`). This used to be 100%, which
+  // meant a cell visibly grew wider than its neighbours the instant it was
+  // promoted to side by side — a code block changing width under the reader.
+  // Going side by side changes how the cell is DIVIDED, never how wide it is.
+  width: $nb-code-w;
+  max-width: $nb-code-w;
   box-sizing: border-box;
   display: grid;
   // Console output is commonly wider than the code that produces it. Give the
@@ -570,7 +584,12 @@ div.overflow-guard div.margin { background-color: $nb-code-bg; }
     position: absolute;
     top: 0;
     height: $nb-bar-h;
-    left: calc(var(--webr-code-share, 41.667%) - 3.5px);
+    // Centred in the 1rem gutter, not sitting on the column boundary.
+    // `--webr-gutter-centre` is an exact pixel measured from the laid-out
+    // editor by webr-layout.html, because the percentage below resolves against
+    // a different box than the grid tracks do and lands ~7px off centre. The
+    // percentage survives only as the no-JS fallback.
+    left: calc(var(--webr-gutter-centre, calc(var(--webr-code-share, 41.667%) + 8px)) - 3.05px);
     display: flex;
     align-items: center;
     color: $nb-accent;
@@ -624,8 +643,13 @@ div.overflow-guard div.margin { background-color: $nb-code-bg; }
   }
 }
 
-// Stack again if the slide is ever rendered narrow (print/PDF at small widths).
-@media (max-width: 800px) {
+// Stack again when the slide is printed. NOT `(max-width: 800px)`, which is what
+// this used to say: reveal scales the whole 1050px slide to fit the window, so a
+// narrow window makes the slide SMALLER, never narrower in its own coordinates.
+// The columns are as usable at 640px of browser as at 1600px. All the width test
+// did was hand anyone with a half-screen window a full-width editor, which is
+// exactly the "why is this not side by side" this layout exists to answer.
+@media print {
   .reveal .side-out .cell,
   .reveal .side-out.tight .cell { grid-template-columns: 1fr; }
   .reveal .side-out .cell > .cell-code,
@@ -634,7 +658,13 @@ div.overflow-guard div.margin { background-color: $nb-code-bg; }
 
   .reveal .side-out .qwebr-interactive-area {
     grid-template-columns: 1fr;
-    grid-template-areas: "toolbar" "editor" "output" "graph";
+    // `outbar` MUST be named here too. It is the ::before "Output" banner, and
+    // a grid item whose named area does not exist is auto-placed instead — into
+    // an invented second column, which is how a small grey "Output" chip came to
+    // float below and to the right of a full-width editor. Stacked, the banner
+    // belongs directly above the output it labels, exactly as the toolbar sits
+    // above the editor.
+    grid-template-areas: "toolbar" "editor" "outbar" "output" "graph";
   }
 }
 
@@ -655,19 +685,52 @@ div.overflow-guard div.margin { background-color: $nb-code-bg; }
 // transcripts, so it cannot change while only one deck is being trialled. It
 // belongs to stage 2, together with the margin column that replaces the overlay.
 
-// No figure may force a slide to scroll. The slide canvas is 700px; a title,
-// a tab bar and a callout leave roughly 380px, so a stacked figure is capped
-// there and shrinks proportionally (object-fit keeps the aspect ratio inside
-// the out-width box). A 10x6in figure at 75% is 472px tall and would
-// otherwise push the bottom of the plot off the slide. Figures that fit are
-// untouched. Side-by-side layouts are half width and never reach the cap.
-// The webr canvas sits in an inline-block <figure>; its inline `width: 55%`
-// must resolve against the column, not against the figure's shrink-to-fit
-// width, which the height cap below would otherwise set.
+// ---- code and output type size ---------------------------------------------
+// Beats custom.scss's `1rem` / `0.9rem` (this file is last in the theme list, so
+// equal specificity is enough).
+.reveal code.sourceCode.r,
+.reveal pre.sourceCode code,
+.reveal div.sourceCode pre code { font-size: $nb-code-size; }
+
+.reveal div.cell-output.cell-output-stdout > pre > code,
+.reveal div.cell-output.cell-output-stderr > pre > code,
+.reveal .qwebr-output-code-stdout,
+.reveal .qwebr-output-code-stderr,
+.reveal div.qwebr-output-code-area pre { font-size: $nb-code-size; }
+
+// ---- figure height -----------------------------------------------------------
+// No figure may force a slide to scroll. The reveal slide is 700px; a title, a
+// tab bar and a callout leave roughly 380px, so a figure is capped there and
+// shrinks proportionally (object-fit keeps the aspect ratio inside the
+// out-width box). A 10x6in knitr figure at out-width 75% is 472px tall and
+// would otherwise push its own bottom off the slide. Figures that already fit
+// are untouched, and a side-by-side layout is half width and never reaches the
+// cap.
+//
+// This cap is also what sets the default webr out-width of 55%: 55% of the
+// 1050px slide is 577px wide, which at the shared 7:4.5 canvas is 371px tall,
+// just inside the cap. Asking for a wider display does not produce a bigger
+// figure, it produces the same figure scaled back down to 380px tall.
+//
+// The webr canvas sits in an inline-block <figure>; its inline `width` must
+// resolve against the column, not against the figure's shrink-to-fit width,
+// which the cap below would otherwise set.
 .reveal figure.qwebr-canvas-image { display: block; width: 100%; }
 
 .reveal .cell-output-display img,
 .reveal .qwebr-output-graph-area canvas {
   max-height: 380px;
   object-fit: contain;
+}
+
+// Opt-in for a slide that carries nothing but a figure: with no tab bar and a
+// one-line title there is about 540px of vertical room rather than 380px. Put
+// the class on the slide heading — `## Distribution of yield {.figure-slide}` —
+// and widen the CANVAS in the same edit, or the figure is merely stretched:
+// knitr 12x7.2in at out-width 95%, webr fig-width 10.2 / fig-height 6.55 at
+// out-width 80%. Both keep the ratio of display width to canvas width that the
+// defaults have, which is what holds the type size steady. See RULES.md.
+.reveal .figure-slide .cell-output-display img,
+.reveal .figure-slide .qwebr-output-graph-area canvas {
+  max-height: 540px;
 }

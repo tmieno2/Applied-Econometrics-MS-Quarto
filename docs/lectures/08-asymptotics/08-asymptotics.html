@@ -99,8 +99,8 @@
     code span.vs { color: #20794d; } /* VerbatimString */
     code span.wa { color: #5e5e5e; font-style: italic; } /* Warning */
   </style>
-  <link rel="stylesheet" href="../../site_libs/revealjs/dist/theme/quarto-ae2d755d4d34da603f33a3001b8a52fa.css">
-  <script>window.backupDefine = window.define; window.define = undefined;</script><script src="https://cdn.jsdelivr.net/npm/katex@latest/dist/katex.min.js"></script>
+  <link rel="stylesheet" href="../../site_libs/revealjs/dist/theme/quarto-bf1223c773699056cca1ada9baf1738b.css">
+  <script defer="" src="https://cdn.jsdelivr.net/npm/katex@0.18.4/dist/katex.min.js"></script>
   <script>document.addEventListener("DOMContentLoaded", function () {
  var mathElements = document.getElementsByClassName("math");
  var macros = [];
@@ -115,7 +115,7 @@
    });
 }}});
   </script>
-  <script>window.define = window.backupDefine; window.backupDefine = undefined;</script><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@latest/dist/katex.min.css">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.18.4/dist/katex.min.css">
   <link href="../../site_libs/revealjs/plugin/quarto-line-highlight/line-highlight.css" rel="stylesheet">
   <link href="../../site_libs/revealjs/plugin/reveal-menu/menu.css" rel="stylesheet">
   <link href="../../site_libs/revealjs/plugin/reveal-menu/quarto-menu.css" rel="stylesheet">
@@ -209,7 +209,7 @@
     }
   </style>
   <!--
-    Support for collapsible "Lecturer transcript" panels in revealjs decks.
+    Support for collapsible "Transcript" panels in revealjs decks.
 
     Include it from a deck's YAML header, with the path relative to the qmd:
 
@@ -221,7 +221,7 @@
     tabset, which is the usual case):
 
         <details class="transcript">
-        <summary>Lecturer transcript</summary>
+        <summary>Transcript</summary>
 
         What the lecturer says about this tab.
 
@@ -389,8 +389,36 @@
     "use strict";
 
     var MAX_CODE_LINES = 12;
+    // Monaco's line-number gutter (~75px) plus its vertical scrollbar (~15px).
+    var EDITOR_CHROME = 90;
+    // A deliberate OVER-estimate of one character. Menlo at 15.36px measures
+    // ~9.2px, and erring high is what keeps the editor from wrapping when the
+    // real measurement below has not landed yet.
+    var FALLBACK_CHAR_PX = 11;
+    // Breathing room on each measured need. Side by side is a bonus, not a goal:
+    // the vertical stack is a perfectly good layout, so a cell that only fits by
+    // cramming should simply stay stacked. Slack here buys that judgement — it
+    // makes the fit test stricter AND leaves each column wider than its content.
+    var CODE_SLACK = 1.15;
+    var OUTPUT_SLACK = 1.08;
+    // Going side by side saves exactly one thing: the height of the code block,
+    // which no longer sits above the output. Against a tall output that saving is
+    // trivial — a 3-line editor beside a 34-line print of `mtcars` reclaims about
+    // a tenth of the cell's height and splits the slide in half to do it.
+    //
+    // 0.4 means the output may be at most ~1.5x the height of the code block.
+    // Calibrated against real cells, not picked: one line of code beside a 10-line
+    // tibble scores 0.31 and must be rejected; the 5-line piping example beside
+    // its 2 lines of output scores 0.81 and must be kept. An earlier 0.25 sat
+    // below the first of those and let it through.
+    var MIN_VERTICAL_SAVING = 0.4;
     var MAX_CODE_SHARE = 0.58;
-    var MIN_CODE_SHARE = 0.30;
+    // The floor exists only so the editor never becomes unusably narrow. It used
+    // to be 0.30, which padded a one-line call like `class(mtcars)` (160px of
+    // content including Monaco's gutter) out to 329px and charged the difference
+    // to the output.
+    var MIN_CODE_SHARE = 0.18;
+    var MAX_OUTPUT_SHARE = 0.82;
 
     function detailsFor(area) {
       var match = area.id && area.id.match(/qwebr-interactive-area-(\d+)/);
@@ -404,11 +432,35 @@
         return line.trim() && !/^\s*#/.test(line);
       });
       return {
+        code: String(code || ""),
         lines: substantive.length,
         maxChars: lines.reduce(function (n, line) {
           return Math.max(n, line.replace(/\t/g, "  ").length);
         }, 0)
       };
+    }
+
+    // The caret lives in the 1rem gutter and must sit at its centre. Percentages
+    // cannot express that reliably here, so measure the laid-out editor and hand
+    // the CSS an exact pixel.
+    function markGutter(area, host) {
+      var style = getComputedStyle(area);
+      if (style.display !== "grid") return;
+
+      // Take the gutter straight from the resolved grid tracks. Every element in
+      // this cell has been tried as an anchor and each one lies: Monaco renders
+      // wider than its track, and `.qwebr-output-code-area` reports a left edge
+      // well right of where the output column actually starts, which put the caret
+      // inside the Output banner. `grid-template-columns` resolves to used pixel
+      // widths, so the first track plus half the gap IS the gutter centre, with
+      // nothing to misreport.
+      var tracks = style.gridTemplateColumns.split(/\s+/)
+        .map(parseFloat).filter(function (n) { return !isNaN(n); });
+      if (tracks.length < 2) return;
+      var gap = parseFloat(style.columnGap) || 16;
+      var padLeft = parseFloat(style.paddingLeft) || 0;
+      var centre = padLeft + tracks[0] + gap / 2;
+      host.style.setProperty("--webr-gutter-centre", centre.toFixed(1) + "px");
     }
 
     function setTracks(host, codeShare) {
@@ -420,10 +472,15 @@
     }
 
     function measureRenderedCode(area, host, code, attempt) {
-      if (host.dataset.webrLayout !== "side") return;
+      if (!eligibleNow(host)) return;
       var sample = area.querySelector(".view-line, .monaco-editor");
       if (!sample || !area.clientWidth) {
-        if (attempt < 20) setTimeout(function () {
+        // 20 attempts (2s) was not enough: on a deck with ~70 cells Monaco is
+        // still rendering, the measurement never lands, and the cell is left on
+        // the fallback estimate. Undersize it and Monaco wraps the line, after
+        // which the only thing left to measure is the wrapped fragments — the
+        // column can never recover on its own. 100 attempts is 10s.
+        if (attempt < 100) setTimeout(function () {
           measureRenderedCode(area, host, code, attempt + 1);
         }, 100);
         return;
@@ -436,10 +493,201 @@
       var widest = String(code || "").split("\n").reduce(function (width, line) {
         return Math.max(width, context.measureText(line.replace(/\t/g, "  ")).width);
       }, 0);
-      // Monaco's line-number gutter, padding, and scrollbar need about 76px in
-      // addition to the measured glyph width.
+      // Note this measures the SOURCE text, never the rendered `.view-line`
+      // elements: once the column is narrow enough to wrap, those hold fragments
+      // and measuring them would confirm the mistake instead of correcting it.
       var available = Math.max(1, area.clientWidth - 16);
-      setTracks(host, (widest + 76) / available);
+      // Remember it in pixels. The share alone is not enough: the split has to be
+      // recomputed against the OUTPUT's measured width once the cell has run.
+      host.dataset.webrCodePx = Math.ceil(widest + EDITOR_CHROME);
+      setTracks(host, ((widest + EDITOR_CHROME) * CODE_SLACK) / available);
+
+      // The measured code column is now the real one, so check straight away that
+      // Monaco is not wrapping in it. Before, this ran only after a cell had been
+      // run; a cell that opens side by side needs it on arrival.
+      ensureNoWrap(area, host, sourceLineCount(code), 0);
+    }
+
+    // The natural width of the output text. `pre` cannot be measured directly:
+    // notebook.scss gives it `width: 100%`, so its scrollWidth reports the track
+    // it currently sits in, not the text inside it. Reading that back is a
+    // feedback loop — it made every cell claim the maximum output share however
+    // short its output was, starving the code column down to the floor until the
+    // editor wrapped a one-line call across three lines.
+    function naturalTextSize(pre) {
+      var cs = getComputedStyle(pre);
+      var probe = document.createElement("pre");
+      probe.style.cssText = "position:absolute;left:-9999px;top:0;visibility:hidden;" +
+        "white-space:pre;margin:0;padding:0;width:auto";
+      probe.style.fontFamily = cs.fontFamily;
+      probe.style.fontSize = cs.fontSize;
+      probe.style.fontWeight = cs.fontWeight;
+      probe.style.letterSpacing = cs.letterSpacing;
+      probe.textContent = pre.innerText || "";
+      document.body.appendChild(probe);
+      var size = { w: probe.scrollWidth, h: probe.scrollHeight };
+      probe.parentNode.removeChild(probe);
+      return size;
+    }
+
+    // Height of the code block as it stands: the editor plus its toolbar.
+    function codeBlockHeight(area) {
+      var editor = area.querySelector(".qwebr-editor");
+      var bar = area.querySelector(".qwebr-editor-toolbar");
+      var h = editor ? editor.getBoundingClientRect().height : 0;
+      if (bar) h += bar.getBoundingClientRect().height;
+      return h;
+    }
+
+    // A cell is a candidate while it is "pending" (rendered as the ordinary
+    // vertical stack) or already "side". Manual wrappers are always "side".
+    function eligibleNow(host) {
+      var mode = host.dataset.webrLayout;
+      return mode === "pending" || mode === "side";
+    }
+
+    // A cell is put side by side as soon as its code has been measured, so the
+    // layout the reader first sees is the layout it keeps. The output cannot be
+    // measured until the cell has run, so assessOutput may still send a cell back
+    // to the vertical stack afterwards — that is the price of not making the
+    // reader wait for a run to see the final shape.
+    function promote(host) {
+      if (host.dataset.webrLayout === "side") return;
+      host.classList.add("side-out");
+      host.dataset.webrLayout = "side";
+    }
+
+    function sourceLineCount(code) {
+      return String(code || "").replace(/\s+$/, "").split("\n").length;
+    }
+
+    // Every width here is predicted — from a canvas measurement of the source in
+    // what we believe is the editor's font. Predictions travel badly: a different
+    // browser, a missing font, a different device pixel ratio, and the editor
+    // wraps even though the arithmetic said it fitted. So do not trust the
+    // prediction — read back what Monaco actually rendered, and widen the column
+    // until the rendered line count matches the source. This is the only check
+    // that cannot be wrong about wrapping, because it IS the wrapping.
+    function ensureNoWrap(area, host, srcLines, attempt) {
+      if (host.dataset.webrLayout !== "side") return;
+      var lines = area.querySelectorAll(".view-line");
+      if (!lines.length) {
+        if (attempt < 100) setTimeout(function () {
+          ensureNoWrap(area, host, srcLines, attempt + 1);
+        }, 100);
+        return;
+      }
+      if (lines.length <= srcLines) { markGutter(area, host); return; }
+      var share = parseFloat(host.style.getPropertyValue("--webr-code-share")) / 100;
+      if (!share) share = MIN_CODE_SHARE;
+      if (share >= MAX_CODE_SHARE || attempt > 40) {
+        // Even at the widest permitted code column the line will not fit, so the
+        // cell has no business being side by side at all.
+        stack(host, true);
+        return;
+      }
+      setTracks(host, share + 0.02);
+      // Monaco relayouts asynchronously off its own resize observer; give it a
+      // frame or two before reading the line count again.
+      setTimeout(function () {
+        ensureNoWrap(area, host, srcLines, attempt + 1);
+      }, 60);
+    }
+
+    function stack(host, force) {
+      // `::: {.side-out}` is a REQUEST, not an override. It decides that a cell
+      // would like to be side by side; it cannot suspend the rules that say when
+      // side by side is acceptable — no wrapped code, output that fits, a split
+      // worth making. Every one of those gates passes force = true. What the
+      // exemption still buys is that ordinary measurement noise will not tear a
+      // deliberate wrapper down.
+      if (host.dataset.webrLayoutManual === "true" && !force) return;
+      host.classList.remove("side-out");
+      host.dataset.webrLayout = "stacked";
+    }
+
+    function assessOutput(area, host, metrics) {
+      if (!eligibleNow(host)) return;
+      var graph = area.querySelector(".qwebr-output-graph-area canvas, .qwebr-output-graph-area img");
+      if (graph) { // plots scale cleanly within their grid track
+        promote(host);
+        requestAnimationFrame(function () { markGutter(area, host); });
+        return;
+      }
+
+      var pre = area.querySelector(".qwebr-output-code-area pre");
+      if (!pre || getComputedStyle(pre).visibility === "hidden") return;
+
+      // Ran and printed nothing — an assignment, a library() call, anything
+      // invoked for its side effect. There is no right-hand content to show, so
+      // the code keeps the full width rather than facing an empty Output banner.
+      if (!(pre.innerText || "").trim()) { stack(host, true); return; }
+
+      var style = getComputedStyle(area);
+      var gap = parseFloat(style.columnGap) || 16;
+      var available = Math.max(1, area.clientWidth - gap);
+      // The code column was sized when the code was measured and MUST NOT move
+      // now. Re-deriving it from the output made the editor jump to a different
+      // width the instant a student pressed Run — the one thing a code block on a
+      // lecture slide must never do. This is also what the invariants say: code
+      // width determines the split, output gets whatever is left.
+      var codeTrack = Math.min(MAX_CODE_SHARE, Math.max(MIN_CODE_SHARE,
+        (Number(host.dataset.webrCodePx) ||
+          (metrics.maxChars * FALLBACK_CHAR_PX + EDITOR_CHROME)) * CODE_SLACK / available))
+        * available;
+      var natural = naturalTextSize(pre);
+      var outputPx = (natural.w + 24) * OUTPUT_SLACK;
+
+      // Is the split worth making? Stacked costs code + output; side by side costs
+      // whichever is taller. The saving is therefore the code block's height, and
+      // it has to be a real fraction of what the cell occupies now.
+      var codeH = codeBlockHeight(area);
+      var outH = natural.h;
+      if (!codeH || !outH) {
+        // Fall back to line counts rather than skipping the test. Skipping it is
+        // how a cell slips through: an unmeasurable height silently became an
+        // exemption from the rule.
+        var lineH = parseFloat(getComputedStyle(pre).lineHeight) || 20;
+        codeH = codeH || (metrics.lines * lineH + 38);
+        outH = outH || ((pre.innerText || "").split("\n").length * lineH);
+      }
+      if (codeH / (codeH + outH) < MIN_VERTICAL_SAVING) {
+        stack(host, true);
+        return;
+      }
+
+      // Side by side must never wrap a line of code. If the code cannot fit in the
+      // widest column it is allowed, there is no acceptable side-by-side layout
+      // for this cell — do not settle for a narrower one.
+      if (codeTrack < (Number(host.dataset.webrCodePx) || 0) * CODE_SLACK) {
+        stack(host, true);
+        return;
+      }
+
+      // Both needs already carry their slack, so this is a lenient test on
+      // purpose: anything that does not fit comfortably stays vertical.
+      // Width is the FIT constraint; the height test above is a separate,
+      // worthwhileness one. Height is not a fit constraint — these decks are
+      // `scrollable: true`, so a tall slide scrolls either way — but a tall output
+      // still makes the split pointless, which is what MIN_VERTICAL_SAVING covers.
+      // The only question left is whether the output fits in the space the code
+      // did not take. If it does not, the cell stacks — the code column is never
+      // narrowed to make room.
+      if (outputPx > available - codeTrack) {
+        stack(host, true);
+        return;
+      }
+
+      // Note: no setTracks() here, deliberately. The layout is already correct and
+      // touching it would move the editor.
+      promote(host);
+      requestAnimationFrame(function () { markGutter(area, host); });
+      ensureNoWrap(area, host, sourceLineCount(metrics.code), 0);
+      requestAnimationFrame(function () {
+        // Same trap as above — compare against the measured text, not scrollWidth,
+        // which a `width: 100%` pre can never exceed.
+        if (naturalTextSize(pre).w > pre.clientWidth * 1.08) stack(host);
+      });
     }
 
     function configure(area) {
@@ -452,26 +700,64 @@
       if (!metrics.lines || metrics.lines > MAX_CODE_LINES || metrics.maxChars > 88) return;
 
       var existingWrapper = area.closest(".side-out");
+
+      // A cell inside a reveal `.columns` block already has half a slide.
+      // Splitting that again leaves the code a QUARTER of the width, where even
+      // `mtcars[2:8, c(3, 5)]` wraps. custom.scss excludes these from its own
+      // automatic two-column rule with `:not(.column *)` for the same reason;
+      // match it. A manual wrapper is undone as well rather than merely skipped:
+      // the class is in the markup, so notebook.scss would lay the cell out in
+      // two columns regardless of what this script decides, and the halved width
+      // is not something the author who typed `::: {.side-out}` accounted for.
+      if (area.closest(".column")) {
+        if (existingWrapper) {
+          existingWrapper.classList.remove("side-out");
+          existingWrapper.dataset.webrLayout = "stacked";
+        }
+        return;
+      }
+
       var host = existingWrapper || area.closest(".cell") || area.parentElement;
       if (!host) return;
 
-      if (existingWrapper) {
-        host.dataset.webrLayoutManual = "true";
-      } else {
-        host.classList.add("side-out");
-      }
-      host.dataset.webrLayout = "side";
+      // Open side by side. `::: {.side-out}` only adds the manual flag, which
+      // stops routine measurement noise from tearing the wrapper down; it still
+      // cannot suspend the gates in assessOutput, all of which force.
+      if (existingWrapper) host.dataset.webrLayoutManual = "true";
+      promote(host);
 
-      // Estimate an initial split from the longest source line. This split is
-      // final; a run never changes it.
-      var initialCodeShare = (metrics.maxChars + 10) / 145;
-      setTracks(host, initialCodeShare);
+      // Estimate an initial split from the longest source line, in pixels against
+      // the width this cell actually has. The old form was `(maxChars + 10) / 145`,
+      // which assumed ~145 characters span the full width; the real figure is ~109,
+      // so it under-sized every editor by a third and manual `.side-out` cells —
+      // which open side by side at once and never reach the measured split until
+      // they are run — wrapped on arrival.
+      var initialAvailable = Math.max(1, (area.clientWidth || 1005) - 16);
+      setTracks(host,
+        (metrics.maxChars * FALLBACK_CHAR_PX + EDITOR_CHROME) / initialAvailable);
       measureRenderedCode(area, host, details.code, 0);
 
-      // Once side by side, always side by side. Output that is too wide or too
-      // long scrolls inside its column (notebook.scss); it never stacks the
-      // cell, because a layout that jumps when Run is pressed is worse than a
-      // scrollbar.
+      // A cell on a hidden slide or an inactive tab has clientWidth 0 for as long
+      // as it stays hidden, so measureRenderedCode above cannot measure anything
+      // and eventually gives up — leaving the cell on the character estimate for
+      // good. Whoever then navigates to that slide sees the estimate, which is
+      // exactly the wrapped editor this whole mechanism exists to avoid. Watch
+      // for the moment the cell gains a width instead.
+      if (typeof ResizeObserver === "function") {
+        var sizeObserver = new ResizeObserver(function () {
+          if (!area.clientWidth) return;
+          if (host.dataset.webrCodePx) { sizeObserver.disconnect(); return; }
+          measureRenderedCode(area, host, details.code, 0);
+        });
+        sizeObserver.observe(area);
+      }
+
+      var observer = new MutationObserver(function () {
+        requestAnimationFrame(function () { assessOutput(area, host, metrics); });
+      });
+      observer.observe(area, { childList: true, subtree: true, characterData: true,
+        attributes: true, attributeFilter: ["style", "class"] });
+      requestAnimationFrame(function () { assessOutput(area, host, metrics); });
     }
 
     function scan() {
@@ -489,6 +775,15 @@
       start();
     }
   })();
+  </script>
+  <!-- quarto-webr loads Monaco's AMD loader (define.amd). KaTeX ships UMD and
+       registers as an anonymous AMD module instead of setting window.katex, so
+       Quarto's inline renderer throws "katex is not defined" on every WebR deck.
+       Import the ESM build, which ignores AMD, and publish the global before
+       DOMContentLoaded so the stock renderer finds it. -->
+  <script type="module">
+    import katex from "https://cdn.jsdelivr.net/npm/katex@0.18.4/dist/katex.mjs";
+    window.katex = window.katex || katex;
   </script>
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/monaco-editor@0.47.0/min/vs/editor/editor.main.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
@@ -780,7 +1075,7 @@
   };
 
   // Store cell data
-  globalThis.qwebrCellDetails = [{"code":"# NOTE: a webr setup cell renders a loading widget wherever it sits, so keep it\n# inside a content slide rather than on a section divider (or, worse, above the\n# first heading, where it becomes an untitled slide of its own).\n# Mirror of lecture_theme() in lectures/_lecture-theme.R. WebR runs in the\n# browser, against a virtual filesystem that does not hold the repo, so it\n# cannot source that file. Edit the file first, then run\n#     Rscript lectures/check-lecture-theme.R\n# which fails if this copy has drifted from it.\nlecture_theme <- function(base_size = 16) {\n  ggplot2::theme_bw(base_size = base_size) +\n    ggplot2::theme(\n      axis.text = ggplot2::element_text(size = base_size * 0.9),\n      axis.title = ggplot2::element_text(size = base_size),\n      legend.text = ggplot2::element_text(size = base_size * 0.9),\n      legend.title = ggplot2::element_text(size = base_size * 0.9),\n      plot.background = ggplot2::element_rect(fill = \"transparent\", colour = NA),\n      panel.background = ggplot2::element_rect(fill = \"transparent\", colour = NA),\n      legend.background = ggplot2::element_rect(fill = \"transparent\", colour = NA),\n      legend.key = ggplot2::element_rect(fill = \"transparent\", colour = NA),\n      # theme_bw's grey92 grid was chosen against a white panel and all but\n      # disappears on the warm paper once the panel stops being opaque.\n      panel.grid = ggplot2::element_line(colour = \"grey87\")\n    )\n}\n\n# The WebR canvas is 7x4.5in at out-width 55% of its output track\n# (lectures/_metadata.yml) — a similar pixels-per-inch to the 10in knitr canvas,\n# but often narrower when the cell renders side by side, so it runs a little\n# larger than the 16pt default. 30pt did not fit this canvas at all: the panel\n# collapsed into the top third and the legend clipped.\n# webR draws its canvas at 72 dpi no matter what `dpi` says, so on a 216-dpi\n# canvas everything ggplot measures in points or mm comes out a third of its\n# size. Scale ggplot2's mm-to-point constants and the theme by the same\n# factor and the figure matches the knitr ones. Keep in step with `dpi` above.\nwebr_scale <- 216 / 72\nassignInNamespace(\".pt\", ggplot2::.pt * webr_scale, \"ggplot2\")\nassignInNamespace(\".stroke\", ggplot2::.stroke * webr_scale, \"ggplot2\")\ntheme_lecture <- lecture_theme(18 * webr_scale) +\n  # base_size also sets the theme line widths, which are in mm and already\n  # pass through the scaled .pt; pin them to what 18pt gives or they come\n  # out 9x thick.\n  ggplot2::theme(\n    line = ggplot2::element_line(linewidth = 18 / 22),\n    rect = ggplot2::element_rect(linewidth = 18 / 22)\n  )","id":1,"options":{"autorun":"true","classes":"","comment":"","context":"setup","dpi":"216","editor-font-scale":"0.8","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"4.5","fig-width":"7","label":"unnamed-chunk-1","message":"true","out-height":"","out-width":"55%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"#--- Preparation ---#\nB <- 1000 # the number of iterations\nN_list <- c(100, 1000, 10000) # sample size\nN_len <- length(N_list)\nestimate_storage <- matrix(0, B, N_len) # estimates storage\n\nfor (j in 1:N_len) {\n  temp_N <- N_list[j]\n  for (i in 1:B) {\n    #--- generate data ---#\n    x <- rnorm(temp_N) # independent variable\n    u <- rnorm(temp_N) * 0.2 # error\n    y <- 1 + x + u # dependent variable 1\n    data <- data.frame(y = y, x = x)\n\n    #--- OLS ---#\n    reg <- lm(y ~ x, data = data) # OLS\n\n    #--- store coef estimates ---#\n    estimate_storage[i, j] <- reg$coef[2]\n  }\n}","id":2,"options":{"autorun":"false","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.8","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"4.5","fig-width":"7","label":"unnamed-chunk-2","message":"true","out-height":"","out-width":"55%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"plot_data <- melt(as.data.table(estimate_storage), measure.vars = 1:N_len)\n\n#--- create a figure ---#\ng_co_ex <-\n  ggplot(data = plot_data) +\n  geom_density(aes(x = value, fill = variable), alpha = 0.4) +\n  geom_vline(xintercept = 1) +\n  xlim(0.9, 1.1) +\n  scale_fill_discrete(\n    name = \"Sample Size\",\n    labels = c(\"N=100 \", \"N=1,000 \", \"N=10,000\")\n  ) +\n  theme_lecture +\n  theme(\n    legend.position = \"bottom\"\n  )\n\ng_co_ex","id":3,"options":{"autorun":"false","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.8","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"4.5","fig-width":"7","label":"unnamed-chunk-3","message":"true","out-height":"","out-width":"55%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"#--- Preparation ---#\nB <- 1000 # the number of iterations\nN_list <- c(100, 1000, 10000) # sample size\nN_len <- length(N_list)\nestimate_storage <- matrix(0, B, N_len) # estimates storage\n\nfor (j in 1:N_len) {\n  temp_N <- N_list[j]\n  for (i in 1:B) {\n    #--- generate data ---#\n    mu <- rnorm(temp_N) # shared term between x and u #<<\n    x <- rnorm(temp_N) + 0.5 * mu # <<\n    u <- rnorm(temp_N) + 0.5 * mu # <<\n    y <- 1 + x + u # dependent variable\n    data <- data.frame(y = y, x = x)\n\n    #--- OLS ---#\n    reg <- lm(y ~ x, data = data) # OLS\n\n    #--- store coef estimates ---#\n    estimate_storage[i, j] <- reg$coef[2]\n  }\n}","id":4,"options":{"autorun":"false","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.8","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"4.5","fig-width":"7","label":"unnamed-chunk-4","message":"true","out-height":"","out-width":"55%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"#--- wide to long format ---#\nplot_data <- melt(as.data.table(estimate_storage), measure.vars = 1:N_len)\n\n#--- create a figure ---#\ng_inco_ex <- ggplot(data = plot_data) +\n  geom_density(aes(x = value, fill = variable), alpha = 0.4) +\n  geom_vline(xintercept = 1, linetype = \"dashed\") +\n  geom_vline(xintercept = 1.2) +\n  scale_fill_discrete(\n    name = \"Sample Size\",\n    labels = c(\"N=100 \", \"N=1,000 \", \"N=10,000\")\n  ) +\n  theme_lecture +\n  theme(\n    legend.position = \"bottom\"\n  )\n\ng_inco_ex","id":5,"options":{"autorun":"false","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.8","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"4.5","fig-width":"7","label":"unnamed-chunk-5","message":"true","out-height":"","out-width":"55%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"(\nx <- rbinom(10, size = 1, prob = 0.3)\n)\n\nsqrt(10) * (mean(x) - 0.3)","id":6,"options":{"autorun":"true","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.8","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"4.5","fig-width":"7","label":"unnamed-chunk-6","message":"true","out-height":"","out-width":"55%","output":"true","read-only":"false","results":"markup","warning":"true"}}];
+  globalThis.qwebrCellDetails = [{"code":"# NOTE: a webr setup cell renders a loading widget wherever it sits, so keep it\n# inside a content slide rather than on a section divider (or, worse, above the\n# first heading, where it becomes an untitled slide of its own).\n# Mirror of lecture_theme() in lectures/_lecture-theme.R. WebR runs in the\n# browser, against a virtual filesystem that does not hold the repo, so it\n# cannot source that file. Edit the file first, then run\n#     Rscript lectures/check-lecture-theme.R\n# which fails if this copy has drifted from it.\nlecture_theme <- function(base_size = 16) {\n  ggplot2::theme_bw(base_size = base_size) +\n    ggplot2::theme(\n      axis.text = ggplot2::element_text(size = base_size * 0.9),\n      axis.title = ggplot2::element_text(size = base_size),\n      legend.text = ggplot2::element_text(size = base_size * 0.9),\n      legend.title = ggplot2::element_text(size = base_size * 0.9),\n      plot.background = ggplot2::element_rect(fill = \"transparent\", colour = NA),\n      panel.background = ggplot2::element_rect(fill = \"transparent\", colour = NA),\n      legend.background = ggplot2::element_rect(fill = \"transparent\", colour = NA),\n      legend.key = ggplot2::element_rect(fill = \"transparent\", colour = NA),\n      # theme_bw's grey92 grid was chosen against a white panel and all but\n      # disappears on the warm paper once the panel stops being opaque.\n      panel.grid = ggplot2::element_line(colour = \"grey87\")\n    )\n}\n\n# The WebR canvas is 7x4.5in at out-width 55% of its output track\n# (lectures/_metadata.yml) — a similar pixels-per-inch to the 10in knitr canvas,\n# but often narrower when the cell renders side by side, so it runs a little\n# larger than the 16pt default. 30pt did not fit this canvas at all: the panel\n# collapsed into the top third and the legend clipped.\n# webR draws its canvas at 72 dpi no matter what `dpi` says, so on a 216-dpi\n# canvas everything ggplot measures in points or mm comes out a third of its\n# size. Scale ggplot2's mm-to-point constants and the theme by the same\n# factor and the figure matches the knitr ones. Keep in step with `dpi` above.\nwebr_scale <- 216 / 72\nassignInNamespace(\".pt\", ggplot2::.pt * webr_scale, \"ggplot2\")\nassignInNamespace(\".stroke\", ggplot2::.stroke * webr_scale, \"ggplot2\")\ntheme_lecture <- lecture_theme(18 * webr_scale) +\n  # base_size also sets the theme line widths, which are in mm and already\n  # pass through the scaled .pt; pin them to what 18pt gives or they come\n  # out 9x thick.\n  ggplot2::theme(\n    line = ggplot2::element_line(linewidth = 18 / 22),\n    rect = ggplot2::element_rect(linewidth = 18 / 22)\n  )\nggplot2::theme_set(theme_lecture)","id":1,"options":{"autorun":"true","classes":"","comment":"","context":"setup","dpi":"216","editor-font-scale":"0.7","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"4.5","fig-width":"7","label":"unnamed-chunk-1","message":"true","out-height":"","out-width":"55%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"#--- Preparation ---#\nB <- 1000 # the number of iterations\nN_list <- c(100, 1000, 10000) # sample size\nN_len <- length(N_list)\nestimate_storage <- matrix(0, B, N_len) # estimates storage\n\nfor (j in 1:N_len) {\n  temp_N <- N_list[j]\n  for (i in 1:B) {\n    #--- generate data ---#\n    x <- rnorm(temp_N) # independent variable\n    u <- rnorm(temp_N) * 0.2 # error\n    y <- 1 + x + u # dependent variable 1\n    data <- data.frame(y = y, x = x)\n\n    #--- OLS ---#\n    reg <- lm(y ~ x, data = data) # OLS\n\n    #--- store coef estimates ---#\n    estimate_storage[i, j] <- reg$coef[2]\n  }\n}","id":2,"options":{"autorun":"false","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.7","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"4.5","fig-width":"7","label":"unnamed-chunk-2","message":"true","out-height":"","out-width":"55%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"plot_data <- melt(as.data.table(estimate_storage), measure.vars = 1:N_len)\n\n#--- create a figure ---#\ng_co_ex <-\n  ggplot(data = plot_data) +\n  geom_density(aes(x = value, fill = variable), alpha = 0.4) +\n  geom_vline(xintercept = 1) +\n  xlim(0.9, 1.1) +\n  scale_fill_discrete(\n    name = \"Sample Size\",\n    labels = c(\"N=100 \", \"N=1,000 \", \"N=10,000\")\n  ) +\n  theme_lecture +\n  theme(\n    legend.position = \"bottom\"\n  )\n\ng_co_ex","id":3,"options":{"autorun":"false","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.7","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"4.5","fig-width":"7","label":"unnamed-chunk-3","message":"true","out-height":"","out-width":"55%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"#--- Preparation ---#\nB <- 1000 # the number of iterations\nN_list <- c(100, 1000, 10000) # sample size\nN_len <- length(N_list)\nestimate_storage <- matrix(0, B, N_len) # estimates storage\n\nfor (j in 1:N_len) {\n  temp_N <- N_list[j]\n  for (i in 1:B) {\n    #--- generate data ---#\n    mu <- rnorm(temp_N) # shared term between x and u #<<\n    x <- rnorm(temp_N) + 0.5 * mu # <<\n    u <- rnorm(temp_N) + 0.5 * mu # <<\n    y <- 1 + x + u # dependent variable\n    data <- data.frame(y = y, x = x)\n\n    #--- OLS ---#\n    reg <- lm(y ~ x, data = data) # OLS\n\n    #--- store coef estimates ---#\n    estimate_storage[i, j] <- reg$coef[2]\n  }\n}","id":4,"options":{"autorun":"false","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.7","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"4.5","fig-width":"7","label":"unnamed-chunk-4","message":"true","out-height":"","out-width":"55%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"#--- wide to long format ---#\nplot_data <- melt(as.data.table(estimate_storage), measure.vars = 1:N_len)\n\n#--- create a figure ---#\ng_inco_ex <- ggplot(data = plot_data) +\n  geom_density(aes(x = value, fill = variable), alpha = 0.4) +\n  geom_vline(xintercept = 1, linetype = \"dashed\") +\n  geom_vline(xintercept = 1.2) +\n  scale_fill_discrete(\n    name = \"Sample Size\",\n    labels = c(\"N=100 \", \"N=1,000 \", \"N=10,000\")\n  ) +\n  theme_lecture +\n  theme(\n    legend.position = \"bottom\"\n  )\n\ng_inco_ex","id":5,"options":{"autorun":"false","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.7","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"4.5","fig-width":"7","label":"unnamed-chunk-5","message":"true","out-height":"","out-width":"55%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"(\nx <- rbinom(10, size = 1, prob = 0.3)\n)\n\nsqrt(10) * (mean(x) - 0.3)","id":6,"options":{"autorun":"true","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.7","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"4.5","fig-width":"7","label":"unnamed-chunk-6","message":"true","out-height":"","out-width":"55%","output":"true","read-only":"false","results":"markup","warning":"true"}}];
 
   </script>
   <script type="module">
@@ -2285,7 +2580,7 @@ globalThis.qwebrCreateMonacoEditorInstance = function (cellData) {
 <h2>OLS Asymptotics</h2>
 <details class="transcript">
 <summary>
-Lecturer transcript
+Transcript
 </summary>
 <p>This lecture changes the question we ask about OLS. Everything so far has been a finite-sample statement: under the Gauss-Markov assumptions the estimator is unbiased and efficient at any sample size, however small. Asymptotic properties ask something different, namely what happens as the sample grows without bound. That may sound like a purely theoretical exercise, but it is the practical foundation for most applied work, because it is what lets us do inference when the normality assumption fails. Two results matter here: consistency, which concerns where the estimator settles, and asymptotic normality, which concerns the shape of its distribution.</p>
 </details>
@@ -2316,7 +2611,7 @@ Lecturer transcript
 <div id="tabset-3-1">
 <details class="transcript">
 <summary>
-Lecturer transcript
+Transcript
 </summary>
 <p>Consistency is a statement about a sequence of estimators indexed by sample size. Fix any tolerance epsilon, however small. Consistency says the probability that the estimate lands within epsilon of the truth approaches one as n grows. Note what it does not say. It does not promise the estimator is unbiased at any particular n, and it does not promise that the estimate you have in hand is close to the truth. Unbiasedness and consistency are logically distinct: an estimator can be unbiased at every n yet inconsistent, and biased at every n yet consistent.</p>
 </details>
@@ -2334,7 +2629,7 @@ Lecturer transcript
 <div id="tabset-1-1">
 <details class="transcript">
 <summary>
-Lecturer transcript
+Transcript
 </summary>
 <p>The simulation setup is deliberately minimal: one regressor, an intercept, and an error that satisfies the zero conditional mean assumption by construction. Because we generate the data ourselves, we know the true beta one is exactly one, and that is the whole advantage of a Monte Carlo experiment. In real data you never see the truth, so you can never check whether your estimator landed near it. Here we can, and we can watch what changes as the sample size grows.</p>
 </details>
@@ -2344,7 +2639,7 @@ Lecturer transcript
 <div id="tabset-1-2">
 <details class="transcript">
 <summary>
-Lecturer transcript
+Transcript
 </summary>
 <p>The pseudo-code is worth reading before the R code. We draw a sample, estimate, and store one coefficient; then we repeat a thousand times to trace out the sampling distribution; and then we do the whole thing again at three different sample sizes. That last step is the one that reveals consistency. A single sampling distribution tells you nothing about limiting behavior. You need to see how the distribution changes as n grows.</p>
 </details>
@@ -2360,7 +2655,7 @@ Lecturer transcript
 <div id="tabset-1-3">
 <details class="transcript">
 <summary>
-Lecturer transcript
+Transcript
 </summary>
 <p>The nested loops implement exactly that. The outer loop walks through the sample sizes and the inner loop runs the thousand replications at each one. Note that we regenerate x and u inside the inner loop, so every replication is a genuinely fresh sample rather than a resampling of one dataset. The storage matrix has one column per sample size, which is the shape the plotting code on the next tab expects.</p>
 </details>
@@ -2372,7 +2667,7 @@ Lecturer transcript
 <div id="tabset-1-4">
 <details class="transcript inline">
 <summary>
-Lecturer transcript
+Transcript
 </summary>
 <p>Three densities, one per sample size, all centered on the true value of one. What changes is the spread: it tightens as n grows, and it keeps tightening without limit. You can read consistency directly off this picture. Pick any interval around one, however narrow, and the share of the distribution inside it approaches one as the sample grows. Notice also that unbiasedness alone would have given us three densities centered at one with no requirement that they narrow. Consistency is the extra statement about collapsing.</p>
 </details>
@@ -2392,7 +2687,7 @@ Lecturer transcript
 <div id="tabset-2-1">
 <details class="transcript">
 <summary>
-Lecturer transcript
+Transcript
 </summary>
 <p>Now we break the key assumption on purpose and ask whether more data can rescue us. The question on this slide is one students often get wrong, because a good deal of informal advice suggests that large samples cure most problems. They do not cure this one. Commit to an answer before running the code, then check it against the picture.</p>
 </details>
@@ -2409,7 +2704,7 @@ Lecturer transcript
 <div id="tabset-2-2">
 <details class="transcript">
 <summary>
-Lecturer transcript
+Transcript
 </summary>
 <p>The mechanism is the shared component mu, which enters both x and u. That is what makes x endogenous: it carries information about the error term. Everything else about the simulation is unchanged from the consistent case. Because we built the correlation ourselves, we can compute exactly what the estimator converges to, which is what the results tab reports.</p>
 </details>
@@ -2419,7 +2714,7 @@ Lecturer transcript
 <div id="tabset-2-3">
 <details class="transcript inline">
 <summary>
-Lecturer transcript
+Transcript
 </summary>
 <p>The distributions narrow just as before, but they narrow around one point two rather than around one. The dashed line is the truth and the solid line is the probability limit, which works out to one plus the covariance of x and u over the variance of x, or one plus zero point two five over one point two five. This is the central lesson of the section: more data buys precision, not correctness. A large sample gives you a very tight confidence interval around the wrong number.</p>
 </details>
@@ -2460,7 +2755,7 @@ Lecturer transcript
 <div id="tabset-6-1">
 <details class="transcript">
 <summary>
-Lecturer transcript
+Transcript
 </summary>
 <p>Recall where MLR.6 was actually used. It was not needed for unbiasedness, and it was not needed for the Gauss-Markov theorem. It was needed to claim that the t-statistic follows an exact t distribution in a finite sample. Normality of the error is a strong assumption, and for outcomes such as wages or firm sales it is plainly false. So the question is whether inference survives without it. The answer is yes, asymptotically, and the central limit theorem is what delivers that.</p>
 </details>
@@ -2482,7 +2777,7 @@ Lecturer transcript
 <div id="tabset-6-2">
 <details class="transcript">
 <summary>
-Lecturer transcript
+Transcript
 </summary>
 <p>The central limit theorem says a suitably standardized sample mean converges in distribution to a normal, whatever the distribution of the underlying draws, provided the variance is finite. Both operations in the standardization matter. Centering at mu removes the location, and multiplying by root n counteracts the fact that the sample mean’s variance shrinks at rate one over n.&nbsp;Without the root n scaling, the distribution would simply collapse to a point and there would be no shape left to describe.</p>
 </details>
@@ -2510,7 +2805,7 @@ Lecturer transcript
 <div id="tabset-4-1">
 <details class="transcript">
 <summary>
-Lecturer transcript
+Transcript
 </summary>
 <p>Bernoulli draws make the point vividly, because nothing could look less normal than a variable taking only the values zero and one. The mean is p and the variance is p times one minus p, which is zero point two one here. Run the small cell to see ten draws and the transformed sample mean for a single replication. One number tells you nothing; the demonstration on the next tab repeats it five thousand times.</p>
 </details>
@@ -2540,7 +2835,7 @@ Lecturer transcript
 <div id="tabset-4-2">
 <details class="transcript inline">
 <summary>
-Lecturer transcript
+Transcript
 </summary>
 <p>Move the sample size slider and watch the histogram. At very small N the transformed mean takes only a handful of discrete values and looks nothing like the red normal curve. As N grows, the gaps fill in and the histogram settles onto the limiting density. Notice that the limiting variance never changes with N; it stays fixed at zero point two one. Convergence here is about the shape of the distribution, not about it becoming narrower.</p>
 </details>
@@ -2620,7 +2915,7 @@ Lecturer transcript
 <div id="tabset-5-1">
 <details class="transcript">
 <summary>
-Lecturer transcript
+Transcript
 </summary>
 <p>Here is the result applied to OLS. The scaled and centered estimator converges in distribution to a normal whose variance involves sigma squared over a term built from the part of x j that is unrelated to the other regressors. That residual variation term should look familiar: it is the same quantity that governs multicollinearity, which is why a regressor well explained by the others is estimated imprecisely. Crucially, MLR.6 appears nowhere in this result. Normality of the error has been replaced by a limiting argument.</p>
 </details>
@@ -2638,7 +2933,7 @@ Lecturer transcript
 <div id="tabset-5-2">
 <details class="transcript">
 <summary>
-Lecturer transcript
+Transcript
 </summary>
 <p>This slide is worth memorizing as a pair. In the top block, with the normality assumption, both statements are exact and hold at any sample size, and the second uses the t distribution because we had to estimate sigma. In the bottom block, without normality, both statements are limiting approximations and the t distribution has been replaced by the standard normal. The same formulas, but a different justification and a different scope.</p>
 </details>
@@ -2672,7 +2967,7 @@ Lecturer transcript
 <div id="tabset-7-1">
 <details class="transcript">
 <summary>
-Lecturer transcript
+Transcript
 </summary>
 <p>The practical procedure is unchanged: form the t-statistic exactly as before and compare it with a critical value. What has changed is where the critical value comes from in principle. Asymptotic theory calls for a standard normal, whereas the finite-sample theory called for a t. The natural question is whether that difference matters in practice, and the next tab answers it.</p>
 </details>
@@ -2689,7 +2984,7 @@ Lecturer transcript
 <div id="tabset-7-2">
 <details class="transcript inline">
 <summary>
-Lecturer transcript
+Transcript
 </summary>
 <p>The figure answers it. At two degrees of freedom the t distribution has visibly fatter tails than the normal, but by thirty degrees of freedom the curves are nearly indistinguishable, and by fifty you cannot separate them by eye. So in any sample large enough for the asymptotic argument to be credible, the t critical value your software prints is effectively the normal one. In practice you simply read the p-values the software gives you.</p>
 </details>
@@ -2708,7 +3003,7 @@ Lecturer transcript
 <div id="tabset-7-3">
 <details class="transcript">
 <summary>
-Lecturer transcript
+Transcript
 </summary>
 <p>One warning to close on. Asymptotics rescues you from the normality assumption, but not from the homoskedasticity assumption. The default variance estimator is built on MLR.5, and if the errors are heteroskedastic that estimator stays inconsistent no matter how much data you collect. This is not a small-sample problem that fades away; it is the wrong formula. So use heteroskedasticity-robust standard errors as your default, and cluster them when observations are dependent within groups.</p>
 </details>

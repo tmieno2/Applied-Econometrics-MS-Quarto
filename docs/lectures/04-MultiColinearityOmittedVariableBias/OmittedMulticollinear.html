@@ -28,8 +28,8 @@
       vertical-align: middle;
     }
   </style>
-  <link rel="stylesheet" href="../../site_libs/revealjs/dist/theme/quarto-ae2d755d4d34da603f33a3001b8a52fa.css">
-  <script>window.backupDefine = window.define; window.define = undefined;</script><script src="https://cdn.jsdelivr.net/npm/katex@latest/dist/katex.min.js"></script>
+  <link rel="stylesheet" href="../../site_libs/revealjs/dist/theme/quarto-bf1223c773699056cca1ada9baf1738b.css">
+  <script defer="" src="https://cdn.jsdelivr.net/npm/katex@0.18.4/dist/katex.min.js"></script>
   <script>document.addEventListener("DOMContentLoaded", function () {
  var mathElements = document.getElementsByClassName("math");
  var macros = [];
@@ -44,7 +44,7 @@
    });
 }}});
   </script>
-  <script>window.define = window.backupDefine; window.backupDefine = undefined;</script><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@latest/dist/katex.min.css">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.18.4/dist/katex.min.css">
   <link href="../../site_libs/revealjs/plugin/quarto-line-highlight/line-highlight.css" rel="stylesheet">
   <link href="../../site_libs/revealjs/plugin/reveal-menu/menu.css" rel="stylesheet">
   <link href="../../site_libs/revealjs/plugin/reveal-menu/quarto-menu.css" rel="stylesheet">
@@ -138,7 +138,7 @@
     }
   </style>
   <!--
-    Support for collapsible "Lecturer transcript" panels in revealjs decks.
+    Support for collapsible "Transcript" panels in revealjs decks.
 
     Include it from a deck's YAML header, with the path relative to the qmd:
 
@@ -150,7 +150,7 @@
     tabset, which is the usual case):
 
         <details class="transcript">
-        <summary>Lecturer transcript</summary>
+        <summary>Transcript</summary>
 
         What the lecturer says about this tab.
 
@@ -318,8 +318,36 @@
     "use strict";
 
     var MAX_CODE_LINES = 12;
+    // Monaco's line-number gutter (~75px) plus its vertical scrollbar (~15px).
+    var EDITOR_CHROME = 90;
+    // A deliberate OVER-estimate of one character. Menlo at 15.36px measures
+    // ~9.2px, and erring high is what keeps the editor from wrapping when the
+    // real measurement below has not landed yet.
+    var FALLBACK_CHAR_PX = 11;
+    // Breathing room on each measured need. Side by side is a bonus, not a goal:
+    // the vertical stack is a perfectly good layout, so a cell that only fits by
+    // cramming should simply stay stacked. Slack here buys that judgement — it
+    // makes the fit test stricter AND leaves each column wider than its content.
+    var CODE_SLACK = 1.15;
+    var OUTPUT_SLACK = 1.08;
+    // Going side by side saves exactly one thing: the height of the code block,
+    // which no longer sits above the output. Against a tall output that saving is
+    // trivial — a 3-line editor beside a 34-line print of `mtcars` reclaims about
+    // a tenth of the cell's height and splits the slide in half to do it.
+    //
+    // 0.4 means the output may be at most ~1.5x the height of the code block.
+    // Calibrated against real cells, not picked: one line of code beside a 10-line
+    // tibble scores 0.31 and must be rejected; the 5-line piping example beside
+    // its 2 lines of output scores 0.81 and must be kept. An earlier 0.25 sat
+    // below the first of those and let it through.
+    var MIN_VERTICAL_SAVING = 0.4;
     var MAX_CODE_SHARE = 0.58;
-    var MIN_CODE_SHARE = 0.30;
+    // The floor exists only so the editor never becomes unusably narrow. It used
+    // to be 0.30, which padded a one-line call like `class(mtcars)` (160px of
+    // content including Monaco's gutter) out to 329px and charged the difference
+    // to the output.
+    var MIN_CODE_SHARE = 0.18;
+    var MAX_OUTPUT_SHARE = 0.82;
 
     function detailsFor(area) {
       var match = area.id && area.id.match(/qwebr-interactive-area-(\d+)/);
@@ -333,11 +361,35 @@
         return line.trim() && !/^\s*#/.test(line);
       });
       return {
+        code: String(code || ""),
         lines: substantive.length,
         maxChars: lines.reduce(function (n, line) {
           return Math.max(n, line.replace(/\t/g, "  ").length);
         }, 0)
       };
+    }
+
+    // The caret lives in the 1rem gutter and must sit at its centre. Percentages
+    // cannot express that reliably here, so measure the laid-out editor and hand
+    // the CSS an exact pixel.
+    function markGutter(area, host) {
+      var style = getComputedStyle(area);
+      if (style.display !== "grid") return;
+
+      // Take the gutter straight from the resolved grid tracks. Every element in
+      // this cell has been tried as an anchor and each one lies: Monaco renders
+      // wider than its track, and `.qwebr-output-code-area` reports a left edge
+      // well right of where the output column actually starts, which put the caret
+      // inside the Output banner. `grid-template-columns` resolves to used pixel
+      // widths, so the first track plus half the gap IS the gutter centre, with
+      // nothing to misreport.
+      var tracks = style.gridTemplateColumns.split(/\s+/)
+        .map(parseFloat).filter(function (n) { return !isNaN(n); });
+      if (tracks.length < 2) return;
+      var gap = parseFloat(style.columnGap) || 16;
+      var padLeft = parseFloat(style.paddingLeft) || 0;
+      var centre = padLeft + tracks[0] + gap / 2;
+      host.style.setProperty("--webr-gutter-centre", centre.toFixed(1) + "px");
     }
 
     function setTracks(host, codeShare) {
@@ -349,10 +401,15 @@
     }
 
     function measureRenderedCode(area, host, code, attempt) {
-      if (host.dataset.webrLayout !== "side") return;
+      if (!eligibleNow(host)) return;
       var sample = area.querySelector(".view-line, .monaco-editor");
       if (!sample || !area.clientWidth) {
-        if (attempt < 20) setTimeout(function () {
+        // 20 attempts (2s) was not enough: on a deck with ~70 cells Monaco is
+        // still rendering, the measurement never lands, and the cell is left on
+        // the fallback estimate. Undersize it and Monaco wraps the line, after
+        // which the only thing left to measure is the wrapped fragments — the
+        // column can never recover on its own. 100 attempts is 10s.
+        if (attempt < 100) setTimeout(function () {
           measureRenderedCode(area, host, code, attempt + 1);
         }, 100);
         return;
@@ -365,10 +422,201 @@
       var widest = String(code || "").split("\n").reduce(function (width, line) {
         return Math.max(width, context.measureText(line.replace(/\t/g, "  ")).width);
       }, 0);
-      // Monaco's line-number gutter, padding, and scrollbar need about 76px in
-      // addition to the measured glyph width.
+      // Note this measures the SOURCE text, never the rendered `.view-line`
+      // elements: once the column is narrow enough to wrap, those hold fragments
+      // and measuring them would confirm the mistake instead of correcting it.
       var available = Math.max(1, area.clientWidth - 16);
-      setTracks(host, (widest + 76) / available);
+      // Remember it in pixels. The share alone is not enough: the split has to be
+      // recomputed against the OUTPUT's measured width once the cell has run.
+      host.dataset.webrCodePx = Math.ceil(widest + EDITOR_CHROME);
+      setTracks(host, ((widest + EDITOR_CHROME) * CODE_SLACK) / available);
+
+      // The measured code column is now the real one, so check straight away that
+      // Monaco is not wrapping in it. Before, this ran only after a cell had been
+      // run; a cell that opens side by side needs it on arrival.
+      ensureNoWrap(area, host, sourceLineCount(code), 0);
+    }
+
+    // The natural width of the output text. `pre` cannot be measured directly:
+    // notebook.scss gives it `width: 100%`, so its scrollWidth reports the track
+    // it currently sits in, not the text inside it. Reading that back is a
+    // feedback loop — it made every cell claim the maximum output share however
+    // short its output was, starving the code column down to the floor until the
+    // editor wrapped a one-line call across three lines.
+    function naturalTextSize(pre) {
+      var cs = getComputedStyle(pre);
+      var probe = document.createElement("pre");
+      probe.style.cssText = "position:absolute;left:-9999px;top:0;visibility:hidden;" +
+        "white-space:pre;margin:0;padding:0;width:auto";
+      probe.style.fontFamily = cs.fontFamily;
+      probe.style.fontSize = cs.fontSize;
+      probe.style.fontWeight = cs.fontWeight;
+      probe.style.letterSpacing = cs.letterSpacing;
+      probe.textContent = pre.innerText || "";
+      document.body.appendChild(probe);
+      var size = { w: probe.scrollWidth, h: probe.scrollHeight };
+      probe.parentNode.removeChild(probe);
+      return size;
+    }
+
+    // Height of the code block as it stands: the editor plus its toolbar.
+    function codeBlockHeight(area) {
+      var editor = area.querySelector(".qwebr-editor");
+      var bar = area.querySelector(".qwebr-editor-toolbar");
+      var h = editor ? editor.getBoundingClientRect().height : 0;
+      if (bar) h += bar.getBoundingClientRect().height;
+      return h;
+    }
+
+    // A cell is a candidate while it is "pending" (rendered as the ordinary
+    // vertical stack) or already "side". Manual wrappers are always "side".
+    function eligibleNow(host) {
+      var mode = host.dataset.webrLayout;
+      return mode === "pending" || mode === "side";
+    }
+
+    // A cell is put side by side as soon as its code has been measured, so the
+    // layout the reader first sees is the layout it keeps. The output cannot be
+    // measured until the cell has run, so assessOutput may still send a cell back
+    // to the vertical stack afterwards — that is the price of not making the
+    // reader wait for a run to see the final shape.
+    function promote(host) {
+      if (host.dataset.webrLayout === "side") return;
+      host.classList.add("side-out");
+      host.dataset.webrLayout = "side";
+    }
+
+    function sourceLineCount(code) {
+      return String(code || "").replace(/\s+$/, "").split("\n").length;
+    }
+
+    // Every width here is predicted — from a canvas measurement of the source in
+    // what we believe is the editor's font. Predictions travel badly: a different
+    // browser, a missing font, a different device pixel ratio, and the editor
+    // wraps even though the arithmetic said it fitted. So do not trust the
+    // prediction — read back what Monaco actually rendered, and widen the column
+    // until the rendered line count matches the source. This is the only check
+    // that cannot be wrong about wrapping, because it IS the wrapping.
+    function ensureNoWrap(area, host, srcLines, attempt) {
+      if (host.dataset.webrLayout !== "side") return;
+      var lines = area.querySelectorAll(".view-line");
+      if (!lines.length) {
+        if (attempt < 100) setTimeout(function () {
+          ensureNoWrap(area, host, srcLines, attempt + 1);
+        }, 100);
+        return;
+      }
+      if (lines.length <= srcLines) { markGutter(area, host); return; }
+      var share = parseFloat(host.style.getPropertyValue("--webr-code-share")) / 100;
+      if (!share) share = MIN_CODE_SHARE;
+      if (share >= MAX_CODE_SHARE || attempt > 40) {
+        // Even at the widest permitted code column the line will not fit, so the
+        // cell has no business being side by side at all.
+        stack(host, true);
+        return;
+      }
+      setTracks(host, share + 0.02);
+      // Monaco relayouts asynchronously off its own resize observer; give it a
+      // frame or two before reading the line count again.
+      setTimeout(function () {
+        ensureNoWrap(area, host, srcLines, attempt + 1);
+      }, 60);
+    }
+
+    function stack(host, force) {
+      // `::: {.side-out}` is a REQUEST, not an override. It decides that a cell
+      // would like to be side by side; it cannot suspend the rules that say when
+      // side by side is acceptable — no wrapped code, output that fits, a split
+      // worth making. Every one of those gates passes force = true. What the
+      // exemption still buys is that ordinary measurement noise will not tear a
+      // deliberate wrapper down.
+      if (host.dataset.webrLayoutManual === "true" && !force) return;
+      host.classList.remove("side-out");
+      host.dataset.webrLayout = "stacked";
+    }
+
+    function assessOutput(area, host, metrics) {
+      if (!eligibleNow(host)) return;
+      var graph = area.querySelector(".qwebr-output-graph-area canvas, .qwebr-output-graph-area img");
+      if (graph) { // plots scale cleanly within their grid track
+        promote(host);
+        requestAnimationFrame(function () { markGutter(area, host); });
+        return;
+      }
+
+      var pre = area.querySelector(".qwebr-output-code-area pre");
+      if (!pre || getComputedStyle(pre).visibility === "hidden") return;
+
+      // Ran and printed nothing — an assignment, a library() call, anything
+      // invoked for its side effect. There is no right-hand content to show, so
+      // the code keeps the full width rather than facing an empty Output banner.
+      if (!(pre.innerText || "").trim()) { stack(host, true); return; }
+
+      var style = getComputedStyle(area);
+      var gap = parseFloat(style.columnGap) || 16;
+      var available = Math.max(1, area.clientWidth - gap);
+      // The code column was sized when the code was measured and MUST NOT move
+      // now. Re-deriving it from the output made the editor jump to a different
+      // width the instant a student pressed Run — the one thing a code block on a
+      // lecture slide must never do. This is also what the invariants say: code
+      // width determines the split, output gets whatever is left.
+      var codeTrack = Math.min(MAX_CODE_SHARE, Math.max(MIN_CODE_SHARE,
+        (Number(host.dataset.webrCodePx) ||
+          (metrics.maxChars * FALLBACK_CHAR_PX + EDITOR_CHROME)) * CODE_SLACK / available))
+        * available;
+      var natural = naturalTextSize(pre);
+      var outputPx = (natural.w + 24) * OUTPUT_SLACK;
+
+      // Is the split worth making? Stacked costs code + output; side by side costs
+      // whichever is taller. The saving is therefore the code block's height, and
+      // it has to be a real fraction of what the cell occupies now.
+      var codeH = codeBlockHeight(area);
+      var outH = natural.h;
+      if (!codeH || !outH) {
+        // Fall back to line counts rather than skipping the test. Skipping it is
+        // how a cell slips through: an unmeasurable height silently became an
+        // exemption from the rule.
+        var lineH = parseFloat(getComputedStyle(pre).lineHeight) || 20;
+        codeH = codeH || (metrics.lines * lineH + 38);
+        outH = outH || ((pre.innerText || "").split("\n").length * lineH);
+      }
+      if (codeH / (codeH + outH) < MIN_VERTICAL_SAVING) {
+        stack(host, true);
+        return;
+      }
+
+      // Side by side must never wrap a line of code. If the code cannot fit in the
+      // widest column it is allowed, there is no acceptable side-by-side layout
+      // for this cell — do not settle for a narrower one.
+      if (codeTrack < (Number(host.dataset.webrCodePx) || 0) * CODE_SLACK) {
+        stack(host, true);
+        return;
+      }
+
+      // Both needs already carry their slack, so this is a lenient test on
+      // purpose: anything that does not fit comfortably stays vertical.
+      // Width is the FIT constraint; the height test above is a separate,
+      // worthwhileness one. Height is not a fit constraint — these decks are
+      // `scrollable: true`, so a tall slide scrolls either way — but a tall output
+      // still makes the split pointless, which is what MIN_VERTICAL_SAVING covers.
+      // The only question left is whether the output fits in the space the code
+      // did not take. If it does not, the cell stacks — the code column is never
+      // narrowed to make room.
+      if (outputPx > available - codeTrack) {
+        stack(host, true);
+        return;
+      }
+
+      // Note: no setTracks() here, deliberately. The layout is already correct and
+      // touching it would move the editor.
+      promote(host);
+      requestAnimationFrame(function () { markGutter(area, host); });
+      ensureNoWrap(area, host, sourceLineCount(metrics.code), 0);
+      requestAnimationFrame(function () {
+        // Same trap as above — compare against the measured text, not scrollWidth,
+        // which a `width: 100%` pre can never exceed.
+        if (naturalTextSize(pre).w > pre.clientWidth * 1.08) stack(host);
+      });
     }
 
     function configure(area) {
@@ -381,26 +629,64 @@
       if (!metrics.lines || metrics.lines > MAX_CODE_LINES || metrics.maxChars > 88) return;
 
       var existingWrapper = area.closest(".side-out");
+
+      // A cell inside a reveal `.columns` block already has half a slide.
+      // Splitting that again leaves the code a QUARTER of the width, where even
+      // `mtcars[2:8, c(3, 5)]` wraps. custom.scss excludes these from its own
+      // automatic two-column rule with `:not(.column *)` for the same reason;
+      // match it. A manual wrapper is undone as well rather than merely skipped:
+      // the class is in the markup, so notebook.scss would lay the cell out in
+      // two columns regardless of what this script decides, and the halved width
+      // is not something the author who typed `::: {.side-out}` accounted for.
+      if (area.closest(".column")) {
+        if (existingWrapper) {
+          existingWrapper.classList.remove("side-out");
+          existingWrapper.dataset.webrLayout = "stacked";
+        }
+        return;
+      }
+
       var host = existingWrapper || area.closest(".cell") || area.parentElement;
       if (!host) return;
 
-      if (existingWrapper) {
-        host.dataset.webrLayoutManual = "true";
-      } else {
-        host.classList.add("side-out");
-      }
-      host.dataset.webrLayout = "side";
+      // Open side by side. `::: {.side-out}` only adds the manual flag, which
+      // stops routine measurement noise from tearing the wrapper down; it still
+      // cannot suspend the gates in assessOutput, all of which force.
+      if (existingWrapper) host.dataset.webrLayoutManual = "true";
+      promote(host);
 
-      // Estimate an initial split from the longest source line. This split is
-      // final; a run never changes it.
-      var initialCodeShare = (metrics.maxChars + 10) / 145;
-      setTracks(host, initialCodeShare);
+      // Estimate an initial split from the longest source line, in pixels against
+      // the width this cell actually has. The old form was `(maxChars + 10) / 145`,
+      // which assumed ~145 characters span the full width; the real figure is ~109,
+      // so it under-sized every editor by a third and manual `.side-out` cells —
+      // which open side by side at once and never reach the measured split until
+      // they are run — wrapped on arrival.
+      var initialAvailable = Math.max(1, (area.clientWidth || 1005) - 16);
+      setTracks(host,
+        (metrics.maxChars * FALLBACK_CHAR_PX + EDITOR_CHROME) / initialAvailable);
       measureRenderedCode(area, host, details.code, 0);
 
-      // Once side by side, always side by side. Output that is too wide or too
-      // long scrolls inside its column (notebook.scss); it never stacks the
-      // cell, because a layout that jumps when Run is pressed is worse than a
-      // scrollbar.
+      // A cell on a hidden slide or an inactive tab has clientWidth 0 for as long
+      // as it stays hidden, so measureRenderedCode above cannot measure anything
+      // and eventually gives up — leaving the cell on the character estimate for
+      // good. Whoever then navigates to that slide sees the estimate, which is
+      // exactly the wrapped editor this whole mechanism exists to avoid. Watch
+      // for the moment the cell gains a width instead.
+      if (typeof ResizeObserver === "function") {
+        var sizeObserver = new ResizeObserver(function () {
+          if (!area.clientWidth) return;
+          if (host.dataset.webrCodePx) { sizeObserver.disconnect(); return; }
+          measureRenderedCode(area, host, details.code, 0);
+        });
+        sizeObserver.observe(area);
+      }
+
+      var observer = new MutationObserver(function () {
+        requestAnimationFrame(function () { assessOutput(area, host, metrics); });
+      });
+      observer.observe(area, { childList: true, subtree: true, characterData: true,
+        attributes: true, attributeFilter: ["style", "class"] });
+      requestAnimationFrame(function () { assessOutput(area, host, metrics); });
     }
 
     function scan() {
@@ -418,6 +704,15 @@
       start();
     }
   })();
+  </script>
+  <!-- quarto-webr loads Monaco's AMD loader (define.amd). KaTeX ships UMD and
+       registers as an anonymous AMD module instead of setting window.katex, so
+       Quarto's inline renderer throws "katex is not defined" on every WebR deck.
+       Import the ESM build, which ignores AMD, and publish the global before
+       DOMContentLoaded so the stock renderer finds it. -->
+  <script type="module">
+    import katex from "https://cdn.jsdelivr.net/npm/katex@0.18.4/dist/katex.mjs";
+    window.katex = window.katex || katex;
   </script>
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/monaco-editor@0.47.0/min/vs/editor/editor.main.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
@@ -709,7 +1004,7 @@
   };
 
   // Store cell data
-  globalThis.qwebrCellDetails = [{"code":"# NOTE: a webr setup cell renders a loading widget wherever it sits, so keep it\n# inside a content slide rather than on a section divider (or, worse, above the\n# first heading, where it becomes an untitled slide of its own).\n# Mirror of lecture_theme() in lectures/_lecture-theme.R. WebR runs in the\n# browser, against a virtual filesystem that does not hold the repo, so it\n# cannot source that file. Edit the file first, then run\n#     Rscript lectures/check-lecture-theme.R\n# which fails if this copy has drifted from it.\nlecture_theme <- function(base_size = 16) {\n  ggplot2::theme_bw(base_size = base_size) +\n    ggplot2::theme(\n      axis.text = ggplot2::element_text(size = base_size * 0.9),\n      axis.title = ggplot2::element_text(size = base_size),\n      legend.text = ggplot2::element_text(size = base_size * 0.9),\n      legend.title = ggplot2::element_text(size = base_size * 0.9),\n      plot.background = ggplot2::element_rect(fill = \"transparent\", colour = NA),\n      panel.background = ggplot2::element_rect(fill = \"transparent\", colour = NA),\n      legend.background = ggplot2::element_rect(fill = \"transparent\", colour = NA),\n      legend.key = ggplot2::element_rect(fill = \"transparent\", colour = NA),\n      # theme_bw's grey92 grid was chosen against a white panel and all but\n      # disappears on the warm paper once the panel stops being opaque.\n      panel.grid = ggplot2::element_line(colour = \"grey87\")\n    )\n}\n\n# The WebR canvas is 7x4.5in at out-width 55% of its output track\n# (lectures/_metadata.yml) — a similar pixels-per-inch to the 10in knitr canvas,\n# but often narrower when the cell renders side by side, so it runs a little\n# larger than the 16pt default. 30pt did not fit this canvas at all: the panel\n# collapsed into the top third and the legend clipped.\n# webR draws its canvas at 72 dpi no matter what `dpi` says, so on a 216-dpi\n# canvas everything ggplot measures in points or mm comes out a third of its\n# size. Scale ggplot2's mm-to-point constants and the theme by the same\n# factor and the figure matches the knitr ones. Keep in step with `dpi` above.\nwebr_scale <- 216 / 72\nassignInNamespace(\".pt\", ggplot2::.pt * webr_scale, \"ggplot2\")\nassignInNamespace(\".stroke\", ggplot2::.stroke * webr_scale, \"ggplot2\")\ntheme_lecture <- lecture_theme(18 * webr_scale) +\n  # base_size also sets the theme line widths, which are in mm and already\n  # pass through the scaled .pt; pin them to what 18pt gives or they come\n  # out 9x thick.\n  ggplot2::theme(\n    line = ggplot2::element_line(linewidth = 18 / 22),\n    rect = ggplot2::element_rect(linewidth = 18 / 22)\n  )","id":1,"options":{"autorun":"true","classes":"","comment":"","context":"setup","dpi":"216","editor-font-scale":"0.8","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"4.5","fig-width":"7","label":"unnamed-chunk-1","message":"true","out-height":"","out-width":"55%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"N <- 100 # sample size\nB <- 1000 # the number of iterations\nestimates_storage <- matrix(0, B, 2)","id":2,"options":{"autorun":"true","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.8","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"4.5","fig-width":"7","label":"unnamed-chunk-2","message":"true","out-height":"","out-width":"55%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"set.seed(37834)\n\nfor (i in 1:B) { # iterate the same process B times\n\n  #--- data generation ---#\n  x1 <- rnorm(N) # independent variable\n  x2 <- rnorm(N) # independent variable\n  u <- rnorm(N) # error\n  y <- 1 + x1 + 0 * x2 + u # dependent variable\n  data <- data.frame(y = y, x1 = x1, x2 = x2)\n\n  #--- OLS ---#\n  beta_ee1 <- feols(y ~ x1, data = data)$coefficient[\"x1\"] # OLS with EE1\n  beta_ee2 <- feols(y ~ x1 + x2, data = data)$coefficient[\"x1\"] # OLS with EE2\n\n  #--- store estimates ---#\n  estimates_storage[i, 1] <- beta_ee1\n  estimates_storage[i, 2] <- beta_ee2\n}","id":3,"options":{"autorun":"false","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.8","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"4.5","fig-width":"7","label":"unnamed-chunk-3","message":"true","out-height":"","out-width":"55%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"b_ee1 <- data.table(\n  bhat = estimates_storage[, 1],\n  type = \"EE 1\"\n)\n\nb_ee2 <- data.table(\n  bhat = estimates_storage[, 2],\n  type = \"EE 2\"\n)\n\nplot_data <- rbind(b_ee1, b_ee2)\n\ng_case_1 <- ggplot(data = plot_data) +\n  geom_density(aes(x = bhat, fill = type), alpha = 0.5) +\n  scale_fill_discrete(name = \"Estimating Equation\") +\n  geom_vline(xintercept = 1, color = \"blue\", linewidth = 1) + # the true beta_1\n  xlab(\"Estimate of beta_1\") +\n  theme_lecture +\n  theme(legend.position = \"bottom\")","id":4,"options":{"autorun":"false","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.8","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"4.5","fig-width":"7","label":"unnamed-chunk-4","message":"true","out-height":"","out-width":"55%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"g_case_1","id":5,"options":{"autorun":"false","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.8","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"6.5","fig-width":"9","label":"unnamed-chunk-5","message":"true","out-height":"","out-width":"55%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"N <- 100 # sample size\nB <- 1000 # the number of iterations\nestimates_storage <- matrix(0, B, 2)","id":6,"options":{"autorun":"true","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.8","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"4.5","fig-width":"7","label":"unnamed-chunk-6","message":"true","out-height":"","out-width":"55%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"set.seed(37834)\n\nfor (i in 1:B) { # iterate the same process B times\n\n  #--- data generation ---#\n  mu <- rnorm(N) # common term shared by x1 and x2\n  x1 <- 0.1 * rnorm(N) + 0.9 * mu # independent variable\n  x2 <- 0.1 * rnorm(N) + 0.9 * mu # independent variable\n  u <- rnorm(N) # error\n  y <- 1 + x1 + 0 * x2 + u # dependent variable\n  data <- data.frame(y = y, x1 = x1, x2 = x2)\n\n  #--- OLS ---#\n  beta_ee1 <- feols(y ~ x1, data = data)$coefficient[\"x1\"] # OLS with EE1\n  beta_ee2 <- feols(y ~ x1 + x2, data = data)$coefficient[\"x1\"] # OLS with EE2\n\n  #--- store estimates ---#\n  estimates_storage[i, 1] <- beta_ee1\n  estimates_storage[i, 2] <- beta_ee2\n}","id":7,"options":{"autorun":"false","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.8","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"4.5","fig-width":"7","label":"unnamed-chunk-7","message":"true","out-height":"","out-width":"55%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"b_ee1 <- data.table(\n  bhat = estimates_storage[, 1],\n  type = \"EE 1\"\n)\n\nb_ee2 <- data.table(\n  bhat = estimates_storage[, 2],\n  type = \"EE 2\"\n)\n\nplot_data <- rbind(b_ee1, b_ee2)\n\ng_case_2 <- \n  ggplot(data = plot_data) +\n  geom_density(aes(x = bhat, fill = type), alpha = 0.5) +\n  scale_fill_discrete(name = \"Estimating Equation\") +\n  geom_vline(xintercept = 1, color = \"blue\", linewidth = 1) + # the true beta_1\n  xlab(\"Estimate of beta_1\") +\n  theme_lecture +\n  theme(legend.position = \"bottom\")","id":8,"options":{"autorun":"false","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.8","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"4.5","fig-width":"7","label":"unnamed-chunk-8","message":"true","out-height":"","out-width":"55%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"g_case_2","id":9,"options":{"autorun":"false","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.8","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"6.5","fig-width":"9","label":"unnamed-chunk-9","message":"true","out-height":"","out-width":"55%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"N <- 100\nmu <- rnorm(N) # common term shared by x1 and x2\nx1 <- 0.1 * rnorm(N) + 0.9 * mu # independent variable\nx2 <- 0.1 * rnorm(N) + 0.9 * mu # independent variable\n(\nols_res <- feols(x1 ~ x2, data = data.frame(x1 = x1, x2 = x2))\n)","id":10,"options":{"autorun":"false","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.8","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"4.5","fig-width":"7","label":"unnamed-chunk-10","message":"true","out-height":"","out-width":"55%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"N <- 100 # sample size\nB <- 1000 # the number of iterations\nestimates_storage <- matrix(0, B, 2)","id":11,"options":{"autorun":"true","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.8","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"4.5","fig-width":"7","label":"unnamed-chunk-11","message":"true","out-height":"","out-width":"55%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"set.seed(37834)\n\nfor (i in 1:B) { # iterate the same process B times\n\n  #--- data generation ---#\n  x1 <- rnorm(N) # independent variable\n  x2 <- rnorm(N) # independent variable\n  u <- rnorm(N) # error\n  y <- 1 + x1 + x2 + u # dependent variable\n  data <- data.frame(y = y, x1 = x1, x2 = x2)\n\n  #--- OLS ---#\n  beta_ee1 <- feols(y ~ x1, data = data)$coefficient[\"x1\"] # OLS with EE1\n  beta_ee2 <- feols(y ~ x1 + x2, data = data)$coefficient[\"x1\"] # OLS with EE2\n\n  #--- store estimates ---#\n  estimates_storage[i, 1] <- beta_ee1\n  estimates_storage[i, 2] <- beta_ee2\n}","id":12,"options":{"autorun":"false","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.8","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"4.5","fig-width":"7","label":"unnamed-chunk-12","message":"true","out-height":"","out-width":"55%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"b_ee1 <- data.table(\n  bhat = estimates_storage[, 1],\n  type = \"EE 1\"\n)\n\nb_ee2 <- data.table(\n  bhat = estimates_storage[, 2],\n  type = \"EE 2\"\n)\n\nplot_data <- rbind(b_ee1, b_ee2)\n\ng_case_3 <- \n  ggplot(data = plot_data) +\n  geom_density(aes(x = bhat, fill = type), alpha = 0.5) +\n  scale_fill_discrete(name = \"Estimating Equation\") +\n  geom_vline(xintercept = 1, color = \"blue\", linewidth = 1) + # the true beta_1\n  xlab(\"Estimate of beta_1\") +\n  theme_lecture +\n  theme(legend.position = \"bottom\")","id":13,"options":{"autorun":"false","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.8","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"4.5","fig-width":"7","label":"unnamed-chunk-13","message":"true","out-height":"","out-width":"55%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"g_case_3","id":14,"options":{"autorun":"false","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.8","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"6.5","fig-width":"9","label":"unnamed-chunk-14","message":"true","out-height":"","out-width":"55%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"N <- 100\nx1 <- rnorm(N) # independent variable\nx2 <- rnorm(N) # independent variable\n(\nols_res <- feols(x1 ~ x2, data = data.frame(x1 = x1, x2 = x2))\n)","id":15,"options":{"autorun":"false","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.8","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"4.5","fig-width":"7","label":"unnamed-chunk-15","message":"true","out-height":"","out-width":"55%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"N <- 100 # sample size\nB <- 1000 # the number of iterations\nestimates_storage <- matrix(0, B, 2)","id":16,"options":{"autorun":"true","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.8","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"4.5","fig-width":"7","label":"unnamed-chunk-16","message":"true","out-height":"","out-width":"55%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"set.seed(37834)\n\nfor (i in 1:B) { # iterate the same process B times\n\n  #--- data generation ---#\n  mu <- rnorm(N) # common term shared by x1 and x2\n  x1 <- 0.1 * rnorm(N) + 0.9 * mu # independent variable\n  x2 <- 0.1 * rnorm(N) + 0.9 * mu # independent variable\n  u <- rnorm(N) # error\n  y <- 1 + x1 + 1 * x2 + u\n  data <- data.frame(y = y, x1 = x1, x2 = x2)\n\n  #--- OLS ---#\n  beta_ee1 <- feols(y ~ x1, data = data)$coefficient[\"x1\"] # OLS with EE1\n  beta_ee2 <- feols(y ~ x1 + x2, data = data)$coefficient[\"x1\"] # OLS with EE2\n\n  #--- store estimates ---#\n  estimates_storage[i, 1] <- beta_ee1\n  estimates_storage[i, 2] <- beta_ee2\n}","id":17,"options":{"autorun":"false","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.8","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"4.5","fig-width":"7","label":"unnamed-chunk-17","message":"true","out-height":"","out-width":"55%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"b_ee1 <- data.table(\n  bhat = estimates_storage[, 1],\n  type = \"EE 1\"\n)\n\nb_ee2 <- data.table(\n  bhat = estimates_storage[, 2],\n  type = \"EE 2\"\n)\n\nplot_data <- rbind(b_ee1, b_ee2)\n\ng_case_4 <- \n  ggplot(data = plot_data) +\n  geom_density(aes(x = bhat, fill = type), alpha = 0.5) +\n  scale_fill_discrete(name = \"Estimating Equation\") +\n  geom_vline(xintercept = 1, color = \"blue\", linewidth = 1) + # the true beta_1\n  geom_vline(xintercept = 1.988, color = \"red\", linetype = 2, linewidth = 1) + # predicted plim of EE1\n  xlab(\"Estimate of beta_1\") +\n  theme_lecture +\n  theme(legend.position = \"bottom\")","id":18,"options":{"autorun":"false","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.8","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"4.5","fig-width":"7","label":"unnamed-chunk-18","message":"true","out-height":"","out-width":"55%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"g_case_4","id":19,"options":{"autorun":"false","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.8","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"6.5","fig-width":"9","label":"unnamed-chunk-19","message":"true","out-height":"","out-width":"55%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"mean(estimates_storage[, 1]) # EE1: should be close to 1.988\nmean(estimates_storage[, 2]) # EE2: should be close to 1","id":20,"options":{"autorun":"false","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.8","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"4.5","fig-width":"7","label":"unnamed-chunk-20","message":"true","out-height":"","out-width":"55%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"N <- 100\nmu <- rnorm(N) # common term shared by x1 and x2\nx1 <- 0.1 * rnorm(N) + 0.9 * mu # independent variable\nx2 <- 0.1 * rnorm(N) + 0.9 * mu # independent variable\n(\nols_res <- feols(x1 ~ x2, data = data.frame(x1 = x1, x2 = x2))\n)","id":21,"options":{"autorun":"false","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.8","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"4.5","fig-width":"7","label":"unnamed-chunk-21","message":"true","out-height":"","out-width":"55%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"mu <- rnorm(10000)\nx1 <- 0.1 * rnorm(10000) + 0.9 * mu\nx2 <- 0.1 * rnorm(10000) + 0.9 * mu\ncor(x1, x2)^2 # this is R^2_j for EE2","id":22,"options":{"autorun":"false","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.8","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"4.5","fig-width":"7","label":"unnamed-chunk-22","message":"true","out-height":"","out-width":"55%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"set.seed(37834)\n\nN <- 100\nB <- 1000\nstorage_rev <- matrix(0, B, 2)\n\nfor (i in 1:B) {\n  mu <- rnorm(N)\n  x1 <- 0.9 * rnorm(N) + 0.1 * mu # now mostly its own variation\n  x2 <- 2.23 * rnorm(N) + 0.1 * mu # large variance, barely related to x1\n  u <- rnorm(N)\n  y <- 1 + x1 + 5 * x2 + u # x2 now matters a lot\n  data <- data.frame(y = y, x1 = x1, x2 = x2)\n\n  storage_rev[i, 1] <- feols(y ~ x1, data = data)$coefficient[\"x1\"]\n  storage_rev[i, 2] <- feols(y ~ x1 + x2, data = data)$coefficient[\"x1\"]\n}\n\n#--- variance of the estimates under each estimating equation ---#\nc(EE1 = var(storage_rev[, 1]), EE2 = var(storage_rev[, 2]))","id":23,"options":{"autorun":"false","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.8","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"4.5","fig-width":"7","label":"unnamed-chunk-23","message":"true","out-height":"","out-width":"55%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"plot_data_rev <- rbind(\n  data.table(bhat = storage_rev[, 1], type = \"EE 1\"),\n  data.table(bhat = storage_rev[, 2], type = \"EE 2\")\n)\n\nggplot(data = plot_data_rev) +\n  geom_density(aes(x = bhat, fill = type), alpha = 0.5) +\n  scale_fill_discrete(name = \"Estimating Equation\") +\n  geom_vline(xintercept = 1, color = \"blue\", linewidth = 1) +\n  xlab(\"Estimate of beta_1\") +\n  theme_lecture +\n  theme(legend.position = \"bottom\")","id":24,"options":{"autorun":"false","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.8","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"6.5","fig-width":"9","label":"unnamed-chunk-24","message":"true","out-height":"","out-width":"55%","output":"true","read-only":"false","results":"markup","warning":"true"}}];
+  globalThis.qwebrCellDetails = [{"code":"# NOTE: a webr setup cell renders a loading widget wherever it sits, so keep it\n# inside a content slide rather than on a section divider (or, worse, above the\n# first heading, where it becomes an untitled slide of its own).\n# Mirror of lecture_theme() in lectures/_lecture-theme.R. WebR runs in the\n# browser, against a virtual filesystem that does not hold the repo, so it\n# cannot source that file. Edit the file first, then run\n#     Rscript lectures/check-lecture-theme.R\n# which fails if this copy has drifted from it.\nlecture_theme <- function(base_size = 16) {\n  ggplot2::theme_bw(base_size = base_size) +\n    ggplot2::theme(\n      axis.text = ggplot2::element_text(size = base_size * 0.9),\n      axis.title = ggplot2::element_text(size = base_size),\n      legend.text = ggplot2::element_text(size = base_size * 0.9),\n      legend.title = ggplot2::element_text(size = base_size * 0.9),\n      plot.background = ggplot2::element_rect(fill = \"transparent\", colour = NA),\n      panel.background = ggplot2::element_rect(fill = \"transparent\", colour = NA),\n      legend.background = ggplot2::element_rect(fill = \"transparent\", colour = NA),\n      legend.key = ggplot2::element_rect(fill = \"transparent\", colour = NA),\n      # theme_bw's grey92 grid was chosen against a white panel and all but\n      # disappears on the warm paper once the panel stops being opaque.\n      panel.grid = ggplot2::element_line(colour = \"grey87\")\n    )\n}\n\n# The WebR canvas is 7x4.5in at out-width 55% of its output track\n# (lectures/_metadata.yml) — a similar pixels-per-inch to the 10in knitr canvas,\n# but often narrower when the cell renders side by side, so it runs a little\n# larger than the 16pt default. 30pt did not fit this canvas at all: the panel\n# collapsed into the top third and the legend clipped.\n# webR draws its canvas at 72 dpi no matter what `dpi` says, so on a 216-dpi\n# canvas everything ggplot measures in points or mm comes out a third of its\n# size. Scale ggplot2's mm-to-point constants and the theme by the same\n# factor and the figure matches the knitr ones. Keep in step with `dpi` above.\nwebr_scale <- 216 / 72\nassignInNamespace(\".pt\", ggplot2::.pt * webr_scale, \"ggplot2\")\nassignInNamespace(\".stroke\", ggplot2::.stroke * webr_scale, \"ggplot2\")\ntheme_lecture <- lecture_theme(18 * webr_scale) +\n  # base_size also sets the theme line widths, which are in mm and already\n  # pass through the scaled .pt; pin them to what 18pt gives or they come\n  # out 9x thick.\n  ggplot2::theme(\n    line = ggplot2::element_line(linewidth = 18 / 22),\n    rect = ggplot2::element_rect(linewidth = 18 / 22)\n  )\nggplot2::theme_set(theme_lecture)","id":1,"options":{"autorun":"true","classes":"","comment":"","context":"setup","dpi":"216","editor-font-scale":"0.7","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"4.5","fig-width":"7","label":"unnamed-chunk-1","message":"true","out-height":"","out-width":"55%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"N <- 100 # sample size\nB <- 1000 # the number of iterations\nestimates_storage <- matrix(0, B, 2)","id":2,"options":{"autorun":"true","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.7","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"4.5","fig-width":"7","label":"unnamed-chunk-2","message":"true","out-height":"","out-width":"55%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"set.seed(37834)\n\nfor (i in 1:B) { # iterate the same process B times\n\n  #--- data generation ---#\n  x1 <- rnorm(N) # independent variable\n  x2 <- rnorm(N) # independent variable\n  u <- rnorm(N) # error\n  y <- 1 + x1 + 0 * x2 + u # dependent variable\n  data <- data.frame(y = y, x1 = x1, x2 = x2)\n\n  #--- OLS ---#\n  beta_ee1 <- feols(y ~ x1, data = data)$coefficient[\"x1\"] # OLS with EE1\n  beta_ee2 <- feols(y ~ x1 + x2, data = data)$coefficient[\"x1\"] # OLS with EE2\n\n  #--- store estimates ---#\n  estimates_storage[i, 1] <- beta_ee1\n  estimates_storage[i, 2] <- beta_ee2\n}","id":3,"options":{"autorun":"false","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.7","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"4.5","fig-width":"7","label":"unnamed-chunk-3","message":"true","out-height":"","out-width":"55%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"b_ee1 <- data.table(\n  bhat = estimates_storage[, 1],\n  type = \"EE 1\"\n)\n\nb_ee2 <- data.table(\n  bhat = estimates_storage[, 2],\n  type = \"EE 2\"\n)\n\nplot_data <- rbind(b_ee1, b_ee2)\n\ng_case_1 <- ggplot(data = plot_data) +\n  geom_density(aes(x = bhat, fill = type), alpha = 0.5) +\n  scale_fill_discrete(name = \"Estimating Equation\") +\n  geom_vline(xintercept = 1, color = \"blue\", linewidth = 1) + # the true beta_1\n  xlab(\"Estimate of beta_1\") +\n  theme_lecture +\n  theme(legend.position = \"bottom\")","id":4,"options":{"autorun":"false","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.7","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"4.5","fig-width":"7","label":"unnamed-chunk-4","message":"true","out-height":"","out-width":"55%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"g_case_1","id":5,"options":{"autorun":"false","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.7","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"6.5","fig-width":"9","label":"unnamed-chunk-5","message":"true","out-height":"","out-width":"55%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"N <- 100 # sample size\nB <- 1000 # the number of iterations\nestimates_storage <- matrix(0, B, 2)","id":6,"options":{"autorun":"true","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.7","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"4.5","fig-width":"7","label":"unnamed-chunk-6","message":"true","out-height":"","out-width":"55%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"set.seed(37834)\n\nfor (i in 1:B) { # iterate the same process B times\n\n  #--- data generation ---#\n  mu <- rnorm(N) # common term shared by x1 and x2\n  x1 <- 0.1 * rnorm(N) + 0.9 * mu # independent variable\n  x2 <- 0.1 * rnorm(N) + 0.9 * mu # independent variable\n  u <- rnorm(N) # error\n  y <- 1 + x1 + 0 * x2 + u # dependent variable\n  data <- data.frame(y = y, x1 = x1, x2 = x2)\n\n  #--- OLS ---#\n  beta_ee1 <- feols(y ~ x1, data = data)$coefficient[\"x1\"] # OLS with EE1\n  beta_ee2 <- feols(y ~ x1 + x2, data = data)$coefficient[\"x1\"] # OLS with EE2\n\n  #--- store estimates ---#\n  estimates_storage[i, 1] <- beta_ee1\n  estimates_storage[i, 2] <- beta_ee2\n}","id":7,"options":{"autorun":"false","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.7","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"4.5","fig-width":"7","label":"unnamed-chunk-7","message":"true","out-height":"","out-width":"55%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"b_ee1 <- data.table(\n  bhat = estimates_storage[, 1],\n  type = \"EE 1\"\n)\n\nb_ee2 <- data.table(\n  bhat = estimates_storage[, 2],\n  type = \"EE 2\"\n)\n\nplot_data <- rbind(b_ee1, b_ee2)\n\ng_case_2 <- \n  ggplot(data = plot_data) +\n  geom_density(aes(x = bhat, fill = type), alpha = 0.5) +\n  scale_fill_discrete(name = \"Estimating Equation\") +\n  geom_vline(xintercept = 1, color = \"blue\", linewidth = 1) + # the true beta_1\n  xlab(\"Estimate of beta_1\") +\n  theme_lecture +\n  theme(legend.position = \"bottom\")","id":8,"options":{"autorun":"false","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.7","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"4.5","fig-width":"7","label":"unnamed-chunk-8","message":"true","out-height":"","out-width":"55%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"g_case_2","id":9,"options":{"autorun":"false","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.7","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"6.5","fig-width":"9","label":"unnamed-chunk-9","message":"true","out-height":"","out-width":"55%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"N <- 100\nmu <- rnorm(N) # common term shared by x1 and x2\nx1 <- 0.1 * rnorm(N) + 0.9 * mu # independent variable\nx2 <- 0.1 * rnorm(N) + 0.9 * mu # independent variable\n(\nols_res <- feols(x1 ~ x2, data = data.frame(x1 = x1, x2 = x2))\n)","id":10,"options":{"autorun":"false","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.7","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"4.5","fig-width":"7","label":"unnamed-chunk-10","message":"true","out-height":"","out-width":"55%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"N <- 100 # sample size\nB <- 1000 # the number of iterations\nestimates_storage <- matrix(0, B, 2)","id":11,"options":{"autorun":"true","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.7","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"4.5","fig-width":"7","label":"unnamed-chunk-11","message":"true","out-height":"","out-width":"55%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"set.seed(37834)\n\nfor (i in 1:B) { # iterate the same process B times\n\n  #--- data generation ---#\n  x1 <- rnorm(N) # independent variable\n  x2 <- rnorm(N) # independent variable\n  u <- rnorm(N) # error\n  y <- 1 + x1 + x2 + u # dependent variable\n  data <- data.frame(y = y, x1 = x1, x2 = x2)\n\n  #--- OLS ---#\n  beta_ee1 <- feols(y ~ x1, data = data)$coefficient[\"x1\"] # OLS with EE1\n  beta_ee2 <- feols(y ~ x1 + x2, data = data)$coefficient[\"x1\"] # OLS with EE2\n\n  #--- store estimates ---#\n  estimates_storage[i, 1] <- beta_ee1\n  estimates_storage[i, 2] <- beta_ee2\n}","id":12,"options":{"autorun":"false","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.7","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"4.5","fig-width":"7","label":"unnamed-chunk-12","message":"true","out-height":"","out-width":"55%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"b_ee1 <- data.table(\n  bhat = estimates_storage[, 1],\n  type = \"EE 1\"\n)\n\nb_ee2 <- data.table(\n  bhat = estimates_storage[, 2],\n  type = \"EE 2\"\n)\n\nplot_data <- rbind(b_ee1, b_ee2)\n\ng_case_3 <- \n  ggplot(data = plot_data) +\n  geom_density(aes(x = bhat, fill = type), alpha = 0.5) +\n  scale_fill_discrete(name = \"Estimating Equation\") +\n  geom_vline(xintercept = 1, color = \"blue\", linewidth = 1) + # the true beta_1\n  xlab(\"Estimate of beta_1\") +\n  theme_lecture +\n  theme(legend.position = \"bottom\")","id":13,"options":{"autorun":"false","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.7","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"4.5","fig-width":"7","label":"unnamed-chunk-13","message":"true","out-height":"","out-width":"55%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"g_case_3","id":14,"options":{"autorun":"false","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.7","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"6.5","fig-width":"9","label":"unnamed-chunk-14","message":"true","out-height":"","out-width":"55%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"N <- 100\nx1 <- rnorm(N) # independent variable\nx2 <- rnorm(N) # independent variable\n(\nols_res <- feols(x1 ~ x2, data = data.frame(x1 = x1, x2 = x2))\n)","id":15,"options":{"autorun":"false","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.7","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"4.5","fig-width":"7","label":"unnamed-chunk-15","message":"true","out-height":"","out-width":"55%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"N <- 100 # sample size\nB <- 1000 # the number of iterations\nestimates_storage <- matrix(0, B, 2)","id":16,"options":{"autorun":"true","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.7","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"4.5","fig-width":"7","label":"unnamed-chunk-16","message":"true","out-height":"","out-width":"55%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"set.seed(37834)\n\nfor (i in 1:B) { # iterate the same process B times\n\n  #--- data generation ---#\n  mu <- rnorm(N) # common term shared by x1 and x2\n  x1 <- 0.1 * rnorm(N) + 0.9 * mu # independent variable\n  x2 <- 0.1 * rnorm(N) + 0.9 * mu # independent variable\n  u <- rnorm(N) # error\n  y <- 1 + x1 + 1 * x2 + u\n  data <- data.frame(y = y, x1 = x1, x2 = x2)\n\n  #--- OLS ---#\n  beta_ee1 <- feols(y ~ x1, data = data)$coefficient[\"x1\"] # OLS with EE1\n  beta_ee2 <- feols(y ~ x1 + x2, data = data)$coefficient[\"x1\"] # OLS with EE2\n\n  #--- store estimates ---#\n  estimates_storage[i, 1] <- beta_ee1\n  estimates_storage[i, 2] <- beta_ee2\n}","id":17,"options":{"autorun":"false","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.7","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"4.5","fig-width":"7","label":"unnamed-chunk-17","message":"true","out-height":"","out-width":"55%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"b_ee1 <- data.table(\n  bhat = estimates_storage[, 1],\n  type = \"EE 1\"\n)\n\nb_ee2 <- data.table(\n  bhat = estimates_storage[, 2],\n  type = \"EE 2\"\n)\n\nplot_data <- rbind(b_ee1, b_ee2)\n\ng_case_4 <- \n  ggplot(data = plot_data) +\n  geom_density(aes(x = bhat, fill = type), alpha = 0.5) +\n  scale_fill_discrete(name = \"Estimating Equation\") +\n  geom_vline(xintercept = 1, color = \"blue\", linewidth = 1) + # the true beta_1\n  geom_vline(xintercept = 1.988, color = \"red\", linetype = 2, linewidth = 1) + # predicted plim of EE1\n  xlab(\"Estimate of beta_1\") +\n  theme_lecture +\n  theme(legend.position = \"bottom\")","id":18,"options":{"autorun":"false","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.7","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"4.5","fig-width":"7","label":"unnamed-chunk-18","message":"true","out-height":"","out-width":"55%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"g_case_4","id":19,"options":{"autorun":"false","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.7","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"6.5","fig-width":"9","label":"unnamed-chunk-19","message":"true","out-height":"","out-width":"55%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"mean(estimates_storage[, 1]) # EE1: should be close to 1.988\nmean(estimates_storage[, 2]) # EE2: should be close to 1","id":20,"options":{"autorun":"false","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.7","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"4.5","fig-width":"7","label":"unnamed-chunk-20","message":"true","out-height":"","out-width":"55%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"N <- 100\nmu <- rnorm(N) # common term shared by x1 and x2\nx1 <- 0.1 * rnorm(N) + 0.9 * mu # independent variable\nx2 <- 0.1 * rnorm(N) + 0.9 * mu # independent variable\n(\nols_res <- feols(x1 ~ x2, data = data.frame(x1 = x1, x2 = x2))\n)","id":21,"options":{"autorun":"false","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.7","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"4.5","fig-width":"7","label":"unnamed-chunk-21","message":"true","out-height":"","out-width":"55%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"mu <- rnorm(10000)\nx1 <- 0.1 * rnorm(10000) + 0.9 * mu\nx2 <- 0.1 * rnorm(10000) + 0.9 * mu\ncor(x1, x2)^2 # this is R^2_j for EE2","id":22,"options":{"autorun":"false","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.7","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"4.5","fig-width":"7","label":"unnamed-chunk-22","message":"true","out-height":"","out-width":"55%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"set.seed(37834)\n\nN <- 100\nB <- 1000\nstorage_rev <- matrix(0, B, 2)\n\nfor (i in 1:B) {\n  mu <- rnorm(N)\n  x1 <- 0.9 * rnorm(N) + 0.1 * mu # now mostly its own variation\n  x2 <- 2.23 * rnorm(N) + 0.1 * mu # large variance, barely related to x1\n  u <- rnorm(N)\n  y <- 1 + x1 + 5 * x2 + u # x2 now matters a lot\n  data <- data.frame(y = y, x1 = x1, x2 = x2)\n\n  storage_rev[i, 1] <- feols(y ~ x1, data = data)$coefficient[\"x1\"]\n  storage_rev[i, 2] <- feols(y ~ x1 + x2, data = data)$coefficient[\"x1\"]\n}\n\n#--- variance of the estimates under each estimating equation ---#\nc(EE1 = var(storage_rev[, 1]), EE2 = var(storage_rev[, 2]))","id":23,"options":{"autorun":"false","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.7","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"4.5","fig-width":"7","label":"unnamed-chunk-23","message":"true","out-height":"","out-width":"55%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"plot_data_rev <- rbind(\n  data.table(bhat = storage_rev[, 1], type = \"EE 1\"),\n  data.table(bhat = storage_rev[, 2], type = \"EE 2\")\n)\n\nggplot(data = plot_data_rev) +\n  geom_density(aes(x = bhat, fill = type), alpha = 0.5) +\n  scale_fill_discrete(name = \"Estimating Equation\") +\n  geom_vline(xintercept = 1, color = \"blue\", linewidth = 1) +\n  xlab(\"Estimate of beta_1\") +\n  theme_lecture +\n  theme(legend.position = \"bottom\")","id":24,"options":{"autorun":"false","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.7","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"6.5","fig-width":"9","label":"unnamed-chunk-24","message":"true","out-height":"","out-width":"55%","output":"true","read-only":"false","results":"markup","warning":"true"}}];
 
   </script>
   <script type="module">
@@ -2214,7 +2509,7 @@ globalThis.qwebrCreateMonacoEditorInstance = function (cellData) {
 <h2>What variables to include or not</h2>
 <details class="transcript">
 <summary>
-Lecturer transcript
+Transcript
 </summary>
 <p>Two questions in red on this slide, and they are the two you will face on every project you ever run. The first is a decision: you have a variable available, should you put it in the model? The second is a consequence: there is a variable you know matters and you simply cannot measure it, so what does that do to you? Notice these are not the same question. One is about a choice, the other about a constraint. The two concepts underneath, multicollinearity and omitted variable bias, are the answers, and this whole lecture is about telling them apart.</p>
 </details>
@@ -2237,7 +2532,7 @@ Lecturer transcript
 <div id="tabset-1-1">
 <details class="transcript">
 <summary>
-Lecturer transcript
+Transcript
 </summary>
 <p>Two definitions to have in front of you, and the contrast matters. Multicollinearity is about relationships among your independent variables: two or more of them are highly correlated with each other. Note that the definition says nothing about y at all. Omitted variable bias is about something missing: an important variable is not in the model. Read the word in blue in each box, because those are the words we will be pressing on. What counts as a consequence of multicollinearity, and what makes an omitted variable important, are precisely what the four cases work out.</p>
 </details>
@@ -2270,7 +2565,7 @@ Lecturer transcript
 <div id="tabset-1-2">
 <details class="transcript">
 <summary>
-Lecturer transcript
+Transcript
 </summary>
 <p>The simplest possible setting in which the question can even be asked: y depends on two variables, x-one and x-two, plus an error. Your interest is entirely in x-one. That is the coefficient in your paper, the one your policy conclusion rests on. X-two is the variable you are deciding about. So read the objective box carefully. We are not asking whether x-two is estimated well. We are asking what happens to beta-one-hat depending on whether x-two is in the model or out of it. Two variables is enough to see everything; more would only add algebra.</p>
 </details>
@@ -2295,7 +2590,7 @@ y_i = \beta_0 + \beta_1 x_{1,i} + \beta_2 x_{2,i} + u_i
 <div id="tabset-1-3">
 <details class="transcript">
 <summary>
-Lecturer transcript
+Transcript
 </summary>
 <p>Four cases, and look at how they are constructed, because the structure is the whole design of the lecture. Two things can be true or false. Either beta-two is zero or it is not, meaning x-two either matters for y or it does not. And either x-two is correlated with x-one or it is not. Two binary conditions give four combinations, and those are exactly the four cases listed. Nothing else varies. So when you see a difference in the results, you know precisely which of the two conditions caused it, because only one thing changed.</p>
 </details>
@@ -2312,7 +2607,7 @@ Lecturer transcript
 <div id="tabset-1-4">
 <details class="transcript">
 <summary>
-Lecturer transcript
+Transcript
 </summary>
 <p>Two things we track in every case: is beta-one-hat unbiased, and how large is its variance. And then the formula, which you already have from lecture 02. Read the three bullets under it, because they are the map for the entire lecture. Omitting a relevant variable pushes that variable into the error term, which changes the numerator. Including a correlated variable raises R-squared-j, which shrinks the denominator. The four cases are just the four combinations of those two effects being present or absent. Everything that follows is bookkeeping on this one expression.</p>
 </details>
@@ -2341,7 +2636,7 @@ Lecturer transcript
 <div id="tabset-6-1">
 <details class="transcript">
 <summary>
-Lecturer transcript
+Transcript
 </summary>
 <p>Case one, and it is the easy corner. Read the three conditions. X-one and x-two are uncorrelated, beta-two is zero, and the error is well behaved. So x-two is doing nothing at all: it does not affect y, and it carries no information about x-one either. The example makes that concrete. A farmer’s height genuinely has no effect on corn yield, and taller farmers do not apply more nitrogen. Ask yourself before we run anything: if you throw a variable like that into your regression, what could possibly go wrong? Case one is the sanity check.</p>
 </details>
@@ -2371,7 +2666,7 @@ Lecturer transcript
 <div id="tabset-6-2">
 <details class="transcript">
 <summary>
-Lecturer transcript
+Transcript
 </summary>
 <p>This same tab appears in all four cases, and I want you to actually answer it before clicking to the results. Three questions. Is beta-one-hat unbiased in the model that leaves x-two out. Is it unbiased in the model that puts x-two in. And how do the two variances compare. Commit to an answer, even a guess, before you see the simulation. The reason is that all four cases produce a picture, and if you have not predicted it you will simply look at the picture and think it was obvious. Predicting first is what makes the surprise in case four land.</p>
 </details>
@@ -2402,7 +2697,7 @@ Lecturer transcript
 <div id="tabset-6-3">
 <details class="transcript">
 <summary>
-Lecturer transcript
+Transcript
 </summary>
 <p>Three cells, and they follow exactly the recipe from lecture 03. The first sets the sample size, the number of iterations, and a storage matrix with two columns, one per estimating equation. The second is the loop. Read the data generation lines: x-one and x-two are drawn independently, and y is built with a zero coefficient on x-two, so the setup conditions are enforced by the code rather than assumed. Then both regressions run on the same data, which is important, and both coefficients get stored. The third cell builds the density plot with the true value marked in blue.</p>
 </details>
@@ -2423,7 +2718,7 @@ Lecturer transcript
 <div id="tabset-6-4">
 <details class="transcript">
 <summary>
-Lecturer transcript
+Transcript
 </summary>
 <p>Two densities, and the blue line is the true beta-one of one. Look at three things. Both densities are centered on the blue line, so both estimating equations are unbiased, which is what you would hope. Their widths are nearly identical in this simulation. In a finite sample, the sample correlation will not be exactly zero and estimating an extra coefficient uses a degree of freedom, so the added variable is not literally free. But an irrelevant variable that is orthogonal to x-one has no systematic precision benefit, and its cost becomes negligible here. Keep this image in mind, because in the next three cases one or both of those observations will fail.</p>
 </details>
@@ -2437,7 +2732,7 @@ Lecturer transcript
 <div id="tabset-2-1">
 <details class="transcript">
 <summary>
-Lecturer transcript
+Transcript
 </summary>
 <p>Now let’s explain the picture rather than just look at it. On the left, the truth; on the right, the model we actually estimated, which pushes x-two into a composite error term v. The question is whether the zero conditional mean condition holds for that composite error. Work it out before opening the answer. V contains beta-two times x-two plus u. Beta-two is zero, so the first piece vanishes entirely, and u was assumed uncorrelated with x-one. So the condition holds and there is no bias. Notice we needed only one of the two conditions here.</p>
 </details>
@@ -2470,7 +2765,7 @@ Yes, because <span class="math inline">x_1</span> is not correlated with either 
 <div id="tabset-2-2">
 <details class="transcript">
 <summary>
-Lecturer transcript
+Transcript
 </summary>
 <p>The other estimating equation, and this one is almost trivial. We estimated exactly the model that generated the data, error term and all. So the question is just whether the original zero conditional mean condition holds, and we assumed it does in the setup. No bias. The reason this tab is worth a moment anyway is the contrast with the previous one. Both give unbiased estimates, but for different reasons: this one because the model is correct, that one because the thing it left out happened to be harmless. Only one of those is robust.</p>
 </details>
@@ -2511,7 +2806,7 @@ Yes, because <span class="math inline">x_1</span> and <span class="math inline">
 <div id="tabset-5-1">
 <details class="transcript">
 <summary>
-Lecturer transcript
+Transcript
 </summary>
 <p>Now variance, and we walk the formula term by term. The two questions below are the two moving parts. R-squared-j is the R-squared from regressing x-one on all the other covariates, and in this model there are no other covariates, so it is zero and the denominator is untouched. And the error variance: v is beta-two times x-two plus u, but beta-two is zero, so v is just u, and its variance is sigma-u squared. Both parts unchanged. That is why we get the answer we get on the comparison tab.</p>
 </details>
@@ -2567,7 +2862,7 @@ Var(v_i) = Var(\beta_2 x_{2,i} + u_i) = \sigma_u^2
 <div id="tabset-5-2">
 <details class="transcript">
 <summary>
-Lecturer transcript
+Transcript
 </summary>
 <p>Same two questions for the model that includes x-two. R-squared-j is now the R-squared from regressing x-one on x-two, and since those two are uncorrelated by construction, it is zero on average. Note the words on average: in any single sample the correlation is not exactly zero, so R-squared-j is a small positive number. But it does not systematically inflate anything. And the error variance is sigma-u squared, since we estimated the true model. So again both parts unchanged, and for a different reason than before.</p>
 </details>
@@ -2623,7 +2918,7 @@ Var(u_i) = \sigma_u^2
 <div id="tabset-5-3">
 <details class="transcript">
 <summary>
-Lecturer transcript
+Transcript
 </summary>
 <p>Here is the population comparison laid out. When x-two is orthogonal to x-one, the multicollinearity term is zero, and both models have error variance sigma-u squared. In an actual finite sample, their sample correlation will generally be small rather than exactly zero, and the larger model also estimates one more coefficient. Thus the variances need not be exactly identical, although they are nearly so in this design. The practical lesson is that an irrelevant, nearly uncorrelated control offers no precision gain and usually has only a small precision cost.</p>
 </details>
@@ -2673,7 +2968,7 @@ They are the same because all the components are the same.
 <div id="tabset-6-7">
 <details class="transcript">
 <summary>
-Lecturer transcript
+Transcript
 </summary>
 <p>The two takeaways from case one, and both are permission rather than warning. Including a variable that has no explanatory power and is uncorrelated with x-one leaves your variance exactly where it was. And omitting such a variable leaves you unbiased. So in this corner of the world it genuinely does not matter what you do. Remember that this is the only case where that is true. Three more cases follow, and each one breaks exactly one of the two conditions we imposed here, so you will be able to attribute every difference to the thing that changed.</p>
 </details>
@@ -2694,7 +2989,7 @@ Lecturer transcript
 <div id="tabset-11-1">
 <details class="transcript">
 <summary>
-Lecturer transcript
+Transcript
 </summary>
 <p>Case two, and exactly one thing has changed from case one: x-one and x-two are now correlated. Beta-two is still zero, so x-two is still genuinely irrelevant to y. Read the example, because it is the shape this takes in practice. Fertilizer expenditure is almost entirely determined by how much nitrogen you applied, so the two are tightly related. But once you already know the nitrogen rate, the dollar figure tells you nothing further about yield. An irrelevant variable that happens to move with the one you care about. This is what multicollinearity means.</p>
 </details>
@@ -2724,7 +3019,7 @@ Lecturer transcript
 <div id="tabset-11-2">
 <details class="transcript">
 <summary>
-Lecturer transcript
+Transcript
 </summary>
 <p>Same three questions, and now they are worth more thought than in case one. X-two still does not belong in the model in any meaningful sense, since beta-two is zero. So your instinct might be that including it is still harmless. Predict all three answers before moving on. In particular, think hard about the third one. If x-two carries no information about y, can putting it in the regression really cost you anything? Write down yes or no. The whole point of case two is that the answer is not what most people expect.</p>
 </details>
@@ -2755,7 +3050,7 @@ Lecturer transcript
 <div id="tabset-11-3">
 <details class="transcript">
 <summary>
-Lecturer transcript
+Transcript
 </summary>
 <p>The code is identical to case one except for two lines, and they are the ones to read. A common term mu is drawn, and then both x-one and x-two are built as nine parts mu plus one part their own noise. That makes them correlated by construction, and very strongly so. Everything else is untouched, including the zero coefficient on x-two in the line that builds y. One condition changed, everything else fixed, which is the controlled experiment we set up at the start of the lecture.</p>
 </details>
@@ -2774,7 +3069,7 @@ Lecturer transcript
 <div id="tabset-11-4">
 <details class="transcript">
 <summary>
-Lecturer transcript
+Transcript
 </summary>
 <p>Now look at the difference from case one. Both densities are still centered on the blue line, so both are still unbiased, and that is genuinely reassuring. But they are no longer the same shape. The one for the model including x-two is visibly wider, sometimes dramatically so. You have paid a real price in precision for including a variable that contributes nothing. That is the consequence of multicollinearity, and notice what it is not: it is not bias. Your estimator is still right on average. It is just less reliable in any one sample.</p>
 </details>
@@ -2788,7 +3083,7 @@ Lecturer transcript
 <div id="tabset-7-1">
 <details class="transcript">
 <summary>
-Lecturer transcript
+Transcript
 </summary>
 <p>Why is leaving x-two out still unbiased here, when x-two is now correlated with x-one? Read the answer carefully, because the logic matters. The composite error v is beta-two times x-two plus u. X-one is indeed correlated with x-two, which sounds alarming. But beta-two is zero, so that whole term is zero, and correlation with something multiplied by zero is harmless. What is left is u, uncorrelated with x-one by assumption. So no bias. Correlation alone is not enough to hurt you. Hold on to that; it is half of what case four needs.</p>
 </details>
@@ -2826,7 +3121,7 @@ So, <strong>no</strong> bias.
 <div id="tabset-7-2">
 <details class="transcript">
 <summary>
-Lecturer transcript
+Transcript
 </summary>
 <p>And the model that includes x-two is unbiased for the same trivial reason as in case one: it is the model that generated the data. Nothing about correlation between regressors threatens unbiasedness. That is worth stating plainly, because multicollinearity has a bad reputation and people sometimes think it biases coefficients. It does not. Correlated regressors are entirely consistent with all four of the conditions we listed in lecture 02. The damage multicollinearity does is on the variance side only, which is the next tab.</p>
 </details>
@@ -2867,7 +3162,7 @@ Yes, because <span class="math inline">x_1</span> and <span class="math inline">
 <div id="tabset-10-1">
 <details class="transcript">
 <summary>
-Lecturer transcript
+Transcript
 </summary>
 <p>The variance terms for the model that omits x-two, and the answers are the same as in case one. R-squared-j is zero, because with only one regressor there is nothing to regress it on. And the error variance is sigma-u squared, because beta-two is zero, so v collapses to u again. Neither term feels the correlation between x-one and x-two, because x-two is not in this model at all. That is the key: this estimating equation is completely insulated from what x-two is doing. The next tab is where it bites.</p>
 </details>
@@ -2923,7 +3218,7 @@ Var(v_i) = Var(\beta_2 x_{2,i} + u_i) = \sigma_u^2
 <div id="tabset-10-2">
 <details class="transcript">
 <summary>
-Lecturer transcript
+Transcript
 </summary>
 <p>Here is where the two cases diverge. R-squared-j is the R-squared from regressing x-one on x-two, and now those two are strongly correlated, so it is large. Run the cell to see it: with this data generating process it comes out around zero point nine seven. Now put that in the denominator. One minus zero point nine seven is about zero point zero two four, so the denominator is shrunk by a factor of roughly forty. The error variance is unchanged. One term moved, in the direction that hurts.</p>
 </details>
@@ -2981,7 +3276,7 @@ Var(u_i) = \sigma_u^2
 <div id="tabset-10-3">
 <details class="transcript">
 <summary>
-Lecturer transcript
+Transcript
 </summary>
 <p>Compare the columns. The error variances are identical, sigma-u squared in both. The only difference is R-squared-j: zero for the model that omits x-two, positive and large for the model that includes it. Same numerator, smaller denominator, so a larger variance. That is the answer, and it is the precise statement of what multicollinearity costs you. Not bias, not a wrong answer on average, but a wider sampling distribution, which in practice means larger standard errors and a coefficient you cannot distinguish from zero.</p>
 </details>
@@ -3031,7 +3326,7 @@ So, <span class="math inline">Var(\widehat{\beta}_1)</span> in <span class="math
 <div id="tabset-11-7">
 <details class="transcript">
 <summary>
-Lecturer transcript
+Transcript
 </summary>
 <p>Case two in two lines. Including an irrelevant but highly correlated variable inflates the variance of the coefficient you care about. And omitting it leaves you unbiased. So here, unlike case one, the choice matters, and it points clearly toward leaving x-two out. Now notice what makes this case safe to reason about: because beta-two is zero, there is no bias on either side, so variance is the only consideration. In case four that will no longer be true, and the decision will get genuinely hard.</p>
 </details>
@@ -3052,7 +3347,7 @@ Lecturer transcript
 <div id="tabset-16-1">
 <details class="transcript">
 <summary>
-Lecturer transcript
+Transcript
 </summary>
 <p>Case three, and we have flipped the other switch. Now beta-two is not zero, so x-two genuinely affects y, but x-one and x-two are back to being uncorrelated. Read the example, because the reasoning behind it is what you would need to argue in a paper. Growing season rainfall obviously affects corn yield. But a farmer picks their nitrogen rate before the season begins, so the rate they chose cannot depend on rain that has not fallen yet. A variable that matters for y but is unrelated to your variable of interest.</p>
 </details>
@@ -3082,7 +3377,7 @@ Lecturer transcript
 <div id="tabset-16-2">
 <details class="transcript">
 <summary>
-Lecturer transcript
+Transcript
 </summary>
 <p>The three questions again, and this is the case where I most often see the wrong guess. X-two now matters for y, and we are considering leaving it out. That sounds like the definition of omitting an important variable, so the natural prediction is bias. Commit to your answer. Then think about the phrase we used in the definition tab at the start: an important variable. Case three is going to force us to be much more precise about what important means, because the obvious reading of it turns out to be wrong.</p>
 </details>
@@ -3113,7 +3408,7 @@ Lecturer transcript
 <div id="tabset-16-3">
 <details class="transcript">
 <summary>
-Lecturer transcript
+Transcript
 </summary>
 <p>Read the data generation block and compare it against case one. X-one and x-two are drawn independently again, exactly as in case one. The single change is in the line that builds y: the coefficient on x-two is now one rather than zero. So x-two genuinely affects the outcome. Everything else in the loop, both regressions, the storage, is untouched. One line different from case one, and it is the line that decides whether x-two is a real determinant of y or a passenger.</p>
 </details>
@@ -3132,7 +3427,7 @@ Lecturer transcript
 <div id="tabset-16-4">
 <details class="transcript">
 <summary>
-Lecturer transcript
+Transcript
 </summary>
 <p>And here is the surprise, if you predicted bias. Both densities are still centered on the blue line. Omitting a variable that genuinely affects y did not bias anything, because it was uncorrelated with x-one. But look at the widths, and note that the ranking has reversed from case two. Now it is the model that omits x-two which is wider. Including a relevant variable bought you precision. So the two cases point in opposite directions, and that is not a contradiction; it is two different terms of the same formula moving.</p>
 </details>
@@ -3146,7 +3441,7 @@ Lecturer transcript
 <div id="tabset-12-1">
 <details class="transcript">
 <summary>
-Lecturer transcript
+Transcript
 </summary>
 <p>Why is omitting a genuinely relevant variable still unbiased? The composite error v is beta-two times x-two plus u, and now beta-two is not zero, so x-two really is sitting in the error term. But the condition we need is that v is uncorrelated with x-one, and x-two is uncorrelated with x-one by construction. So the error term is inflated but not tilted. That distinction is the whole of case three: a variable in your error term is only dangerous if it is correlated with your regressor. Otherwise it is just noise.</p>
 </details>
@@ -3180,7 +3475,7 @@ So, <strong>no</strong> bias.
 <div id="tabset-12-2">
 <details class="transcript">
 <summary>
-Lecturer transcript
+Transcript
 </summary>
 <p>The model that includes x-two is unbiased, for the same reason as always: it is the true model and the zero conditional mean condition was assumed. Nothing new here. But there is something worth noticing across the three cases so far. This estimating equation has been unbiased in every single one, because it always estimates the model that generated the data. All the interesting variation has been on the other side, in what happens when you leave something out. Case four is the first time that stops being enough.</p>
 </details>
@@ -3221,7 +3516,7 @@ Yes, because <span class="math inline">x_1</span> and <span class="math inline">
 <div id="tabset-15-1">
 <details class="transcript">
 <summary>
-Lecturer transcript
+Transcript
 </summary>
 <p>Now the variance, and this is the tab where case three finally differs from the earlier ones. R-squared-j is still zero, since there are no other regressors. But look at the error variance. V is beta-two times x-two plus u, and beta-two is no longer zero, so the algebra in the answer does not collapse. You get beta-two squared times the variance of x-two, plus sigma-u squared. The error variance has genuinely grown. That is the price of leaving a relevant variable in the error term.</p>
 </details>
@@ -3279,7 +3574,7 @@ Var(error) &amp; = Var(v_i) \\
 <div id="tabset-15-2">
 <details class="transcript">
 <summary>
-Lecturer transcript
+Transcript
 </summary>
 <p>And for the model that includes x-two, both terms are back near their smallest values. The population relationship between x-one and x-two is zero, so sample R-squared-j is near zero rather than exactly zero. The error variance is just sigma-u squared, because x-two is properly accounted for rather than dumped into the error. The large reduction in the numerator drives the comparison in this design; the small finite-sample denominator and degrees-of-freedom differences do not overturn it.</p>
 </details>
@@ -3337,7 +3632,7 @@ Var(error) = Var(u_i) = \sigma_u^2
 <div id="tabset-15-3">
 <details class="transcript">
 <summary>
-Lecturer transcript
+Transcript
 </summary>
 <p>The comparison now runs the other way. At the population level the regressors are orthogonal, so the multicollinearity denominator is unchanged. But the error variances differ: the model omitting x-two carries beta-two squared times the variance of x-two on top of sigma-u squared, while the model including it carries only sigma-u squared. In this design that precision gain easily dominates the small finite-sample cost of estimating another coefficient. Compare this against case two, where strong collinearity made inclusion costly.</p>
 </details>
@@ -3387,7 +3682,7 @@ So, <span class="math inline">Var(\widehat{\beta}_1)</span> in <span class="math
 <div id="tabset-16-7">
 <details class="transcript">
 <summary>
-Lecturer transcript
+Transcript
 </summary>
 <p>Case three summarised, and note that both statements favour including x-two. Including a relevant but uncorrelated variable reduces your variance, because it takes explanatory power out of the error term. And omitting it leaves you unbiased, so nothing catastrophic happens if you cannot get it. That last point is genuinely useful in practice: if you can argue a missing variable is uncorrelated with your treatment, you can argue it costs you precision but not credibility. That argument is the backbone of a randomised experiment.</p>
 </details>
@@ -3408,7 +3703,7 @@ Lecturer transcript
 <div id="tabset-21-1">
 <details class="transcript">
 <summary>
-Lecturer transcript
+Transcript
 </summary>
 <p>Case four, both switches flipped. X-two matters for y, and it is correlated with x-one. Read the example and the note under it. Better soil raises yield, and farmers do not apply the same nitrogen rate on good ground as on poor ground, so soil quality is related to the nitrogen decision. Now read the second bullet, which is the honest one. This is the case that actually happens. Case one is a curiosity, cases two and three are instructive, and case four is what you will face on essentially every project with observational data.</p>
 </details>
@@ -3439,7 +3734,7 @@ Lecturer transcript
 <div id="tabset-21-2">
 <details class="transcript">
 <summary>
-Lecturer transcript
+Transcript
 </summary>
 <p>Three questions once more, and by now you have the tools to predict all three. Case two taught you that correlation alone does not bias anything. Case three taught you that relevance alone does not bias anything either. So what happens when both are present at once? Commit to an answer. And a fourth question I want you to hold in mind while you predict: if there is bias, can you say anything about its size and direction, or is it simply unknown? That question is where the second half of the lecture goes.</p>
 </details>
@@ -3470,7 +3765,7 @@ Lecturer transcript
 <div id="tabset-21-3">
 <details class="transcript">
 <summary>
-Lecturer transcript
+Transcript
 </summary>
 <p>Read the loop and notice that it combines the two changes we made separately before. X-one and x-two share the common term mu, as in case two, so they are correlated. And the coefficient on x-two in the line that builds y is one rather than zero, as in case three, so x-two matters. Both conditions hold at once for the first time. Everything else, sample size, iterations, both regressions, is identical to the three previous cases, so any difference in the output is attributable to those two lines together.</p>
 </details>
@@ -3489,7 +3784,7 @@ Lecturer transcript
 <div id="tabset-21-4">
 <details class="transcript">
 <summary>
-Lecturer transcript
+Transcript
 </summary>
 <p>And there it is. The two densities are no longer on top of each other, and one of them is nowhere near the blue line. The model that omits x-two has moved bodily to the right, centered near the red dashed line at about two, when the truth is one. It is not less precise; it is answering a different question. That is bias, and it is the first time we have seen it in this lecture. The model including x-two remains centered on the truth, exactly as it has in all four cases.</p>
 </details>
@@ -3502,7 +3797,7 @@ Lecturer transcript
 <div id="tabset-21-5">
 <details class="transcript">
 <summary>
-Lecturer transcript
+Transcript
 </summary>
 <p>And the bias is not merely present, it is predictable to three digits. Work through the two numbers. The covariance of x-one and x-two is zero point eight one, because they share nine tenths of a common term whose variance is one. And the variance of x-one is zero point eight two. Their ratio is delta-one, about zero point nine eight eight. Multiply by beta-two, which is one, and add to the true beta-one. You get one point nine eight eight. Run the cell and compare against your own simulation. It matches.</p>
 </details>
@@ -3535,7 +3830,7 @@ Lecturer transcript
 <div id="tabset-17-1">
 <details class="transcript">
 <summary>
-Lecturer transcript
+Transcript
 </summary>
 <p>Now the explanation. The composite error v contains beta-two times x-two plus u. In case two, beta-two was zero so that term vanished. In case three, x-two was uncorrelated with x-one so the term was harmless. Here neither escape is available. X-two is in the error term with a non-zero coefficient, and it is correlated with x-one. So the error term is correlated with the regressor, the zero conditional mean condition fails, and beta-one-hat is biased. Both conditions were necessary, and both are now present.</p>
 </details>
@@ -3569,7 +3864,7 @@ So, there will be bias.
 <div id="tabset-17-2">
 <details class="transcript">
 <summary>
-Lecturer transcript
+Transcript
 </summary>
 <p>The model that includes x-two is still unbiased, and this is the point of the whole lecture in one tab. Bias came not from the world being complicated, but from us leaving something out. Put x-two back in and the problem disappears entirely. That is why economists reach for controls. The catch, which the variance tabs cover next, is that x-two is highly correlated with x-one here, so including it is not free. This is the only case where you actually have to weigh one thing against the other.</p>
 </details>
@@ -3610,7 +3905,7 @@ Yes, because <span class="math inline">x_1</span> and <span class="math inline">
 <div id="tabset-20-1">
 <details class="transcript">
 <summary>
-Lecturer transcript
+Transcript
 </summary>
 <p>The variance terms for the model that omits x-two, and both moving parts are now active. R-squared-j is zero, as always in a one-regressor model. But the error variance has grown, exactly as in case three: beta-two squared times the variance of x-two, plus sigma-u squared. With the numbers here that is about one point eight two rather than one. So the numerator is inflated. Remember though that this estimator is also biased, so a small variance would be no comfort. Precision around the wrong number is worse than useless.</p>
 </details>
@@ -3668,7 +3963,7 @@ Var(error) &amp; = Var(v_i) \\
 <div id="tabset-20-2">
 <details class="transcript">
 <summary>
-Lecturer transcript
+Transcript
 </summary>
 <p>And for the model that includes x-two, the error variance is back down to sigma-u squared, but R-squared-j is now large, because x-one and x-two are strongly correlated. Run the cell to see it come out around zero point nine seven. So this estimating equation has the better numerator and the much worse denominator, while the other one has the reverse. For the first time the two terms of the formula point in opposite directions, and which one wins is a question of magnitudes rather than principle.</p>
 </details>
@@ -3726,7 +4021,7 @@ Var(error) = Var(u_i) = \sigma_u^2
 <div id="tabset-20-3">
 <details class="transcript">
 <summary>
-Lecturer transcript
+Transcript
 </summary>
 <p>This comparison needs more care than the first three cases. The familiar variance formula assumes the regression error satisfies the exogeneity condition. In EE1 here, the composite error contains x-two and is correlated with x-one, so we cannot obtain its sampling variance by simply inserting the unconditional variance of that composite error into the usual formula. The Monte Carlo distributions can still illustrate bias and dispersion for this particular data-generating process, but the columns below are intuition, not a valid general variance derivation for EE1.</p>
 </details>
@@ -3772,7 +4067,7 @@ It depends.
 <div id="tabset-20-4">
 <details class="transcript">
 <summary>
-Lecturer transcript
+Transcript
 </summary>
 <p>Let’s put numbers on the correctly specified EE2: R-squared-j is about zero point nine seven six, so one minus it is about zero point zero two four. That strong collinearity makes the EE2 estimate imprecise. The simulation shows that the biased EE1 estimate is less dispersed in this design. Do not justify EE1’s dispersion by plugging 1.82 into the standard exogenous-error formula, however; EE1 violates the condition under which that formula was derived.</p>
 </details>
@@ -3792,7 +4087,7 @@ Lecturer transcript
 <div id="tabset-20-5">
 <details class="transcript">
 <summary>
-Lecturer transcript
+Transcript
 </summary>
 <p>Now let’s deliberately change the data-generating process and watch the simulated ranking flip. X-one and x-two share almost nothing, so including x-two creates little multicollinearity, while x-two has a large effect and substantial independent variation. Run both cells. The simulated variances reverse their earlier ranking. This demonstrates that a biased estimator can be more or less dispersed than the correctly specified estimator depending on the design; it does not restore the invalid plug-in variance calculation for EE1.</p>
 </details>
@@ -3819,7 +4114,7 @@ Lecturer transcript
 <div id="tabset-21-8">
 <details class="transcript">
 <summary>
-Lecturer transcript
+Transcript
 </summary>
 <p>Case four in two lines. There is a genuine bias-variance trade-off when a variable both matters and is correlated with your variable of interest. And economists tend to opt for unbiasedness. That second line is a professional norm rather than a theorem, so it is worth saying why. A biased estimate with tight standard errors will confidently tell you the wrong number, and no amount of extra data fixes it. A noisy but unbiased estimate at least tells you the truth eventually, and honestly reports how uncertain it is.</p>
 </details>
@@ -3836,7 +4131,7 @@ Lecturer transcript
 <h2>All four cases at once</h2>
 <details class="transcript">
 <summary>
-Lecturer transcript
+Transcript
 </summary>
 <p>Here is the whole lecture on one slide. Two conditions, four cells. Read across the top row: with beta-two equal to zero, x-two is irrelevant, and the only question is whether including it costs you variance, which it does when the two are correlated. Read the bottom row: x-two matters, and now omitting it either costs variance or costs you bias. Then read the two bullets. Bias appears in exactly one cell, and it needs both conditions at once. Either one on its own, as cases two and three showed, leaves you unbiased.</p>
 </details>
@@ -3882,7 +4177,7 @@ Lecturer transcript
 <div id="tabset-24-1">
 <details class="transcript">
 <summary>
-Lecturer transcript
+Transcript
 </summary>
 <p>Now the algebra behind what case four showed us. Notice the two different symbols: beta-one-tilde for the estimator from the model that omits x-two, beta-one-hat for the one that includes it. Then the auxiliary regression, and read the direction carefully because this is where people go wrong. You regress the omitted variable on the included one, not the reverse. Delta-one is that slope, the covariance over the variance of x-one. The boxed result says the bias is beta-two times delta-one, and case four’s number came from exactly this.</p>
 </details>
@@ -3919,7 +4214,7 @@ Lecturer transcript
 <div id="tabset-24-2">
 <details class="transcript">
 <summary>
-Lecturer transcript
+Transcript
 </summary>
 <p>The four sign combinations, and they follow directly from the formula. Bias is beta-two times delta-one, and delta-one has the same sign as the correlation, so the sign of the bias is just the product of two signs. Work through the first line to convince yourself and the rest will follow. Then read the magnitude bullets and the note. The bias grows with the correlation and with the size of beta-two. It does not depend on beta-one at all. The coefficient you care about could be huge or zero; the bias is the same either way.</p>
 </details>
@@ -3956,7 +4251,7 @@ Lecturer transcript
 <div id="tabset-22-1">
 <details class="transcript">
 <summary>
-Lecturer transcript
+Transcript
 </summary>
 <p>Work this one out yourself before I say anything. Nitrogen is your variable of interest, soil erodibility is omitted and sits in the error term. Two facts on screen. Farmers apply more nitrogen to more erodible ground to compensate for nutrient loss, so the correlation is positive. And erodibility hurts yield, so gamma is negative. Positive correlation times negative gamma gives a negative bias. So your estimate of nitrogen’s effect on yield comes out too low. You would understate the value of fertiliser, possibly badly.</p>
 </details>
@@ -3974,7 +4269,7 @@ Lecturer transcript
 <div id="tabset-22-2">
 <details class="transcript">
 <summary>
-Lecturer transcript
+Transcript
 </summary>
 <p>This is the classic housing example, and it is worth knowing because it appears in Wooldridge and in real policy debates. You want the effect of distance to an incinerator on house prices. But planners put incinerators on the edge of town, so distance to the incinerator is negatively related to distance from the city center, and distance from the center lowers prices. Negative correlation times negative gamma gives a positive bias. So you would overstate how much being near an incinerator hurts a house’s value.</p>
 </details>
@@ -3992,7 +4287,7 @@ Lecturer transcript
 <div id="tabset-22-3">
 <details class="transcript">
 <summary>
-Lecturer transcript
+Transcript
 </summary>
 <p>One from my own field. You are estimating the effect of precipitation on groundwater use, and irrigation technology is omitted. Farmers in drier places adopt center pivot more, so precipitation is negatively correlated with center pivot adoption. And center pivot applies water more efficiently, so gamma is negative. Negative times negative gives a positive bias. Now notice something useful: you would expect the true effect of precipitation on groundwater use to be negative, and the bias pushes upward, against your expectation. The next tab is about why that is good news.</p>
 </details>
@@ -4021,7 +4316,7 @@ Lecturer transcript
 <div id="tabset-23-1">
 <details class="transcript">
 <summary>
-Lecturer transcript
+Transcript
 </summary>
 <p>Here is why signing the bias is worth the effort. The true effect is minus ten, the bias is plus five, so what you actually estimate is minus five. You never see the first two numbers, only the last. But if you can argue the bias is positive, then your estimate of minus five is a conservative one: the truth must be even more negative. So you can say, with a straight face, that the effect is at least this large. The bias worked against you and the result survived anyway.</p>
 </details>
@@ -4040,7 +4335,7 @@ Lecturer transcript
 <div id="tabset-23-2">
 <details class="transcript">
 <summary>
-Lecturer transcript
+Transcript
 </summary>
 <p>And here is the case where the same reasoning gives you nothing. True effect minus ten, bias minus five, estimate minus fifteen. Again you see only the last number. But now the bias points the same direction as your finding, so it could be doing all the work. A large enough negative bias could produce a negative estimate even if the truth were positive. Read the last sentence: there is nothing you can do. The direction of the bias determines whether this argument is available to you, and you do not get to choose it.</p>
 </details>

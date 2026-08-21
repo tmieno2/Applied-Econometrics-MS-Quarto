@@ -2,7 +2,9 @@
 title: "12: Difference-in-Differences (DID)"
 format: 
   revealjs: 
-    html-math-method: katex
+    html-math-method:
+      method: katex
+      url: "https://cdn.jsdelivr.net/npm/katex@0.18.4/dist/"
     theme: [default, ../custom.scss, ../notebook.scss]
     fontsize: 1.2em
     callout-icon: false
@@ -12,6 +14,7 @@ format:
     include-in-header:
       - ../transcript-support.html
       - ../webr-layout.html
+      - ../katex-amd-fix.html
     footer: "[back to course website with lecture slides](https://tmieno2.github.io/Applied-Econometrics-MS-Quarto/lectures/)"
 execute:
   echo: true
@@ -19,7 +22,7 @@ execute:
 webr:
   packages: ['fixest', 'dplyr', 'data.table', 'ggplot2', 'wooldridge']
   cell-options:
-    editor-font-scale: 0.8
+    editor-font-scale: 0.7
     dpi: 216
     fig-width: 7
     fig-height: 4.5
@@ -61,7 +64,7 @@ data <- dplyr::mutate(kielmc, rprice = rprice / 1000)
 ### What is it?
 
 <details class="transcript">
-<summary>Lecturer transcript</summary>
+<summary>Transcript</summary>
 
 Impact evaluation asks what a program or event caused, not merely what happened after it. The causal challenge is the missing counterfactual: for a treated unit, we do not observe what its outcome would have been at the same time without treatment. Most real programs are not randomly assigned, so participants can differ systematically from nonparticipants. Difference-in-differences is one design for constructing a credible comparison when treatment begins for one group but not another.
 
@@ -93,7 +96,7 @@ Endogeneity problem arising from self-selection into the program.
 ### Gold standard 
 
 <details class="transcript">
-<summary>Lecturer transcript</summary>
+<summary>Transcript</summary>
 
 Random assignment is the benchmark because it makes treatment independent of potential outcomes in expectation. Treated and control groups can still differ by chance in a particular sample, but assignment does not systematically favor one type. In the simple equation, this supports the zero-conditional-mean condition and lets the treatment indicator identify an average causal effect. Many policies cannot be randomized, so observational designs try to find variation that mimics the relevant part of an experiment.
 
@@ -127,7 +130,7 @@ We need to use data from an event that happened outside our control.
 ### Natural (Quasi) Experiment
 
 <details class="transcript">
-<summary>Lecturer transcript</summary>
+<summary>Transcript</summary>
 
 A natural experiment is not automatically random. It is an external event or institutional rule that changes treatment exposure, and the researcher must explain why the resulting variation is plausibly unrelated to untreated potential outcomes. The assignment mechanism, timing, affected population, and possible spillovers all matter. DID often studies policy changes of this kind by comparing an exposed group with an unexposed group before and after the event.
 
@@ -155,7 +158,7 @@ Treatment is not assigned by the researcher, so its source of variation must be 
 ### Lecture objectives
 
 <details class="transcript">
-<summary>Lecturer transcript</summary>
+<summary>Transcript</summary>
 
 We will compare three estimators of the same incinerator effect. The exercise is deliberately structured so each approach removes a different source of confounding. A post-treatment cross-section leaves baseline group differences and differential trends. A before-after comparison leaves common time changes. DID subtracts both, but it still depends on the treated and control groups having parallel untreated changes. The algebra will make each identifying assumption visible.
 
@@ -168,7 +171,7 @@ We will compare three estimators of the same incinerator effect. The exercise is
 ### Example program
 
 <details class="transcript">
-<summary>Lecturer transcript</summary>
+<summary>Transcript</summary>
 
 The proposed incinerator creates a location-based treatment. Houses near the site are exposed; houses farther away form a potential control group. We observe prices in 1978, when rumors existed but construction had not begun, and in 1981, when construction began. That timing raises questions about anticipation: if rumors already affected prices in 1978, calling it an untreated baseline is imperfect. For the classroom design, we use these years to compare the three estimators.
 
@@ -189,7 +192,7 @@ Housing prices and other characteristics in 1978 and 1981 provide observations b
 ### Data
 
 <details class="transcript inline">
-<summary>Lecturer transcript</summary>
+<summary>Transcript</summary>
 
 The `kielmc` data contain house prices, location relative to the incinerator, year indicators, and housing characteristics. Real price is rescaled into thousands of dollars so coefficients are easier to read. Check how `nearinc` and `y81` are coded: their interaction will identify the DID estimate. This is a repeated-cross-section application—houses observed in 1978 need not be the identical houses observed in 1981.
 
@@ -212,7 +215,7 @@ data <-
 ### Various approaches to evaluate
 
 <details class="transcript">
-<summary>Lecturer transcript</summary>
+<summary>Transcript</summary>
 
 Approach one compares treated and control houses only after construction began. Approach two compares the treated area before and after. Approach three combines both comparisons. Each sounds reasonable in words, but each uses a different counterfactual. As we proceed, identify what would have happened to nearby-house prices without the incinerator and which observed quantity each approach uses as a substitute for that missing outcome.
 
@@ -241,7 +244,7 @@ Compare the before–after change for nearby houses with the before–after chan
 ### Estimation strategy
 
 <details class="transcript">
-<summary>Lecturer transcript</summary>
+<summary>Transcript</summary>
 
 The first strategy uses only the 1981 cross-section and compares houses near the site with those farther away. Delta one is a mean difference after construction began. For it to be causal, `nearinc` must be unrelated to every other determinant of price in 1981. That is demanding because neighborhoods differ in amenities, housing stock, access, and pre-existing desirability. Location is not randomly assigned, so we should expect `nearinc` to be endogenous without strong controls or design evidence.
 
@@ -265,7 +268,7 @@ Is `nearinc` endogenous?
 ### Interpretation
 
 <details class="transcript">
-<summary>Lecturer transcript</summary>
+<summary>Transcript</summary>
 
 With a binary regressor and an intercept, delta zero is the mean for the far group and delta zero plus delta one is the mean for the near group. Subtracting gives delta one. This is a descriptive identity; it does not attach a causal label to the difference. The estimate includes any pre-existing price gap, any difference in price changes between locations, and the incinerator effect. Interpretation of the regression coefficient and identification of a causal effect are separate steps.
 
@@ -308,7 +311,7 @@ This means:
 ### Estimate
 
 <details class="transcript inline">
-<summary>Lecturer transcript</summary>
+<summary>Transcript</summary>
 
 The 1981 regression estimates the post-period gap directly. The coefficient on `nearinc` is the average real-price difference in thousands of dollars. Before deciding whether it represents harm from the incinerator, look at the pre-period. If nearby houses were already cheaper in 1978, the post-period gap cannot be attributed entirely to construction. Statistical significance does not repair that comparison problem.
 
@@ -333,7 +336,7 @@ Is this reliable?
 ### Take a look at 1978 
 
 <details class="transcript inline">
-<summary>Lecturer transcript</summary>
+<summary>Transcript</summary>
 
 The 1978 regression reveals a substantial near-far price difference before construction began. That baseline gap could reflect neighborhood characteristics or anticipation caused by the earlier rumors. Either way, it shows why the 1981 cross-section is not a clean counterfactual comparison. A valid post-only design would require treated and control locations to have been comparable in untreated levels and changes, conditions the data already make doubtful.
 
@@ -380,7 +383,7 @@ Prices of houses near the incinerator site were already lower than prices of hou
 ### Visualization
 
 <details class="transcript inline">
-<summary>Lecturer transcript</summary>
+<summary>Transcript</summary>
 
 The bars display the four group-time means that underlie every estimator in this section. First compare near with far within 1981: that is Approach one. Then compare the same groups in 1978 and note the pre-existing level gap. Finally compare how each group's bar changes across years; DID will subtract those changes. Reading the four means visually is often the fastest way to detect what a two-by-two regression is doing.
 
@@ -413,7 +416,7 @@ ggplot() +
 ### Understanding the approach
 
 <details class="transcript">
-<summary>Lecturer transcript</summary>
+<summary>Transcript</summary>
 
 The notation decomposes each observed mean. Gamma zero and gamma one are baseline means for far and near houses. Alpha zero and alpha one are the changes each group would experience from all causes other than treatment. Beta is the causal incinerator effect on the treated group. Approach one subtracts the two post-period means, leaving the baseline gap, the difference in untreated changes, and beta. It identifies beta only if both nuisance differences are zero—far stronger than merely having an untreated comparison group.
 
@@ -508,7 +511,7 @@ Under what sufficient conditions would Approach 1 identify the incinerator's eff
 ### Estimation strategy
 
 <details class="transcript">
-<summary>Lecturer transcript</summary>
+<summary>Transcript</summary>
 
 Approach two keeps only nearby houses and compares their average price before and after construction began. This removes any fixed level difference between the near and far locations because the far group is not used at all. But every other change between 1978 and 1981 remains: inflation-adjusted market conditions, interest rates, local development, and composition changes. The before-after coefficient is causal only if nearby prices would have stayed constant without the incinerator.
 
@@ -537,7 +540,7 @@ $rprice=\beta_0+\beta_1y81+u$
 ### Interpretation
 
 <details class="transcript">
-<summary>Lecturer transcript</summary>
+<summary>Transcript</summary>
 
 Within the nearby sample, beta zero is the 1978 mean and beta one is the change from 1978 to 1981. Again, that coefficient is a descriptive before-after difference. It combines the incinerator effect with every untreated time change affecting nearby houses. The fact that construction lies between the two dates does not imply that construction caused the entire difference; post hoc timing is not an identification strategy.
 
@@ -582,7 +585,7 @@ This means:
 ### Estimate
 
 <details class="transcript inline">
-<summary>Lecturer transcript</summary>
+<summary>Transcript</summary>
 
 The regression shows that nearby-house prices rose on average, though the change is not statistically significant. A harmful incinerator and a rising regional housing market can easily produce a positive net change. Conversely, a declining market can make a harmless event look damaging. The coefficient estimates alpha one plus beta, so without a control group's change we cannot separate the treatment effect from the counterfactual trend.
 
@@ -606,7 +609,7 @@ The average price of nearby houses increased between 1978 and 1981, but the esti
 ### Understanding the approach
 
 <details class="transcript">
-<summary>Lecturer transcript</summary>
+<summary>Transcript</summary>
 
 Subtract the treated group's baseline mean from its post mean. Gamma one cancels, leaving alpha one plus beta. Approach two therefore tolerates any fixed price level for nearby houses but assumes their untreated change alpha one is zero. That condition is usually implausible for an outcome such as housing price that changes over time. DID improves the comparison by using the control group's observed change as an estimate of alpha one.
 
@@ -667,7 +670,7 @@ $\alpha_1=0$: absent the incinerator, the average price of nearby houses would n
 ### Estimation strategy
 
 <details class="transcript">
-<summary>Lecturer transcript</summary>
+<summary>Transcript</summary>
 
 DID compares changes rather than levels. First calculate the near group's before-after change, which contains the treatment effect plus its untreated change. Then calculate the far group's change, which estimates the common untreated movement. Subtracting removes that common change. In the regression, the post indicator captures the control group's time change, the treated indicator captures the baseline group gap, and their interaction beta three is the difference in changes.
 
@@ -700,7 +703,7 @@ $rprice=\beta_0+\beta_1y81+\beta_2nearinc+\beta_3(nearinc\times y81)+u$
 ### DID
 
 <details class="transcript">
-<summary>Lecturer transcript</summary>
+<summary>Transcript</summary>
 
 Evaluate the regression equation for each of the four combinations of group and time. For the treated group after treatment, all four terms appear. For treated before, only the intercept and treated main effect appear. Their difference is beta one plus beta three. The control group's before-after difference is beta one. Subtracting the control change from the treated change leaves beta three. This algebra explains why both main effects must accompany the interaction in the basic two-by-two model.
 
@@ -755,7 +758,7 @@ $(\beta_1 + \beta_3) - \beta_1 = \beta_3$
 ### Estimate
 
 <details class="transcript inline">
-<summary>Lecturer transcript</summary>
+<summary>Transcript</summary>
 
 The interaction `nearinc:y81` is the DID estimate. Its negative point estimate says nearby prices changed less favorably than far prices between 1978 and 1981, but the estimate is not statistically distinguishable from zero at conventional levels. More importantly, causal interpretation requires parallel untreated trends and the other design assumptions. Heteroskedasticity-robust standard errors address variance misspecification, not a bad counterfactual.
 
@@ -777,7 +780,7 @@ The DID point estimate is negative, but it is not statistically significant. It 
 ### Understanding the approach
 
 <details class="transcript inline">
-<summary>Lecturer transcript</summary>
+<summary>Transcript</summary>
 
 Using the mean decomposition, the treated change is alpha one plus beta and the control change is alpha zero. Their difference is beta plus alpha one minus alpha zero. Fixed baseline differences gamma one minus gamma zero have disappeared, and common time shocks disappear when alpha one equals alpha zero. DID identifies beta precisely under that equality. It does not require the groups to start at the same outcome level, only to have the same untreated change over the comparison period.
 
@@ -826,7 +829,7 @@ Under what condition would Approach 3 identify the incinerator's effect?
 ### Parallel trends
 
 <details class="transcript">
-<summary>Lecturer transcript</summary>
+<summary>Transcript</summary>
 
 Parallel trends is a statement about an unobserved counterfactual: without construction, nearby-house prices would have changed by the same amount as far-house prices. It is not a statement that observed post-treatment trends are parallel, because treatment may cause them to diverge. We can examine multiple pre-periods for evidence against the assumption and investigate other differential events, but we can never observe the treated group's untreated post outcome. Credibility therefore rests on design knowledge plus diagnostic evidence.
 
@@ -853,7 +856,7 @@ This assumption is <span style = "color: red;">not directly testable</span> beca
 ## Summary of the approaches
 
 <details class="transcript">
-<summary>Lecturer transcript</summary>
+<summary>Transcript</summary>
 
 The formulas summarize what each estimator leaves behind. The post-only comparison contains baseline differences and differential untreated changes. The treated before-after comparison contains the treated group's untreated change. DID removes baseline differences and common time shocks but retains any difference in untreated trends. If the treated group would rise by five while the control would fall by five, DID carries a ten-unit bias even without treatment. The method is attractive because its assumption can be more plausible, not because it is assumption-free.
 
@@ -890,7 +893,7 @@ e.g., $\alpha_1 = 5$ and $\alpha_0 = - 5$
 ### Context
 
 <details class="transcript">
-<summary>Lecturer transcript</summary>
+<summary>Transcript</summary>
 
 John Snow's setting supplies a historical natural experiment. Competing water companies served nearby London households, but their intake locations changed differently between cholera epidemics. Lambeth moved upstream of major sewage contamination before 1854, while Southwark and Vauxhall remained downstream. The policy-like change is access to cleaner water. The design compares mortality changes for areas with Lambeth access against changes for areas served only by the downstream companies.
 
@@ -918,7 +921,7 @@ John Snow's setting supplies a historical natural experiment. Competing water co
 ### Control/treatment
 
 <details class="transcript">
-<summary>Lecturer transcript</summary>
+<summary>Transcript</summary>
 
 Treatment is defined by supplier exposure after Lambeth moved its intake. The 1849 epidemic provides the before period, when Lambeth still drew downstream; 1854 is the after period. Districts served only by Southwark and Vauxhall form the control group, while districts with Lambeth access form the treated group. For a causal interpretation, absent the intake move, mortality in the two groups must have changed similarly, and households' supplier composition must not have shifted selectively in ways related to cholera risk.
 
@@ -945,7 +948,7 @@ Treatment is defined by supplier exposure after Lambeth moved its intake. The 18
 ### DID estimate
 
 <details class="transcript inline">
-<summary>Lecturer transcript</summary>
+<summary>Transcript</summary>
 
 Mortality rises by 11.7 deaths per 10,000 in the control group and falls by 45.2 in the Lambeth-access group. Subtracting gives negative 56.9. Under parallel trends and the remaining assumptions, cleaner water reduced cholera mortality by about 56.9 deaths per 10,000. The calculation is simple, but the credibility comes from the supply arrangement and intake change. Always pair a DID number with the institutional story that makes the control trend a plausible counterfactual.
 
@@ -983,7 +986,7 @@ Under parallel trends and the other DID assumptions, access to Lambeth's cleaner
 ### Data
 
 <details class="transcript inline">
-<summary>Lecturer transcript</summary>
+<summary>Transcript</summary>
 
 The Kansas application follows groundwater wells over time. A row is a well-year, `af_used` is pumping in acre-feet, `site` identifies the well, and `in_LEMA` identifies wells inside the policy region. Precipitation and reference evapotranspiration are weather controls. Because the same wells recur, we can add well fixed effects and cluster errors by well, but the policy is assigned to one geographic region, which creates additional spatial-inference concerns.
 
@@ -1009,7 +1012,7 @@ The Kansas application follows groundwater wells over time. A row is a well-year
 ### Treatment and control groups
 
 <details class="transcript inline">
-<summary>Lecturer transcript</summary>
+<summary>Transcript</summary>
 
 The map defines treatment spatially. Wells inside the red LEMA boundary become subject to an allocation beginning in 2013; nearby wells outside form the comparison group. This makes spillovers and spatial differences central design questions. Pumping restrictions could affect neighboring groundwater conditions, and farms inside and outside the boundary may face different trends. The before period ends in 2012, and the post period begins in 2013.
 
@@ -1045,7 +1048,7 @@ Beginning in 2013, groundwater pumping by wells inside the LEMA became subject t
 ### Prepare variables for DID
 
 <details class="transcript inline">
-<summary>Lecturer transcript</summary>
+<summary>Transcript</summary>
 
 Create a post indicator equal to one from 2013 onward. Treatment-group membership is already stored in `in_LEMA`. Their product equals one only for LEMA wells in post-policy years and is the DID treatment variable. Inspecting one well confirms that the post indicator switches at the intended date. Also verify that group membership is stable and that no coding or missing-data change coincides with treatment.
 
@@ -1077,7 +1080,7 @@ Treatment-group membership is represented by `in_LEMA`.
 ### Estimation
 
 <details class="transcript">
-<summary>Lecturer transcript</summary>
+<summary>Transcript</summary>
 
 The basic equation includes post, treated, their interaction, and time-varying weather controls. Beta three is the additional post-period change for treated wells relative to controls. The regression uses clustered standard errors by site to allow within-well serial correlation. A causal interpretation requires parallel untreated pumping trends conditional on the controls, no anticipation, no spillovers that contaminate controls, and no treatment-induced change in the observed sample.
 
@@ -1108,7 +1111,7 @@ fixest::feols(
 ### Individual FEs
 
 <details class="transcript">
-<summary>Lecturer transcript</summary>
+<summary>Transcript</summary>
 
 Site fixed effects absorb every characteristic of a well that is constant over time: location, soil, depth, and stable operator traits. Because `in_LEMA` never changes for a well, its main effect is perfectly absorbed and is omitted. The interaction remains because it changes at 2013 only for treated wells. DID can be estimated with repeated cross-sections, but a panel permits this stronger control for stable unit heterogeneity.
 
@@ -1130,7 +1133,7 @@ The time-invariant `in_LEMA` main effect is absorbed by the site fixed effects, 
 ### Year FEs
 
 <details class="transcript">
-<summary>Lecturer transcript</summary>
+<summary>Transcript</summary>
 
 Adding year effects absorbs any shock shared by all wells in a year, so the post main effect is also redundant. The interaction remains the policy coefficient, estimated after removing well averages, common year shocks, and weather controls. Site clustering handles arbitrary correlation over time within a well. It does not solve spatial dependence among wells or the fact that treatment occurs in only one region, so conventional p-values may overstate how much independent policy variation the study contains.
 
@@ -1161,7 +1164,7 @@ Clustering by `site` allows serial correlation within a well. It does not addres
 ### Parallel-trends condition
 
 <details class="transcript">
-<summary>Lecturer transcript</summary>
+<summary>Transcript</summary>
 
 Parallel trends becomes more credible through a collection of evidence, not a single test. Choose controls that face similar outcome determinants, rule out group-specific events at treatment, and inspect multiple pre-period trajectories. Similar pre-trends can reveal obvious violations but cannot establish the unobserved post-treatment counterfactual. Also investigate anticipation, spillovers into controls, and compositional changes. Event-study leads and placebo estimates should be interpreted jointly with confidence intervals rather than as a hunt for insignificant p-values.
 
@@ -1271,7 +1274,7 @@ p2 <- ggplot(tb, aes(x = Time, y = YDiv, color = Group)) +
 #### Example 1
 
 <details class="transcript inline">
-<summary>Lecturer transcript</summary>
+<summary>Transcript</summary>
 
 In the first simulated graph, treated and control outcomes move with roughly the same slope before treatment even though their levels differ. Different levels are allowed in DID because group fixed effects absorb them. After the treatment line, the treated series separates. This is the visual pattern most compatible with the basic parallel-trends story, though sampling noise and a short pre-period still leave uncertainty.
 
@@ -1284,7 +1287,7 @@ p1
 #### Example 2
 
 <details class="transcript inline">
-<summary>Lecturer transcript</summary>
+<summary>Transcript</summary>
 
 In the second graph, the groups are already converging before treatment. Extending those distinct trends into the post period would produce a difference in changes even if treatment had no effect. A basic DID that assumes equal untreated changes is therefore questionable. Possible responses include choosing a better control group, modeling a defensible trend structure, changing the window, or using another design—but not ignoring the visible pre-treatment divergence.
 
@@ -1301,7 +1304,7 @@ p2
 ### The LEMA case
 
 <details class="transcript inline">
-<summary>Lecturer transcript</summary>
+<summary>Transcript</summary>
 
 Plot average pumping for LEMA and control wells over all available years, with the vertical line marking treatment. The early years show notable differences in movement, while later pre-period patterns may appear more comparable. The correct response is not to select a window solely because it looks favorable. Explain why a chosen period is substantively comparable, report sensitivity to alternative windows, and remember that averages can hide heterogeneous well-level changes and spatial shocks.
 
@@ -1349,7 +1352,7 @@ The series provide a visual diagnostic. The earliest years appear less comparabl
 ### Placebo tests
 
 <details class="transcript">
-<summary>Lecturer transcript</summary>
+<summary>Transcript</summary>
 
 A pre-treatment placebo pretends the policy began earlier and estimates the same treated-by-post comparison using only untreated observations. A nonzero placebo can reveal differential trends or another group-specific shock, weakening the design. An insignificant placebo does not prove parallel trends: the test may lack power, and trying many dates raises multiple-testing concerns. Report the estimates and intervals for a planned set of placebo dates and interpret them with the trajectory plot.
 
@@ -1370,7 +1373,7 @@ An insignificant placebo estimate is not proof of parallel trends: the test may 
 ### 2000
 
 <details class="transcript inline">
-<summary>Lecturer transcript</summary>
+<summary>Transcript</summary>
 
 Restrict the data to years before the actual 2013 policy, then assign a fake post period beginning in 2000 for the true treatment group. Site and year fixed effects preserve the same comparison structure as the main model. The interaction should be near zero if treated and control wells were evolving similarly around this placebo date, subject to sampling uncertainty. Weather controls and site clustering are kept consistent with the main specification.
 
@@ -1402,7 +1405,7 @@ Estimate the impact of the fake treatment variable:
 ### 1995
 
 <details class="transcript inline">
-<summary>Lecturer transcript</summary>
+<summary>Transcript</summary>
 
 Repeat the placebo exercise with 1995 as the fake treatment date. Different placebo dates examine different portions of the pre-period and need not give identical answers. Looking across estimates and confidence intervals is more informative than declaring each one pass or fail. If results depend sharply on the pre-period chosen, that instability should be part of the substantive assessment of the 2013 design.
 
@@ -1437,7 +1440,7 @@ You can try additional placebo treatment dates and examine the resulting estimat
 ### What if
 
 <details class="transcript inline">
-<summary>Lecturer transcript</summary>
+<summary>Transcript</summary>
 
 This final placebo uses the earliest part of the sample and a fake 1993 treatment date. A statistically significant interaction warns that the groups changed differently even before the real policy, or that some other differential event occurred. It does not quantify the bias in the actual 2013 coefficient and should not be subtracted from it. Instead, it demonstrates that a correctly coded DID regression can still rest on an implausible counterfactual. Design evidence remains the decisive ingredient.
 
@@ -1488,7 +1491,7 @@ msummary(
 ### The setting we have assumed
 
 <details class="transcript">
-<summary>Lecturer transcript</summary>
+<summary>Transcript</summary>
 
 Everything in this lecture assumed a single treatment date. All treated units switched on at the same moment, so there was exactly one before period and one after period, and the two-way fixed-effects regression recovered the comparison we drew on the slides. Many policies are not adopted that way. States pass a law in different years, counties join a program on a rolling basis, and firms adopt a technology over a decade. In that staggered setting the same regression no longer estimates what most people assume it does, and that is the point of this final section.
 
@@ -1508,7 +1511,7 @@ estimates exactly the difference-in-differences we drew on the slides.
 ### Staggered adoption
 
 <details class="transcript">
-<summary>Lecturer transcript</summary>
+<summary>Transcript</summary>
 
 Now suppose units are treated at different times. The regression looks identical, and software will happily report a single coefficient. But with staggered timing, that coefficient is a weighted average of many two-by-two comparisons, and some of those comparisons use already-treated units as the control group. When treatment effects change over time, borrowing an already-treated unit as a control subtracts part of the treatment effect itself. The weights can even be negative, so the reported coefficient can fall outside the range of every underlying effect, and can be negative when every unit's true effect is positive.
 
@@ -1531,7 +1534,7 @@ The single TWFE coefficient can then lie outside the range of every unit's true 
 ### What to do
 
 <details class="transcript">
-<summary>Lecturer transcript</summary>
+<summary>Transcript</summary>
 
 The first step is diagnostic: state whether your adoption timing is common or staggered. If it is common, the estimators in this lecture are appropriate and no special machinery is needed. If it is staggered, use one of the heterogeneity-robust estimators developed in the recent literature. They build the comparison explicitly from not-yet-treated units, report effects by cohort and by event time, and then aggregate with sensible weights. In R, the fixest package implements the Sun and Abraham correction directly, and the did package implements Callaway and Sant'Anna. You are not expected to derive these, but you are expected to recognize when your design needs them.
 

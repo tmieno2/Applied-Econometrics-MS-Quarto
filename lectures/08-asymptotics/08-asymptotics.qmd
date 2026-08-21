@@ -2,7 +2,9 @@
 title: "08: OLS Asymptotics"
 format: 
   revealjs: 
-    html-math-method: katex
+    html-math-method:
+      method: katex
+      url: "https://cdn.jsdelivr.net/npm/katex@0.18.4/dist/"
     theme: [default, ../custom.scss, ../notebook.scss]
     fontsize: 1.2em
     callout-icon: false
@@ -13,6 +15,7 @@ format:
     include-in-header:
       - ../transcript-support.html
       - ../webr-layout.html
+      - ../katex-amd-fix.html
     footer: "[back to course website with lecture slides](https://tmieno2.github.io/Applied-Econometrics-MS-Quarto/lectures/)"
 execute:
   echo: true
@@ -20,7 +23,7 @@ execute:
 webr:
   packages: ['fixest', 'dplyr', 'data.table', 'ggplot2']
   cell-options:
-    editor-font-scale: 0.8
+    editor-font-scale: 0.7
     dpi: 216
     fig-width: 7
     fig-height: 4.5
@@ -33,7 +36,7 @@ filters:
 ## OLS Asymptotics
 
 <details class="transcript">
-<summary>Lecturer transcript</summary>
+<summary>Transcript</summary>
 
 This lecture changes the question we ask about OLS. Everything so far has been a finite-sample statement: under the Gauss-Markov assumptions the estimator is unbiased and efficient at any sample size, however small. Asymptotic properties ask something different, namely what happens as the sample grows without bound. That may sound like a purely theoretical exercise, but it is the practical foundation for most applied work, because it is what lets us do inference when the normality assumption fails. Two results matter here: consistency, which concerns where the estimator settles, and asymptotic normality, which concerns the shape of its distribution.
 
@@ -74,7 +77,7 @@ These are finite-sample properties: when their assumptions hold, they apply <spa
 ### Definition
 
 <details class="transcript">
-<summary>Lecturer transcript</summary>
+<summary>Transcript</summary>
 
 Consistency is a statement about a sequence of estimators indexed by sample size. Fix any tolerance epsilon, however small. Consistency says the probability that the estimate lands within epsilon of the truth approaches one as n grows. Note what it does not say. It does not promise the estimator is unbiased at any particular n, and it does not promise that the estimate you have in hand is close to the truth. Unbiasedness and consistency are logically distinct: an estimator can be unbiased at every n yet inconsistent, and biased at every n yet consistent.
 
@@ -100,7 +103,7 @@ We write $\widehat{\theta}_n\overset{p}{\longrightarrow}\theta$.
 #### Setup
 
 <details class="transcript">
-<summary>Lecturer transcript</summary>
+<summary>Transcript</summary>
 
 The simulation setup is deliberately minimal: one regressor, an intercept, and an error that satisfies the zero conditional mean assumption by construction. Because we generate the data ourselves, we know the true beta one is exactly one, and that is the whole advantage of a Monte Carlo experiment. In real data you never see the truth, so you can never check whether your estimator landed near it. Here we can, and we can watch what changes as the sample size grows.
 
@@ -113,7 +116,7 @@ $$y_i = \beta_0 + \beta_1 x_i + u_i$$
 #### Conceptual steps (Pseudo Code)
 
 <details class="transcript">
-<summary>Lecturer transcript</summary>
+<summary>Transcript</summary>
 
 The pseudo-code is worth reading before the R code. We draw a sample, estimate, and store one coefficient; then we repeat a thousand times to trace out the sampling distribution; and then we do the whole thing again at three different sample sizes. That last step is the one that reveals consistency. A single sampling distribution tells you nothing about limiting behavior. You need to see how the distribution changes as n grows.
 
@@ -131,7 +134,7 @@ As $N$ gets larger, the distribution of $\widehat{\beta}_1$ becomes more tightly
 #### R code
 
 <details class="transcript">
-<summary>Lecturer transcript</summary>
+<summary>Transcript</summary>
 
 The nested loops implement exactly that. The outer loop walks through the sample sizes and the inner loop runs the thousand replications at each one. Note that we regenerate x and u inside the inner loop, so every replication is a genuinely fresh sample rather than a resampling of one dataset. The storage matrix has one column per sample size, which is the shape the plotting code on the next tab expects.
 
@@ -184,6 +187,7 @@ theme_lecture <- lecture_theme(18 * webr_scale) +
     line = ggplot2::element_line(linewidth = 18 / 22),
     rect = ggplot2::element_rect(linewidth = 18 / 22)
   )
+ggplot2::theme_set(theme_lecture)
 ```
 
 ```{webr-r}
@@ -214,7 +218,7 @@ for (j in 1:N_len) {
 #### Results
 
 <details class="transcript inline">
-<summary>Lecturer transcript</summary>
+<summary>Transcript</summary>
 
 Three densities, one per sample size, all centered on the true value of one. What changes is the spread: it tightens as n grows, and it keeps tightening without limit. You can read consistency directly off this picture. Pick any interval around one, however narrow, and the share of the distribution inside it approaches one as the sample grows. Notice also that unbiasedness alone would have given us three densities centered at one with no requirement that they narrow. Consistency is the extra statement about collapsing.
 
@@ -255,7 +259,7 @@ Under $MLR.1$ through $MLR.4$, OLS estimators are consistent.
 #### Conceptual steps (Pseudo Code)
 
 <details class="transcript">
-<summary>Lecturer transcript</summary>
+<summary>Transcript</summary>
 
 Now we break the key assumption on purpose and ask whether more data can rescue us. The question on this slide is one students often get wrong, because a good deal of informal advice suggests that large samples cure most problems. They do not cure this one. Commit to an answer before running the code, then check it against the picture.
 
@@ -275,7 +279,7 @@ Does the bias disappear as $N$ gets larger?
 #### R code
 
 <details class="transcript">
-<summary>Lecturer transcript</summary>
+<summary>Transcript</summary>
 
 The mechanism is the shared component mu, which enters both x and u. That is what makes x endogenous: it carries information about the error term. Everything else about the simulation is unchanged from the consistent case. Because we built the correlation ourselves, we can compute exactly what the estimator converges to, which is what the results tab reports.
 
@@ -310,7 +314,7 @@ for (j in 1:N_len) {
 #### Results
 
 <details class="transcript inline">
-<summary>Lecturer transcript</summary>
+<summary>Transcript</summary>
 
 The distributions narrow just as before, but they narrow around one point two rather than around one. The dashed line is the truth and the solid line is the probability limit, which works out to one plus the covariance of x and u over the variance of x, or one plus zero point two five over one point two five. This is the central lesson of the section: more data buys precision, not correctness. A large sample gives you a very tight confidence interval around the wrong number.
 
@@ -365,7 +369,7 @@ As $N$ grows, the sampling distribution becomes narrower around 1.2—not around
 ### Normality assumption
 
 <details class="transcript">
-<summary>Lecturer transcript</summary>
+<summary>Transcript</summary>
 
 Recall where MLR.6 was actually used. It was not needed for unbiasedness, and it was not needed for the Gauss-Markov theorem. It was needed to claim that the t-statistic follows an exact t distribution in a finite sample. Normality of the error is a strong assumption, and for outcomes such as wages or firm sales it is plainly false. So the question is whether inference survives without it. The answer is yes, asymptotically, and the central limit theorem is what delivers that.
 
@@ -398,7 +402,7 @@ Under the assumptions developed below, suitably standardized OLS estimators are 
 ### Central Limit Theorem (CLT)
 
 <details class="transcript">
-<summary>Lecturer transcript</summary>
+<summary>Transcript</summary>
 
 The central limit theorem says a suitably standardized sample mean converges in distribution to a normal, whatever the distribution of the underlying draws, provided the variance is finite. Both operations in the standardization matter. Centering at mu removes the location, and multiplying by root n counteracts the fact that the sample mean's variance shrinks at rate one over n. Without the root n scaling, the distribution would simply collapse to a point and there would be no shape left to describe.
 
@@ -423,7 +427,7 @@ After centering the sample mean at $\mu$ and scaling it by $\sqrt{n}$, its distr
 #### Example
 
 <details class="transcript">
-<summary>Lecturer transcript</summary>
+<summary>Transcript</summary>
 
 Bernoulli draws make the point vividly, because nothing could look less normal than a variable taking only the values zero and one. The mean is p and the variance is p times one minus p, which is zero point two one here. Run the small cell to see ten draws and the transformed sample mean for a single replication. One number tells you nothing; the demonstration on the next tab repeats it five thousand times.
 
@@ -477,7 +481,7 @@ $\sqrt{n}\left(\frac{1}{n} \sum_{i=1}^n x_i-0.3\right)\overset{d}{\longrightarro
 #### Demonstration
 
 <details class="transcript inline">
-<summary>Lecturer transcript</summary>
+<summary>Transcript</summary>
 
 Move the sample size slider and watch the histogram. At very small N the transformed mean takes only a handful of discrete values and looks nothing like the red normal curve. As N grows, the gaps fill in and the histogram settles onto the limiting density. Notice that the limiting variance never changes with N; it stays fixed at zero point two one. Convergence here is about the shape of the distribution, not about it becoming narrower.
 
@@ -559,7 +563,7 @@ shinyApp(ui = ui, server = server)
 #### Asymptotic normality
 
 <details class="transcript">
-<summary>Lecturer transcript</summary>
+<summary>Transcript</summary>
 
 Here is the result applied to OLS. The scaled and centered estimator converges in distribution to a normal whose variance involves sigma squared over a term built from the part of x j that is unrelated to the other regressors. That residual variation term should look familiar: it is the same quantity that governs multicollinearity, which is why a regressor well explained by the others is estimated imprecisely. Crucially, MLR.6 appears nowhere in this result. Normality of the error has been replaced by a limiting argument.
 
@@ -588,7 +592,7 @@ $\widehat{\sigma}^2\equiv \frac{1}{n-k-1}\sum_{i=1}^n \widehat{u}_i^2$ is a cons
 #### Test statistic (small vs. large sample)
 
 <details class="transcript">
-<summary>Lecturer transcript</summary>
+<summary>Transcript</summary>
 
 This slide is worth memorizing as a pair. In the top block, with the normality assumption, both statements are exact and hold at any sample size, and the second uses the t distribution because we had to estimate sigma. In the bottom block, without normality, both statements are limiting approximations and the t distribution has been replaced by the standard normal. The same formulas, but a different justification and a different scope.
 
@@ -625,7 +629,7 @@ Under $MLR.1$ through $MLR.5$ <span style = "color: blue;">without</span> $MLR.6
 ### How?
 
 <details class="transcript">
-<summary>Lecturer transcript</summary>
+<summary>Transcript</summary>
 
 The practical procedure is unchanged: form the t-statistic exactly as before and compare it with a critical value. What has changed is where the critical value comes from in principle. Asymptotic theory calls for a standard normal, whereas the finite-sample theory called for a t. The natural question is whether that difference matters in practice, and the next tab answers it.
 
@@ -648,7 +652,7 @@ Shouldn't we use $N(0,1)$ to find the critical value?
 ### t-distribution and normal distribution
 
 <details class="transcript inline">
-<summary>Lecturer transcript</summary>
+<summary>Transcript</summary>
 
 The figure answers it. At two degrees of freedom the t distribution has visibly fatter tails than the normal, but by thirty degrees of freedom the curves are nearly indistinguishable, and by fifty you cannot separate them by eye. So in any sample large enough for the asymptotic argument to be credible, the t critical value your software prints is effectively the normal one. In practice you simply read the p-values the software gives you.
 
@@ -689,7 +693,7 @@ The asymptotic theory calls for a standard-normal critical value. Because $t_{n-
 ### Heteroskedastic errors
 
 <details class="transcript">
-<summary>Lecturer transcript</summary>
+<summary>Transcript</summary>
 
 One warning to close on. Asymptotics rescues you from the normality assumption, but not from the homoskedasticity assumption. The default variance estimator is built on MLR.5, and if the errors are heteroskedastic that estimator stays inconsistent no matter how much data you collect. This is not a small-sample problem that fades away; it is the wrong formula. So use heteroskedasticity-robust standard errors as your default, and cluster them when observations are dependent within groups.
 

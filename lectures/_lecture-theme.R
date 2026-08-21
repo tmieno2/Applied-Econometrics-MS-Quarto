@@ -62,3 +62,11 @@ lecture_theme <- function(base_size = 16) {
 # The default, for figures on the shared canvas. A figure on its own canvas
 # calls lecture_theme(<base>) instead — see the sizing note above.
 theme_lecture <- lecture_theme()
+
+# Sourcing this file also makes the theme the default for every plot in the
+# deck, so a plot that names no theme is already on it and no deck has to
+# repeat theme_set() in its setup chunk. A plot that names a theme explicitly
+# still wins, which is what the ggplot chapter of Data Science with R relies on
+# when it shows theme_economist(), theme_stata() and friends, and what a
+# diagram drawn with theme_void() relies on.
+ggplot2::theme_set(theme_lecture)

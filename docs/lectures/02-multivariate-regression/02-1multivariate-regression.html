@@ -94,8 +94,8 @@
     code span.vs { color: #20794d; } /* VerbatimString */
     code span.wa { color: #5e5e5e; font-style: italic; } /* Warning */
   </style>
-  <link rel="stylesheet" href="../../site_libs/revealjs/dist/theme/quarto-ae2d755d4d34da603f33a3001b8a52fa.css">
-  <script>window.backupDefine = window.define; window.define = undefined;</script><script src="https://cdn.jsdelivr.net/npm/katex@latest/dist/katex.min.js"></script>
+  <link rel="stylesheet" href="../../site_libs/revealjs/dist/theme/quarto-bf1223c773699056cca1ada9baf1738b.css">
+  <script defer="" src="https://cdn.jsdelivr.net/npm/katex@0.18.4/dist/katex.min.js"></script>
   <script>document.addEventListener("DOMContentLoaded", function () {
  var mathElements = document.getElementsByClassName("math");
  var macros = [];
@@ -110,7 +110,7 @@
    });
 }}});
   </script>
-  <script>window.define = window.backupDefine; window.backupDefine = undefined;</script><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@latest/dist/katex.min.css">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.18.4/dist/katex.min.css">
   <link href="../../site_libs/revealjs/plugin/quarto-line-highlight/line-highlight.css" rel="stylesheet">
   <link href="../../site_libs/revealjs/plugin/reveal-menu/menu.css" rel="stylesheet">
   <link href="../../site_libs/revealjs/plugin/reveal-menu/quarto-menu.css" rel="stylesheet">
@@ -204,7 +204,7 @@
     }
   </style>
   <!--
-    Support for collapsible "Lecturer transcript" panels in revealjs decks.
+    Support for collapsible "Transcript" panels in revealjs decks.
 
     Include it from a deck's YAML header, with the path relative to the qmd:
 
@@ -216,7 +216,7 @@
     tabset, which is the usual case):
 
         <details class="transcript">
-        <summary>Lecturer transcript</summary>
+        <summary>Transcript</summary>
 
         What the lecturer says about this tab.
 
@@ -384,8 +384,36 @@
     "use strict";
 
     var MAX_CODE_LINES = 12;
+    // Monaco's line-number gutter (~75px) plus its vertical scrollbar (~15px).
+    var EDITOR_CHROME = 90;
+    // A deliberate OVER-estimate of one character. Menlo at 15.36px measures
+    // ~9.2px, and erring high is what keeps the editor from wrapping when the
+    // real measurement below has not landed yet.
+    var FALLBACK_CHAR_PX = 11;
+    // Breathing room on each measured need. Side by side is a bonus, not a goal:
+    // the vertical stack is a perfectly good layout, so a cell that only fits by
+    // cramming should simply stay stacked. Slack here buys that judgement — it
+    // makes the fit test stricter AND leaves each column wider than its content.
+    var CODE_SLACK = 1.15;
+    var OUTPUT_SLACK = 1.08;
+    // Going side by side saves exactly one thing: the height of the code block,
+    // which no longer sits above the output. Against a tall output that saving is
+    // trivial — a 3-line editor beside a 34-line print of `mtcars` reclaims about
+    // a tenth of the cell's height and splits the slide in half to do it.
+    //
+    // 0.4 means the output may be at most ~1.5x the height of the code block.
+    // Calibrated against real cells, not picked: one line of code beside a 10-line
+    // tibble scores 0.31 and must be rejected; the 5-line piping example beside
+    // its 2 lines of output scores 0.81 and must be kept. An earlier 0.25 sat
+    // below the first of those and let it through.
+    var MIN_VERTICAL_SAVING = 0.4;
     var MAX_CODE_SHARE = 0.58;
-    var MIN_CODE_SHARE = 0.30;
+    // The floor exists only so the editor never becomes unusably narrow. It used
+    // to be 0.30, which padded a one-line call like `class(mtcars)` (160px of
+    // content including Monaco's gutter) out to 329px and charged the difference
+    // to the output.
+    var MIN_CODE_SHARE = 0.18;
+    var MAX_OUTPUT_SHARE = 0.82;
 
     function detailsFor(area) {
       var match = area.id && area.id.match(/qwebr-interactive-area-(\d+)/);
@@ -399,11 +427,35 @@
         return line.trim() && !/^\s*#/.test(line);
       });
       return {
+        code: String(code || ""),
         lines: substantive.length,
         maxChars: lines.reduce(function (n, line) {
           return Math.max(n, line.replace(/\t/g, "  ").length);
         }, 0)
       };
+    }
+
+    // The caret lives in the 1rem gutter and must sit at its centre. Percentages
+    // cannot express that reliably here, so measure the laid-out editor and hand
+    // the CSS an exact pixel.
+    function markGutter(area, host) {
+      var style = getComputedStyle(area);
+      if (style.display !== "grid") return;
+
+      // Take the gutter straight from the resolved grid tracks. Every element in
+      // this cell has been tried as an anchor and each one lies: Monaco renders
+      // wider than its track, and `.qwebr-output-code-area` reports a left edge
+      // well right of where the output column actually starts, which put the caret
+      // inside the Output banner. `grid-template-columns` resolves to used pixel
+      // widths, so the first track plus half the gap IS the gutter centre, with
+      // nothing to misreport.
+      var tracks = style.gridTemplateColumns.split(/\s+/)
+        .map(parseFloat).filter(function (n) { return !isNaN(n); });
+      if (tracks.length < 2) return;
+      var gap = parseFloat(style.columnGap) || 16;
+      var padLeft = parseFloat(style.paddingLeft) || 0;
+      var centre = padLeft + tracks[0] + gap / 2;
+      host.style.setProperty("--webr-gutter-centre", centre.toFixed(1) + "px");
     }
 
     function setTracks(host, codeShare) {
@@ -415,10 +467,15 @@
     }
 
     function measureRenderedCode(area, host, code, attempt) {
-      if (host.dataset.webrLayout !== "side") return;
+      if (!eligibleNow(host)) return;
       var sample = area.querySelector(".view-line, .monaco-editor");
       if (!sample || !area.clientWidth) {
-        if (attempt < 20) setTimeout(function () {
+        // 20 attempts (2s) was not enough: on a deck with ~70 cells Monaco is
+        // still rendering, the measurement never lands, and the cell is left on
+        // the fallback estimate. Undersize it and Monaco wraps the line, after
+        // which the only thing left to measure is the wrapped fragments — the
+        // column can never recover on its own. 100 attempts is 10s.
+        if (attempt < 100) setTimeout(function () {
           measureRenderedCode(area, host, code, attempt + 1);
         }, 100);
         return;
@@ -431,10 +488,201 @@
       var widest = String(code || "").split("\n").reduce(function (width, line) {
         return Math.max(width, context.measureText(line.replace(/\t/g, "  ")).width);
       }, 0);
-      // Monaco's line-number gutter, padding, and scrollbar need about 76px in
-      // addition to the measured glyph width.
+      // Note this measures the SOURCE text, never the rendered `.view-line`
+      // elements: once the column is narrow enough to wrap, those hold fragments
+      // and measuring them would confirm the mistake instead of correcting it.
       var available = Math.max(1, area.clientWidth - 16);
-      setTracks(host, (widest + 76) / available);
+      // Remember it in pixels. The share alone is not enough: the split has to be
+      // recomputed against the OUTPUT's measured width once the cell has run.
+      host.dataset.webrCodePx = Math.ceil(widest + EDITOR_CHROME);
+      setTracks(host, ((widest + EDITOR_CHROME) * CODE_SLACK) / available);
+
+      // The measured code column is now the real one, so check straight away that
+      // Monaco is not wrapping in it. Before, this ran only after a cell had been
+      // run; a cell that opens side by side needs it on arrival.
+      ensureNoWrap(area, host, sourceLineCount(code), 0);
+    }
+
+    // The natural width of the output text. `pre` cannot be measured directly:
+    // notebook.scss gives it `width: 100%`, so its scrollWidth reports the track
+    // it currently sits in, not the text inside it. Reading that back is a
+    // feedback loop — it made every cell claim the maximum output share however
+    // short its output was, starving the code column down to the floor until the
+    // editor wrapped a one-line call across three lines.
+    function naturalTextSize(pre) {
+      var cs = getComputedStyle(pre);
+      var probe = document.createElement("pre");
+      probe.style.cssText = "position:absolute;left:-9999px;top:0;visibility:hidden;" +
+        "white-space:pre;margin:0;padding:0;width:auto";
+      probe.style.fontFamily = cs.fontFamily;
+      probe.style.fontSize = cs.fontSize;
+      probe.style.fontWeight = cs.fontWeight;
+      probe.style.letterSpacing = cs.letterSpacing;
+      probe.textContent = pre.innerText || "";
+      document.body.appendChild(probe);
+      var size = { w: probe.scrollWidth, h: probe.scrollHeight };
+      probe.parentNode.removeChild(probe);
+      return size;
+    }
+
+    // Height of the code block as it stands: the editor plus its toolbar.
+    function codeBlockHeight(area) {
+      var editor = area.querySelector(".qwebr-editor");
+      var bar = area.querySelector(".qwebr-editor-toolbar");
+      var h = editor ? editor.getBoundingClientRect().height : 0;
+      if (bar) h += bar.getBoundingClientRect().height;
+      return h;
+    }
+
+    // A cell is a candidate while it is "pending" (rendered as the ordinary
+    // vertical stack) or already "side". Manual wrappers are always "side".
+    function eligibleNow(host) {
+      var mode = host.dataset.webrLayout;
+      return mode === "pending" || mode === "side";
+    }
+
+    // A cell is put side by side as soon as its code has been measured, so the
+    // layout the reader first sees is the layout it keeps. The output cannot be
+    // measured until the cell has run, so assessOutput may still send a cell back
+    // to the vertical stack afterwards — that is the price of not making the
+    // reader wait for a run to see the final shape.
+    function promote(host) {
+      if (host.dataset.webrLayout === "side") return;
+      host.classList.add("side-out");
+      host.dataset.webrLayout = "side";
+    }
+
+    function sourceLineCount(code) {
+      return String(code || "").replace(/\s+$/, "").split("\n").length;
+    }
+
+    // Every width here is predicted — from a canvas measurement of the source in
+    // what we believe is the editor's font. Predictions travel badly: a different
+    // browser, a missing font, a different device pixel ratio, and the editor
+    // wraps even though the arithmetic said it fitted. So do not trust the
+    // prediction — read back what Monaco actually rendered, and widen the column
+    // until the rendered line count matches the source. This is the only check
+    // that cannot be wrong about wrapping, because it IS the wrapping.
+    function ensureNoWrap(area, host, srcLines, attempt) {
+      if (host.dataset.webrLayout !== "side") return;
+      var lines = area.querySelectorAll(".view-line");
+      if (!lines.length) {
+        if (attempt < 100) setTimeout(function () {
+          ensureNoWrap(area, host, srcLines, attempt + 1);
+        }, 100);
+        return;
+      }
+      if (lines.length <= srcLines) { markGutter(area, host); return; }
+      var share = parseFloat(host.style.getPropertyValue("--webr-code-share")) / 100;
+      if (!share) share = MIN_CODE_SHARE;
+      if (share >= MAX_CODE_SHARE || attempt > 40) {
+        // Even at the widest permitted code column the line will not fit, so the
+        // cell has no business being side by side at all.
+        stack(host, true);
+        return;
+      }
+      setTracks(host, share + 0.02);
+      // Monaco relayouts asynchronously off its own resize observer; give it a
+      // frame or two before reading the line count again.
+      setTimeout(function () {
+        ensureNoWrap(area, host, srcLines, attempt + 1);
+      }, 60);
+    }
+
+    function stack(host, force) {
+      // `::: {.side-out}` is a REQUEST, not an override. It decides that a cell
+      // would like to be side by side; it cannot suspend the rules that say when
+      // side by side is acceptable — no wrapped code, output that fits, a split
+      // worth making. Every one of those gates passes force = true. What the
+      // exemption still buys is that ordinary measurement noise will not tear a
+      // deliberate wrapper down.
+      if (host.dataset.webrLayoutManual === "true" && !force) return;
+      host.classList.remove("side-out");
+      host.dataset.webrLayout = "stacked";
+    }
+
+    function assessOutput(area, host, metrics) {
+      if (!eligibleNow(host)) return;
+      var graph = area.querySelector(".qwebr-output-graph-area canvas, .qwebr-output-graph-area img");
+      if (graph) { // plots scale cleanly within their grid track
+        promote(host);
+        requestAnimationFrame(function () { markGutter(area, host); });
+        return;
+      }
+
+      var pre = area.querySelector(".qwebr-output-code-area pre");
+      if (!pre || getComputedStyle(pre).visibility === "hidden") return;
+
+      // Ran and printed nothing — an assignment, a library() call, anything
+      // invoked for its side effect. There is no right-hand content to show, so
+      // the code keeps the full width rather than facing an empty Output banner.
+      if (!(pre.innerText || "").trim()) { stack(host, true); return; }
+
+      var style = getComputedStyle(area);
+      var gap = parseFloat(style.columnGap) || 16;
+      var available = Math.max(1, area.clientWidth - gap);
+      // The code column was sized when the code was measured and MUST NOT move
+      // now. Re-deriving it from the output made the editor jump to a different
+      // width the instant a student pressed Run — the one thing a code block on a
+      // lecture slide must never do. This is also what the invariants say: code
+      // width determines the split, output gets whatever is left.
+      var codeTrack = Math.min(MAX_CODE_SHARE, Math.max(MIN_CODE_SHARE,
+        (Number(host.dataset.webrCodePx) ||
+          (metrics.maxChars * FALLBACK_CHAR_PX + EDITOR_CHROME)) * CODE_SLACK / available))
+        * available;
+      var natural = naturalTextSize(pre);
+      var outputPx = (natural.w + 24) * OUTPUT_SLACK;
+
+      // Is the split worth making? Stacked costs code + output; side by side costs
+      // whichever is taller. The saving is therefore the code block's height, and
+      // it has to be a real fraction of what the cell occupies now.
+      var codeH = codeBlockHeight(area);
+      var outH = natural.h;
+      if (!codeH || !outH) {
+        // Fall back to line counts rather than skipping the test. Skipping it is
+        // how a cell slips through: an unmeasurable height silently became an
+        // exemption from the rule.
+        var lineH = parseFloat(getComputedStyle(pre).lineHeight) || 20;
+        codeH = codeH || (metrics.lines * lineH + 38);
+        outH = outH || ((pre.innerText || "").split("\n").length * lineH);
+      }
+      if (codeH / (codeH + outH) < MIN_VERTICAL_SAVING) {
+        stack(host, true);
+        return;
+      }
+
+      // Side by side must never wrap a line of code. If the code cannot fit in the
+      // widest column it is allowed, there is no acceptable side-by-side layout
+      // for this cell — do not settle for a narrower one.
+      if (codeTrack < (Number(host.dataset.webrCodePx) || 0) * CODE_SLACK) {
+        stack(host, true);
+        return;
+      }
+
+      // Both needs already carry their slack, so this is a lenient test on
+      // purpose: anything that does not fit comfortably stays vertical.
+      // Width is the FIT constraint; the height test above is a separate,
+      // worthwhileness one. Height is not a fit constraint — these decks are
+      // `scrollable: true`, so a tall slide scrolls either way — but a tall output
+      // still makes the split pointless, which is what MIN_VERTICAL_SAVING covers.
+      // The only question left is whether the output fits in the space the code
+      // did not take. If it does not, the cell stacks — the code column is never
+      // narrowed to make room.
+      if (outputPx > available - codeTrack) {
+        stack(host, true);
+        return;
+      }
+
+      // Note: no setTracks() here, deliberately. The layout is already correct and
+      // touching it would move the editor.
+      promote(host);
+      requestAnimationFrame(function () { markGutter(area, host); });
+      ensureNoWrap(area, host, sourceLineCount(metrics.code), 0);
+      requestAnimationFrame(function () {
+        // Same trap as above — compare against the measured text, not scrollWidth,
+        // which a `width: 100%` pre can never exceed.
+        if (naturalTextSize(pre).w > pre.clientWidth * 1.08) stack(host);
+      });
     }
 
     function configure(area) {
@@ -447,26 +695,64 @@
       if (!metrics.lines || metrics.lines > MAX_CODE_LINES || metrics.maxChars > 88) return;
 
       var existingWrapper = area.closest(".side-out");
+
+      // A cell inside a reveal `.columns` block already has half a slide.
+      // Splitting that again leaves the code a QUARTER of the width, where even
+      // `mtcars[2:8, c(3, 5)]` wraps. custom.scss excludes these from its own
+      // automatic two-column rule with `:not(.column *)` for the same reason;
+      // match it. A manual wrapper is undone as well rather than merely skipped:
+      // the class is in the markup, so notebook.scss would lay the cell out in
+      // two columns regardless of what this script decides, and the halved width
+      // is not something the author who typed `::: {.side-out}` accounted for.
+      if (area.closest(".column")) {
+        if (existingWrapper) {
+          existingWrapper.classList.remove("side-out");
+          existingWrapper.dataset.webrLayout = "stacked";
+        }
+        return;
+      }
+
       var host = existingWrapper || area.closest(".cell") || area.parentElement;
       if (!host) return;
 
-      if (existingWrapper) {
-        host.dataset.webrLayoutManual = "true";
-      } else {
-        host.classList.add("side-out");
-      }
-      host.dataset.webrLayout = "side";
+      // Open side by side. `::: {.side-out}` only adds the manual flag, which
+      // stops routine measurement noise from tearing the wrapper down; it still
+      // cannot suspend the gates in assessOutput, all of which force.
+      if (existingWrapper) host.dataset.webrLayoutManual = "true";
+      promote(host);
 
-      // Estimate an initial split from the longest source line. This split is
-      // final; a run never changes it.
-      var initialCodeShare = (metrics.maxChars + 10) / 145;
-      setTracks(host, initialCodeShare);
+      // Estimate an initial split from the longest source line, in pixels against
+      // the width this cell actually has. The old form was `(maxChars + 10) / 145`,
+      // which assumed ~145 characters span the full width; the real figure is ~109,
+      // so it under-sized every editor by a third and manual `.side-out` cells —
+      // which open side by side at once and never reach the measured split until
+      // they are run — wrapped on arrival.
+      var initialAvailable = Math.max(1, (area.clientWidth || 1005) - 16);
+      setTracks(host,
+        (metrics.maxChars * FALLBACK_CHAR_PX + EDITOR_CHROME) / initialAvailable);
       measureRenderedCode(area, host, details.code, 0);
 
-      // Once side by side, always side by side. Output that is too wide or too
-      // long scrolls inside its column (notebook.scss); it never stacks the
-      // cell, because a layout that jumps when Run is pressed is worse than a
-      // scrollbar.
+      // A cell on a hidden slide or an inactive tab has clientWidth 0 for as long
+      // as it stays hidden, so measureRenderedCode above cannot measure anything
+      // and eventually gives up — leaving the cell on the character estimate for
+      // good. Whoever then navigates to that slide sees the estimate, which is
+      // exactly the wrapped editor this whole mechanism exists to avoid. Watch
+      // for the moment the cell gains a width instead.
+      if (typeof ResizeObserver === "function") {
+        var sizeObserver = new ResizeObserver(function () {
+          if (!area.clientWidth) return;
+          if (host.dataset.webrCodePx) { sizeObserver.disconnect(); return; }
+          measureRenderedCode(area, host, details.code, 0);
+        });
+        sizeObserver.observe(area);
+      }
+
+      var observer = new MutationObserver(function () {
+        requestAnimationFrame(function () { assessOutput(area, host, metrics); });
+      });
+      observer.observe(area, { childList: true, subtree: true, characterData: true,
+        attributes: true, attributeFilter: ["style", "class"] });
+      requestAnimationFrame(function () { assessOutput(area, host, metrics); });
     }
 
     function scan() {
@@ -484,6 +770,15 @@
       start();
     }
   })();
+  </script>
+  <!-- quarto-webr loads Monaco's AMD loader (define.amd). KaTeX ships UMD and
+       registers as an anonymous AMD module instead of setting window.katex, so
+       Quarto's inline renderer throws "katex is not defined" on every WebR deck.
+       Import the ESM build, which ignores AMD, and publish the global before
+       DOMContentLoaded so the stock renderer finds it. -->
+  <script type="module">
+    import katex from "https://cdn.jsdelivr.net/npm/katex@0.18.4/dist/katex.mjs";
+    window.katex = window.katex || katex;
   </script>
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/monaco-editor@0.47.0/min/vs/editor/editor.main.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
@@ -775,7 +1070,7 @@
   };
 
   // Store cell data
-  globalThis.qwebrCellDetails = [{"code":"# NOTE: a webr setup cell draws a loading widget wherever it sits, so keep it\n# inside a content slide rather than on a section divider.\n# Mirror of lecture_theme() in lectures/_lecture-theme.R — WebR cannot source\n# that file. Edit it first, then run `Rscript lectures/check-lecture-theme.R`,\n# which fails if this copy has drifted.\nlecture_theme <- function(base_size = 16) {\n  ggplot2::theme_bw(base_size = base_size) +\n    ggplot2::theme(\n      axis.text = ggplot2::element_text(size = base_size * 0.9),\n      axis.title = ggplot2::element_text(size = base_size),\n      legend.text = ggplot2::element_text(size = base_size * 0.9),\n      legend.title = ggplot2::element_text(size = base_size * 0.9),\n      plot.background = ggplot2::element_rect(fill = \"transparent\", colour = NA),\n      panel.background = ggplot2::element_rect(fill = \"transparent\", colour = NA),\n      legend.background = ggplot2::element_rect(fill = \"transparent\", colour = NA),\n      legend.key = ggplot2::element_rect(fill = \"transparent\", colour = NA),\n      # theme_bw's grey92 grid was chosen against a white panel and all but\n      # disappears on the warm paper once the panel stops being opaque.\n      panel.grid = ggplot2::element_line(colour = \"grey87\")\n    )\n}\n# The WebR canvas is 7x4.5in at out-width 55% of its output track\n# (lectures/_metadata.yml) — a similar pixels-per-inch to the 10in knitr canvas,\n# but often narrower when the cell renders side by side, so it runs a little\n# larger than the 16pt default. 30pt did not fit this canvas at all: the panel\n# collapsed into the top third and the legend clipped.\n# webR draws its canvas at 72 dpi no matter what `dpi` says, so on a 216-dpi\n# canvas everything ggplot measures in points or mm comes out a third of its\n# size. Scale ggplot2's mm-to-point constants and the theme by the same\n# factor and the figure matches the knitr ones. Keep in step with `dpi` above.\nwebr_scale <- 216 / 72\nassignInNamespace(\".pt\", ggplot2::.pt * webr_scale, \"ggplot2\")\nassignInNamespace(\".stroke\", ggplot2::.stroke * webr_scale, \"ggplot2\")\ntheme_lecture <- lecture_theme(18 * webr_scale) +\n  # base_size also sets the theme line widths, which are in mm and already\n  # pass through the scaled .pt; pin them to what 18pt gives or they come\n  # out 9x thick.\n  ggplot2::theme(\n    line = ggplot2::element_line(linewidth = 18 / 22),\n    rect = ggplot2::element_rect(linewidth = 18 / 22)\n  ) +\n  ggplot2::theme(strip.text = ggplot2::element_text(size = 18 * webr_scale))","id":1,"options":{"autorun":"true","classes":"","comment":"","context":"setup","dpi":"216","editor-font-scale":"0.8","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"4.5","fig-width":"7","label":"unnamed-chunk-1","message":"true","out-height":"","out-width":"55%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"#--- load the fixest package ---#\nlibrary(fixest)\n\n#--- generate data ---#\nset.seed(2024) # so everyone sees the same numbers\nN <- 100 # sample size\nx1 <- rnorm(N) # independent variable\nx2 <- rnorm(N) # independent variable\nu <- rnorm(N) # error\ny <- 1 + x1 + x2 + u # dependent variable\ndata_sim <- data.frame(y = y, x1 = x1, x2 = x2)\n\n#--- OLS ---#\nreg <- feols(y ~ x1 + x2, data = data_sim)\n\n#* print the results\nreg","id":2,"options":{"autorun":"true","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.8","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"4.5","fig-width":"7","label":"unnamed-chunk-2","message":"true","out-height":"","out-width":"55%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"library(fixest)\n\n#--- simulate data where x1 is correlated with x2 and x3 ---#\nset.seed(4891)\nN <- 200\nx2 <- rnorm(N)\nx3 <- rnorm(N)\nx1 <- 0.5 * x2 - 0.3 * x3 + rnorm(N)\ny <- 1 + 2 * x1 + 3 * x2 - x3 + rnorm(N)\nd <- data.frame(y, x1, x2, x3)\n\n#--- Method 1: regress y on everything at once ---#\nm1 <- feols(y ~ x1 + x2 + x3, data = d)\n\n#--- Method 2: partial x2 and x3 out of both y and x1, then regress ---#\nd$u_y <- resid(feols(y ~ x2 + x3, data = d))\nd$u_x1 <- resid(feols(x1 ~ x2 + x3, data = d))\nm2 <- feols(u_y ~ u_x1, data = d)\n\n#--- compare ---#\nc(method_1 = coef(m1)[\"x1\"], method_2 = coef(m2)[\"u_x1\"])","id":3,"options":{"autorun":"true","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.8","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"4.5","fig-width":"7","label":"unnamed-chunk-3","message":"true","out-height":"","out-width":"55%","output":"true","read-only":"false","results":"markup","warning":"true"}}];
+  globalThis.qwebrCellDetails = [{"code":"# NOTE: a webr setup cell draws a loading widget wherever it sits, so keep it\n# inside a content slide rather than on a section divider.\n# Mirror of lecture_theme() in lectures/_lecture-theme.R — WebR cannot source\n# that file. Edit it first, then run `Rscript lectures/check-lecture-theme.R`,\n# which fails if this copy has drifted.\nlecture_theme <- function(base_size = 16) {\n  ggplot2::theme_bw(base_size = base_size) +\n    ggplot2::theme(\n      axis.text = ggplot2::element_text(size = base_size * 0.9),\n      axis.title = ggplot2::element_text(size = base_size),\n      legend.text = ggplot2::element_text(size = base_size * 0.9),\n      legend.title = ggplot2::element_text(size = base_size * 0.9),\n      plot.background = ggplot2::element_rect(fill = \"transparent\", colour = NA),\n      panel.background = ggplot2::element_rect(fill = \"transparent\", colour = NA),\n      legend.background = ggplot2::element_rect(fill = \"transparent\", colour = NA),\n      legend.key = ggplot2::element_rect(fill = \"transparent\", colour = NA),\n      # theme_bw's grey92 grid was chosen against a white panel and all but\n      # disappears on the warm paper once the panel stops being opaque.\n      panel.grid = ggplot2::element_line(colour = \"grey87\")\n    )\n}\n# The WebR canvas is 7x4.5in at out-width 55% of its output track\n# (lectures/_metadata.yml) — a similar pixels-per-inch to the 10in knitr canvas,\n# but often narrower when the cell renders side by side, so it runs a little\n# larger than the 16pt default. 30pt did not fit this canvas at all: the panel\n# collapsed into the top third and the legend clipped.\n# webR draws its canvas at 72 dpi no matter what `dpi` says, so on a 216-dpi\n# canvas everything ggplot measures in points or mm comes out a third of its\n# size. Scale ggplot2's mm-to-point constants and the theme by the same\n# factor and the figure matches the knitr ones. Keep in step with `dpi` above.\nwebr_scale <- 216 / 72\nassignInNamespace(\".pt\", ggplot2::.pt * webr_scale, \"ggplot2\")\nassignInNamespace(\".stroke\", ggplot2::.stroke * webr_scale, \"ggplot2\")\ntheme_lecture <- lecture_theme(18 * webr_scale) +\n  # base_size also sets the theme line widths, which are in mm and already\n  # pass through the scaled .pt; pin them to what 18pt gives or they come\n  # out 9x thick.\n  ggplot2::theme(\n    line = ggplot2::element_line(linewidth = 18 / 22),\n    rect = ggplot2::element_rect(linewidth = 18 / 22)\n  ) +\n  ggplot2::theme(strip.text = ggplot2::element_text(size = 18 * webr_scale))\nggplot2::theme_set(theme_lecture)","id":1,"options":{"autorun":"true","classes":"","comment":"","context":"setup","dpi":"216","editor-font-scale":"0.7","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"4.5","fig-width":"7","label":"unnamed-chunk-1","message":"true","out-height":"","out-width":"55%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"#--- load the fixest package ---#\nlibrary(fixest)\n\n#--- generate data ---#\nset.seed(2024) # so everyone sees the same numbers\nN <- 100 # sample size\nx1 <- rnorm(N) # independent variable\nx2 <- rnorm(N) # independent variable\nu <- rnorm(N) # error\ny <- 1 + x1 + x2 + u # dependent variable\ndata_sim <- data.frame(y = y, x1 = x1, x2 = x2)\n\n#--- OLS ---#\nreg <- feols(y ~ x1 + x2, data = data_sim)\n\n#* print the results\nreg","id":2,"options":{"autorun":"true","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.7","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"4.5","fig-width":"7","label":"unnamed-chunk-2","message":"true","out-height":"","out-width":"55%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"library(fixest)\n\n#--- simulate data where x1 is correlated with x2 and x3 ---#\nset.seed(4891)\nN <- 200\nx2 <- rnorm(N)\nx3 <- rnorm(N)\nx1 <- 0.5 * x2 - 0.3 * x3 + rnorm(N)\ny <- 1 + 2 * x1 + 3 * x2 - x3 + rnorm(N)\nd <- data.frame(y, x1, x2, x3)\n\n#--- Method 1: regress y on everything at once ---#\nm1 <- feols(y ~ x1 + x2 + x3, data = d)\n\n#--- Method 2: partial x2 and x3 out of both y and x1, then regress ---#\nd$u_y <- resid(feols(y ~ x2 + x3, data = d))\nd$u_x1 <- resid(feols(x1 ~ x2 + x3, data = d))\nm2 <- feols(u_y ~ u_x1, data = d)\n\n#--- compare ---#\nc(method_1 = coef(m1)[\"x1\"], method_2 = coef(m2)[\"u_x1\"])","id":3,"options":{"autorun":"true","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.7","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"4.5","fig-width":"7","label":"unnamed-chunk-3","message":"true","out-height":"","out-width":"55%","output":"true","read-only":"false","results":"markup","warning":"true"}}];
 
   </script>
   <script type="module">
@@ -2296,7 +2591,7 @@ globalThis.qwebrCreateMonacoEditorInstance = function (cellData) {
 <div id="tabset-1-1">
 <details class="transcript">
 <summary>
-Lecturer transcript
+Transcript
 </summary>
 <p>Let’s start with why we are doing this at all. In the univariate world the zero conditional mean condition is almost certainly violated, and the reason is structural: every variable you did not include is sitting in the error term, and any one of them can be correlated with your x. So the fix suggests itself. Move some of those variables out of the error term and into the model. Each one you include is one fewer thing that can bias you. But read the word in blue carefully. Less severe, not solved. That qualifier is the honest part of the sentence, and we come back to it.</p>
 </details>
@@ -2309,7 +2604,7 @@ Lecturer transcript
 <div id="tabset-1-2">
 <details class="transcript">
 <summary>
-Lecturer transcript
+Transcript
 </summary>
 <p>Here is the move written out. On top, the univariate model, where the error term u-one contains experience; look at the parenthesis, u-one equals u-two plus beta-two times experience. Underneath, the bivariate model, where experience has been pulled out and given its own coefficient. Now read the two bullets. In the first model beta-one-hat is biased unless experience happens to be uncorrelated with education, which it certainly is not. In the second you can measure the effect of education holding experience fixed. That is what the phrase in red means: we say experience has been controlled for.</p>
 </details>
@@ -2328,7 +2623,7 @@ Lecturer transcript
 <div id="tabset-1-3">
 <details class="transcript">
 <summary>
-Lecturer transcript
+Transcript
 </summary>
 <p>Same structure, a different question, and this one is worth carrying around because you will meet it in real policy debates. Does spending more per student raise test scores? Regress score on spending alone and average family income sits in the error term. But richer districts both spend more and have students who score higher for reasons that have nothing to do with the spending. So the naive regression credits the money with what the income did. Put average income into the model and you have controlled for it. Same shape as the wage example, same shape as the firefighters in lecture zero.</p>
 </details>
@@ -2341,7 +2636,7 @@ avgscore= &amp; \beta_0+\beta_1 expend +\beta_2 avginc + u_2 \notag
 <div id="tabset-1-4">
 <details class="transcript">
 <summary>
-Lecturer transcript
+Transcript
 </summary>
 <p>Now the general version, and I mostly want you to read the two bullets defining the betas, because six words there are doing a great deal of work. Beta-one describes how the conditional regression function changes with x-one while the included x-two is held fixed. That is what people mean by a partial effect, and the last section makes precise what the machinery is doing. Be careful, though: including x-two creates a conditional comparison; it does not automatically make that comparison causal. We still need the zero conditional mean assumption for the remaining error.</p>
 </details>
@@ -2367,7 +2662,7 @@ Lecturer transcript
 <div id="tabset-2-1">
 <details class="transcript">
 <summary>
-Lecturer transcript
+Transcript
 </summary>
 <p>The condition for unbiasedness generalises in the way you would guess. In the univariate case it was the expected value of u given x equals zero. Now it is the expected value of u given x-one and x-two equals zero. Read the verbal version, because it is a stronger statement than it looks: for any combination of values of x-one and x-two, the unobservables average to zero. Not for each variable separately, but for every pairing of them. Adding regressors moves things out of u, which helps. It also makes the condition you need slightly more demanding to state.</p>
 </details>
@@ -2385,7 +2680,7 @@ Lecturer transcript
 <div id="tabset-2-2">
 <details class="transcript">
 <summary>
-Lecturer transcript
+Transcript
 </summary>
 <p>Here it is for the wage model. The condition is that the expected value of u for every combination of education and experience is zero. If innate ability remains in u, this requires its conditional average not to vary across those combinations. Say that out loud and ask whether you believe it. More able people tend to stay in school longer, so probably not. Now read the callout, which is the honest summary of this whole lecture. Adding experience took experience out of the error term. Nothing takes ability out, because you never measured it. Regression changes the contents of the error term; it does not empty it.</p>
 </details>
@@ -2424,7 +2719,7 @@ wage = &amp; \beta_0 + \beta_1 educ + \beta_2 exper + u
 <div id="tabset-4-1">
 <details class="transcript">
 <summary>
-Lecturer transcript
+Transcript
 </summary>
 <p>The extension to k variables involves no new ideas, only longer expressions. The model is y equals beta-zero plus beta-one x-one, out to beta-k x-k, plus u. And the condition for unbiasedness is that the expected value of u given the entire vector of regressors equals zero. This joint conditional statement is stronger than requiring zero pairwise correlation between u and each regressor. If it fails, the affected coefficient estimates may be biased; which coefficients are affected and by how much depends on the relationships among the regressors and the omitted component.</p>
 </details>
@@ -2443,7 +2738,7 @@ Lecturer transcript
 <div id="tabset-4-2">
 <details class="transcript">
 <summary>
-Lecturer transcript
+Transcript
 </summary>
 <p>Here it is in code, and notice how little changes. You write feols, then y tilde x-one plus x-two, and you have gone from univariate to multivariate by typing four characters. That is the entire syntactic difference. But look at what the simulation does: I built the data myself, so I know the truth. The intercept is one and both slopes are one. So when you run this you are not just reading output, you are checking it. Compare the estimates against the true values and see how close OLS gets with a hundred observations.</p>
 </details>
@@ -2454,7 +2749,7 @@ Lecturer transcript
 <div id="tabset-4-3">
 <details class="transcript inline">
 <summary>
-Lecturer transcript
+Transcript
 </summary>
 <p>A practical tab. When you hand in an assignment or write your paper, do not paste raw R output. Use msummary from the modelsummary package. On the left is the code, on the right is what it produces: a proper regression table, coefficients with standard errors underneath in parentheses, and stars for significance. Keep the two options as they are; gof-omit is just suppressing goodness-of-fit rows we do not need. And notice the table is showing the regression from the previous tab, so you are seeing the same numbers presented the way a journal would want them.</p>
 </details>
@@ -2623,7 +2918,7 @@ Lecturer transcript
 <div id="tabset-3-1">
 <details class="transcript">
 <summary>
-Lecturer transcript
+Transcript
 </summary>
 <p>The derivation is the same story as lecture 01-2, just with more unknowns, so this should feel familiar rather than new. We are choosing the whole collection of beta-hats, which I am calling theta-hat to save writing, to minimize the sum of squared residuals. That is the identical criterion. The only change is that the thing inside the bracket now has k terms in it instead of two. If you followed the univariate version you have already followed this one, and the next tab just turns the handle.</p>
 </details>
@@ -2640,7 +2935,7 @@ Lecturer transcript
 <div id="tabset-3-2">
 <details class="transcript">
 <summary>
-Lecturer transcript
+Transcript
 </summary>
 <p>Turn the handle: differentiate with respect to each of the k plus one unknowns, set every derivative to zero, and divide out the minus two. What you get is k plus one equations. Look at their shape. The first is the sum of the residuals. The second is the sum of x-one times the residuals. And so on down to x-k. Every regressor gets its own equation, and every equation says the same thing, that this regressor must be uncorrelated with what is left over. Which is the sample version of the assumption we just made about the population.</p>
 </details>
@@ -2656,7 +2951,7 @@ Lecturer transcript
 <div id="tabset-3-3">
 <details class="transcript">
 <summary>
-Lecturer transcript
+Transcript
 </summary>
 <p>And here is the compact form, which is worth committing to memory because it recurs constantly. The residuals sum to zero, and each x times the residuals sums to zero. That is k plus one equations in k plus one unknowns. The solution is unique when the regressor matrix has full column rank—the no-perfect-collinearity condition introduced shortly. Read the last line too, because it is not decoration. Estimating those k plus one coefficients uses k plus one degrees of freedom. That is where n minus k minus one comes from when we estimate sigma squared, two tabs from now.</p>
 </details>
@@ -2696,7 +2991,7 @@ Lecturer transcript
 <div id="tabset-5-1">
 <details class="transcript">
 <summary>
-Lecturer transcript
+Transcript
 </summary>
 <p>Four conditions for unbiasedness, and they are the same four you met in lecture 01-3, relabelled MLR for multiple regression. Your model is correct. Your sample is random. No perfect collinearity, which is the new one, replacing the old requirement that x actually varies. And zero conditional mean, which is again the one that matters. Three of these are cheap. The fourth you will spend a career arguing about, and notice that adding regressors changes what it demands of you, because now it has to hold given all of them at once.</p>
 </details>
@@ -2736,7 +3031,7 @@ Lecturer transcript
 <div id="tabset-5-2">
 <details class="transcript">
 <summary>
-Lecturer transcript
+Transcript
 </summary>
 <p>The genuinely new condition. No independent variable may be an exact linear function of the others. The example is deliberately silly: you put education in the model, and then you also put in three times education. There is no way to separate those two effects, because whenever one moves the other moves in lockstep, perfectly predictably. The data simply contains no information about which of the two is responsible. R will not throw an error either; it will quietly drop one and tell you. Where this actually bites is dummy variables, which is a later lecture.</p>
 </details>
@@ -2752,7 +3047,7 @@ Lecturer transcript
 <div id="tabset-5-3">
 <details class="transcript">
 <summary>
-Lecturer transcript
+Transcript
 </summary>
 <p>Here is endogeneity written formally at last, though we have been circling it since lecture zero. The expected value of u given your regressors is some function of them, rather than zero. Now look at the list of what causes it. Functional form misspecification: if the truth is logarithmic and you fit a straight line, the mismatch goes into the error term, and it is a function of x by construction. Omitted variables you already know about. And more sources are coming. The point of the list is that endogeneity is a family of problems, not a single mistake.</p>
 </details>
@@ -2796,7 +3091,7 @@ E[u|x_1,x_2,\dots,x_k] = f(x_1,x_2,\dots,x_k) \ne 0
 <div id="tabset-6-1">
 <details class="transcript">
 <summary>
-Lecturer transcript
+Transcript
 </summary>
 <p>Condition five, homoskedasticity, and the variance formula it buys us. Compare this against the univariate formula. The numerator is unchanged, sigma squared, and the denominator has picked up a new factor: it is now SST-j times one minus R-squared-j. Read the callout below, because that new factor is not a technicality. R-squared-j measures how much of x-j the other regressors already explain. As it approaches one the denominator collapses and the variance explodes. That is multicollinearity, and it is the whole of lecture four.</p>
 </details>
@@ -2842,7 +3137,7 @@ Var(u|x_1,\dots,x_k)=\sigma^2
 <div id="tabset-6-2">
 <details class="transcript">
 <summary>
-Lecturer transcript
+Transcript
 </summary>
 <p>The same problem as before: the variance formula contains sigma squared, and you do not know it. The same solution too, average the squared residuals. The only thing that changes is the divisor. In the univariate case you divided by n minus two, because two equations were used up on the intercept and the one slope. Here you have k plus one coefficients, so you divide by n minus k minus one. That is the sentence at the bottom of the slide, and it is the degrees-of-freedom count we derived on the FOC tab. Every parameter you estimate costs you one.</p>
 </details>
@@ -2861,7 +3156,7 @@ Lecturer transcript
 <div id="tabset-6-3">
 <details class="transcript">
 <summary>
-Lecturer transcript
+Transcript
 </summary>
 <p>Putting the pieces together gives the estimated variance of a coefficient. Substitute sigma-hat squared for the sigma squared you cannot know, and everything on the right-hand side is computable from your data. The square root of this is the standard error printed beside each coefficient in every table you will ever produce. Notice how many things had to go right to get here: four conditions for unbiasedness, homoskedasticity for the formula itself, and a degrees-of-freedom correction so that the estimate of sigma squared is unbiased in its own right.</p>
 </details>
@@ -2899,7 +3194,7 @@ Lecturer transcript
 <h2>Frisch–Waugh–Lovell Theorem</h2>
 <details class="transcript">
 <summary>
-Lecturer transcript
+Transcript
 </summary>
 <p>This section is optional, but I would encourage you to follow it, because it explains what controlling for a variable actually does, mechanically. There are two ways to get the coefficient on x-one. Method one is what you already do: throw everything into a single regression. Method two takes three steps. Regress y on the other variables and keep the residuals. Regress x-one on the other variables and keep those residuals. Then regress the first set of residuals on the second. The theorem says the two routes give exactly the same number. Not approximately the same.</p>
 </details>
@@ -2927,7 +3222,7 @@ Lecturer transcript
 <h2>Frisch–Waugh–Lovell: see it happen</h2>
 <details class="transcript">
 <summary>
-Lecturer transcript
+Transcript
 </summary>
 <p>Rather than assert it, run it. This cell simulates data where x-one is deliberately correlated with x-two and x-three, so that the partialling out has real work to do. Then it runs both methods and prints the two coefficients side by side. Look at them. They agree to every digit shown, and the actual difference is about four times ten to the minus sixteen, which is the smallest gap the computer can represent. These are not two procedures that happen to give similar answers. It is one procedure written two different ways.</p>
 </details>
@@ -2940,7 +3235,7 @@ Lecturer transcript
 <h2>Partialing out Interpretation from Method 2</h2>
 <details class="transcript">
 <summary>
-Lecturer transcript
+Transcript
 </summary>
 <p>Now let’s read those three steps for meaning rather than mechanics. Step one gives you the part of y that x-two and x-three cannot explain, y with their influence stripped out. Step two does the same thing to x-one, leaving the part of x-one that is unrelated to the others. Step three regresses one leftover on the other. So the coefficient on x-one is computed only from variation in x-one that the other regressors could not account for. Everything they could account for has been removed from both sides before the comparison is made.</p>
 </details>
@@ -2961,7 +3256,7 @@ Lecturer transcript
 <h2>Interpretation</h2>
 <details class="transcript">
 <summary>
-Lecturer transcript
+Transcript
 </summary>
 <p>So here is what to take from the whole section. When you run a multivariate regression, the coefficient on your variable of interest comes from the variation that the other variables cannot explain. That is what controlling for something means, mechanically. Read the second bullet, which is the payoff: including a variable stops you confusing its effect with the effect you actually want. And now recall the caveat from earlier in the lecture. This works beautifully for the variables you include, and does nothing whatever for the ones you never measured.</p>
 </details>

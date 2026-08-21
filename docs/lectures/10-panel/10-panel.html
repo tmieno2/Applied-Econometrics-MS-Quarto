@@ -94,8 +94,8 @@
     code span.vs { color: #20794d; } /* VerbatimString */
     code span.wa { color: #5e5e5e; font-style: italic; } /* Warning */
   </style>
-  <link rel="stylesheet" href="../../site_libs/revealjs/dist/theme/quarto-ae2d755d4d34da603f33a3001b8a52fa.css">
-  <script>window.backupDefine = window.define; window.define = undefined;</script><script src="https://cdn.jsdelivr.net/npm/katex@latest/dist/katex.min.js"></script>
+  <link rel="stylesheet" href="../../site_libs/revealjs/dist/theme/quarto-bf1223c773699056cca1ada9baf1738b.css">
+  <script defer="" src="https://cdn.jsdelivr.net/npm/katex@0.18.4/dist/katex.min.js"></script>
   <script>document.addEventListener("DOMContentLoaded", function () {
  var mathElements = document.getElementsByClassName("math");
  var macros = [];
@@ -110,7 +110,7 @@
    });
 }}});
   </script>
-  <script>window.define = window.backupDefine; window.backupDefine = undefined;</script><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@latest/dist/katex.min.css">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.18.4/dist/katex.min.css">
   <link href="../../site_libs/revealjs/plugin/quarto-line-highlight/line-highlight.css" rel="stylesheet">
   <link href="../../site_libs/revealjs/plugin/reveal-menu/menu.css" rel="stylesheet">
   <link href="../../site_libs/revealjs/plugin/reveal-menu/quarto-menu.css" rel="stylesheet">
@@ -204,7 +204,7 @@
     }
   </style>
   <!--
-    Support for collapsible "Lecturer transcript" panels in revealjs decks.
+    Support for collapsible "Transcript" panels in revealjs decks.
 
     Include it from a deck's YAML header, with the path relative to the qmd:
 
@@ -216,7 +216,7 @@
     tabset, which is the usual case):
 
         <details class="transcript">
-        <summary>Lecturer transcript</summary>
+        <summary>Transcript</summary>
 
         What the lecturer says about this tab.
 
@@ -384,8 +384,36 @@
     "use strict";
 
     var MAX_CODE_LINES = 12;
+    // Monaco's line-number gutter (~75px) plus its vertical scrollbar (~15px).
+    var EDITOR_CHROME = 90;
+    // A deliberate OVER-estimate of one character. Menlo at 15.36px measures
+    // ~9.2px, and erring high is what keeps the editor from wrapping when the
+    // real measurement below has not landed yet.
+    var FALLBACK_CHAR_PX = 11;
+    // Breathing room on each measured need. Side by side is a bonus, not a goal:
+    // the vertical stack is a perfectly good layout, so a cell that only fits by
+    // cramming should simply stay stacked. Slack here buys that judgement — it
+    // makes the fit test stricter AND leaves each column wider than its content.
+    var CODE_SLACK = 1.15;
+    var OUTPUT_SLACK = 1.08;
+    // Going side by side saves exactly one thing: the height of the code block,
+    // which no longer sits above the output. Against a tall output that saving is
+    // trivial — a 3-line editor beside a 34-line print of `mtcars` reclaims about
+    // a tenth of the cell's height and splits the slide in half to do it.
+    //
+    // 0.4 means the output may be at most ~1.5x the height of the code block.
+    // Calibrated against real cells, not picked: one line of code beside a 10-line
+    // tibble scores 0.31 and must be rejected; the 5-line piping example beside
+    // its 2 lines of output scores 0.81 and must be kept. An earlier 0.25 sat
+    // below the first of those and let it through.
+    var MIN_VERTICAL_SAVING = 0.4;
     var MAX_CODE_SHARE = 0.58;
-    var MIN_CODE_SHARE = 0.30;
+    // The floor exists only so the editor never becomes unusably narrow. It used
+    // to be 0.30, which padded a one-line call like `class(mtcars)` (160px of
+    // content including Monaco's gutter) out to 329px and charged the difference
+    // to the output.
+    var MIN_CODE_SHARE = 0.18;
+    var MAX_OUTPUT_SHARE = 0.82;
 
     function detailsFor(area) {
       var match = area.id && area.id.match(/qwebr-interactive-area-(\d+)/);
@@ -399,11 +427,35 @@
         return line.trim() && !/^\s*#/.test(line);
       });
       return {
+        code: String(code || ""),
         lines: substantive.length,
         maxChars: lines.reduce(function (n, line) {
           return Math.max(n, line.replace(/\t/g, "  ").length);
         }, 0)
       };
+    }
+
+    // The caret lives in the 1rem gutter and must sit at its centre. Percentages
+    // cannot express that reliably here, so measure the laid-out editor and hand
+    // the CSS an exact pixel.
+    function markGutter(area, host) {
+      var style = getComputedStyle(area);
+      if (style.display !== "grid") return;
+
+      // Take the gutter straight from the resolved grid tracks. Every element in
+      // this cell has been tried as an anchor and each one lies: Monaco renders
+      // wider than its track, and `.qwebr-output-code-area` reports a left edge
+      // well right of where the output column actually starts, which put the caret
+      // inside the Output banner. `grid-template-columns` resolves to used pixel
+      // widths, so the first track plus half the gap IS the gutter centre, with
+      // nothing to misreport.
+      var tracks = style.gridTemplateColumns.split(/\s+/)
+        .map(parseFloat).filter(function (n) { return !isNaN(n); });
+      if (tracks.length < 2) return;
+      var gap = parseFloat(style.columnGap) || 16;
+      var padLeft = parseFloat(style.paddingLeft) || 0;
+      var centre = padLeft + tracks[0] + gap / 2;
+      host.style.setProperty("--webr-gutter-centre", centre.toFixed(1) + "px");
     }
 
     function setTracks(host, codeShare) {
@@ -415,10 +467,15 @@
     }
 
     function measureRenderedCode(area, host, code, attempt) {
-      if (host.dataset.webrLayout !== "side") return;
+      if (!eligibleNow(host)) return;
       var sample = area.querySelector(".view-line, .monaco-editor");
       if (!sample || !area.clientWidth) {
-        if (attempt < 20) setTimeout(function () {
+        // 20 attempts (2s) was not enough: on a deck with ~70 cells Monaco is
+        // still rendering, the measurement never lands, and the cell is left on
+        // the fallback estimate. Undersize it and Monaco wraps the line, after
+        // which the only thing left to measure is the wrapped fragments — the
+        // column can never recover on its own. 100 attempts is 10s.
+        if (attempt < 100) setTimeout(function () {
           measureRenderedCode(area, host, code, attempt + 1);
         }, 100);
         return;
@@ -431,10 +488,201 @@
       var widest = String(code || "").split("\n").reduce(function (width, line) {
         return Math.max(width, context.measureText(line.replace(/\t/g, "  ")).width);
       }, 0);
-      // Monaco's line-number gutter, padding, and scrollbar need about 76px in
-      // addition to the measured glyph width.
+      // Note this measures the SOURCE text, never the rendered `.view-line`
+      // elements: once the column is narrow enough to wrap, those hold fragments
+      // and measuring them would confirm the mistake instead of correcting it.
       var available = Math.max(1, area.clientWidth - 16);
-      setTracks(host, (widest + 76) / available);
+      // Remember it in pixels. The share alone is not enough: the split has to be
+      // recomputed against the OUTPUT's measured width once the cell has run.
+      host.dataset.webrCodePx = Math.ceil(widest + EDITOR_CHROME);
+      setTracks(host, ((widest + EDITOR_CHROME) * CODE_SLACK) / available);
+
+      // The measured code column is now the real one, so check straight away that
+      // Monaco is not wrapping in it. Before, this ran only after a cell had been
+      // run; a cell that opens side by side needs it on arrival.
+      ensureNoWrap(area, host, sourceLineCount(code), 0);
+    }
+
+    // The natural width of the output text. `pre` cannot be measured directly:
+    // notebook.scss gives it `width: 100%`, so its scrollWidth reports the track
+    // it currently sits in, not the text inside it. Reading that back is a
+    // feedback loop — it made every cell claim the maximum output share however
+    // short its output was, starving the code column down to the floor until the
+    // editor wrapped a one-line call across three lines.
+    function naturalTextSize(pre) {
+      var cs = getComputedStyle(pre);
+      var probe = document.createElement("pre");
+      probe.style.cssText = "position:absolute;left:-9999px;top:0;visibility:hidden;" +
+        "white-space:pre;margin:0;padding:0;width:auto";
+      probe.style.fontFamily = cs.fontFamily;
+      probe.style.fontSize = cs.fontSize;
+      probe.style.fontWeight = cs.fontWeight;
+      probe.style.letterSpacing = cs.letterSpacing;
+      probe.textContent = pre.innerText || "";
+      document.body.appendChild(probe);
+      var size = { w: probe.scrollWidth, h: probe.scrollHeight };
+      probe.parentNode.removeChild(probe);
+      return size;
+    }
+
+    // Height of the code block as it stands: the editor plus its toolbar.
+    function codeBlockHeight(area) {
+      var editor = area.querySelector(".qwebr-editor");
+      var bar = area.querySelector(".qwebr-editor-toolbar");
+      var h = editor ? editor.getBoundingClientRect().height : 0;
+      if (bar) h += bar.getBoundingClientRect().height;
+      return h;
+    }
+
+    // A cell is a candidate while it is "pending" (rendered as the ordinary
+    // vertical stack) or already "side". Manual wrappers are always "side".
+    function eligibleNow(host) {
+      var mode = host.dataset.webrLayout;
+      return mode === "pending" || mode === "side";
+    }
+
+    // A cell is put side by side as soon as its code has been measured, so the
+    // layout the reader first sees is the layout it keeps. The output cannot be
+    // measured until the cell has run, so assessOutput may still send a cell back
+    // to the vertical stack afterwards — that is the price of not making the
+    // reader wait for a run to see the final shape.
+    function promote(host) {
+      if (host.dataset.webrLayout === "side") return;
+      host.classList.add("side-out");
+      host.dataset.webrLayout = "side";
+    }
+
+    function sourceLineCount(code) {
+      return String(code || "").replace(/\s+$/, "").split("\n").length;
+    }
+
+    // Every width here is predicted — from a canvas measurement of the source in
+    // what we believe is the editor's font. Predictions travel badly: a different
+    // browser, a missing font, a different device pixel ratio, and the editor
+    // wraps even though the arithmetic said it fitted. So do not trust the
+    // prediction — read back what Monaco actually rendered, and widen the column
+    // until the rendered line count matches the source. This is the only check
+    // that cannot be wrong about wrapping, because it IS the wrapping.
+    function ensureNoWrap(area, host, srcLines, attempt) {
+      if (host.dataset.webrLayout !== "side") return;
+      var lines = area.querySelectorAll(".view-line");
+      if (!lines.length) {
+        if (attempt < 100) setTimeout(function () {
+          ensureNoWrap(area, host, srcLines, attempt + 1);
+        }, 100);
+        return;
+      }
+      if (lines.length <= srcLines) { markGutter(area, host); return; }
+      var share = parseFloat(host.style.getPropertyValue("--webr-code-share")) / 100;
+      if (!share) share = MIN_CODE_SHARE;
+      if (share >= MAX_CODE_SHARE || attempt > 40) {
+        // Even at the widest permitted code column the line will not fit, so the
+        // cell has no business being side by side at all.
+        stack(host, true);
+        return;
+      }
+      setTracks(host, share + 0.02);
+      // Monaco relayouts asynchronously off its own resize observer; give it a
+      // frame or two before reading the line count again.
+      setTimeout(function () {
+        ensureNoWrap(area, host, srcLines, attempt + 1);
+      }, 60);
+    }
+
+    function stack(host, force) {
+      // `::: {.side-out}` is a REQUEST, not an override. It decides that a cell
+      // would like to be side by side; it cannot suspend the rules that say when
+      // side by side is acceptable — no wrapped code, output that fits, a split
+      // worth making. Every one of those gates passes force = true. What the
+      // exemption still buys is that ordinary measurement noise will not tear a
+      // deliberate wrapper down.
+      if (host.dataset.webrLayoutManual === "true" && !force) return;
+      host.classList.remove("side-out");
+      host.dataset.webrLayout = "stacked";
+    }
+
+    function assessOutput(area, host, metrics) {
+      if (!eligibleNow(host)) return;
+      var graph = area.querySelector(".qwebr-output-graph-area canvas, .qwebr-output-graph-area img");
+      if (graph) { // plots scale cleanly within their grid track
+        promote(host);
+        requestAnimationFrame(function () { markGutter(area, host); });
+        return;
+      }
+
+      var pre = area.querySelector(".qwebr-output-code-area pre");
+      if (!pre || getComputedStyle(pre).visibility === "hidden") return;
+
+      // Ran and printed nothing — an assignment, a library() call, anything
+      // invoked for its side effect. There is no right-hand content to show, so
+      // the code keeps the full width rather than facing an empty Output banner.
+      if (!(pre.innerText || "").trim()) { stack(host, true); return; }
+
+      var style = getComputedStyle(area);
+      var gap = parseFloat(style.columnGap) || 16;
+      var available = Math.max(1, area.clientWidth - gap);
+      // The code column was sized when the code was measured and MUST NOT move
+      // now. Re-deriving it from the output made the editor jump to a different
+      // width the instant a student pressed Run — the one thing a code block on a
+      // lecture slide must never do. This is also what the invariants say: code
+      // width determines the split, output gets whatever is left.
+      var codeTrack = Math.min(MAX_CODE_SHARE, Math.max(MIN_CODE_SHARE,
+        (Number(host.dataset.webrCodePx) ||
+          (metrics.maxChars * FALLBACK_CHAR_PX + EDITOR_CHROME)) * CODE_SLACK / available))
+        * available;
+      var natural = naturalTextSize(pre);
+      var outputPx = (natural.w + 24) * OUTPUT_SLACK;
+
+      // Is the split worth making? Stacked costs code + output; side by side costs
+      // whichever is taller. The saving is therefore the code block's height, and
+      // it has to be a real fraction of what the cell occupies now.
+      var codeH = codeBlockHeight(area);
+      var outH = natural.h;
+      if (!codeH || !outH) {
+        // Fall back to line counts rather than skipping the test. Skipping it is
+        // how a cell slips through: an unmeasurable height silently became an
+        // exemption from the rule.
+        var lineH = parseFloat(getComputedStyle(pre).lineHeight) || 20;
+        codeH = codeH || (metrics.lines * lineH + 38);
+        outH = outH || ((pre.innerText || "").split("\n").length * lineH);
+      }
+      if (codeH / (codeH + outH) < MIN_VERTICAL_SAVING) {
+        stack(host, true);
+        return;
+      }
+
+      // Side by side must never wrap a line of code. If the code cannot fit in the
+      // widest column it is allowed, there is no acceptable side-by-side layout
+      // for this cell — do not settle for a narrower one.
+      if (codeTrack < (Number(host.dataset.webrCodePx) || 0) * CODE_SLACK) {
+        stack(host, true);
+        return;
+      }
+
+      // Both needs already carry their slack, so this is a lenient test on
+      // purpose: anything that does not fit comfortably stays vertical.
+      // Width is the FIT constraint; the height test above is a separate,
+      // worthwhileness one. Height is not a fit constraint — these decks are
+      // `scrollable: true`, so a tall slide scrolls either way — but a tall output
+      // still makes the split pointless, which is what MIN_VERTICAL_SAVING covers.
+      // The only question left is whether the output fits in the space the code
+      // did not take. If it does not, the cell stacks — the code column is never
+      // narrowed to make room.
+      if (outputPx > available - codeTrack) {
+        stack(host, true);
+        return;
+      }
+
+      // Note: no setTracks() here, deliberately. The layout is already correct and
+      // touching it would move the editor.
+      promote(host);
+      requestAnimationFrame(function () { markGutter(area, host); });
+      ensureNoWrap(area, host, sourceLineCount(metrics.code), 0);
+      requestAnimationFrame(function () {
+        // Same trap as above — compare against the measured text, not scrollWidth,
+        // which a `width: 100%` pre can never exceed.
+        if (naturalTextSize(pre).w > pre.clientWidth * 1.08) stack(host);
+      });
     }
 
     function configure(area) {
@@ -447,26 +695,64 @@
       if (!metrics.lines || metrics.lines > MAX_CODE_LINES || metrics.maxChars > 88) return;
 
       var existingWrapper = area.closest(".side-out");
+
+      // A cell inside a reveal `.columns` block already has half a slide.
+      // Splitting that again leaves the code a QUARTER of the width, where even
+      // `mtcars[2:8, c(3, 5)]` wraps. custom.scss excludes these from its own
+      // automatic two-column rule with `:not(.column *)` for the same reason;
+      // match it. A manual wrapper is undone as well rather than merely skipped:
+      // the class is in the markup, so notebook.scss would lay the cell out in
+      // two columns regardless of what this script decides, and the halved width
+      // is not something the author who typed `::: {.side-out}` accounted for.
+      if (area.closest(".column")) {
+        if (existingWrapper) {
+          existingWrapper.classList.remove("side-out");
+          existingWrapper.dataset.webrLayout = "stacked";
+        }
+        return;
+      }
+
       var host = existingWrapper || area.closest(".cell") || area.parentElement;
       if (!host) return;
 
-      if (existingWrapper) {
-        host.dataset.webrLayoutManual = "true";
-      } else {
-        host.classList.add("side-out");
-      }
-      host.dataset.webrLayout = "side";
+      // Open side by side. `::: {.side-out}` only adds the manual flag, which
+      // stops routine measurement noise from tearing the wrapper down; it still
+      // cannot suspend the gates in assessOutput, all of which force.
+      if (existingWrapper) host.dataset.webrLayoutManual = "true";
+      promote(host);
 
-      // Estimate an initial split from the longest source line. This split is
-      // final; a run never changes it.
-      var initialCodeShare = (metrics.maxChars + 10) / 145;
-      setTracks(host, initialCodeShare);
+      // Estimate an initial split from the longest source line, in pixels against
+      // the width this cell actually has. The old form was `(maxChars + 10) / 145`,
+      // which assumed ~145 characters span the full width; the real figure is ~109,
+      // so it under-sized every editor by a third and manual `.side-out` cells —
+      // which open side by side at once and never reach the measured split until
+      // they are run — wrapped on arrival.
+      var initialAvailable = Math.max(1, (area.clientWidth || 1005) - 16);
+      setTracks(host,
+        (metrics.maxChars * FALLBACK_CHAR_PX + EDITOR_CHROME) / initialAvailable);
       measureRenderedCode(area, host, details.code, 0);
 
-      // Once side by side, always side by side. Output that is too wide or too
-      // long scrolls inside its column (notebook.scss); it never stacks the
-      // cell, because a layout that jumps when Run is pressed is worse than a
-      // scrollbar.
+      // A cell on a hidden slide or an inactive tab has clientWidth 0 for as long
+      // as it stays hidden, so measureRenderedCode above cannot measure anything
+      // and eventually gives up — leaving the cell on the character estimate for
+      // good. Whoever then navigates to that slide sees the estimate, which is
+      // exactly the wrapped editor this whole mechanism exists to avoid. Watch
+      // for the moment the cell gains a width instead.
+      if (typeof ResizeObserver === "function") {
+        var sizeObserver = new ResizeObserver(function () {
+          if (!area.clientWidth) return;
+          if (host.dataset.webrCodePx) { sizeObserver.disconnect(); return; }
+          measureRenderedCode(area, host, details.code, 0);
+        });
+        sizeObserver.observe(area);
+      }
+
+      var observer = new MutationObserver(function () {
+        requestAnimationFrame(function () { assessOutput(area, host, metrics); });
+      });
+      observer.observe(area, { childList: true, subtree: true, characterData: true,
+        attributes: true, attributeFilter: ["style", "class"] });
+      requestAnimationFrame(function () { assessOutput(area, host, metrics); });
     }
 
     function scan() {
@@ -484,6 +770,15 @@
       start();
     }
   })();
+  </script>
+  <!-- quarto-webr loads Monaco's AMD loader (define.amd). KaTeX ships UMD and
+       registers as an anonymous AMD module instead of setting window.katex, so
+       Quarto's inline renderer throws "katex is not defined" on every WebR deck.
+       Import the ESM build, which ignores AMD, and publish the global before
+       DOMContentLoaded so the stock renderer finds it. -->
+  <script type="module">
+    import katex from "https://cdn.jsdelivr.net/npm/katex@0.18.4/dist/katex.mjs";
+    window.katex = window.katex || katex;
   </script>
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/monaco-editor@0.47.0/min/vs/editor/editor.main.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
@@ -775,7 +1070,7 @@
   };
 
   // Store cell data
-  globalThis.qwebrCellDetails = [{"code":"data(jtrain, package = \"wooldridge\")\n\ndplyr::select(jtrain, year, fcode, employ, sales) %>%\n  head(9)","id":1,"options":{"autorun":"true","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.8","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"4.5","fig-width":"7","label":"unnamed-chunk-1","message":"true","out-height":"","out-width":"55%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"massage_data <- data.frame(\n  Location = c(\"Chicago\", \"Peoria\", \"Milwaukee\", \"Madison\"),\n  Year = rep(2003, 4),\n  P = c(75, 50, 60, 55),\n  Q = c(2, 1.0, 1.5, 0.8)\n)","id":2,"options":{"autorun":"true","classes":"","comment":"","context":"setup","dpi":"216","editor-font-scale":"0.8","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"4.5","fig-width":"7","label":"unnamed-chunk-2","message":"true","out-height":"","out-width":"55%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"massage_data <- \n  massage_data %>%\n  mutate(Ql = c(10, 5, 7, 6))\n\ngt(massage_data)","id":3,"options":{"autorun":"true","classes":"","comment":"","context":"setup","dpi":"216","editor-font-scale":"0.8","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"4.5","fig-width":"7","label":"unnamed-chunk-3","message":"true","out-height":"","out-width":"55%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"massage_data_2p <- \n  data.frame(\n    Location = rep(c(\"Chicago\", \"Peoria\", \"Milwaukee\", \"Madison\"), each = 2),\n    Year = rep(c(2003, 2004), 4),\n    P = c(75, 85, 50, 48, 60, 65, 55, 60),\n    Q = c(2, 1.8, 1.0, 1.1, 1.5, 1.4, 0.8, 0.7),\n    Ql = rep(c(10, 5, 7, 6), each = 2)\n  )","id":4,"options":{"autorun":"true","classes":"","comment":"","context":"setup","dpi":"216","editor-font-scale":"0.8","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"4.5","fig-width":"7","label":"unnamed-chunk-4","message":"true","out-height":"","out-width":"55%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"massage_data_fd <- \n  massage_data_2p %>%\n  group_by(Location) %>%\n  mutate(\n    P_dif = P - lag(P),\n    Q_dif = Q - lag(Q),\n    Ql_dif = Ql - lag(Ql)\n  ) %>%\n  ungroup()","id":5,"options":{"autorun":"true","classes":"","comment":"","context":"setup","dpi":"216","editor-font-scale":"0.8","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"4.5","fig-width":"7","label":"unnamed-chunk-5","message":"true","out-height":"","out-width":"55%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"massage_data_fd %>% head(5)","id":6,"options":{"autorun":"true","classes":"","comment":"","context":"output","dpi":"216","editor-font-scale":"0.8","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"4.5","fig-width":"7","label":"unnamed-chunk-6","message":"true","out-height":"","out-width":"55%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"fixest::feols(Q ~ P, data = massage_data_fd) %>% \n  broom::tidy()","id":7,"options":{"autorun":"true","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.8","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"4.5","fig-width":"7","label":"unnamed-chunk-7","message":"true","out-height":"","out-width":"55%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"fixest::feols(Q_dif ~ P_dif, data = massage_data_fd) %>% \n  broom::tidy()","id":8,"options":{"autorun":"true","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.8","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"4.5","fig-width":"7","label":"unnamed-chunk-8","message":"true","out-height":"","out-width":"55%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"massage_data_wth <- \n  massage_data_2p %>%\n  dplyr::select(Location, Year, P, Q, Ql) %>%\n  group_by(Location) %>%\n  mutate(\n    P_mean = mean(P),\n    P_dev = P - P_mean,\n    Q_mean = mean(Q),\n    Q_dev = Q - Q_mean,\n    Ql_mean = mean(Ql),\n    Ql_dev = Ql - Ql_mean\n  ) %>%\n  ungroup() %>%\n  dplyr::select(Location, Year, P, P_mean, P_dev, Q, Q_mean, Q_dev, Ql, Ql_mean, Ql_dev)","id":9,"options":{"autorun":"true","classes":"","comment":"","context":"setup","dpi":"216","editor-font-scale":"0.8","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"4.5","fig-width":"7","label":"unnamed-chunk-9","message":"true","out-height":"","out-width":"55%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"fixest::feols(Q_dev ~ P_dev, data = massage_data_wth)","id":10,"options":{"autorun":"true","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.8","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"4.5","fig-width":"7","label":"unnamed-chunk-10","message":"true","out-height":"","out-width":"55%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"(\n  massage_data_d <- massage_data_2p %>%\n    mutate(\n      Peoria_D = ifelse(Location == \"Peoria\", 1, 0),\n      Milwaukee_D = ifelse(Location == \"Milwaukee\", 1, 0),\n      Madison_D = ifelse(Location == \"Madison\", 1, 0)\n    )\n)","id":11,"options":{"autorun":"true","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.8","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"4.5","fig-width":"7","label":"unnamed-chunk-11","message":"true","out-height":"","out-width":"55%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"fixest::feols(Q ~ P + Peoria_D + Milwaukee_D + Madison_D, data = massage_data_d)","id":12,"options":{"autorun":"true","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.8","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"4.5","fig-width":"7","label":"unnamed-chunk-12","message":"true","out-height":"","out-width":"55%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"massage_data_2p","id":13,"options":{"autorun":"true","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.8","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"4.5","fig-width":"7","label":"unnamed-chunk-13","message":"true","out-height":"","out-width":"55%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"fixest::feols(Q ~ P | Location, data = massage_data_2p)","id":14,"options":{"autorun":"true","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.8","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"4.5","fig-width":"7","label":"unnamed-chunk-14","message":"true","out-height":"","out-width":"55%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"year_fe <- data.frame(\n  id = rep(1:4, each = 3),\n  year = rep(2015:2017, times = 4),\n  income = c(77, 82, 84, 110, 120, 131, 56, 60, 61, 70, 71, 74),\n  educ = c(12:14, 18:20, 10:12, 13:15),\n  FE_2015 = rep(c(1, 0, 0), times = 4),\n  FE_2016 = rep(c(0, 1, 0), times = 4),\n  FE_2017 = rep(c(0, 0, 1), times = 4)\n)\nyear_fe","id":15,"options":{"autorun":"true","classes":"","comment":"","context":"output","dpi":"216","editor-font-scale":"0.8","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"4.5","fig-width":"7","label":"unnamed-chunk-15","message":"true","out-height":"","out-width":"55%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"fixest::feols(I(log(income)) ~ educ | id + year, data = year_fe) %>%\n  tidy()","id":16,"options":{"autorun":"true","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.8","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"4.5","fig-width":"7","label":"unnamed-chunk-16","message":"true","out-height":"","out-width":"55%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"fixest::feols(I(log(income)) ~ educ | id + year, cluster = ~id, data = year_fe) %>% tidy()","id":17,"options":{"autorun":"true","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.8","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"4.5","fig-width":"7","label":"unnamed-chunk-17","message":"true","out-height":"","out-width":"55%","output":"true","read-only":"false","results":"markup","warning":"true"}}];
+  globalThis.qwebrCellDetails = [{"code":"data(jtrain, package = \"wooldridge\")\n\ndplyr::select(jtrain, year, fcode, employ, sales) %>%\n  head(9)","id":1,"options":{"autorun":"true","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.7","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"4.5","fig-width":"7","label":"unnamed-chunk-1","message":"true","out-height":"","out-width":"55%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"massage_data <- data.frame(\n  Location = c(\"Chicago\", \"Peoria\", \"Milwaukee\", \"Madison\"),\n  Year = rep(2003, 4),\n  P = c(75, 50, 60, 55),\n  Q = c(2, 1.0, 1.5, 0.8)\n)","id":2,"options":{"autorun":"true","classes":"","comment":"","context":"setup","dpi":"216","editor-font-scale":"0.7","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"4.5","fig-width":"7","label":"unnamed-chunk-2","message":"true","out-height":"","out-width":"55%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"massage_data <- \n  massage_data %>%\n  mutate(Ql = c(10, 5, 7, 6))\n\ngt(massage_data)","id":3,"options":{"autorun":"true","classes":"","comment":"","context":"setup","dpi":"216","editor-font-scale":"0.7","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"4.5","fig-width":"7","label":"unnamed-chunk-3","message":"true","out-height":"","out-width":"55%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"massage_data_2p <- \n  data.frame(\n    Location = rep(c(\"Chicago\", \"Peoria\", \"Milwaukee\", \"Madison\"), each = 2),\n    Year = rep(c(2003, 2004), 4),\n    P = c(75, 85, 50, 48, 60, 65, 55, 60),\n    Q = c(2, 1.8, 1.0, 1.1, 1.5, 1.4, 0.8, 0.7),\n    Ql = rep(c(10, 5, 7, 6), each = 2)\n  )","id":4,"options":{"autorun":"true","classes":"","comment":"","context":"setup","dpi":"216","editor-font-scale":"0.7","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"4.5","fig-width":"7","label":"unnamed-chunk-4","message":"true","out-height":"","out-width":"55%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"massage_data_fd <- \n  massage_data_2p %>%\n  group_by(Location) %>%\n  mutate(\n    P_dif = P - lag(P),\n    Q_dif = Q - lag(Q),\n    Ql_dif = Ql - lag(Ql)\n  ) %>%\n  ungroup()","id":5,"options":{"autorun":"true","classes":"","comment":"","context":"setup","dpi":"216","editor-font-scale":"0.7","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"4.5","fig-width":"7","label":"unnamed-chunk-5","message":"true","out-height":"","out-width":"55%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"massage_data_fd %>% head(5)","id":6,"options":{"autorun":"true","classes":"","comment":"","context":"output","dpi":"216","editor-font-scale":"0.7","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"4.5","fig-width":"7","label":"unnamed-chunk-6","message":"true","out-height":"","out-width":"55%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"fixest::feols(Q ~ P, data = massage_data_fd) %>% \n  broom::tidy()","id":7,"options":{"autorun":"true","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.7","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"4.5","fig-width":"7","label":"unnamed-chunk-7","message":"true","out-height":"","out-width":"55%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"fixest::feols(Q_dif ~ P_dif, data = massage_data_fd) %>% \n  broom::tidy()","id":8,"options":{"autorun":"true","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.7","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"4.5","fig-width":"7","label":"unnamed-chunk-8","message":"true","out-height":"","out-width":"55%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"massage_data_wth <- \n  massage_data_2p %>%\n  dplyr::select(Location, Year, P, Q, Ql) %>%\n  group_by(Location) %>%\n  mutate(\n    P_mean = mean(P),\n    P_dev = P - P_mean,\n    Q_mean = mean(Q),\n    Q_dev = Q - Q_mean,\n    Ql_mean = mean(Ql),\n    Ql_dev = Ql - Ql_mean\n  ) %>%\n  ungroup() %>%\n  dplyr::select(Location, Year, P, P_mean, P_dev, Q, Q_mean, Q_dev, Ql, Ql_mean, Ql_dev)","id":9,"options":{"autorun":"true","classes":"","comment":"","context":"setup","dpi":"216","editor-font-scale":"0.7","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"4.5","fig-width":"7","label":"unnamed-chunk-9","message":"true","out-height":"","out-width":"55%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"fixest::feols(Q_dev ~ P_dev, data = massage_data_wth)","id":10,"options":{"autorun":"true","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.7","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"4.5","fig-width":"7","label":"unnamed-chunk-10","message":"true","out-height":"","out-width":"55%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"(\n  massage_data_d <- massage_data_2p %>%\n    mutate(\n      Peoria_D = ifelse(Location == \"Peoria\", 1, 0),\n      Milwaukee_D = ifelse(Location == \"Milwaukee\", 1, 0),\n      Madison_D = ifelse(Location == \"Madison\", 1, 0)\n    )\n)","id":11,"options":{"autorun":"true","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.7","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"4.5","fig-width":"7","label":"unnamed-chunk-11","message":"true","out-height":"","out-width":"55%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"fixest::feols(Q ~ P + Peoria_D + Milwaukee_D + Madison_D, data = massage_data_d)","id":12,"options":{"autorun":"true","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.7","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"4.5","fig-width":"7","label":"unnamed-chunk-12","message":"true","out-height":"","out-width":"55%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"massage_data_2p","id":13,"options":{"autorun":"true","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.7","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"4.5","fig-width":"7","label":"unnamed-chunk-13","message":"true","out-height":"","out-width":"55%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"fixest::feols(Q ~ P | Location, data = massage_data_2p)","id":14,"options":{"autorun":"true","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.7","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"4.5","fig-width":"7","label":"unnamed-chunk-14","message":"true","out-height":"","out-width":"55%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"year_fe <- data.frame(\n  id = rep(1:4, each = 3),\n  year = rep(2015:2017, times = 4),\n  income = c(77, 82, 84, 110, 120, 131, 56, 60, 61, 70, 71, 74),\n  educ = c(12:14, 18:20, 10:12, 13:15),\n  FE_2015 = rep(c(1, 0, 0), times = 4),\n  FE_2016 = rep(c(0, 1, 0), times = 4),\n  FE_2017 = rep(c(0, 0, 1), times = 4)\n)\nyear_fe","id":15,"options":{"autorun":"true","classes":"","comment":"","context":"output","dpi":"216","editor-font-scale":"0.7","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"4.5","fig-width":"7","label":"unnamed-chunk-15","message":"true","out-height":"","out-width":"55%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"fixest::feols(I(log(income)) ~ educ | id + year, data = year_fe) %>%\n  tidy()","id":16,"options":{"autorun":"true","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.7","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"4.5","fig-width":"7","label":"unnamed-chunk-16","message":"true","out-height":"","out-width":"55%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"fixest::feols(I(log(income)) ~ educ | id + year, cluster = ~id, data = year_fe) %>% tidy()","id":17,"options":{"autorun":"true","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.7","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"4.5","fig-width":"7","label":"unnamed-chunk-17","message":"true","out-height":"","out-width":"55%","output":"true","read-only":"false","results":"markup","warning":"true"}}];
 
   </script>
   <script type="module">
@@ -2284,7 +2579,7 @@ globalThis.qwebrCreateMonacoEditorInstance = function (cellData) {
 <div id="tabset-1-1">
 <details class="transcript">
 <summary>
-Lecturer transcript
+Transcript
 </summary>
 <p>Panel data add a time dimension to cross-sectional data. The defining feature is not simply that observations come from several years; it is that we observe the same units repeatedly. A dataset containing a different random sample each year is a repeated cross-section, not a panel. Tracking the same people, firms, or places lets us compare a unit with itself. That within-unit comparison is valuable because many characteristics—ability, geography, organizational culture, or soil type—may be difficult to observe but relatively stable over the study period.</p>
 </details>
@@ -2300,7 +2595,7 @@ Lecturer transcript
 <div id="tabset-1-2">
 <details class="transcript inline">
 <summary>
-Lecturer transcript
+Transcript
 </summary>
 <p>This table shows the panel structure explicitly. <code>fcode</code> identifies a factory, and each factory can contribute observations in multiple years. The unit of observation is therefore a factory-year, not just a factory. Variables such as employment and sales can change within a factory over time, while other factory characteristics may remain constant. Before estimating any panel model, identify the unit index, the time index, whether every unit appears in every period, and which variables actually vary within units. A fixed-effects coefficient cannot be learned from a regressor that never changes within its unit.</p>
 </details>
@@ -2318,7 +2613,7 @@ Lecturer transcript
 <div id="tabset-1-3">
 <details class="transcript">
 <summary>
-Lecturer transcript
+Transcript
 </summary>
 <p>The central question is whether repeated observations can help with endogeneity. The answer is yes, but only for particular sources. Panel methods can remove unobserved unit characteristics that do not change over time. They cannot automatically remove time-varying confounders, measurement error, reverse causality, or feedback from past outcomes to future regressors. Throughout the lecture, keep asking two questions: what variation identifies the coefficient, and which omitted factors are eliminated by that comparison?</p>
 </details>
@@ -2339,23 +2634,23 @@ Lecturer transcript
 <noscript>Please enable JavaScript to experience the dynamic code cell content on this page.</noscript>
 <div class="cell">
 <div class="cell-output-display">
-<div id="ectcwjqobc" style="padding-left:0px;padding-right:0px;padding-top:10px;padding-bottom:10px;overflow-x:auto;overflow-y:auto;width:auto;height:auto;">
-<style>#ectcwjqobc table {
+<div id="tivmavhdii" style="padding-left:0px;padding-right:0px;padding-top:10px;padding-bottom:10px;overflow-x:auto;overflow-y:auto;width:auto;height:auto;">
+<style>#tivmavhdii table {
   font-family: system-ui, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol', 'Noto Color Emoji';
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
 
-#ectcwjqobc thead, #ectcwjqobc tbody, #ectcwjqobc tfoot, #ectcwjqobc tr, #ectcwjqobc td, #ectcwjqobc th {
+#tivmavhdii thead, #tivmavhdii tbody, #tivmavhdii tfoot, #tivmavhdii tr, #tivmavhdii td, #tivmavhdii th {
   border-style: none;
 }
 
-#ectcwjqobc p {
+#tivmavhdii p {
   margin: 0;
   padding: 0;
 }
 
-#ectcwjqobc .gt_table {
+#tivmavhdii .gt_table {
   display: table;
   border-collapse: collapse;
   line-height: normal;
@@ -2381,12 +2676,12 @@ Lecturer transcript
   border-left-color: #D3D3D3;
 }
 
-#ectcwjqobc .gt_caption {
+#tivmavhdii .gt_caption {
   padding-top: 4px;
   padding-bottom: 4px;
 }
 
-#ectcwjqobc .gt_title {
+#tivmavhdii .gt_title {
   color: #333333;
   font-size: 125%;
   font-weight: initial;
@@ -2398,7 +2693,7 @@ Lecturer transcript
   border-bottom-width: 0;
 }
 
-#ectcwjqobc .gt_subtitle {
+#tivmavhdii .gt_subtitle {
   color: #333333;
   font-size: 85%;
   font-weight: initial;
@@ -2410,7 +2705,7 @@ Lecturer transcript
   border-top-width: 0;
 }
 
-#ectcwjqobc .gt_heading {
+#tivmavhdii .gt_heading {
   background-color: #FFFFFF;
   text-align: center;
   border-bottom-color: #FFFFFF;
@@ -2422,13 +2717,13 @@ Lecturer transcript
   border-right-color: #D3D3D3;
 }
 
-#ectcwjqobc .gt_bottom_border {
+#tivmavhdii .gt_bottom_border {
   border-bottom-style: solid;
   border-bottom-width: 2px;
   border-bottom-color: #D3D3D3;
 }
 
-#ectcwjqobc .gt_col_headings {
+#tivmavhdii .gt_col_headings {
   border-top-style: solid;
   border-top-width: 2px;
   border-top-color: #D3D3D3;
@@ -2443,7 +2738,7 @@ Lecturer transcript
   border-right-color: #D3D3D3;
 }
 
-#ectcwjqobc .gt_col_heading {
+#tivmavhdii .gt_col_heading {
   color: #333333;
   background-color: #FFFFFF;
   font-size: 100%;
@@ -2463,7 +2758,7 @@ Lecturer transcript
   overflow-x: hidden;
 }
 
-#ectcwjqobc .gt_column_spanner_outer {
+#tivmavhdii .gt_column_spanner_outer {
   color: #333333;
   background-color: #FFFFFF;
   font-size: 100%;
@@ -2475,15 +2770,15 @@ Lecturer transcript
   padding-right: 4px;
 }
 
-#ectcwjqobc .gt_column_spanner_outer:first-child {
+#tivmavhdii .gt_column_spanner_outer:first-child {
   padding-left: 0;
 }
 
-#ectcwjqobc .gt_column_spanner_outer:last-child {
+#tivmavhdii .gt_column_spanner_outer:last-child {
   padding-right: 0;
 }
 
-#ectcwjqobc .gt_column_spanner {
+#tivmavhdii .gt_column_spanner {
   border-bottom-style: solid;
   border-bottom-width: 2px;
   border-bottom-color: #D3D3D3;
@@ -2495,11 +2790,11 @@ Lecturer transcript
   width: 100%;
 }
 
-#ectcwjqobc .gt_spanner_row {
+#tivmavhdii .gt_spanner_row {
   border-bottom-style: hidden;
 }
 
-#ectcwjqobc .gt_group_heading {
+#tivmavhdii .gt_group_heading {
   padding-top: 8px;
   padding-bottom: 8px;
   padding-left: 5px;
@@ -2525,7 +2820,7 @@ Lecturer transcript
   text-align: left;
 }
 
-#ectcwjqobc .gt_empty_group_heading {
+#tivmavhdii .gt_empty_group_heading {
   padding: 0.5px;
   color: #333333;
   background-color: #FFFFFF;
@@ -2540,15 +2835,15 @@ Lecturer transcript
   vertical-align: middle;
 }
 
-#ectcwjqobc .gt_from_md > :first-child {
+#tivmavhdii .gt_from_md > :first-child {
   margin-top: 0;
 }
 
-#ectcwjqobc .gt_from_md > :last-child {
+#tivmavhdii .gt_from_md > :last-child {
   margin-bottom: 0;
 }
 
-#ectcwjqobc .gt_row {
+#tivmavhdii .gt_row {
   padding-top: 8px;
   padding-bottom: 8px;
   padding-left: 5px;
@@ -2567,7 +2862,7 @@ Lecturer transcript
   overflow-x: hidden;
 }
 
-#ectcwjqobc .gt_stub {
+#tivmavhdii .gt_stub {
   color: #333333;
   background-color: #FFFFFF;
   font-size: 100%;
@@ -2580,7 +2875,7 @@ Lecturer transcript
   padding-right: 5px;
 }
 
-#ectcwjqobc .gt_stub_row_group {
+#tivmavhdii .gt_stub_row_group {
   color: #333333;
   background-color: #FFFFFF;
   font-size: 100%;
@@ -2594,15 +2889,15 @@ Lecturer transcript
   vertical-align: top;
 }
 
-#ectcwjqobc .gt_row_group_first td {
+#tivmavhdii .gt_row_group_first td {
   border-top-width: 2px;
 }
 
-#ectcwjqobc .gt_row_group_first th {
+#tivmavhdii .gt_row_group_first th {
   border-top-width: 2px;
 }
 
-#ectcwjqobc .gt_summary_row {
+#tivmavhdii .gt_summary_row {
   color: #333333;
   background-color: #FFFFFF;
   text-transform: inherit;
@@ -2612,16 +2907,16 @@ Lecturer transcript
   padding-right: 5px;
 }
 
-#ectcwjqobc .gt_first_summary_row {
+#tivmavhdii .gt_first_summary_row {
   border-top-style: solid;
   border-top-color: #D3D3D3;
 }
 
-#ectcwjqobc .gt_first_summary_row.thick {
+#tivmavhdii .gt_first_summary_row.thick {
   border-top-width: 2px;
 }
 
-#ectcwjqobc .gt_last_summary_row {
+#tivmavhdii .gt_last_summary_row {
   padding-top: 8px;
   padding-bottom: 8px;
   padding-left: 5px;
@@ -2631,7 +2926,7 @@ Lecturer transcript
   border-bottom-color: #D3D3D3;
 }
 
-#ectcwjqobc .gt_grand_summary_row {
+#tivmavhdii .gt_grand_summary_row {
   color: #333333;
   background-color: #FFFFFF;
   text-transform: inherit;
@@ -2641,7 +2936,7 @@ Lecturer transcript
   padding-right: 5px;
 }
 
-#ectcwjqobc .gt_first_grand_summary_row {
+#tivmavhdii .gt_first_grand_summary_row {
   padding-top: 8px;
   padding-bottom: 8px;
   padding-left: 5px;
@@ -2651,7 +2946,7 @@ Lecturer transcript
   border-top-color: #D3D3D3;
 }
 
-#ectcwjqobc .gt_last_grand_summary_row_top {
+#tivmavhdii .gt_last_grand_summary_row_top {
   padding-top: 8px;
   padding-bottom: 8px;
   padding-left: 5px;
@@ -2661,11 +2956,11 @@ Lecturer transcript
   border-bottom-color: #D3D3D3;
 }
 
-#ectcwjqobc .gt_striped {
+#tivmavhdii .gt_striped {
   background-color: rgba(128, 128, 128, 0.05);
 }
 
-#ectcwjqobc .gt_table_body {
+#tivmavhdii .gt_table_body {
   border-top-style: solid;
   border-top-width: 2px;
   border-top-color: #D3D3D3;
@@ -2674,7 +2969,7 @@ Lecturer transcript
   border-bottom-color: #D3D3D3;
 }
 
-#ectcwjqobc .gt_footnotes {
+#tivmavhdii .gt_footnotes {
   color: #333333;
   background-color: #FFFFFF;
   border-bottom-style: none;
@@ -2688,7 +2983,7 @@ Lecturer transcript
   border-right-color: #D3D3D3;
 }
 
-#ectcwjqobc .gt_footnote {
+#tivmavhdii .gt_footnote {
   margin: 0px;
   font-size: 90%;
   padding-top: 4px;
@@ -2697,7 +2992,7 @@ Lecturer transcript
   padding-right: 5px;
 }
 
-#ectcwjqobc .gt_sourcenotes {
+#tivmavhdii .gt_sourcenotes {
   color: #333333;
   background-color: #FFFFFF;
   border-bottom-style: none;
@@ -2711,7 +3006,7 @@ Lecturer transcript
   border-right-color: #D3D3D3;
 }
 
-#ectcwjqobc .gt_sourcenote {
+#tivmavhdii .gt_sourcenote {
   font-size: 90%;
   padding-top: 4px;
   padding-bottom: 4px;
@@ -2719,72 +3014,72 @@ Lecturer transcript
   padding-right: 5px;
 }
 
-#ectcwjqobc .gt_left {
+#tivmavhdii .gt_left {
   text-align: left;
 }
 
-#ectcwjqobc .gt_center {
+#tivmavhdii .gt_center {
   text-align: center;
 }
 
-#ectcwjqobc .gt_right {
+#tivmavhdii .gt_right {
   text-align: right;
   font-variant-numeric: tabular-nums;
 }
 
-#ectcwjqobc .gt_font_normal {
+#tivmavhdii .gt_font_normal {
   font-weight: normal;
 }
 
-#ectcwjqobc .gt_font_bold {
+#tivmavhdii .gt_font_bold {
   font-weight: bold;
 }
 
-#ectcwjqobc .gt_font_italic {
+#tivmavhdii .gt_font_italic {
   font-style: italic;
 }
 
-#ectcwjqobc .gt_super {
+#tivmavhdii .gt_super {
   font-size: 65%;
 }
 
-#ectcwjqobc .gt_footnote_marks {
+#tivmavhdii .gt_footnote_marks {
   font-size: 75%;
   vertical-align: 0.4em;
   position: initial;
 }
 
-#ectcwjqobc .gt_asterisk {
+#tivmavhdii .gt_asterisk {
   font-size: 100%;
   vertical-align: 0;
 }
 
-#ectcwjqobc .gt_indent_1 {
+#tivmavhdii .gt_indent_1 {
   text-indent: 5px;
 }
 
-#ectcwjqobc .gt_indent_2 {
+#tivmavhdii .gt_indent_2 {
   text-indent: 10px;
 }
 
-#ectcwjqobc .gt_indent_3 {
+#tivmavhdii .gt_indent_3 {
   text-indent: 15px;
 }
 
-#ectcwjqobc .gt_indent_4 {
+#tivmavhdii .gt_indent_4 {
   text-indent: 20px;
 }
 
-#ectcwjqobc .gt_indent_5 {
+#tivmavhdii .gt_indent_5 {
   text-indent: 25px;
 }
 
-#ectcwjqobc .katex-display {
+#tivmavhdii .katex-display {
   display: inline-flex !important;
   margin-bottom: 0.75em !important;
 }
 
-#ectcwjqobc div.Reactable > div.rt-table > div.rt-thead > div.rt-tr.rt-tr-group-header > div.rt-th-group:after {
+#tivmavhdii div.Reactable > div.rt-table > div.rt-thead > div.rt-tr.rt-tr-group-header > div.rt-th-group:after {
   height: 0px !important;
 }
 </style>
@@ -2839,7 +3134,7 @@ Lecturer transcript
 <div id="tabset-2-1">
 <details class="transcript">
 <summary>
-Lecturer transcript
+Transcript
 </summary>
 <p>Read the four-city table as a cross-section. Cities with higher massage prices also have more massages per capita, so the raw association is positive. It would be a mistake to read this as an upward-sloping demand curve. Cross-city prices can differ because the product and the market differ. The observation illustrates an identification problem: the regression line can describe the data correctly while failing to estimate the causal response of quantity demanded to a price change.</p>
 </details>
@@ -2855,7 +3150,7 @@ They are positively correlated. So, does that mean people want more massages as 
 <div id="tabset-2-2">
 <details class="transcript">
 <summary>
-Lecturer transcript
+Transcript
 </summary>
 <p>We need a factor that differs across cities, affects massage demand, and is related to price. Income is one possibility, but it may be observable. Massage quality is more troublesome: higher-quality services can command higher prices and attract more customers. Local occupations, tourism, demographics, and preferences could work similarly. The purpose of brainstorming is not to make an endless list. It is to understand why comparing Chicago with Peoria does not hold the demand environment fixed.</p>
 </details>
@@ -2879,7 +3174,7 @@ Answer
 <div id="tabset-4-2">
 <details class="transcript inline">
 <summary>
-Lecturer transcript
+Transcript
 </summary>
 <p>The quality column reveals the confounder that was hidden in the first table. High-quality cities have both higher prices and higher quantities. If quality is omitted, its effect enters the error term, and price is correlated with that error. We cannot fix the problem by saying quality matters; we would need to measure it credibly and control for it. The panel strategy will instead exploit the fact that this example defines each city’s quality as constant over time.</p>
 </details>
@@ -2888,23 +3183,23 @@ Lecturer transcript
 <noscript>Please enable JavaScript to experience the dynamic code cell content on this page.</noscript>
 <div class="cell">
 <div class="cell-output-display">
-<div id="shahtwbcxk" style="padding-left:0px;padding-right:0px;padding-top:10px;padding-bottom:10px;overflow-x:auto;overflow-y:auto;width:auto;height:auto;">
-<style>#shahtwbcxk table {
+<div id="auysegupvl" style="padding-left:0px;padding-right:0px;padding-top:10px;padding-bottom:10px;overflow-x:auto;overflow-y:auto;width:auto;height:auto;">
+<style>#auysegupvl table {
   font-family: system-ui, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol', 'Noto Color Emoji';
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
 
-#shahtwbcxk thead, #shahtwbcxk tbody, #shahtwbcxk tfoot, #shahtwbcxk tr, #shahtwbcxk td, #shahtwbcxk th {
+#auysegupvl thead, #auysegupvl tbody, #auysegupvl tfoot, #auysegupvl tr, #auysegupvl td, #auysegupvl th {
   border-style: none;
 }
 
-#shahtwbcxk p {
+#auysegupvl p {
   margin: 0;
   padding: 0;
 }
 
-#shahtwbcxk .gt_table {
+#auysegupvl .gt_table {
   display: table;
   border-collapse: collapse;
   line-height: normal;
@@ -2930,12 +3225,12 @@ Lecturer transcript
   border-left-color: #D3D3D3;
 }
 
-#shahtwbcxk .gt_caption {
+#auysegupvl .gt_caption {
   padding-top: 4px;
   padding-bottom: 4px;
 }
 
-#shahtwbcxk .gt_title {
+#auysegupvl .gt_title {
   color: #333333;
   font-size: 125%;
   font-weight: initial;
@@ -2947,7 +3242,7 @@ Lecturer transcript
   border-bottom-width: 0;
 }
 
-#shahtwbcxk .gt_subtitle {
+#auysegupvl .gt_subtitle {
   color: #333333;
   font-size: 85%;
   font-weight: initial;
@@ -2959,7 +3254,7 @@ Lecturer transcript
   border-top-width: 0;
 }
 
-#shahtwbcxk .gt_heading {
+#auysegupvl .gt_heading {
   background-color: #FFFFFF;
   text-align: center;
   border-bottom-color: #FFFFFF;
@@ -2971,13 +3266,13 @@ Lecturer transcript
   border-right-color: #D3D3D3;
 }
 
-#shahtwbcxk .gt_bottom_border {
+#auysegupvl .gt_bottom_border {
   border-bottom-style: solid;
   border-bottom-width: 2px;
   border-bottom-color: #D3D3D3;
 }
 
-#shahtwbcxk .gt_col_headings {
+#auysegupvl .gt_col_headings {
   border-top-style: solid;
   border-top-width: 2px;
   border-top-color: #D3D3D3;
@@ -2992,7 +3287,7 @@ Lecturer transcript
   border-right-color: #D3D3D3;
 }
 
-#shahtwbcxk .gt_col_heading {
+#auysegupvl .gt_col_heading {
   color: #333333;
   background-color: #FFFFFF;
   font-size: 100%;
@@ -3012,7 +3307,7 @@ Lecturer transcript
   overflow-x: hidden;
 }
 
-#shahtwbcxk .gt_column_spanner_outer {
+#auysegupvl .gt_column_spanner_outer {
   color: #333333;
   background-color: #FFFFFF;
   font-size: 100%;
@@ -3024,15 +3319,15 @@ Lecturer transcript
   padding-right: 4px;
 }
 
-#shahtwbcxk .gt_column_spanner_outer:first-child {
+#auysegupvl .gt_column_spanner_outer:first-child {
   padding-left: 0;
 }
 
-#shahtwbcxk .gt_column_spanner_outer:last-child {
+#auysegupvl .gt_column_spanner_outer:last-child {
   padding-right: 0;
 }
 
-#shahtwbcxk .gt_column_spanner {
+#auysegupvl .gt_column_spanner {
   border-bottom-style: solid;
   border-bottom-width: 2px;
   border-bottom-color: #D3D3D3;
@@ -3044,11 +3339,11 @@ Lecturer transcript
   width: 100%;
 }
 
-#shahtwbcxk .gt_spanner_row {
+#auysegupvl .gt_spanner_row {
   border-bottom-style: hidden;
 }
 
-#shahtwbcxk .gt_group_heading {
+#auysegupvl .gt_group_heading {
   padding-top: 8px;
   padding-bottom: 8px;
   padding-left: 5px;
@@ -3074,7 +3369,7 @@ Lecturer transcript
   text-align: left;
 }
 
-#shahtwbcxk .gt_empty_group_heading {
+#auysegupvl .gt_empty_group_heading {
   padding: 0.5px;
   color: #333333;
   background-color: #FFFFFF;
@@ -3089,15 +3384,15 @@ Lecturer transcript
   vertical-align: middle;
 }
 
-#shahtwbcxk .gt_from_md > :first-child {
+#auysegupvl .gt_from_md > :first-child {
   margin-top: 0;
 }
 
-#shahtwbcxk .gt_from_md > :last-child {
+#auysegupvl .gt_from_md > :last-child {
   margin-bottom: 0;
 }
 
-#shahtwbcxk .gt_row {
+#auysegupvl .gt_row {
   padding-top: 8px;
   padding-bottom: 8px;
   padding-left: 5px;
@@ -3116,7 +3411,7 @@ Lecturer transcript
   overflow-x: hidden;
 }
 
-#shahtwbcxk .gt_stub {
+#auysegupvl .gt_stub {
   color: #333333;
   background-color: #FFFFFF;
   font-size: 100%;
@@ -3129,7 +3424,7 @@ Lecturer transcript
   padding-right: 5px;
 }
 
-#shahtwbcxk .gt_stub_row_group {
+#auysegupvl .gt_stub_row_group {
   color: #333333;
   background-color: #FFFFFF;
   font-size: 100%;
@@ -3143,15 +3438,15 @@ Lecturer transcript
   vertical-align: top;
 }
 
-#shahtwbcxk .gt_row_group_first td {
+#auysegupvl .gt_row_group_first td {
   border-top-width: 2px;
 }
 
-#shahtwbcxk .gt_row_group_first th {
+#auysegupvl .gt_row_group_first th {
   border-top-width: 2px;
 }
 
-#shahtwbcxk .gt_summary_row {
+#auysegupvl .gt_summary_row {
   color: #333333;
   background-color: #FFFFFF;
   text-transform: inherit;
@@ -3161,16 +3456,16 @@ Lecturer transcript
   padding-right: 5px;
 }
 
-#shahtwbcxk .gt_first_summary_row {
+#auysegupvl .gt_first_summary_row {
   border-top-style: solid;
   border-top-color: #D3D3D3;
 }
 
-#shahtwbcxk .gt_first_summary_row.thick {
+#auysegupvl .gt_first_summary_row.thick {
   border-top-width: 2px;
 }
 
-#shahtwbcxk .gt_last_summary_row {
+#auysegupvl .gt_last_summary_row {
   padding-top: 8px;
   padding-bottom: 8px;
   padding-left: 5px;
@@ -3180,7 +3475,7 @@ Lecturer transcript
   border-bottom-color: #D3D3D3;
 }
 
-#shahtwbcxk .gt_grand_summary_row {
+#auysegupvl .gt_grand_summary_row {
   color: #333333;
   background-color: #FFFFFF;
   text-transform: inherit;
@@ -3190,7 +3485,7 @@ Lecturer transcript
   padding-right: 5px;
 }
 
-#shahtwbcxk .gt_first_grand_summary_row {
+#auysegupvl .gt_first_grand_summary_row {
   padding-top: 8px;
   padding-bottom: 8px;
   padding-left: 5px;
@@ -3200,7 +3495,7 @@ Lecturer transcript
   border-top-color: #D3D3D3;
 }
 
-#shahtwbcxk .gt_last_grand_summary_row_top {
+#auysegupvl .gt_last_grand_summary_row_top {
   padding-top: 8px;
   padding-bottom: 8px;
   padding-left: 5px;
@@ -3210,11 +3505,11 @@ Lecturer transcript
   border-bottom-color: #D3D3D3;
 }
 
-#shahtwbcxk .gt_striped {
+#auysegupvl .gt_striped {
   background-color: rgba(128, 128, 128, 0.05);
 }
 
-#shahtwbcxk .gt_table_body {
+#auysegupvl .gt_table_body {
   border-top-style: solid;
   border-top-width: 2px;
   border-top-color: #D3D3D3;
@@ -3223,7 +3518,7 @@ Lecturer transcript
   border-bottom-color: #D3D3D3;
 }
 
-#shahtwbcxk .gt_footnotes {
+#auysegupvl .gt_footnotes {
   color: #333333;
   background-color: #FFFFFF;
   border-bottom-style: none;
@@ -3237,7 +3532,7 @@ Lecturer transcript
   border-right-color: #D3D3D3;
 }
 
-#shahtwbcxk .gt_footnote {
+#auysegupvl .gt_footnote {
   margin: 0px;
   font-size: 90%;
   padding-top: 4px;
@@ -3246,7 +3541,7 @@ Lecturer transcript
   padding-right: 5px;
 }
 
-#shahtwbcxk .gt_sourcenotes {
+#auysegupvl .gt_sourcenotes {
   color: #333333;
   background-color: #FFFFFF;
   border-bottom-style: none;
@@ -3260,7 +3555,7 @@ Lecturer transcript
   border-right-color: #D3D3D3;
 }
 
-#shahtwbcxk .gt_sourcenote {
+#auysegupvl .gt_sourcenote {
   font-size: 90%;
   padding-top: 4px;
   padding-bottom: 4px;
@@ -3268,72 +3563,72 @@ Lecturer transcript
   padding-right: 5px;
 }
 
-#shahtwbcxk .gt_left {
+#auysegupvl .gt_left {
   text-align: left;
 }
 
-#shahtwbcxk .gt_center {
+#auysegupvl .gt_center {
   text-align: center;
 }
 
-#shahtwbcxk .gt_right {
+#auysegupvl .gt_right {
   text-align: right;
   font-variant-numeric: tabular-nums;
 }
 
-#shahtwbcxk .gt_font_normal {
+#auysegupvl .gt_font_normal {
   font-weight: normal;
 }
 
-#shahtwbcxk .gt_font_bold {
+#auysegupvl .gt_font_bold {
   font-weight: bold;
 }
 
-#shahtwbcxk .gt_font_italic {
+#auysegupvl .gt_font_italic {
   font-style: italic;
 }
 
-#shahtwbcxk .gt_super {
+#auysegupvl .gt_super {
   font-size: 65%;
 }
 
-#shahtwbcxk .gt_footnote_marks {
+#auysegupvl .gt_footnote_marks {
   font-size: 75%;
   vertical-align: 0.4em;
   position: initial;
 }
 
-#shahtwbcxk .gt_asterisk {
+#auysegupvl .gt_asterisk {
   font-size: 100%;
   vertical-align: 0;
 }
 
-#shahtwbcxk .gt_indent_1 {
+#auysegupvl .gt_indent_1 {
   text-indent: 5px;
 }
 
-#shahtwbcxk .gt_indent_2 {
+#auysegupvl .gt_indent_2 {
   text-indent: 10px;
 }
 
-#shahtwbcxk .gt_indent_3 {
+#auysegupvl .gt_indent_3 {
   text-indent: 15px;
 }
 
-#shahtwbcxk .gt_indent_4 {
+#auysegupvl .gt_indent_4 {
   text-indent: 20px;
 }
 
-#shahtwbcxk .gt_indent_5 {
+#auysegupvl .gt_indent_5 {
   text-indent: 25px;
 }
 
-#shahtwbcxk .katex-display {
+#auysegupvl .katex-display {
   display: inline-flex !important;
   margin-bottom: 0.75em !important;
 }
 
-#shahtwbcxk div.Reactable > div.rt-table > div.rt-thead > div.rt-tr.rt-tr-group-header > div.rt-th-group:after {
+#auysegupvl div.Reactable > div.rt-table > div.rt-thead > div.rt-tr.rt-tr-group-header > div.rt-th-group:after {
   height: 0px !important;
 }
 </style>
@@ -3393,7 +3688,7 @@ Lecturer transcript
 <div id="tabset-4-3">
 <details class="transcript">
 <summary>
-Lecturer transcript
+Transcript
 </summary>
 <p>Write the omitted-quality model as a regression with a composite error v. Quality affects quantity through beta two, but it is not included as a regressor. Because price is related to quality, price is related to v. This is the same omitted-variable logic from Lecture 09. The panel solution will not estimate quality’s coefficient; it will transform the data so that a time-invariant quality term cancels. That distinction matters: fixed effects control for stable differences without requiring us to observe or name each one separately.</p>
 </details>
@@ -3415,23 +3710,23 @@ Lecturer transcript
 <noscript>Please enable JavaScript to experience the dynamic code cell content on this page.</noscript>
 <div class="cell">
 <div class="cell-output-display">
-<div id="wslvomywbo" style="padding-left:0px;padding-right:0px;padding-top:10px;padding-bottom:10px;overflow-x:auto;overflow-y:auto;width:auto;height:auto;">
-<style>#wslvomywbo table {
+<div id="ztpgwmcgyn" style="padding-left:0px;padding-right:0px;padding-top:10px;padding-bottom:10px;overflow-x:auto;overflow-y:auto;width:auto;height:auto;">
+<style>#ztpgwmcgyn table {
   font-family: system-ui, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol', 'Noto Color Emoji';
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
 
-#wslvomywbo thead, #wslvomywbo tbody, #wslvomywbo tfoot, #wslvomywbo tr, #wslvomywbo td, #wslvomywbo th {
+#ztpgwmcgyn thead, #ztpgwmcgyn tbody, #ztpgwmcgyn tfoot, #ztpgwmcgyn tr, #ztpgwmcgyn td, #ztpgwmcgyn th {
   border-style: none;
 }
 
-#wslvomywbo p {
+#ztpgwmcgyn p {
   margin: 0;
   padding: 0;
 }
 
-#wslvomywbo .gt_table {
+#ztpgwmcgyn .gt_table {
   display: table;
   border-collapse: collapse;
   line-height: normal;
@@ -3457,12 +3752,12 @@ Lecturer transcript
   border-left-color: #D3D3D3;
 }
 
-#wslvomywbo .gt_caption {
+#ztpgwmcgyn .gt_caption {
   padding-top: 4px;
   padding-bottom: 4px;
 }
 
-#wslvomywbo .gt_title {
+#ztpgwmcgyn .gt_title {
   color: #333333;
   font-size: 125%;
   font-weight: initial;
@@ -3474,7 +3769,7 @@ Lecturer transcript
   border-bottom-width: 0;
 }
 
-#wslvomywbo .gt_subtitle {
+#ztpgwmcgyn .gt_subtitle {
   color: #333333;
   font-size: 85%;
   font-weight: initial;
@@ -3486,7 +3781,7 @@ Lecturer transcript
   border-top-width: 0;
 }
 
-#wslvomywbo .gt_heading {
+#ztpgwmcgyn .gt_heading {
   background-color: #FFFFFF;
   text-align: center;
   border-bottom-color: #FFFFFF;
@@ -3498,13 +3793,13 @@ Lecturer transcript
   border-right-color: #D3D3D3;
 }
 
-#wslvomywbo .gt_bottom_border {
+#ztpgwmcgyn .gt_bottom_border {
   border-bottom-style: solid;
   border-bottom-width: 2px;
   border-bottom-color: #D3D3D3;
 }
 
-#wslvomywbo .gt_col_headings {
+#ztpgwmcgyn .gt_col_headings {
   border-top-style: solid;
   border-top-width: 2px;
   border-top-color: #D3D3D3;
@@ -3519,7 +3814,7 @@ Lecturer transcript
   border-right-color: #D3D3D3;
 }
 
-#wslvomywbo .gt_col_heading {
+#ztpgwmcgyn .gt_col_heading {
   color: #333333;
   background-color: #FFFFFF;
   font-size: 100%;
@@ -3539,7 +3834,7 @@ Lecturer transcript
   overflow-x: hidden;
 }
 
-#wslvomywbo .gt_column_spanner_outer {
+#ztpgwmcgyn .gt_column_spanner_outer {
   color: #333333;
   background-color: #FFFFFF;
   font-size: 100%;
@@ -3551,15 +3846,15 @@ Lecturer transcript
   padding-right: 4px;
 }
 
-#wslvomywbo .gt_column_spanner_outer:first-child {
+#ztpgwmcgyn .gt_column_spanner_outer:first-child {
   padding-left: 0;
 }
 
-#wslvomywbo .gt_column_spanner_outer:last-child {
+#ztpgwmcgyn .gt_column_spanner_outer:last-child {
   padding-right: 0;
 }
 
-#wslvomywbo .gt_column_spanner {
+#ztpgwmcgyn .gt_column_spanner {
   border-bottom-style: solid;
   border-bottom-width: 2px;
   border-bottom-color: #D3D3D3;
@@ -3571,11 +3866,11 @@ Lecturer transcript
   width: 100%;
 }
 
-#wslvomywbo .gt_spanner_row {
+#ztpgwmcgyn .gt_spanner_row {
   border-bottom-style: hidden;
 }
 
-#wslvomywbo .gt_group_heading {
+#ztpgwmcgyn .gt_group_heading {
   padding-top: 8px;
   padding-bottom: 8px;
   padding-left: 5px;
@@ -3601,7 +3896,7 @@ Lecturer transcript
   text-align: left;
 }
 
-#wslvomywbo .gt_empty_group_heading {
+#ztpgwmcgyn .gt_empty_group_heading {
   padding: 0.5px;
   color: #333333;
   background-color: #FFFFFF;
@@ -3616,15 +3911,15 @@ Lecturer transcript
   vertical-align: middle;
 }
 
-#wslvomywbo .gt_from_md > :first-child {
+#ztpgwmcgyn .gt_from_md > :first-child {
   margin-top: 0;
 }
 
-#wslvomywbo .gt_from_md > :last-child {
+#ztpgwmcgyn .gt_from_md > :last-child {
   margin-bottom: 0;
 }
 
-#wslvomywbo .gt_row {
+#ztpgwmcgyn .gt_row {
   padding-top: 8px;
   padding-bottom: 8px;
   padding-left: 5px;
@@ -3643,7 +3938,7 @@ Lecturer transcript
   overflow-x: hidden;
 }
 
-#wslvomywbo .gt_stub {
+#ztpgwmcgyn .gt_stub {
   color: #333333;
   background-color: #FFFFFF;
   font-size: 100%;
@@ -3656,7 +3951,7 @@ Lecturer transcript
   padding-right: 5px;
 }
 
-#wslvomywbo .gt_stub_row_group {
+#ztpgwmcgyn .gt_stub_row_group {
   color: #333333;
   background-color: #FFFFFF;
   font-size: 100%;
@@ -3670,15 +3965,15 @@ Lecturer transcript
   vertical-align: top;
 }
 
-#wslvomywbo .gt_row_group_first td {
+#ztpgwmcgyn .gt_row_group_first td {
   border-top-width: 2px;
 }
 
-#wslvomywbo .gt_row_group_first th {
+#ztpgwmcgyn .gt_row_group_first th {
   border-top-width: 2px;
 }
 
-#wslvomywbo .gt_summary_row {
+#ztpgwmcgyn .gt_summary_row {
   color: #333333;
   background-color: #FFFFFF;
   text-transform: inherit;
@@ -3688,16 +3983,16 @@ Lecturer transcript
   padding-right: 5px;
 }
 
-#wslvomywbo .gt_first_summary_row {
+#ztpgwmcgyn .gt_first_summary_row {
   border-top-style: solid;
   border-top-color: #D3D3D3;
 }
 
-#wslvomywbo .gt_first_summary_row.thick {
+#ztpgwmcgyn .gt_first_summary_row.thick {
   border-top-width: 2px;
 }
 
-#wslvomywbo .gt_last_summary_row {
+#ztpgwmcgyn .gt_last_summary_row {
   padding-top: 8px;
   padding-bottom: 8px;
   padding-left: 5px;
@@ -3707,7 +4002,7 @@ Lecturer transcript
   border-bottom-color: #D3D3D3;
 }
 
-#wslvomywbo .gt_grand_summary_row {
+#ztpgwmcgyn .gt_grand_summary_row {
   color: #333333;
   background-color: #FFFFFF;
   text-transform: inherit;
@@ -3717,7 +4012,7 @@ Lecturer transcript
   padding-right: 5px;
 }
 
-#wslvomywbo .gt_first_grand_summary_row {
+#ztpgwmcgyn .gt_first_grand_summary_row {
   padding-top: 8px;
   padding-bottom: 8px;
   padding-left: 5px;
@@ -3727,7 +4022,7 @@ Lecturer transcript
   border-top-color: #D3D3D3;
 }
 
-#wslvomywbo .gt_last_grand_summary_row_top {
+#ztpgwmcgyn .gt_last_grand_summary_row_top {
   padding-top: 8px;
   padding-bottom: 8px;
   padding-left: 5px;
@@ -3737,11 +4032,11 @@ Lecturer transcript
   border-bottom-color: #D3D3D3;
 }
 
-#wslvomywbo .gt_striped {
+#ztpgwmcgyn .gt_striped {
   background-color: rgba(128, 128, 128, 0.05);
 }
 
-#wslvomywbo .gt_table_body {
+#ztpgwmcgyn .gt_table_body {
   border-top-style: solid;
   border-top-width: 2px;
   border-top-color: #D3D3D3;
@@ -3750,7 +4045,7 @@ Lecturer transcript
   border-bottom-color: #D3D3D3;
 }
 
-#wslvomywbo .gt_footnotes {
+#ztpgwmcgyn .gt_footnotes {
   color: #333333;
   background-color: #FFFFFF;
   border-bottom-style: none;
@@ -3764,7 +4059,7 @@ Lecturer transcript
   border-right-color: #D3D3D3;
 }
 
-#wslvomywbo .gt_footnote {
+#ztpgwmcgyn .gt_footnote {
   margin: 0px;
   font-size: 90%;
   padding-top: 4px;
@@ -3773,7 +4068,7 @@ Lecturer transcript
   padding-right: 5px;
 }
 
-#wslvomywbo .gt_sourcenotes {
+#ztpgwmcgyn .gt_sourcenotes {
   color: #333333;
   background-color: #FFFFFF;
   border-bottom-style: none;
@@ -3787,7 +4082,7 @@ Lecturer transcript
   border-right-color: #D3D3D3;
 }
 
-#wslvomywbo .gt_sourcenote {
+#ztpgwmcgyn .gt_sourcenote {
   font-size: 90%;
   padding-top: 4px;
   padding-bottom: 4px;
@@ -3795,72 +4090,72 @@ Lecturer transcript
   padding-right: 5px;
 }
 
-#wslvomywbo .gt_left {
+#ztpgwmcgyn .gt_left {
   text-align: left;
 }
 
-#wslvomywbo .gt_center {
+#ztpgwmcgyn .gt_center {
   text-align: center;
 }
 
-#wslvomywbo .gt_right {
+#ztpgwmcgyn .gt_right {
   text-align: right;
   font-variant-numeric: tabular-nums;
 }
 
-#wslvomywbo .gt_font_normal {
+#ztpgwmcgyn .gt_font_normal {
   font-weight: normal;
 }
 
-#wslvomywbo .gt_font_bold {
+#ztpgwmcgyn .gt_font_bold {
   font-weight: bold;
 }
 
-#wslvomywbo .gt_font_italic {
+#ztpgwmcgyn .gt_font_italic {
   font-style: italic;
 }
 
-#wslvomywbo .gt_super {
+#ztpgwmcgyn .gt_super {
   font-size: 65%;
 }
 
-#wslvomywbo .gt_footnote_marks {
+#ztpgwmcgyn .gt_footnote_marks {
   font-size: 75%;
   vertical-align: 0.4em;
   position: initial;
 }
 
-#wslvomywbo .gt_asterisk {
+#ztpgwmcgyn .gt_asterisk {
   font-size: 100%;
   vertical-align: 0;
 }
 
-#wslvomywbo .gt_indent_1 {
+#ztpgwmcgyn .gt_indent_1 {
   text-indent: 5px;
 }
 
-#wslvomywbo .gt_indent_2 {
+#ztpgwmcgyn .gt_indent_2 {
   text-indent: 10px;
 }
 
-#wslvomywbo .gt_indent_3 {
+#ztpgwmcgyn .gt_indent_3 {
   text-indent: 15px;
 }
 
-#wslvomywbo .gt_indent_4 {
+#ztpgwmcgyn .gt_indent_4 {
   text-indent: 20px;
 }
 
-#wslvomywbo .gt_indent_5 {
+#ztpgwmcgyn .gt_indent_5 {
   text-indent: 25px;
 }
 
-#wslvomywbo .katex-display {
+#ztpgwmcgyn .katex-display {
   display: inline-flex !important;
   margin-bottom: 0.75em !important;
 }
 
-#wslvomywbo div.Reactable > div.rt-table > div.rt-thead > div.rt-tr.rt-tr-group-header > div.rt-th-group:after {
+#ztpgwmcgyn div.Reactable > div.rt-table > div.rt-thead > div.rt-tr.rt-tr-group-header > div.rt-th-group:after {
   height: 0px !important;
 }
 </style>
@@ -3944,7 +4239,7 @@ Lecturer transcript
 <div id="tabset-3-1">
 <details class="transcript inline">
 <summary>
-Lecturer transcript
+Transcript
 </summary>
 <p>The two-period table contains two sources of variation. Between-city variation compares, for example, Chicago with Peoria. Within-city variation compares Chicago in 2004 with Chicago in 2003. The cross-sectional regression mixes both. Panel estimators can discard the between-city component and use only changes within each city. That is useful here because the omitted quality index varies between cities but is fixed within a city over these two years.</p>
 </details>
@@ -3958,7 +4253,7 @@ Lecturer transcript
 <div id="tabset-3-2">
 <details class="transcript inline">
 <summary>
-Lecturer transcript
+Transcript
 </summary>
 <p>Compare each city with itself. Where price rises, quantity falls; where price falls, quantity rises. The within-city association is negative even though the between-city association was positive. This is not a paradox. The comparisons answer different questions and hold different things fixed. Within a city, our constructed quality measure stays constant, so it cannot explain the year-to-year movement. The example shows why the source of variation behind a coefficient matters at least as much as its numerical sign.</p>
 </details>
@@ -3974,7 +4269,7 @@ Price and quantity are <span style="color: red;"> negatively </span> correlated!
 <div id="tabset-3-3">
 <details class="transcript">
 <summary>
-Lecturer transcript
+Transcript
 </summary>
 <p>Within-city comparisons help because any city characteristic that is exactly constant over time is held fixed automatically. Here massage quality does not change, so it cannot confound the relationship between changes in price and changes in quantity. Be precise about the claim: within variation removes this time-invariant omitted factor. If income, local employment, or quality changes and those changes are related to price, endogeneity can remain. Panel data create an opportunity for cleaner comparisons; they do not make every comparison causal.</p>
 </details>
@@ -4003,7 +4298,7 @@ The omitted variable, massage quality, did not change over time within a city. R
 <div id="tabset-5-1">
 <details class="transcript inline">
 <summary>
-Lecturer transcript
+Transcript
 </summary>
 <p>First differencing turns levels into changes within each city. For every variable, subtract the first-period value from the second-period value. The first observation for each city has no lag, so its difference is missing; the highlighted second row supplies one usable change. Quality’s difference is zero in every city because quality was constant. Regressing change in quantity on change in price therefore uses only within-city movement and discards all fixed level differences across cities.</p>
 </details>
@@ -4020,23 +4315,23 @@ Lecturer transcript
 <noscript>Please enable JavaScript to experience the dynamic code cell content on this page.</noscript>
 <div class="cell">
 <div class="cell-output-display">
-<div id="nafedvfbbu" style="padding-left:0px;padding-right:0px;padding-top:10px;padding-bottom:10px;overflow-x:auto;overflow-y:auto;width:auto;height:auto;">
-<style>#nafedvfbbu table {
+<div id="ptkizcnxau" style="padding-left:0px;padding-right:0px;padding-top:10px;padding-bottom:10px;overflow-x:auto;overflow-y:auto;width:auto;height:auto;">
+<style>#ptkizcnxau table {
   font-family: system-ui, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol', 'Noto Color Emoji';
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
 
-#nafedvfbbu thead, #nafedvfbbu tbody, #nafedvfbbu tfoot, #nafedvfbbu tr, #nafedvfbbu td, #nafedvfbbu th {
+#ptkizcnxau thead, #ptkizcnxau tbody, #ptkizcnxau tfoot, #ptkizcnxau tr, #ptkizcnxau td, #ptkizcnxau th {
   border-style: none;
 }
 
-#nafedvfbbu p {
+#ptkizcnxau p {
   margin: 0;
   padding: 0;
 }
 
-#nafedvfbbu .gt_table {
+#ptkizcnxau .gt_table {
   display: table;
   border-collapse: collapse;
   line-height: normal;
@@ -4062,12 +4357,12 @@ Lecturer transcript
   border-left-color: #D3D3D3;
 }
 
-#nafedvfbbu .gt_caption {
+#ptkizcnxau .gt_caption {
   padding-top: 4px;
   padding-bottom: 4px;
 }
 
-#nafedvfbbu .gt_title {
+#ptkizcnxau .gt_title {
   color: #333333;
   font-size: 125%;
   font-weight: initial;
@@ -4079,7 +4374,7 @@ Lecturer transcript
   border-bottom-width: 0;
 }
 
-#nafedvfbbu .gt_subtitle {
+#ptkizcnxau .gt_subtitle {
   color: #333333;
   font-size: 85%;
   font-weight: initial;
@@ -4091,7 +4386,7 @@ Lecturer transcript
   border-top-width: 0;
 }
 
-#nafedvfbbu .gt_heading {
+#ptkizcnxau .gt_heading {
   background-color: #FFFFFF;
   text-align: center;
   border-bottom-color: #FFFFFF;
@@ -4103,13 +4398,13 @@ Lecturer transcript
   border-right-color: #D3D3D3;
 }
 
-#nafedvfbbu .gt_bottom_border {
+#ptkizcnxau .gt_bottom_border {
   border-bottom-style: solid;
   border-bottom-width: 2px;
   border-bottom-color: #D3D3D3;
 }
 
-#nafedvfbbu .gt_col_headings {
+#ptkizcnxau .gt_col_headings {
   border-top-style: solid;
   border-top-width: 2px;
   border-top-color: #D3D3D3;
@@ -4124,7 +4419,7 @@ Lecturer transcript
   border-right-color: #D3D3D3;
 }
 
-#nafedvfbbu .gt_col_heading {
+#ptkizcnxau .gt_col_heading {
   color: #333333;
   background-color: #FFFFFF;
   font-size: 100%;
@@ -4144,7 +4439,7 @@ Lecturer transcript
   overflow-x: hidden;
 }
 
-#nafedvfbbu .gt_column_spanner_outer {
+#ptkizcnxau .gt_column_spanner_outer {
   color: #333333;
   background-color: #FFFFFF;
   font-size: 100%;
@@ -4156,15 +4451,15 @@ Lecturer transcript
   padding-right: 4px;
 }
 
-#nafedvfbbu .gt_column_spanner_outer:first-child {
+#ptkizcnxau .gt_column_spanner_outer:first-child {
   padding-left: 0;
 }
 
-#nafedvfbbu .gt_column_spanner_outer:last-child {
+#ptkizcnxau .gt_column_spanner_outer:last-child {
   padding-right: 0;
 }
 
-#nafedvfbbu .gt_column_spanner {
+#ptkizcnxau .gt_column_spanner {
   border-bottom-style: solid;
   border-bottom-width: 2px;
   border-bottom-color: #D3D3D3;
@@ -4176,11 +4471,11 @@ Lecturer transcript
   width: 100%;
 }
 
-#nafedvfbbu .gt_spanner_row {
+#ptkizcnxau .gt_spanner_row {
   border-bottom-style: hidden;
 }
 
-#nafedvfbbu .gt_group_heading {
+#ptkizcnxau .gt_group_heading {
   padding-top: 8px;
   padding-bottom: 8px;
   padding-left: 5px;
@@ -4206,7 +4501,7 @@ Lecturer transcript
   text-align: left;
 }
 
-#nafedvfbbu .gt_empty_group_heading {
+#ptkizcnxau .gt_empty_group_heading {
   padding: 0.5px;
   color: #333333;
   background-color: #FFFFFF;
@@ -4221,15 +4516,15 @@ Lecturer transcript
   vertical-align: middle;
 }
 
-#nafedvfbbu .gt_from_md > :first-child {
+#ptkizcnxau .gt_from_md > :first-child {
   margin-top: 0;
 }
 
-#nafedvfbbu .gt_from_md > :last-child {
+#ptkizcnxau .gt_from_md > :last-child {
   margin-bottom: 0;
 }
 
-#nafedvfbbu .gt_row {
+#ptkizcnxau .gt_row {
   padding-top: 8px;
   padding-bottom: 8px;
   padding-left: 5px;
@@ -4248,7 +4543,7 @@ Lecturer transcript
   overflow-x: hidden;
 }
 
-#nafedvfbbu .gt_stub {
+#ptkizcnxau .gt_stub {
   color: #333333;
   background-color: #FFFFFF;
   font-size: 100%;
@@ -4261,7 +4556,7 @@ Lecturer transcript
   padding-right: 5px;
 }
 
-#nafedvfbbu .gt_stub_row_group {
+#ptkizcnxau .gt_stub_row_group {
   color: #333333;
   background-color: #FFFFFF;
   font-size: 100%;
@@ -4275,15 +4570,15 @@ Lecturer transcript
   vertical-align: top;
 }
 
-#nafedvfbbu .gt_row_group_first td {
+#ptkizcnxau .gt_row_group_first td {
   border-top-width: 2px;
 }
 
-#nafedvfbbu .gt_row_group_first th {
+#ptkizcnxau .gt_row_group_first th {
   border-top-width: 2px;
 }
 
-#nafedvfbbu .gt_summary_row {
+#ptkizcnxau .gt_summary_row {
   color: #333333;
   background-color: #FFFFFF;
   text-transform: inherit;
@@ -4293,16 +4588,16 @@ Lecturer transcript
   padding-right: 5px;
 }
 
-#nafedvfbbu .gt_first_summary_row {
+#ptkizcnxau .gt_first_summary_row {
   border-top-style: solid;
   border-top-color: #D3D3D3;
 }
 
-#nafedvfbbu .gt_first_summary_row.thick {
+#ptkizcnxau .gt_first_summary_row.thick {
   border-top-width: 2px;
 }
 
-#nafedvfbbu .gt_last_summary_row {
+#ptkizcnxau .gt_last_summary_row {
   padding-top: 8px;
   padding-bottom: 8px;
   padding-left: 5px;
@@ -4312,7 +4607,7 @@ Lecturer transcript
   border-bottom-color: #D3D3D3;
 }
 
-#nafedvfbbu .gt_grand_summary_row {
+#ptkizcnxau .gt_grand_summary_row {
   color: #333333;
   background-color: #FFFFFF;
   text-transform: inherit;
@@ -4322,7 +4617,7 @@ Lecturer transcript
   padding-right: 5px;
 }
 
-#nafedvfbbu .gt_first_grand_summary_row {
+#ptkizcnxau .gt_first_grand_summary_row {
   padding-top: 8px;
   padding-bottom: 8px;
   padding-left: 5px;
@@ -4332,7 +4627,7 @@ Lecturer transcript
   border-top-color: #D3D3D3;
 }
 
-#nafedvfbbu .gt_last_grand_summary_row_top {
+#ptkizcnxau .gt_last_grand_summary_row_top {
   padding-top: 8px;
   padding-bottom: 8px;
   padding-left: 5px;
@@ -4342,11 +4637,11 @@ Lecturer transcript
   border-bottom-color: #D3D3D3;
 }
 
-#nafedvfbbu .gt_striped {
+#ptkizcnxau .gt_striped {
   background-color: rgba(128, 128, 128, 0.05);
 }
 
-#nafedvfbbu .gt_table_body {
+#ptkizcnxau .gt_table_body {
   border-top-style: solid;
   border-top-width: 2px;
   border-top-color: #D3D3D3;
@@ -4355,7 +4650,7 @@ Lecturer transcript
   border-bottom-color: #D3D3D3;
 }
 
-#nafedvfbbu .gt_footnotes {
+#ptkizcnxau .gt_footnotes {
   color: #333333;
   background-color: #FFFFFF;
   border-bottom-style: none;
@@ -4369,7 +4664,7 @@ Lecturer transcript
   border-right-color: #D3D3D3;
 }
 
-#nafedvfbbu .gt_footnote {
+#ptkizcnxau .gt_footnote {
   margin: 0px;
   font-size: 90%;
   padding-top: 4px;
@@ -4378,7 +4673,7 @@ Lecturer transcript
   padding-right: 5px;
 }
 
-#nafedvfbbu .gt_sourcenotes {
+#ptkizcnxau .gt_sourcenotes {
   color: #333333;
   background-color: #FFFFFF;
   border-bottom-style: none;
@@ -4392,7 +4687,7 @@ Lecturer transcript
   border-right-color: #D3D3D3;
 }
 
-#nafedvfbbu .gt_sourcenote {
+#ptkizcnxau .gt_sourcenote {
   font-size: 90%;
   padding-top: 4px;
   padding-bottom: 4px;
@@ -4400,72 +4695,72 @@ Lecturer transcript
   padding-right: 5px;
 }
 
-#nafedvfbbu .gt_left {
+#ptkizcnxau .gt_left {
   text-align: left;
 }
 
-#nafedvfbbu .gt_center {
+#ptkizcnxau .gt_center {
   text-align: center;
 }
 
-#nafedvfbbu .gt_right {
+#ptkizcnxau .gt_right {
   text-align: right;
   font-variant-numeric: tabular-nums;
 }
 
-#nafedvfbbu .gt_font_normal {
+#ptkizcnxau .gt_font_normal {
   font-weight: normal;
 }
 
-#nafedvfbbu .gt_font_bold {
+#ptkizcnxau .gt_font_bold {
   font-weight: bold;
 }
 
-#nafedvfbbu .gt_font_italic {
+#ptkizcnxau .gt_font_italic {
   font-style: italic;
 }
 
-#nafedvfbbu .gt_super {
+#ptkizcnxau .gt_super {
   font-size: 65%;
 }
 
-#nafedvfbbu .gt_footnote_marks {
+#ptkizcnxau .gt_footnote_marks {
   font-size: 75%;
   vertical-align: 0.4em;
   position: initial;
 }
 
-#nafedvfbbu .gt_asterisk {
+#ptkizcnxau .gt_asterisk {
   font-size: 100%;
   vertical-align: 0;
 }
 
-#nafedvfbbu .gt_indent_1 {
+#ptkizcnxau .gt_indent_1 {
   text-indent: 5px;
 }
 
-#nafedvfbbu .gt_indent_2 {
+#ptkizcnxau .gt_indent_2 {
   text-indent: 10px;
 }
 
-#nafedvfbbu .gt_indent_3 {
+#ptkizcnxau .gt_indent_3 {
   text-indent: 15px;
 }
 
-#nafedvfbbu .gt_indent_4 {
+#ptkizcnxau .gt_indent_4 {
   text-indent: 20px;
 }
 
-#nafedvfbbu .gt_indent_5 {
+#ptkizcnxau .gt_indent_5 {
   text-indent: 25px;
 }
 
-#nafedvfbbu .katex-display {
+#ptkizcnxau .katex-display {
   display: inline-flex !important;
   margin-bottom: 0.75em !important;
 }
 
-#nafedvfbbu div.Reactable > div.rt-table > div.rt-thead > div.rt-tr.rt-tr-group-header > div.rt-th-group:after {
+#ptkizcnxau div.Reactable > div.rt-table > div.rt-thead > div.rt-tr.rt-tr-group-header > div.rt-th-group:after {
   height: 0px !important;
 }
 </style>
@@ -4580,7 +4875,7 @@ Lecturer transcript
 <div id="tabset-5-2">
 <details class="transcript">
 <summary>
-Lecturer transcript
+Transcript
 </summary>
 <p>The subscripts separate the city dimension i from the time dimension t. Subtract the period-one equation from the period-two equation. The intercept cancels because it is the same in both periods, and any time-invariant quality term cancels because its change is zero. What remains is a regression of changes. For beta one to have a causal interpretation, the change in price must still be unrelated to the change in the remaining error. A time-varying demand shock can violate that condition, so differencing solves a specific omitted-variable problem rather than all endogeneity.</p>
 </details>
@@ -4605,7 +4900,7 @@ Lecturer transcript
 <div id="tabset-5-3">
 <details class="transcript inline">
 <summary>
-Lecturer transcript
+Transcript
 </summary>
 <p>The two regressions demonstrate the reversal. OLS in levels uses the mixture of between- and within-city variation and produces the positive cross-sectional relationship. The first-differenced regression keeps one change per city and produces the negative within-city relationship. With only four cities, this is an illustration rather than credible empirical evidence. Focus on why the coefficient changes: differencing removes the stable quality differences that drove the positive comparison across cities.</p>
 </details>
@@ -4628,7 +4923,7 @@ Lecturer transcript
 <div id="tabset-5-4">
 <details class="transcript">
 <summary>
-Lecturer transcript
+Transcript
 </summary>
 <p>The takeaway from the two-period example is narrow but powerful. When an omitted confounder is constant within a unit, comparing changes within the unit eliminates it. First differencing is one way to operationalize that comparison. It requires repeated observations on the same units, and it identifies the coefficient only from units whose explanatory variable changes. It does not solve confounding from factors that change over time, so the remaining change in the regressor still needs an exogeneity argument.</p>
 </details>
@@ -4650,7 +4945,7 @@ Lecturer transcript
 <div id="tabset-7-1">
 <details class="transcript inline">
 <summary>
-Lecturer transcript
+Transcript
 </summary>
 <p>With more than two periods, demeaning is a convenient way to isolate within-unit variation. For each city, compute its time average and subtract that average from every observation. A positive deviation means the variable is above that city’s usual level; a negative deviation means it is below. Because a time-invariant variable always equals its own time average, all of its deviations are zero. The highlighted columns show the transformed variables that feed the fixed-effects regression.</p>
 </details>
@@ -4665,23 +4960,23 @@ Lecturer transcript
 <noscript>Please enable JavaScript to experience the dynamic code cell content on this page.</noscript>
 <div class="cell">
 <div class="cell-output-display">
-<div id="opvgywavys" style="padding-left:0px;padding-right:0px;padding-top:10px;padding-bottom:10px;overflow-x:auto;overflow-y:auto;width:auto;height:auto;">
-<style>#opvgywavys table {
+<div id="tdbvxgghzd" style="padding-left:0px;padding-right:0px;padding-top:10px;padding-bottom:10px;overflow-x:auto;overflow-y:auto;width:auto;height:auto;">
+<style>#tdbvxgghzd table {
   font-family: system-ui, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol', 'Noto Color Emoji';
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
 
-#opvgywavys thead, #opvgywavys tbody, #opvgywavys tfoot, #opvgywavys tr, #opvgywavys td, #opvgywavys th {
+#tdbvxgghzd thead, #tdbvxgghzd tbody, #tdbvxgghzd tfoot, #tdbvxgghzd tr, #tdbvxgghzd td, #tdbvxgghzd th {
   border-style: none;
 }
 
-#opvgywavys p {
+#tdbvxgghzd p {
   margin: 0;
   padding: 0;
 }
 
-#opvgywavys .gt_table {
+#tdbvxgghzd .gt_table {
   display: table;
   border-collapse: collapse;
   line-height: normal;
@@ -4707,12 +5002,12 @@ Lecturer transcript
   border-left-color: #D3D3D3;
 }
 
-#opvgywavys .gt_caption {
+#tdbvxgghzd .gt_caption {
   padding-top: 4px;
   padding-bottom: 4px;
 }
 
-#opvgywavys .gt_title {
+#tdbvxgghzd .gt_title {
   color: #333333;
   font-size: 125%;
   font-weight: initial;
@@ -4724,7 +5019,7 @@ Lecturer transcript
   border-bottom-width: 0;
 }
 
-#opvgywavys .gt_subtitle {
+#tdbvxgghzd .gt_subtitle {
   color: #333333;
   font-size: 85%;
   font-weight: initial;
@@ -4736,7 +5031,7 @@ Lecturer transcript
   border-top-width: 0;
 }
 
-#opvgywavys .gt_heading {
+#tdbvxgghzd .gt_heading {
   background-color: #FFFFFF;
   text-align: center;
   border-bottom-color: #FFFFFF;
@@ -4748,13 +5043,13 @@ Lecturer transcript
   border-right-color: #D3D3D3;
 }
 
-#opvgywavys .gt_bottom_border {
+#tdbvxgghzd .gt_bottom_border {
   border-bottom-style: solid;
   border-bottom-width: 2px;
   border-bottom-color: #D3D3D3;
 }
 
-#opvgywavys .gt_col_headings {
+#tdbvxgghzd .gt_col_headings {
   border-top-style: solid;
   border-top-width: 2px;
   border-top-color: #D3D3D3;
@@ -4769,7 +5064,7 @@ Lecturer transcript
   border-right-color: #D3D3D3;
 }
 
-#opvgywavys .gt_col_heading {
+#tdbvxgghzd .gt_col_heading {
   color: #333333;
   background-color: #FFFFFF;
   font-size: 100%;
@@ -4789,7 +5084,7 @@ Lecturer transcript
   overflow-x: hidden;
 }
 
-#opvgywavys .gt_column_spanner_outer {
+#tdbvxgghzd .gt_column_spanner_outer {
   color: #333333;
   background-color: #FFFFFF;
   font-size: 100%;
@@ -4801,15 +5096,15 @@ Lecturer transcript
   padding-right: 4px;
 }
 
-#opvgywavys .gt_column_spanner_outer:first-child {
+#tdbvxgghzd .gt_column_spanner_outer:first-child {
   padding-left: 0;
 }
 
-#opvgywavys .gt_column_spanner_outer:last-child {
+#tdbvxgghzd .gt_column_spanner_outer:last-child {
   padding-right: 0;
 }
 
-#opvgywavys .gt_column_spanner {
+#tdbvxgghzd .gt_column_spanner {
   border-bottom-style: solid;
   border-bottom-width: 2px;
   border-bottom-color: #D3D3D3;
@@ -4821,11 +5116,11 @@ Lecturer transcript
   width: 100%;
 }
 
-#opvgywavys .gt_spanner_row {
+#tdbvxgghzd .gt_spanner_row {
   border-bottom-style: hidden;
 }
 
-#opvgywavys .gt_group_heading {
+#tdbvxgghzd .gt_group_heading {
   padding-top: 8px;
   padding-bottom: 8px;
   padding-left: 5px;
@@ -4851,7 +5146,7 @@ Lecturer transcript
   text-align: left;
 }
 
-#opvgywavys .gt_empty_group_heading {
+#tdbvxgghzd .gt_empty_group_heading {
   padding: 0.5px;
   color: #333333;
   background-color: #FFFFFF;
@@ -4866,15 +5161,15 @@ Lecturer transcript
   vertical-align: middle;
 }
 
-#opvgywavys .gt_from_md > :first-child {
+#tdbvxgghzd .gt_from_md > :first-child {
   margin-top: 0;
 }
 
-#opvgywavys .gt_from_md > :last-child {
+#tdbvxgghzd .gt_from_md > :last-child {
   margin-bottom: 0;
 }
 
-#opvgywavys .gt_row {
+#tdbvxgghzd .gt_row {
   padding-top: 8px;
   padding-bottom: 8px;
   padding-left: 5px;
@@ -4893,7 +5188,7 @@ Lecturer transcript
   overflow-x: hidden;
 }
 
-#opvgywavys .gt_stub {
+#tdbvxgghzd .gt_stub {
   color: #333333;
   background-color: #FFFFFF;
   font-size: 100%;
@@ -4906,7 +5201,7 @@ Lecturer transcript
   padding-right: 5px;
 }
 
-#opvgywavys .gt_stub_row_group {
+#tdbvxgghzd .gt_stub_row_group {
   color: #333333;
   background-color: #FFFFFF;
   font-size: 100%;
@@ -4920,15 +5215,15 @@ Lecturer transcript
   vertical-align: top;
 }
 
-#opvgywavys .gt_row_group_first td {
+#tdbvxgghzd .gt_row_group_first td {
   border-top-width: 2px;
 }
 
-#opvgywavys .gt_row_group_first th {
+#tdbvxgghzd .gt_row_group_first th {
   border-top-width: 2px;
 }
 
-#opvgywavys .gt_summary_row {
+#tdbvxgghzd .gt_summary_row {
   color: #333333;
   background-color: #FFFFFF;
   text-transform: inherit;
@@ -4938,16 +5233,16 @@ Lecturer transcript
   padding-right: 5px;
 }
 
-#opvgywavys .gt_first_summary_row {
+#tdbvxgghzd .gt_first_summary_row {
   border-top-style: solid;
   border-top-color: #D3D3D3;
 }
 
-#opvgywavys .gt_first_summary_row.thick {
+#tdbvxgghzd .gt_first_summary_row.thick {
   border-top-width: 2px;
 }
 
-#opvgywavys .gt_last_summary_row {
+#tdbvxgghzd .gt_last_summary_row {
   padding-top: 8px;
   padding-bottom: 8px;
   padding-left: 5px;
@@ -4957,7 +5252,7 @@ Lecturer transcript
   border-bottom-color: #D3D3D3;
 }
 
-#opvgywavys .gt_grand_summary_row {
+#tdbvxgghzd .gt_grand_summary_row {
   color: #333333;
   background-color: #FFFFFF;
   text-transform: inherit;
@@ -4967,7 +5262,7 @@ Lecturer transcript
   padding-right: 5px;
 }
 
-#opvgywavys .gt_first_grand_summary_row {
+#tdbvxgghzd .gt_first_grand_summary_row {
   padding-top: 8px;
   padding-bottom: 8px;
   padding-left: 5px;
@@ -4977,7 +5272,7 @@ Lecturer transcript
   border-top-color: #D3D3D3;
 }
 
-#opvgywavys .gt_last_grand_summary_row_top {
+#tdbvxgghzd .gt_last_grand_summary_row_top {
   padding-top: 8px;
   padding-bottom: 8px;
   padding-left: 5px;
@@ -4987,11 +5282,11 @@ Lecturer transcript
   border-bottom-color: #D3D3D3;
 }
 
-#opvgywavys .gt_striped {
+#tdbvxgghzd .gt_striped {
   background-color: rgba(128, 128, 128, 0.05);
 }
 
-#opvgywavys .gt_table_body {
+#tdbvxgghzd .gt_table_body {
   border-top-style: solid;
   border-top-width: 2px;
   border-top-color: #D3D3D3;
@@ -5000,7 +5295,7 @@ Lecturer transcript
   border-bottom-color: #D3D3D3;
 }
 
-#opvgywavys .gt_footnotes {
+#tdbvxgghzd .gt_footnotes {
   color: #333333;
   background-color: #FFFFFF;
   border-bottom-style: none;
@@ -5014,7 +5309,7 @@ Lecturer transcript
   border-right-color: #D3D3D3;
 }
 
-#opvgywavys .gt_footnote {
+#tdbvxgghzd .gt_footnote {
   margin: 0px;
   font-size: 90%;
   padding-top: 4px;
@@ -5023,7 +5318,7 @@ Lecturer transcript
   padding-right: 5px;
 }
 
-#opvgywavys .gt_sourcenotes {
+#tdbvxgghzd .gt_sourcenotes {
   color: #333333;
   background-color: #FFFFFF;
   border-bottom-style: none;
@@ -5037,7 +5332,7 @@ Lecturer transcript
   border-right-color: #D3D3D3;
 }
 
-#opvgywavys .gt_sourcenote {
+#tdbvxgghzd .gt_sourcenote {
   font-size: 90%;
   padding-top: 4px;
   padding-bottom: 4px;
@@ -5045,72 +5340,72 @@ Lecturer transcript
   padding-right: 5px;
 }
 
-#opvgywavys .gt_left {
+#tdbvxgghzd .gt_left {
   text-align: left;
 }
 
-#opvgywavys .gt_center {
+#tdbvxgghzd .gt_center {
   text-align: center;
 }
 
-#opvgywavys .gt_right {
+#tdbvxgghzd .gt_right {
   text-align: right;
   font-variant-numeric: tabular-nums;
 }
 
-#opvgywavys .gt_font_normal {
+#tdbvxgghzd .gt_font_normal {
   font-weight: normal;
 }
 
-#opvgywavys .gt_font_bold {
+#tdbvxgghzd .gt_font_bold {
   font-weight: bold;
 }
 
-#opvgywavys .gt_font_italic {
+#tdbvxgghzd .gt_font_italic {
   font-style: italic;
 }
 
-#opvgywavys .gt_super {
+#tdbvxgghzd .gt_super {
   font-size: 65%;
 }
 
-#opvgywavys .gt_footnote_marks {
+#tdbvxgghzd .gt_footnote_marks {
   font-size: 75%;
   vertical-align: 0.4em;
   position: initial;
 }
 
-#opvgywavys .gt_asterisk {
+#tdbvxgghzd .gt_asterisk {
   font-size: 100%;
   vertical-align: 0;
 }
 
-#opvgywavys .gt_indent_1 {
+#tdbvxgghzd .gt_indent_1 {
   text-indent: 5px;
 }
 
-#opvgywavys .gt_indent_2 {
+#tdbvxgghzd .gt_indent_2 {
   text-indent: 10px;
 }
 
-#opvgywavys .gt_indent_3 {
+#tdbvxgghzd .gt_indent_3 {
   text-indent: 15px;
 }
 
-#opvgywavys .gt_indent_4 {
+#tdbvxgghzd .gt_indent_4 {
   text-indent: 20px;
 }
 
-#opvgywavys .gt_indent_5 {
+#tdbvxgghzd .gt_indent_5 {
   text-indent: 25px;
 }
 
-#opvgywavys .katex-display {
+#tdbvxgghzd .katex-display {
   display: inline-flex !important;
   margin-bottom: 0.75em !important;
 }
 
-#opvgywavys div.Reactable > div.rt-table > div.rt-thead > div.rt-tr.rt-tr-group-header > div.rt-th-group:after {
+#tdbvxgghzd div.Reactable > div.rt-table > div.rt-thead > div.rt-tr.rt-tr-group-header > div.rt-th-group:after {
   height: 0px !important;
 }
 </style>
@@ -5253,7 +5548,7 @@ Lecturer transcript
 <div id="tabset-6-1">
 <details class="transcript">
 <summary>
-Lecturer transcript
+Transcript
 </summary>
 <p>The fixed-effects regression uses the demeaned quantity and price variables. Quality has no remaining variation because each city’s quality is constant, so <code>Ql_dev</code> equals zero throughout. The price coefficient is estimated from whether quantity is unusually high or low when price is unusually high or low relative to the same city’s average. This is the multi-period version of comparing a city with itself.</p>
 </details>
@@ -5268,7 +5563,7 @@ Lecturer transcript
 <div id="tabset-6-2">
 <details class="transcript">
 <summary>
-Lecturer transcript
+Transcript
 </summary>
 <p>Average the T equations for a city and subtract that average equation from each original equation. The intercept disappears, and every variable is expressed as a deviation from its city mean. The quality term is still shown at this stage so that we can see the algebra. In the next tab, its deviation becomes zero because quality is constant over time. The transformed disturbance is also demeaned, which is why the exogeneity condition for fixed effects must account for errors across all periods.</p>
 </details>
@@ -5282,7 +5577,7 @@ Lecturer transcript
 <div id="tabset-6-3">
 <details class="transcript">
 <summary>
-Lecturer transcript
+Transcript
 </summary>
 <p>Since quality equals the same value in every period for a city, its time average is that same value. Subtracting the two gives zero, and the omitted quality effect vanishes from the transformed equation. Price may be correlated with the level of quality, but that between-city correlation is no longer used. Other endogeneity can survive. In particular, a temporary demand shock can affect both this period’s quantity and price, leaving transformed price correlated with the transformed error.</p>
 </details>
@@ -5318,7 +5613,7 @@ Lecturer transcript
 <div id="tabset-8-1">
 <details class="transcript">
 <summary>
-Lecturer transcript
+Transcript
 </summary>
 <p>This is the general fixed-effects algebra. Alpha i collects all time-invariant characteristics of unit i, observed or unobserved. It can be correlated with x, which is exactly the correlation pooled OLS cannot tolerate. When we average the model over time, alpha i remains alpha i because the same value is repeated in every period. The bars denote unit-specific time averages; they are not averages across different individuals.</p>
 </details>
@@ -5331,7 +5626,7 @@ Lecturer transcript
 <div id="tabset-8-2">
 <details class="transcript">
 <summary>
-Lecturer transcript
+Transcript
 </summary>
 <p>Subtract the unit-average equation from the original observation. Alpha i minus itself is zero, so all stable unit characteristics are removed in one step. We do not estimate a separate coefficient for each unobserved characteristic and do not need to observe them. The transformation also removes every observed regressor that is constant within a unit. That is the cost of relying exclusively on within-unit variation.</p>
 </details>
@@ -5352,7 +5647,7 @@ Lecturer transcript
 <div id="tabset-8-3">
 <details class="transcript">
 <summary>
-Lecturer transcript
+Transcript
 </summary>
 <p>After demeaning, estimate beta one by OLS using the transformed outcome and transformed regressor. The coefficient answers a within-unit question: when x differs from its usual value for a unit, how does y differ from its usual value? Units with no within variation in x provide no identifying information for beta one. Software performs this transformation efficiently, often without creating the demeaned variables explicitly.</p>
 </details>
@@ -5365,7 +5660,7 @@ Lecturer transcript
 <div id="tabset-9-2">
 <details class="transcript">
 <summary>
-Lecturer transcript
+Transcript
 </summary>
 <p>Removing alpha i is not the end of the identification argument. The demeaned regressor must be uncorrelated with the demeaned disturbance. A standard sufficient condition is strict exogeneity: every period’s error has conditional mean zero given the unit’s entire history of regressors and its fixed effect. This rules out contemporaneous confounding and also feedback from today’s shock to future x. For example, if an unexpected increase in y this year causes the unit to choose a different x next year, strict exogeneity fails even though x may be predetermined at the start of each period.</p>
 </details>
@@ -5395,7 +5690,7 @@ y_{i,t}-\bar{y}_i=\beta_1 (x_{i,t} -\bar{x}_i) + (u_{i,t} -\bar{u}_i)
 <div id="tabset-9-3">
 <details class="transcript">
 <summary>
-Lecturer transcript
+Transcript
 </summary>
 <p>This command estimates the demeaned massage equation directly. The input columns are already deviations, so no fixed-effects formula is needed here. The price coefficient matches the first-difference result in a two-period panel; with exactly two periods, demeaning and first differencing contain the same identifying information, differing only by scale. In applications, we generally let fixed-effects software operate on the original variables rather than constructing deviations ourselves.</p>
 </details>
@@ -5416,7 +5711,7 @@ Lecturer transcript
 <div id="tabset-11-1">
 <details class="transcript">
 <summary>
-Lecturer transcript
+Transcript
 </summary>
 <p>There are two algebraically equivalent ways to remove unit-specific intercepts. The within estimator subtracts unit means. The least-squares dummy-variable estimator keeps the original data and gives each unit its own intercept through indicator variables. Both produce the same slope coefficients when specified consistently. Demeaning makes the source of variation transparent; dummy variables make the intercept differences explicit. Modern software can absorb fixed effects without literally adding thousands of dummy columns.</p>
 </details>
@@ -5435,7 +5730,7 @@ Lecturer transcript
 <div id="tabset-10-1">
 <details class="transcript">
 <summary>
-Lecturer transcript
+Transcript
 </summary>
 <p>With four cities and an overall intercept, we create only three city indicators. Chicago is the omitted reference category. Each included dummy allows its city’s intercept to differ from Chicago’s. Including all four indicators together with an intercept would create perfect multicollinearity, the dummy-variable trap. These indicators absorb any fixed city characteristic, not only the quality variable we happened to name.</p>
 </details>
@@ -5445,7 +5740,7 @@ Lecturer transcript
 <div id="tabset-10-2">
 <details class="transcript">
 <summary>
-Lecturer transcript
+Transcript
 </summary>
 <p>The regression uses the original quantity and price levels plus the three city indicators. Compare the coefficient on price with the demeaned regression: it is exactly the same. The dummy coefficients themselves describe level differences relative to Chicago, but they are not our main target. Their role is to prevent stable cross-city differences from contributing to the estimated price slope.</p>
 </details>
@@ -5461,7 +5756,7 @@ Lecturer transcript
 <div id="tabset-11-3">
 <details class="transcript">
 <summary>
-Lecturer transcript
+Transcript
 </summary>
 <p>Fixed effects change the comparison behind a coefficient. City fixed effects eliminate comparisons between different cities’ average levels, so beta one is learned from price changes within the same city. Generalize that rule: firm fixed effects use within-firm variation, farmer fixed effects use within-farmer variation, and so on. This can be cleaner when stable differences confound the cross-section, but the correct fixed effect is dictated by the assignment mechanism and the level at which the troublesome unobservables operate.</p>
 </details>
@@ -5492,7 +5787,7 @@ Lecturer transcript
 <div id="tabset-12-1">
 <details class="transcript">
 <summary>
-Lecturer transcript
+Transcript
 </summary>
 <p>In practice, keep the variables in their original units and tell <code>feols</code> which fixed effect to absorb after the vertical bar. This reduces coding mistakes, handles many groups efficiently, and reports the model in a recognizable form. The slope regressors go before the bar; fixed-effect identifiers go after it. The software internally obtains the same within estimator we derived. We still need to choose fixed effects based on the research design rather than treating the formula as a mechanical recipe.</p>
 </details>
@@ -5518,7 +5813,7 @@ Lecturer transcript
 <div id="tabset-12-2">
 <details class="transcript inline">
 <summary>
-Lecturer transcript
+Transcript
 </summary>
 <p>Here the original two-period data go directly into <code>feols</code>, with <code>Location</code> specified as the fixed effect. The estimated coefficient on price agrees with both the manually demeaned and dummy-variable regressions. This equality is a useful diagnostic when learning the syntax. In a real dataset, also inspect how many observations and fixed-effect groups remain and whether the regressor has sufficient within-group variation.</p>
 </details>
@@ -5533,7 +5828,7 @@ Lecturer transcript
 <div id="tabset-12-3">
 <details class="transcript">
 <summary>
-Lecturer transcript
+Transcript
 </summary>
 <p>Random effects retains both within- and between-unit information by imposing a stronger orthogonality assumption: the unit effect alpha i must be uncorrelated with the regressors in every period. If credible, RE can be more efficient and can estimate coefficients on variables that never change within a unit. If that assumption fails, standard RE is inconsistent, while FE can remain consistent under strict exogeneity. The choice should follow substantive knowledge about how x is assigned, not a preference for whichever estimator yields smaller standard errors.</p>
 </details>
@@ -5560,7 +5855,7 @@ Lecturer transcript
 <div id="tabset-14-1">
 <details class="transcript inline">
 <summary>
-Lecturer transcript
+Transcript
 </summary>
 <p>This application asks for the demand response to avocado price using weekly California data. The scatterplot is descriptive: it shows how total sales and average price move together, not yet a causal demand curve. Price is an equilibrium outcome determined jointly by supply and demand. Weather, promotions, supply disruptions, and demand shifts can move both variables. We therefore need to identify a subset of price variation that is plausibly unrelated to unobserved demand shocks.</p>
 </details>
@@ -5581,7 +5876,7 @@ Lecturer transcript
 <div id="tabset-14-2">
 <details class="transcript inline">
 <summary>
-Lecturer transcript
+Transcript
 </summary>
 <p>The raw relationship is negative, which is consistent with downward-sloping demand, but the sign alone does not establish causality. A supply increase can lower price and raise quantity, also producing a negative association. A positive demand shock can raise both price and sales. Because market price and quantity are jointly determined, reverse causality or simultaneity is the default concern. We need institutional knowledge about when and how prices are set before treating the fitted relationship as a demand effect.</p>
 </details>
@@ -5629,7 +5924,7 @@ Answer
 <div id="tabset-14-3">
 <details class="transcript">
 <summary>
-Lecturer transcript
+Transcript
 </summary>
 <p>The proposed timing rule is an identifying assumption, not a fact supplied by the data. Suppose suppliers set all weekly prices at the start of a month and do not revise them after seeing realized weekly demand. Then demand shocks later in that month cannot feed back into those planned prices. Month fixed effects remove all differences between months, leaving weekly price variation within a month. The design is credible only if planned within-month prices are also unrelated to other weekly demand shocks such as promotions or holidays.</p>
 </details>
@@ -5645,7 +5940,7 @@ Lecturer transcript
 <div id="tabset-14-4">
 <details class="transcript inline">
 <summary>
-Lecturer transcript
+Transcript
 </summary>
 <p>The March 2015 points illustrate the variation that would remain after adding month-by-year fixed effects. We compare weeks within this single pricing period rather than March with February or with March in another year. Under the hypothetical price-setting rule, these movements are candidate exogenous price variation. The graph cannot verify the assumption; it only helps us see which observations make the comparison. Credibility comes from evidence about the pricing mechanism and the absence of correlated within-month demand shocks.</p>
 </details>
@@ -5667,7 +5962,7 @@ Lecturer transcript
 <div id="tabset-13-1">
 <details class="transcript">
 <summary>
-Lecturer transcript
+Transcript
 </summary>
 <p>With three months of weekly observations, include an indicator for each month, omitting one reference group. This absorbs every factor that is constant within a month but differs across the three months. The price coefficient is then estimated from week-to-week price variation inside each month. The answer follows the assumed timing of price assignment: the fixed-effect group should match the period over which common confounders and the pricing plan are shared.</p>
 </details>
@@ -5686,7 +5981,7 @@ Include month dummy variables.
 <div id="tabset-13-2">
 <details class="transcript">
 <summary>
-Lecturer transcript
+Transcript
 </summary>
 <p>Over two years, month-of-year indicators are not enough. A January dummy would group January 2015 with January 2016 and allow the regression to use their between-year difference. The design calls for a separate fixed effect for each calendar month-year, such as January 2015, February 2015, and January 2016. That specification keeps only weekly deviations within the same month-year and matches the hypothetical monthly price-setting rule.</p>
 </details>
@@ -5712,7 +6007,7 @@ Answer
 <div id="tabset-14-6">
 <details class="transcript">
 <summary>
-Lecturer transcript
+Transcript
 </summary>
 <p>Fixed effects are not a substitute for understanding the market. The raw price-sales relationship mixes many sources of variation, some endogenous. Contextual knowledge suggests which comparisons might be cleaner, and fixed effects let us isolate those comparisons. In this illustration, the pricing rule is hypothetical; an actual study would need evidence that prices were set in advance and that no other within-month shocks jointly affected planned price and demand. The general workflow is mechanism first, specification second.</p>
 </details>
@@ -5734,7 +6029,7 @@ Lecturer transcript
 <div id="tabset-15-1">
 <details class="transcript inline">
 <summary>
-Lecturer transcript
+Transcript
 </summary>
 <p>Year fixed effects are indicators shared by every observation in a calendar year. The toy table makes the pattern visible: all four units have <code>FE_2015</code> equal to one in 2015, and so forth. With an intercept, one year is omitted as the reference. Do not confuse year fixed effects with unit fixed effects. Unit effects compare an observation with the same unit’s average; year effects remove shocks common to all units at a date.</p>
 </details>
@@ -5745,7 +6040,7 @@ Lecturer transcript
 <div id="tabset-15-2">
 <details class="transcript">
 <summary>
-Lecturer transcript
+Transcript
 </summary>
 <p>A year coefficient captures a common shift relative to the omitted year, holding the included covariates and other fixed effects constant. In the log-income example, sigma one compares 2012 with the 2014 base year. A coefficient of 0.05 is approximately a five-percent difference; exponentiating gives the exact 5.13 percent. Year effects can absorb recessions, inflation, nationwide policy, or other aggregate shocks, but they do not absorb shocks that vary differently across units within the same year.</p>
 </details>
@@ -5765,7 +6060,7 @@ Lecturer transcript
 <div id="tabset-15-3">
 <details class="transcript">
 <summary>
-Lecturer transcript
+Transcript
 </summary>
 <p>Annual panels often include year effects because trending regressors can otherwise pick up a common economic trend. If education rises over time while the entire economy also raises incomes, a regression without year effects may attribute part of that aggregate growth to education. Adding year effects removes the common year component. It is a sensible default when such shocks are plausible, but it is not costless: a variable that takes the same value for everyone in a year is perfectly collinear with the year indicators.</p>
 </details>
@@ -5790,7 +6085,7 @@ Lecturer transcript
 <div id="tabset-15-4">
 <details class="transcript">
 <summary>
-Lecturer transcript
+Transcript
 </summary>
 <p>The fixed-effects portion after the vertical bar can contain multiple dimensions. <code>id + year</code> absorbs both stable person differences and common year shocks. The education coefficient is then identified from education changes within a person after netting out the average movement in each year. The caveat explains an identification limit: with a full set of year effects, a national variable that changes only by year has no independent variation left. Dropping year effects just to recover its coefficient may reintroduce aggregate confounding.</p>
 </details>
@@ -5825,7 +6120,7 @@ Lecturer transcript
 <div id="tabset-16-1">
 <details class="transcript">
 <summary>
-Lecturer transcript
+Transcript
 </summary>
 <p>Panel observations for the same unit are usually not independent. An unobserved shock can persist, making this year’s error related to next year’s error for the same person, firm, or state. This is serial correlation. Error variance can also differ across units or time. Fixed effects address certain omitted variables in the conditional mean; they do not automatically make the errors homoskedastic or independent. Standard-error estimation must reflect the dependence structure separately from coefficient estimation.</p>
 </details>
@@ -5838,7 +6133,7 @@ Lecturer transcript
 <div id="tabset-16-2">
 <details class="transcript">
 <summary>
-Lecturer transcript
+Transcript
 </summary>
 <p>If the exogeneity assumptions hold, serial correlation does not by itself bias the fixed-effects slope, but conventional standard errors can be badly wrong. Persistent treatments and outcomes make the problem especially severe because repeated observations from one unit contain less independent information than ordinary formulas assume. The Bertrand, Duflo, and Mullainathan placebo exercise makes the stakes concrete: a nominal five-percent procedure rejected far too often when grouped dependence was ignored. The lesson is to align inference with the level at which shocks are correlated.</p>
 </details>
@@ -5873,7 +6168,7 @@ Lecturer transcript
 <div id="tabset-16-3">
 <details class="transcript">
 <summary>
-Lecturer transcript
+Transcript
 </summary>
 <p>Clustering by unit allows arbitrary heteroskedasticity and serial correlation within each unit while relying on independence across units and a sufficiently large number of clusters. In <code>feols</code>, <code>cluster = ~id</code> requests that estimator. Clustering is not a universal correction: it does not handle common shocks across units, and conventional cluster approximations can perform poorly with few clusters. This example has only four people, so the command teaches syntax, not defensible inference. In an application, justify the cluster level from the error-generating and treatment-assignment processes.</p>
 </details>

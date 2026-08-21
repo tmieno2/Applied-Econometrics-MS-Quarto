@@ -94,8 +94,8 @@
     code span.vs { color: #20794d; } /* VerbatimString */
     code span.wa { color: #5e5e5e; font-style: italic; } /* Warning */
   </style>
-  <link rel="stylesheet" href="../../site_libs/revealjs/dist/theme/quarto-ae2d755d4d34da603f33a3001b8a52fa.css">
-  <script>window.backupDefine = window.define; window.define = undefined;</script><script src="https://cdn.jsdelivr.net/npm/katex@latest/dist/katex.min.js"></script>
+  <link rel="stylesheet" href="../../site_libs/revealjs/dist/theme/quarto-bf1223c773699056cca1ada9baf1738b.css">
+  <script defer="" src="https://cdn.jsdelivr.net/npm/katex@0.18.4/dist/katex.min.js"></script>
   <script>document.addEventListener("DOMContentLoaded", function () {
  var mathElements = document.getElementsByClassName("math");
  var macros = [];
@@ -110,7 +110,7 @@
    });
 }}});
   </script>
-  <script>window.define = window.backupDefine; window.backupDefine = undefined;</script><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@latest/dist/katex.min.css">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.18.4/dist/katex.min.css">
   <link href="../../site_libs/revealjs/plugin/quarto-line-highlight/line-highlight.css" rel="stylesheet">
   <link href="../../site_libs/revealjs/plugin/reveal-menu/menu.css" rel="stylesheet">
   <link href="../../site_libs/revealjs/plugin/reveal-menu/quarto-menu.css" rel="stylesheet">
@@ -204,7 +204,7 @@
     }
   </style>
   <!--
-    Support for collapsible "Lecturer transcript" panels in revealjs decks.
+    Support for collapsible "Transcript" panels in revealjs decks.
 
     Include it from a deck's YAML header, with the path relative to the qmd:
 
@@ -216,7 +216,7 @@
     tabset, which is the usual case):
 
         <details class="transcript">
-        <summary>Lecturer transcript</summary>
+        <summary>Transcript</summary>
 
         What the lecturer says about this tab.
 
@@ -384,8 +384,36 @@
     "use strict";
 
     var MAX_CODE_LINES = 12;
+    // Monaco's line-number gutter (~75px) plus its vertical scrollbar (~15px).
+    var EDITOR_CHROME = 90;
+    // A deliberate OVER-estimate of one character. Menlo at 15.36px measures
+    // ~9.2px, and erring high is what keeps the editor from wrapping when the
+    // real measurement below has not landed yet.
+    var FALLBACK_CHAR_PX = 11;
+    // Breathing room on each measured need. Side by side is a bonus, not a goal:
+    // the vertical stack is a perfectly good layout, so a cell that only fits by
+    // cramming should simply stay stacked. Slack here buys that judgement — it
+    // makes the fit test stricter AND leaves each column wider than its content.
+    var CODE_SLACK = 1.15;
+    var OUTPUT_SLACK = 1.08;
+    // Going side by side saves exactly one thing: the height of the code block,
+    // which no longer sits above the output. Against a tall output that saving is
+    // trivial — a 3-line editor beside a 34-line print of `mtcars` reclaims about
+    // a tenth of the cell's height and splits the slide in half to do it.
+    //
+    // 0.4 means the output may be at most ~1.5x the height of the code block.
+    // Calibrated against real cells, not picked: one line of code beside a 10-line
+    // tibble scores 0.31 and must be rejected; the 5-line piping example beside
+    // its 2 lines of output scores 0.81 and must be kept. An earlier 0.25 sat
+    // below the first of those and let it through.
+    var MIN_VERTICAL_SAVING = 0.4;
     var MAX_CODE_SHARE = 0.58;
-    var MIN_CODE_SHARE = 0.30;
+    // The floor exists only so the editor never becomes unusably narrow. It used
+    // to be 0.30, which padded a one-line call like `class(mtcars)` (160px of
+    // content including Monaco's gutter) out to 329px and charged the difference
+    // to the output.
+    var MIN_CODE_SHARE = 0.18;
+    var MAX_OUTPUT_SHARE = 0.82;
 
     function detailsFor(area) {
       var match = area.id && area.id.match(/qwebr-interactive-area-(\d+)/);
@@ -399,11 +427,35 @@
         return line.trim() && !/^\s*#/.test(line);
       });
       return {
+        code: String(code || ""),
         lines: substantive.length,
         maxChars: lines.reduce(function (n, line) {
           return Math.max(n, line.replace(/\t/g, "  ").length);
         }, 0)
       };
+    }
+
+    // The caret lives in the 1rem gutter and must sit at its centre. Percentages
+    // cannot express that reliably here, so measure the laid-out editor and hand
+    // the CSS an exact pixel.
+    function markGutter(area, host) {
+      var style = getComputedStyle(area);
+      if (style.display !== "grid") return;
+
+      // Take the gutter straight from the resolved grid tracks. Every element in
+      // this cell has been tried as an anchor and each one lies: Monaco renders
+      // wider than its track, and `.qwebr-output-code-area` reports a left edge
+      // well right of where the output column actually starts, which put the caret
+      // inside the Output banner. `grid-template-columns` resolves to used pixel
+      // widths, so the first track plus half the gap IS the gutter centre, with
+      // nothing to misreport.
+      var tracks = style.gridTemplateColumns.split(/\s+/)
+        .map(parseFloat).filter(function (n) { return !isNaN(n); });
+      if (tracks.length < 2) return;
+      var gap = parseFloat(style.columnGap) || 16;
+      var padLeft = parseFloat(style.paddingLeft) || 0;
+      var centre = padLeft + tracks[0] + gap / 2;
+      host.style.setProperty("--webr-gutter-centre", centre.toFixed(1) + "px");
     }
 
     function setTracks(host, codeShare) {
@@ -415,10 +467,15 @@
     }
 
     function measureRenderedCode(area, host, code, attempt) {
-      if (host.dataset.webrLayout !== "side") return;
+      if (!eligibleNow(host)) return;
       var sample = area.querySelector(".view-line, .monaco-editor");
       if (!sample || !area.clientWidth) {
-        if (attempt < 20) setTimeout(function () {
+        // 20 attempts (2s) was not enough: on a deck with ~70 cells Monaco is
+        // still rendering, the measurement never lands, and the cell is left on
+        // the fallback estimate. Undersize it and Monaco wraps the line, after
+        // which the only thing left to measure is the wrapped fragments — the
+        // column can never recover on its own. 100 attempts is 10s.
+        if (attempt < 100) setTimeout(function () {
           measureRenderedCode(area, host, code, attempt + 1);
         }, 100);
         return;
@@ -431,10 +488,201 @@
       var widest = String(code || "").split("\n").reduce(function (width, line) {
         return Math.max(width, context.measureText(line.replace(/\t/g, "  ")).width);
       }, 0);
-      // Monaco's line-number gutter, padding, and scrollbar need about 76px in
-      // addition to the measured glyph width.
+      // Note this measures the SOURCE text, never the rendered `.view-line`
+      // elements: once the column is narrow enough to wrap, those hold fragments
+      // and measuring them would confirm the mistake instead of correcting it.
       var available = Math.max(1, area.clientWidth - 16);
-      setTracks(host, (widest + 76) / available);
+      // Remember it in pixels. The share alone is not enough: the split has to be
+      // recomputed against the OUTPUT's measured width once the cell has run.
+      host.dataset.webrCodePx = Math.ceil(widest + EDITOR_CHROME);
+      setTracks(host, ((widest + EDITOR_CHROME) * CODE_SLACK) / available);
+
+      // The measured code column is now the real one, so check straight away that
+      // Monaco is not wrapping in it. Before, this ran only after a cell had been
+      // run; a cell that opens side by side needs it on arrival.
+      ensureNoWrap(area, host, sourceLineCount(code), 0);
+    }
+
+    // The natural width of the output text. `pre` cannot be measured directly:
+    // notebook.scss gives it `width: 100%`, so its scrollWidth reports the track
+    // it currently sits in, not the text inside it. Reading that back is a
+    // feedback loop — it made every cell claim the maximum output share however
+    // short its output was, starving the code column down to the floor until the
+    // editor wrapped a one-line call across three lines.
+    function naturalTextSize(pre) {
+      var cs = getComputedStyle(pre);
+      var probe = document.createElement("pre");
+      probe.style.cssText = "position:absolute;left:-9999px;top:0;visibility:hidden;" +
+        "white-space:pre;margin:0;padding:0;width:auto";
+      probe.style.fontFamily = cs.fontFamily;
+      probe.style.fontSize = cs.fontSize;
+      probe.style.fontWeight = cs.fontWeight;
+      probe.style.letterSpacing = cs.letterSpacing;
+      probe.textContent = pre.innerText || "";
+      document.body.appendChild(probe);
+      var size = { w: probe.scrollWidth, h: probe.scrollHeight };
+      probe.parentNode.removeChild(probe);
+      return size;
+    }
+
+    // Height of the code block as it stands: the editor plus its toolbar.
+    function codeBlockHeight(area) {
+      var editor = area.querySelector(".qwebr-editor");
+      var bar = area.querySelector(".qwebr-editor-toolbar");
+      var h = editor ? editor.getBoundingClientRect().height : 0;
+      if (bar) h += bar.getBoundingClientRect().height;
+      return h;
+    }
+
+    // A cell is a candidate while it is "pending" (rendered as the ordinary
+    // vertical stack) or already "side". Manual wrappers are always "side".
+    function eligibleNow(host) {
+      var mode = host.dataset.webrLayout;
+      return mode === "pending" || mode === "side";
+    }
+
+    // A cell is put side by side as soon as its code has been measured, so the
+    // layout the reader first sees is the layout it keeps. The output cannot be
+    // measured until the cell has run, so assessOutput may still send a cell back
+    // to the vertical stack afterwards — that is the price of not making the
+    // reader wait for a run to see the final shape.
+    function promote(host) {
+      if (host.dataset.webrLayout === "side") return;
+      host.classList.add("side-out");
+      host.dataset.webrLayout = "side";
+    }
+
+    function sourceLineCount(code) {
+      return String(code || "").replace(/\s+$/, "").split("\n").length;
+    }
+
+    // Every width here is predicted — from a canvas measurement of the source in
+    // what we believe is the editor's font. Predictions travel badly: a different
+    // browser, a missing font, a different device pixel ratio, and the editor
+    // wraps even though the arithmetic said it fitted. So do not trust the
+    // prediction — read back what Monaco actually rendered, and widen the column
+    // until the rendered line count matches the source. This is the only check
+    // that cannot be wrong about wrapping, because it IS the wrapping.
+    function ensureNoWrap(area, host, srcLines, attempt) {
+      if (host.dataset.webrLayout !== "side") return;
+      var lines = area.querySelectorAll(".view-line");
+      if (!lines.length) {
+        if (attempt < 100) setTimeout(function () {
+          ensureNoWrap(area, host, srcLines, attempt + 1);
+        }, 100);
+        return;
+      }
+      if (lines.length <= srcLines) { markGutter(area, host); return; }
+      var share = parseFloat(host.style.getPropertyValue("--webr-code-share")) / 100;
+      if (!share) share = MIN_CODE_SHARE;
+      if (share >= MAX_CODE_SHARE || attempt > 40) {
+        // Even at the widest permitted code column the line will not fit, so the
+        // cell has no business being side by side at all.
+        stack(host, true);
+        return;
+      }
+      setTracks(host, share + 0.02);
+      // Monaco relayouts asynchronously off its own resize observer; give it a
+      // frame or two before reading the line count again.
+      setTimeout(function () {
+        ensureNoWrap(area, host, srcLines, attempt + 1);
+      }, 60);
+    }
+
+    function stack(host, force) {
+      // `::: {.side-out}` is a REQUEST, not an override. It decides that a cell
+      // would like to be side by side; it cannot suspend the rules that say when
+      // side by side is acceptable — no wrapped code, output that fits, a split
+      // worth making. Every one of those gates passes force = true. What the
+      // exemption still buys is that ordinary measurement noise will not tear a
+      // deliberate wrapper down.
+      if (host.dataset.webrLayoutManual === "true" && !force) return;
+      host.classList.remove("side-out");
+      host.dataset.webrLayout = "stacked";
+    }
+
+    function assessOutput(area, host, metrics) {
+      if (!eligibleNow(host)) return;
+      var graph = area.querySelector(".qwebr-output-graph-area canvas, .qwebr-output-graph-area img");
+      if (graph) { // plots scale cleanly within their grid track
+        promote(host);
+        requestAnimationFrame(function () { markGutter(area, host); });
+        return;
+      }
+
+      var pre = area.querySelector(".qwebr-output-code-area pre");
+      if (!pre || getComputedStyle(pre).visibility === "hidden") return;
+
+      // Ran and printed nothing — an assignment, a library() call, anything
+      // invoked for its side effect. There is no right-hand content to show, so
+      // the code keeps the full width rather than facing an empty Output banner.
+      if (!(pre.innerText || "").trim()) { stack(host, true); return; }
+
+      var style = getComputedStyle(area);
+      var gap = parseFloat(style.columnGap) || 16;
+      var available = Math.max(1, area.clientWidth - gap);
+      // The code column was sized when the code was measured and MUST NOT move
+      // now. Re-deriving it from the output made the editor jump to a different
+      // width the instant a student pressed Run — the one thing a code block on a
+      // lecture slide must never do. This is also what the invariants say: code
+      // width determines the split, output gets whatever is left.
+      var codeTrack = Math.min(MAX_CODE_SHARE, Math.max(MIN_CODE_SHARE,
+        (Number(host.dataset.webrCodePx) ||
+          (metrics.maxChars * FALLBACK_CHAR_PX + EDITOR_CHROME)) * CODE_SLACK / available))
+        * available;
+      var natural = naturalTextSize(pre);
+      var outputPx = (natural.w + 24) * OUTPUT_SLACK;
+
+      // Is the split worth making? Stacked costs code + output; side by side costs
+      // whichever is taller. The saving is therefore the code block's height, and
+      // it has to be a real fraction of what the cell occupies now.
+      var codeH = codeBlockHeight(area);
+      var outH = natural.h;
+      if (!codeH || !outH) {
+        // Fall back to line counts rather than skipping the test. Skipping it is
+        // how a cell slips through: an unmeasurable height silently became an
+        // exemption from the rule.
+        var lineH = parseFloat(getComputedStyle(pre).lineHeight) || 20;
+        codeH = codeH || (metrics.lines * lineH + 38);
+        outH = outH || ((pre.innerText || "").split("\n").length * lineH);
+      }
+      if (codeH / (codeH + outH) < MIN_VERTICAL_SAVING) {
+        stack(host, true);
+        return;
+      }
+
+      // Side by side must never wrap a line of code. If the code cannot fit in the
+      // widest column it is allowed, there is no acceptable side-by-side layout
+      // for this cell — do not settle for a narrower one.
+      if (codeTrack < (Number(host.dataset.webrCodePx) || 0) * CODE_SLACK) {
+        stack(host, true);
+        return;
+      }
+
+      // Both needs already carry their slack, so this is a lenient test on
+      // purpose: anything that does not fit comfortably stays vertical.
+      // Width is the FIT constraint; the height test above is a separate,
+      // worthwhileness one. Height is not a fit constraint — these decks are
+      // `scrollable: true`, so a tall slide scrolls either way — but a tall output
+      // still makes the split pointless, which is what MIN_VERTICAL_SAVING covers.
+      // The only question left is whether the output fits in the space the code
+      // did not take. If it does not, the cell stacks — the code column is never
+      // narrowed to make room.
+      if (outputPx > available - codeTrack) {
+        stack(host, true);
+        return;
+      }
+
+      // Note: no setTracks() here, deliberately. The layout is already correct and
+      // touching it would move the editor.
+      promote(host);
+      requestAnimationFrame(function () { markGutter(area, host); });
+      ensureNoWrap(area, host, sourceLineCount(metrics.code), 0);
+      requestAnimationFrame(function () {
+        // Same trap as above — compare against the measured text, not scrollWidth,
+        // which a `width: 100%` pre can never exceed.
+        if (naturalTextSize(pre).w > pre.clientWidth * 1.08) stack(host);
+      });
     }
 
     function configure(area) {
@@ -447,26 +695,64 @@
       if (!metrics.lines || metrics.lines > MAX_CODE_LINES || metrics.maxChars > 88) return;
 
       var existingWrapper = area.closest(".side-out");
+
+      // A cell inside a reveal `.columns` block already has half a slide.
+      // Splitting that again leaves the code a QUARTER of the width, where even
+      // `mtcars[2:8, c(3, 5)]` wraps. custom.scss excludes these from its own
+      // automatic two-column rule with `:not(.column *)` for the same reason;
+      // match it. A manual wrapper is undone as well rather than merely skipped:
+      // the class is in the markup, so notebook.scss would lay the cell out in
+      // two columns regardless of what this script decides, and the halved width
+      // is not something the author who typed `::: {.side-out}` accounted for.
+      if (area.closest(".column")) {
+        if (existingWrapper) {
+          existingWrapper.classList.remove("side-out");
+          existingWrapper.dataset.webrLayout = "stacked";
+        }
+        return;
+      }
+
       var host = existingWrapper || area.closest(".cell") || area.parentElement;
       if (!host) return;
 
-      if (existingWrapper) {
-        host.dataset.webrLayoutManual = "true";
-      } else {
-        host.classList.add("side-out");
-      }
-      host.dataset.webrLayout = "side";
+      // Open side by side. `::: {.side-out}` only adds the manual flag, which
+      // stops routine measurement noise from tearing the wrapper down; it still
+      // cannot suspend the gates in assessOutput, all of which force.
+      if (existingWrapper) host.dataset.webrLayoutManual = "true";
+      promote(host);
 
-      // Estimate an initial split from the longest source line. This split is
-      // final; a run never changes it.
-      var initialCodeShare = (metrics.maxChars + 10) / 145;
-      setTracks(host, initialCodeShare);
+      // Estimate an initial split from the longest source line, in pixels against
+      // the width this cell actually has. The old form was `(maxChars + 10) / 145`,
+      // which assumed ~145 characters span the full width; the real figure is ~109,
+      // so it under-sized every editor by a third and manual `.side-out` cells —
+      // which open side by side at once and never reach the measured split until
+      // they are run — wrapped on arrival.
+      var initialAvailable = Math.max(1, (area.clientWidth || 1005) - 16);
+      setTracks(host,
+        (metrics.maxChars * FALLBACK_CHAR_PX + EDITOR_CHROME) / initialAvailable);
       measureRenderedCode(area, host, details.code, 0);
 
-      // Once side by side, always side by side. Output that is too wide or too
-      // long scrolls inside its column (notebook.scss); it never stacks the
-      // cell, because a layout that jumps when Run is pressed is worse than a
-      // scrollbar.
+      // A cell on a hidden slide or an inactive tab has clientWidth 0 for as long
+      // as it stays hidden, so measureRenderedCode above cannot measure anything
+      // and eventually gives up — leaving the cell on the character estimate for
+      // good. Whoever then navigates to that slide sees the estimate, which is
+      // exactly the wrapped editor this whole mechanism exists to avoid. Watch
+      // for the moment the cell gains a width instead.
+      if (typeof ResizeObserver === "function") {
+        var sizeObserver = new ResizeObserver(function () {
+          if (!area.clientWidth) return;
+          if (host.dataset.webrCodePx) { sizeObserver.disconnect(); return; }
+          measureRenderedCode(area, host, details.code, 0);
+        });
+        sizeObserver.observe(area);
+      }
+
+      var observer = new MutationObserver(function () {
+        requestAnimationFrame(function () { assessOutput(area, host, metrics); });
+      });
+      observer.observe(area, { childList: true, subtree: true, characterData: true,
+        attributes: true, attributeFilter: ["style", "class"] });
+      requestAnimationFrame(function () { assessOutput(area, host, metrics); });
     }
 
     function scan() {
@@ -484,6 +770,15 @@
       start();
     }
   })();
+  </script>
+  <!-- quarto-webr loads Monaco's AMD loader (define.amd). KaTeX ships UMD and
+       registers as an anonymous AMD module instead of setting window.katex, so
+       Quarto's inline renderer throws "katex is not defined" on every WebR deck.
+       Import the ESM build, which ignores AMD, and publish the global before
+       DOMContentLoaded so the stock renderer finds it. -->
+  <script type="module">
+    import katex from "https://cdn.jsdelivr.net/npm/katex@0.18.4/dist/katex.mjs";
+    window.katex = window.katex || katex;
   </script>
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/monaco-editor@0.47.0/min/vs/editor/editor.main.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
@@ -775,7 +1070,7 @@
   };
 
   // Store cell data
-  globalThis.qwebrCellDetails = [{"code":"1 - pnorm(1)","id":1,"options":{"autorun":"false","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.8","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"4.5","fig-width":"7","label":"unnamed-chunk-1","message":"true","out-height":"","out-width":"55%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"#--- get the data ---#\ndata(\"wage1\", package = \"wooldridge\")\n\n#--- run a regression ---#\nreg_wage <- feols(wage ~ educ + exper + tenure, data = wage1)","id":2,"options":{"autorun":"true","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.8","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"4.5","fig-width":"7","label":"unnamed-chunk-2","message":"true","out-height":"","out-width":"55%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"#* tidy up the regression results\nreg_results_table <- broom::tidy(reg_wage)\n\n#* display\nreg_results_table","id":3,"options":{"autorun":"true","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.8","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"4.5","fig-width":"7","label":"unnamed-chunk-3","message":"true","out-height":"","out-width":"55%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"#--- coefficient estimate on educ ---#\nbeta_educ <-\n  reg_results_table %>%\n  filter(term == \"educ\") %>%\n  pull(estimate)\n\n#--- se of the coefficient on educ ---#\nse_beta_educ <-\n  reg_results_table %>%\n  filter(term == \"educ\") %>%\n  pull(std.error)\n\n#--- get the t-value ---#\n(\n  t_value <- (beta_educ - 1) / se_beta_educ\n)","id":4,"options":{"autorun":"false","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.8","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"4.5","fig-width":"7","label":"unnamed-chunk-4","message":"true","out-height":"","out-width":"55%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"(\n  df_t <- degrees_freedom(reg_wage, \"resid\")\n)","id":5,"options":{"autorun":"false","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.8","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"4.5","fig-width":"7","label":"unnamed-chunk-5","message":"true","out-height":"","out-width":"55%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"(\n  critical_value <- qt(0.975, df = df_t)\n)","id":6,"options":{"autorun":"false","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.8","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"4.5","fig-width":"7","label":"unnamed-chunk-6","message":"true","out-height":"","out-width":"55%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"wage_reg <- feols(wage ~ educ + exper + tenure, data = wage1)","id":7,"options":{"autorun":"true","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.8","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"4.5","fig-width":"7","label":"unnamed-chunk-7","message":"true","out-height":"","out-width":"55%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"(\nwage_reg_coef <- broom::tidy(wage_reg)\n)","id":8,"options":{"autorun":"true","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.8","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"4.5","fig-width":"7","label":"unnamed-chunk-8","message":"true","out-height":"","out-width":"55%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"qt(0.05, df = 522)\nqt(0.95, df = 522)","id":9,"options":{"autorun":"false","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.8","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"4.5","fig-width":"7","label":"unnamed-chunk-9","message":"true","out-height":"","out-width":"55%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"broom::tidy(\n    wage_reg, \n    conf.int = TRUE, \n    conf.level = 0.9\n  ) %>%\n  dplyr::relocate(term, conf.low, conf.high)","id":10,"options":{"autorun":"false","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.8","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"4.5","fig-width":"7","label":"unnamed-chunk-10","message":"true","out-height":"","out-width":"55%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"#--- import data ---#\ndata(\"twoyear\", package = \"wooldridge\")\n\n(\nreg_sc <- fixest::feols(lwage ~ jc + univ + exper, data = twoyear) # OLS\n)","id":11,"options":{"autorun":"true","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.8","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"4.5","fig-width":"7","label":"unnamed-chunk-11","message":"true","out-height":"","out-width":"55%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"(\nvcov_sc <- vcov(reg_sc) # variance covariance matrix\n)","id":12,"options":{"autorun":"true","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.8","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"4.5","fig-width":"7","label":"unnamed-chunk-12","message":"true","out-height":"","out-width":"55%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"#--- reg results ---#\nreg_sc_td <- broom::tidy(reg_sc)\n\n#--- get coefficients ---#\nbeta_jc <-\n  reg_sc_td %>%\n  filter(term == \"jc\") %>%\n  pull(estimate)\n\nbeta_univ <-\n  reg_sc_td %>%\n  filter(term == \"univ\") %>%\n  pull(estimate)","id":13,"options":{"autorun":"true","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.8","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"4.5","fig-width":"7","label":"unnamed-chunk-13","message":"true","out-height":"","out-width":"55%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"numerator <- beta_jc - beta_univ\ndenominator <-\n  sqrt(\n    vcov_sc[\"jc\", \"jc\"] - 2 * vcov_sc[\"jc\", \"univ\"] + vcov_sc[\"univ\", \"univ\"]\n  )\nt_stat <- numerator / denominator\nt_stat","id":14,"options":{"autorun":"true","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.8","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"4.5","fig-width":"7","label":"unnamed-chunk-14","message":"true","out-height":"","out-width":"55%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"car::linearHypothesis(reg_sc, \"jc=univ\")","id":15,"options":{"autorun":"true","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.8","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"4.5","fig-width":"7","label":"unnamed-chunk-15","message":"true","out-height":"","out-width":"55%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"t_stat^2","id":16,"options":{"autorun":"true","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.8","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"4.5","fig-width":"7","label":"unnamed-chunk-16","message":"true","out-height":"","out-width":"55%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"#--- load the mlb data ---#\ndata(\"mlb1\", package = \"wooldridge\")\n\n#--- run a rergession ---#\nmlb_reg <- fixest::feols(log(salary) ~ years + gamesyr + bavg\n  + hrunsyr + rbisyr, data = mlb1)\n\n#--- take a look at the results ---#\nbroom::tidy(mlb_reg)","id":17,"options":{"autorun":"true","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.8","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"4.5","fig-width":"7","label":"unnamed-chunk-17","message":"true","out-height":"","out-width":"55%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"broom::tidy(mlb_reg)","id":18,"options":{"autorun":"true","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.8","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"4.5","fig-width":"7","label":"unnamed-chunk-18","message":"true","out-height":"","out-width":"55%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"#--- run OLS ---#\nres_u <- feols(log(salary) ~ years + gamesyr + bavg\n  + hrunsyr + rbisyr, data = mlb1)\n\n#--- SSR ---#\nsum(res_u$residuals^2)","id":19,"options":{"autorun":"true","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.8","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"4.5","fig-width":"7","label":"unnamed-chunk-19","message":"true","out-height":"","out-width":"55%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"#--- run OLS ---#\nres_r <- feols(log(salary) ~ years + gamesyr, data = mlb1)\n\n#--- SSR ---#\nsum(res_r$residuals^2)","id":20,"options":{"autorun":"false","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.8","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"4.5","fig-width":"7","label":"unnamed-chunk-20","message":"true","out-height":"","out-width":"55%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"#--- unrestricted model ---#\nreg_u <- feols(log(salary) ~ years + gamesyr +\n  bavg + hrunsyr + rbisyr, data = mlb1)\n\nSSR_u <- sum(reg_u$residuals^2)\n\n#--- restricted model ---#\nreg_r <- feols(log(salary) ~ years + gamesyr, data = mlb1)\n\nSSR_r <- sum(reg_r$residuals^2)","id":21,"options":{"autorun":"true","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.8","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"4.5","fig-width":"7","label":"unnamed-chunk-21","message":"true","out-height":"","out-width":"55%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"df_q <- 3 # the number of restrictions\ndf_ur <- degrees_freedom(reg_u, \"resid\") # degrees of freedom for the unrestricted model\nF_stat_num <- (SSR_r - SSR_u) / df_q # numerator of F-stat\nF_stat_denom <- SSR_u / df_ur # denominator of F-stat\nF_sta <- F_stat_num / F_stat_denom # F-stat\nF_sta","id":22,"options":{"autorun":"false","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.8","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"4.5","fig-width":"7","label":"unnamed-chunk-22","message":"true","out-height":"","out-width":"55%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"alpha <- 0.05 # 5%  significance level\nc_value <- qf(1 - alpha, df1 = df_q, df2 = df_ur)\nc_value","id":23,"options":{"autorun":"false","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.8","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"4.5","fig-width":"7","label":"unnamed-chunk-23","message":"true","out-height":"","out-width":"55%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"F_sta > c_value","id":24,"options":{"autorun":"false","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.8","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"4.5","fig-width":"7","label":"unnamed-chunk-24","message":"true","out-height":"","out-width":"55%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"#--- F-test ---#\ncar::linearHypothesis(mlb_reg, c(\"bavg=0\", \"hrunsyr=0\", \"rbisyr=0\"))","id":25,"options":{"autorun":"true","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.8","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"4.5","fig-width":"7","label":"unnamed-chunk-25","message":"true","out-height":"","out-width":"55%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"N <- 300 # num observations\nmu <- runif(N) # term shared by indep vars 1 and 2\nx1 <- 0.1 * runif(N) + 2 * mu # indep 1\nx2 <- 0.1 * runif(N) + 2 * mu # indep 2\nx3 <- runif(N) # indep 3\nu <- rnorm(N) # error\ny <- 1 + x1 + x2 + x3 + u # generate y\ndata <- data.table(y = y, x1 = x1, x2 = x2, x3 = x3) # combine into a data.table","id":26,"options":{"autorun":"false","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.8","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"4.5","fig-width":"7","label":"unnamed-chunk-26","message":"true","out-height":"","out-width":"55%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"cor(x1, x2) # correlation between x1 and x2","id":27,"options":{"autorun":"false","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.8","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"4.5","fig-width":"7","label":"unnamed-chunk-27","message":"true","out-height":"","out-width":"55%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"reg_u <- fixest::feols(y ~ x1 + x2 + x3, data = data) # OLS\nbroom::tidy(reg_u) # results","id":28,"options":{"autorun":"false","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.8","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"4.5","fig-width":"7","label":"unnamed-chunk-28","message":"true","out-height":"","out-width":"55%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"#--- unrestricted ---#\nSSR_u <- sum(reg_u$residuals^2)\n\n#--- restricted ---#\nreg_r <- fixest::feols(y ~ x3, data = data)\nSSR_r <- sum(reg_r$residuals^2)\n\n#--- degrees of freedom of residuals ---#\ndf_resid <- degrees_freedom(reg_u, \"resid\")\n\n#--- F ---#\nF_stat <- ((SSR_r - SSR_u) / 2) / (SSR_u / df_resid)\n\n#--- critical value ---#\nalpha <- 0.05\n(\n  c_value <- qf(1 - alpha, df1 = 2, df2 = df_resid)\n)","id":29,"options":{"autorun":"false","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.8","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"4.5","fig-width":"7","label":"unnamed-chunk-29","message":"true","out-height":"","out-width":"55%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"#--- F > critical value? ---#\nF_stat\nF_stat > c_value","id":30,"options":{"autorun":"false","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.8","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"4.5","fig-width":"7","label":"unnamed-chunk-30","message":"true","out-height":"","out-width":"55%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"dplyr::select(mlb1, bavg, hrunsyr, rbisyr) %>% cor()","id":31,"options":{"autorun":"true","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.8","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"4.5","fig-width":"7","label":"unnamed-chunk-31","message":"true","out-height":"","out-width":"55%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"#--- OLS ---#\nreg_sc <- feols(lwage ~ jc + univ + exper, data = twoyear) # OLS\n\n#--- F-test ---#\nF_test <- car::linearHypothesis(reg_sc, c(\"jc-univ=0\"))\n\n#--- t-statistic ---#\nsqrt(F_test$Chisq[2])","id":32,"options":{"autorun":"false","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.8","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"4.5","fig-width":"7","label":"unnamed-chunk-32","message":"true","out-height":"","out-width":"55%","output":"true","read-only":"false","results":"markup","warning":"true"}}];
+  globalThis.qwebrCellDetails = [{"code":"1 - pnorm(1)","id":1,"options":{"autorun":"false","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.7","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"4.5","fig-width":"7","label":"unnamed-chunk-1","message":"true","out-height":"","out-width":"55%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"#--- get the data ---#\ndata(\"wage1\", package = \"wooldridge\")\n\n#--- run a regression ---#\nreg_wage <- feols(wage ~ educ + exper + tenure, data = wage1)","id":2,"options":{"autorun":"true","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.7","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"4.5","fig-width":"7","label":"unnamed-chunk-2","message":"true","out-height":"","out-width":"55%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"#* tidy up the regression results\nreg_results_table <- broom::tidy(reg_wage)\n\n#* display\nreg_results_table","id":3,"options":{"autorun":"true","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.7","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"4.5","fig-width":"7","label":"unnamed-chunk-3","message":"true","out-height":"","out-width":"55%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"#--- coefficient estimate on educ ---#\nbeta_educ <-\n  reg_results_table %>%\n  filter(term == \"educ\") %>%\n  pull(estimate)\n\n#--- se of the coefficient on educ ---#\nse_beta_educ <-\n  reg_results_table %>%\n  filter(term == \"educ\") %>%\n  pull(std.error)\n\n#--- get the t-value ---#\n(\n  t_value <- (beta_educ - 1) / se_beta_educ\n)","id":4,"options":{"autorun":"false","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.7","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"4.5","fig-width":"7","label":"unnamed-chunk-4","message":"true","out-height":"","out-width":"55%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"(\n  df_t <- degrees_freedom(reg_wage, \"resid\")\n)","id":5,"options":{"autorun":"false","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.7","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"4.5","fig-width":"7","label":"unnamed-chunk-5","message":"true","out-height":"","out-width":"55%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"(\n  critical_value <- qt(0.975, df = df_t)\n)","id":6,"options":{"autorun":"false","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.7","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"4.5","fig-width":"7","label":"unnamed-chunk-6","message":"true","out-height":"","out-width":"55%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"wage_reg <- feols(wage ~ educ + exper + tenure, data = wage1)","id":7,"options":{"autorun":"true","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.7","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"4.5","fig-width":"7","label":"unnamed-chunk-7","message":"true","out-height":"","out-width":"55%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"(\nwage_reg_coef <- broom::tidy(wage_reg)\n)","id":8,"options":{"autorun":"true","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.7","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"4.5","fig-width":"7","label":"unnamed-chunk-8","message":"true","out-height":"","out-width":"55%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"qt(0.05, df = 522)\nqt(0.95, df = 522)","id":9,"options":{"autorun":"false","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.7","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"4.5","fig-width":"7","label":"unnamed-chunk-9","message":"true","out-height":"","out-width":"55%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"broom::tidy(\n    wage_reg, \n    conf.int = TRUE, \n    conf.level = 0.9\n  ) %>%\n  dplyr::relocate(term, conf.low, conf.high)","id":10,"options":{"autorun":"false","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.7","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"4.5","fig-width":"7","label":"unnamed-chunk-10","message":"true","out-height":"","out-width":"55%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"#--- import data ---#\ndata(\"twoyear\", package = \"wooldridge\")\n\n(\nreg_sc <- fixest::feols(lwage ~ jc + univ + exper, data = twoyear) # OLS\n)","id":11,"options":{"autorun":"true","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.7","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"4.5","fig-width":"7","label":"unnamed-chunk-11","message":"true","out-height":"","out-width":"55%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"(\nvcov_sc <- vcov(reg_sc) # variance covariance matrix\n)","id":12,"options":{"autorun":"true","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.7","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"4.5","fig-width":"7","label":"unnamed-chunk-12","message":"true","out-height":"","out-width":"55%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"#--- reg results ---#\nreg_sc_td <- broom::tidy(reg_sc)\n\n#--- get coefficients ---#\nbeta_jc <-\n  reg_sc_td %>%\n  filter(term == \"jc\") %>%\n  pull(estimate)\n\nbeta_univ <-\n  reg_sc_td %>%\n  filter(term == \"univ\") %>%\n  pull(estimate)","id":13,"options":{"autorun":"true","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.7","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"4.5","fig-width":"7","label":"unnamed-chunk-13","message":"true","out-height":"","out-width":"55%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"numerator <- beta_jc - beta_univ\ndenominator <-\n  sqrt(\n    vcov_sc[\"jc\", \"jc\"] - 2 * vcov_sc[\"jc\", \"univ\"] + vcov_sc[\"univ\", \"univ\"]\n  )\nt_stat <- numerator / denominator\nt_stat","id":14,"options":{"autorun":"true","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.7","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"4.5","fig-width":"7","label":"unnamed-chunk-14","message":"true","out-height":"","out-width":"55%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"car::linearHypothesis(reg_sc, \"jc=univ\")","id":15,"options":{"autorun":"true","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.7","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"4.5","fig-width":"7","label":"unnamed-chunk-15","message":"true","out-height":"","out-width":"55%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"t_stat^2","id":16,"options":{"autorun":"true","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.7","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"4.5","fig-width":"7","label":"unnamed-chunk-16","message":"true","out-height":"","out-width":"55%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"#--- load the mlb data ---#\ndata(\"mlb1\", package = \"wooldridge\")\n\n#--- run a rergession ---#\nmlb_reg <- fixest::feols(log(salary) ~ years + gamesyr + bavg\n  + hrunsyr + rbisyr, data = mlb1)\n\n#--- take a look at the results ---#\nbroom::tidy(mlb_reg)","id":17,"options":{"autorun":"true","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.7","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"4.5","fig-width":"7","label":"unnamed-chunk-17","message":"true","out-height":"","out-width":"55%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"broom::tidy(mlb_reg)","id":18,"options":{"autorun":"true","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.7","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"4.5","fig-width":"7","label":"unnamed-chunk-18","message":"true","out-height":"","out-width":"55%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"#--- run OLS ---#\nres_u <- feols(log(salary) ~ years + gamesyr + bavg\n  + hrunsyr + rbisyr, data = mlb1)\n\n#--- SSR ---#\nsum(res_u$residuals^2)","id":19,"options":{"autorun":"true","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.7","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"4.5","fig-width":"7","label":"unnamed-chunk-19","message":"true","out-height":"","out-width":"55%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"#--- run OLS ---#\nres_r <- feols(log(salary) ~ years + gamesyr, data = mlb1)\n\n#--- SSR ---#\nsum(res_r$residuals^2)","id":20,"options":{"autorun":"false","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.7","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"4.5","fig-width":"7","label":"unnamed-chunk-20","message":"true","out-height":"","out-width":"55%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"#--- unrestricted model ---#\nreg_u <- feols(log(salary) ~ years + gamesyr +\n  bavg + hrunsyr + rbisyr, data = mlb1)\n\nSSR_u <- sum(reg_u$residuals^2)\n\n#--- restricted model ---#\nreg_r <- feols(log(salary) ~ years + gamesyr, data = mlb1)\n\nSSR_r <- sum(reg_r$residuals^2)","id":21,"options":{"autorun":"true","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.7","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"4.5","fig-width":"7","label":"unnamed-chunk-21","message":"true","out-height":"","out-width":"55%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"df_q <- 3 # the number of restrictions\ndf_ur <- degrees_freedom(reg_u, \"resid\") # degrees of freedom for the unrestricted model\nF_stat_num <- (SSR_r - SSR_u) / df_q # numerator of F-stat\nF_stat_denom <- SSR_u / df_ur # denominator of F-stat\nF_sta <- F_stat_num / F_stat_denom # F-stat\nF_sta","id":22,"options":{"autorun":"false","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.7","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"4.5","fig-width":"7","label":"unnamed-chunk-22","message":"true","out-height":"","out-width":"55%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"alpha <- 0.05 # 5%  significance level\nc_value <- qf(1 - alpha, df1 = df_q, df2 = df_ur)\nc_value","id":23,"options":{"autorun":"false","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.7","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"4.5","fig-width":"7","label":"unnamed-chunk-23","message":"true","out-height":"","out-width":"55%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"F_sta > c_value","id":24,"options":{"autorun":"false","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.7","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"4.5","fig-width":"7","label":"unnamed-chunk-24","message":"true","out-height":"","out-width":"55%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"#--- F-test ---#\ncar::linearHypothesis(mlb_reg, c(\"bavg=0\", \"hrunsyr=0\", \"rbisyr=0\"))","id":25,"options":{"autorun":"true","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.7","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"4.5","fig-width":"7","label":"unnamed-chunk-25","message":"true","out-height":"","out-width":"55%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"N <- 300 # num observations\nmu <- runif(N) # term shared by indep vars 1 and 2\nx1 <- 0.1 * runif(N) + 2 * mu # indep 1\nx2 <- 0.1 * runif(N) + 2 * mu # indep 2\nx3 <- runif(N) # indep 3\nu <- rnorm(N) # error\ny <- 1 + x1 + x2 + x3 + u # generate y\ndata <- data.table(y = y, x1 = x1, x2 = x2, x3 = x3) # combine into a data.table","id":26,"options":{"autorun":"false","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.7","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"4.5","fig-width":"7","label":"unnamed-chunk-26","message":"true","out-height":"","out-width":"55%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"cor(x1, x2) # correlation between x1 and x2","id":27,"options":{"autorun":"false","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.7","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"4.5","fig-width":"7","label":"unnamed-chunk-27","message":"true","out-height":"","out-width":"55%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"reg_u <- fixest::feols(y ~ x1 + x2 + x3, data = data) # OLS\nbroom::tidy(reg_u) # results","id":28,"options":{"autorun":"false","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.7","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"4.5","fig-width":"7","label":"unnamed-chunk-28","message":"true","out-height":"","out-width":"55%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"#--- unrestricted ---#\nSSR_u <- sum(reg_u$residuals^2)\n\n#--- restricted ---#\nreg_r <- fixest::feols(y ~ x3, data = data)\nSSR_r <- sum(reg_r$residuals^2)\n\n#--- degrees of freedom of residuals ---#\ndf_resid <- degrees_freedom(reg_u, \"resid\")\n\n#--- F ---#\nF_stat <- ((SSR_r - SSR_u) / 2) / (SSR_u / df_resid)\n\n#--- critical value ---#\nalpha <- 0.05\n(\n  c_value <- qf(1 - alpha, df1 = 2, df2 = df_resid)\n)","id":29,"options":{"autorun":"false","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.7","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"4.5","fig-width":"7","label":"unnamed-chunk-29","message":"true","out-height":"","out-width":"55%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"#--- F > critical value? ---#\nF_stat\nF_stat > c_value","id":30,"options":{"autorun":"false","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.7","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"4.5","fig-width":"7","label":"unnamed-chunk-30","message":"true","out-height":"","out-width":"55%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"dplyr::select(mlb1, bavg, hrunsyr, rbisyr) %>% cor()","id":31,"options":{"autorun":"true","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.7","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"4.5","fig-width":"7","label":"unnamed-chunk-31","message":"true","out-height":"","out-width":"55%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"#--- OLS ---#\nreg_sc <- feols(lwage ~ jc + univ + exper, data = twoyear) # OLS\n\n#--- F-test ---#\nF_test <- car::linearHypothesis(reg_sc, c(\"jc-univ=0\"))\n\n#--- t-statistic ---#\nsqrt(F_test$Chisq[2])","id":32,"options":{"autorun":"false","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.7","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"4.5","fig-width":"7","label":"unnamed-chunk-32","message":"true","out-height":"","out-width":"55%","output":"true","read-only":"false","results":"markup","warning":"true"}}];
 
   </script>
   <script type="module">
@@ -2294,7 +2589,7 @@ globalThis.qwebrCreateMonacoEditorInstance = function (cellData) {
 <div id="tabset-3-1">
 <details class="transcript">
 <summary>
-Lecturer transcript
+Transcript
 </summary>
 <p>Five steps, and every test in this lecture is one of them wearing different clothes, so it is worth reading them now and coming back at the end. Notice how much work step two is doing. You need the distribution of your test statistic assuming the null is true, and if you cannot get that, you have no test. Steps four and five are where judgement enters: you choose how much error you will tolerate, and then check how unlikely your number was. Everything else is mechanical. Read the red phrases twice, because “if the null is true” is the assumption the whole logic hangs on.</p>
 </details>
@@ -2314,7 +2609,7 @@ Lecturer transcript
 <div id="tabset-1-1">
 <details class="transcript">
 <summary>
-Lecturer transcript
+Transcript
 </summary>
 <p>A deliberately artificial example, and the artificiality is the point. We want to test whether the expected value of x is one. Read the state of knowledge: we somehow already know the variance is four. That never happens in practice, and we assume it here only so the first pass through the logic has nothing hidden in it. Your estimator is the sample mean, which you already know is unbiased from lecture 03. So we have an estimator and a target value, and the question is how to decide whether the two are far enough apart to matter.</p>
 </details>
@@ -2330,7 +2625,7 @@ Lecturer transcript
 <div id="tabset-1-2">
 <details class="transcript">
 <summary>
-Lecturer transcript
+Transcript
 </summary>
 <p>Two math asides and then the payoff, so follow the chain. The first says scaling a random variable scales its variance by the square of the factor. The second says shifting a Normal moves its mean but leaves its variance alone. Put them together and any Normal can be turned into a standard Normal: subtract the mean, divide by the standard deviation. Now apply that to the sample mean. Its variance is four over J, so its standard deviation is two over root J. Dividing by that gives root J over two, times theta minus alpha. That is the last line.</p>
 </details>
@@ -2372,7 +2667,7 @@ Lecturer transcript
 <div id="tabset-1-3">
 <details class="transcript">
 <summary>
-Lecturer transcript
+Transcript
 </summary>
 <p>Here is where the null hypothesis actually enters. Up to now alpha was unknown, so the expression on the left was not something you could compute. But if the null says alpha equals one, substitute it in, and suddenly every symbol is a number you have. Read the sentence carefully and notice the red phrase: you subtract the value under the null first, then multiply by root J, then divide by two. Students routinely drop the subtraction. The picture on the right is what that quantity follows if the null is true. It is just the standard Normal.</p>
 </details>
@@ -2399,7 +2694,7 @@ Lecturer transcript
 <div id="tabset-1-4">
 <details class="transcript">
 <summary>
-Lecturer transcript
+Transcript
 </summary>
 <p>Now put numbers in. A hundred observations, sample mean of two, null value of one. Root of a hundred is ten, times the gap of one, divided by two, gives five. Now look at the figure and find five on the horizontal axis. It is not there; the curve has effectively no mass out that far. So either the null is true and something absurdly unlikely happened, or the null is false. That is the entire logic of hypothesis testing, and you have just done one. What we have not yet done is say how unlikely counts as unlikely enough.</p>
 </details>
@@ -2425,7 +2720,7 @@ Lecturer transcript
 <div id="tabset-1-5">
 <details class="transcript">
 <summary>
-Lecturer transcript
+Transcript
 </summary>
 <p>The same calculation with different numbers, and a different verdict. Four hundred observations, sample mean of one point zero two, so the gap from the null is tiny. Root of four hundred is twenty, times zero point zero two, divided by two, gives zero point two. Find that on the figure: it is right in the fat middle of the distribution. Getting zero point two is entirely ordinary if the null is true, so you have no grounds to doubt it. Note that the sample was four times larger here and still gave no evidence, because the gap was small.</p>
 </details>
@@ -2455,7 +2750,7 @@ Lecturer transcript
 <div id="tabset-3-3">
 <details class="transcript inline">
 <summary>
-Lecturer transcript
+Transcript
 </summary>
 <p>A worthwhile aside about why we bother normalising at all. You do not have to. You could just use theta minus alpha as your statistic, and the figure on the right shows what its distribution looks like with a hundred observations: a Normal centred at zero but much narrower, standard deviation zero point two. Reconsider case one with that statistic and you get one, which on this narrow curve is five standard deviations out, the same conclusion as before. The reason we normalise is at the bottom: it lets you look up one table forever instead of a new distribution for every sample size.</p>
 </details>
@@ -2496,7 +2791,7 @@ Lecturer transcript
 <div id="tabset-3-4">
 <details class="transcript">
 <summary>
-Lecturer transcript
+Transcript
 </summary>
 <p>Two questions and their answers, and this is the slide to come back to when the later tests start blurring together. What you need: a statistic whose distribution you know under the null. What you do: transform your raw quantity, usually a coefficient or a sample mean, so that its distribution is one you can look up. Then check whether the number you got is a plausible draw from it. Note the parenthesis at the end, which is honest about what we have not done: we have no formal criterion yet for how unlikely is unlikely enough. That is the significance level.</p>
 </details>
@@ -2521,7 +2816,7 @@ Lecturer transcript
 <div id="tabset-2-1">
 <details class="transcript">
 <summary>
-Lecturer transcript
+Transcript
 </summary>
 <p>Your turn, and the structure mirrors the worked example exactly, so you should be able to do all four parts. Read the setup: the difference in salaries between two universities, distributed Normal with unknown mean alpha and variance sixteen. You want to test whether alpha is ten. Work through the four questions on paper before opening the answer. Part two is the one to be careful with, because the variance of the sample mean is not sixteen; it is sixteen over four hundred. Then read the note underneath, which flags the two things this artificial setup let us skip.</p>
 </details>
@@ -2550,7 +2845,7 @@ Lecturer transcript
 <div id="tabset-2-2">
 <details class="transcript">
 <summary>
-Lecturer transcript
+Transcript
 </summary>
 <p>Check yours against this. The null is alpha equals ten, and under it the sample mean has variance sixteen over four hundred, so standard deviation zero point two. Dividing by that means multiplying by root of four hundred over four, which is five. Your observed difference is ten point two, so the statistic is five times zero point two, which is one. Run the cell: one minus pnorm of one is about sixteen percent. So a gap this size happens roughly one time in six when the null is true, which is not remotely unusual.</p>
 </details>
@@ -2589,7 +2884,7 @@ Lecturer transcript
 <div id="tabset-5-1">
 <details class="transcript">
 <summary>
-Lecturer transcript
+Transcript
 </summary>
 <p>Now the same logic pointed at regression coefficients, which is what you actually care about. Two example hypotheses in the box: education has no effect, experience has a positive effect. Note they have different shapes, one an equality and one an inequality, and that distinction becomes one-sided versus two-sided testing shortly. Then read the three bullets, because the second is the crux. If beta-one-hat were a fixed number you would just look at it. But it is one realisation of a random variable, so even when the true beta is exactly zero you can draw an estimate far from zero.</p>
 </details>
@@ -2624,7 +2919,7 @@ Lecturer transcript
 <div id="tabset-4-1">
 <details class="transcript">
 <summary>
-Lecturer transcript
+Transcript
 </summary>
 <p>A stocktake before we can go further. We have unbiasedness from MLR one through four, and a variance formula from MLR five. But read the line in blue: we have never said anything about the <em>shape</em> of the error distribution. Unbiasedness and variance are statements about the first two moments only. To do a test you need the whole distribution of your statistic, not two summary numbers, so we need more. The parenthesis at the end is a promise worth remembering: this assumption turns out to be avoidable in large samples, which is the asymptotics lecture.</p>
 </details>
@@ -2639,7 +2934,7 @@ Lecturer transcript
 <div id="tabset-4-2">
 <details class="transcript">
 <summary>
-Lecturer transcript
+Transcript
 </summary>
 <p>This is MLR six, and read it carefully because it is much stronger than it looks. The headline is that u is Normally distributed. But look at the other red word: independent. Independence of the error from the regressors is far more than zero correlation. Read the second callout, which spells out the consequences. Independence gives you a zero conditional mean, so MLR four comes free. It also gives you constant conditional variance, so MLR five comes free too. We are assuming a great deal here, which is why the asymptotics lecture is such a relief.</p>
 </details>
@@ -2677,7 +2972,7 @@ Lecturer transcript
 <div id="tabset-4-3">
 <details class="transcript">
 <summary>
-Lecturer transcript
+Transcript
 </summary>
 <p>Two consequences, one per column. On the left, y conditional on x is Normal, with the regression line as its mean. That follows immediately: y is a constant plus a Normal error. On the right is the one we need. Because beta-j-hat is a weighted sum of the y values, and sums of Normals are Normal, the estimator is itself Normally distributed, centred on the true beta. Subtract the mean and divide by the standard deviation, and you have a standard Normal. Now read the question at the bottom, because the answer is no, and the next tab says why.</p>
 </details>
@@ -2719,7 +3014,7 @@ Lecturer transcript
 <div id="tabset-5-3">
 <details class="transcript">
 <summary>
-Lecturer transcript
+Transcript
 </summary>
 <p>And here is the catch the question was pointing at. The expression on the previous tab used the true standard error, which contains sigma squared, which you do not know. Replace it with the estimated standard error and the distribution is no longer Normal. It becomes t with n minus k minus one degrees of freedom. The extra spread in the t distribution is the cost of estimating the denominator: you have two random things in the ratio now instead of one. Note the corrected formula in the parenthesis, and the square root in particular, because the standard error is the root of the variance.</p>
 </details>
@@ -2731,7 +3026,7 @@ Lecturer transcript
 <div id="tabset-5-4">
 <details class="transcript">
 <summary>
-Lecturer transcript
+Transcript
 </summary>
 <p>This is a reference tab rather than something to work through, and I would bookmark it. The distinction that matters most is the hat. Sigma squared is the true error variance; sigma-hat squared is what you compute from the residuals. Var of beta-j-hat is a true quantity; the version with a hat over the whole thing is your estimate of it. And se is the square root of a variance, never the variance itself. Almost every algebra mistake in this lecture comes from losing track of which of these you are holding.</p>
 </details>
@@ -2773,7 +3068,7 @@ Lecturer transcript
 <div id="tabset-6-1">
 <details class="transcript">
 <summary>
-Lecturer transcript
+Transcript
 </summary>
 <p>The courtroom analogy, and it repays taking seriously. You are the attorney. The null hypothesis is what you want to knock down: the defendant is not guilty. The alternative is what you are arguing for. Notice the asymmetry this builds in. You do not prove the null true; you either reject it or fail to reject it, exactly as a court either convicts or fails to convict. And the burden of proof sits on the alternative. That is why we will say “fail to reject” rather than “accept”, and why an insignificant result is not evidence of no effect.</p>
 </details>
@@ -2789,7 +3084,7 @@ Lecturer transcript
 <div id="tabset-6-2">
 <details class="transcript">
 <summary>
-Lecturer transcript
+Transcript
 </summary>
 <p>Two shapes of alternative, and which you use changes where you look. With a one-sided alternative you have a directional claim, so you only care about one tail of the distribution. With a two-sided alternative you care about departures in either direction, so you look at both tails. The practical consequence is that for a given significance level the two-sided critical value is further out, because you have to split your error budget across two tails. Then read the callout: these critical values are just quantiles, the same computation as <code>qnorm</code> in lecture 03.</p>
 </details>
@@ -2825,7 +3120,7 @@ Lecturer transcript
 <div id="tabset-7-1">
 <details class="transcript">
 <summary>
-Lecturer transcript
+Transcript
 </summary>
 <p>The significance level, and then the thing this slide previously left out. The definition is the probability of rejecting a true null: how often you convict an innocent defendant. Now read the table. There are two ways to be wrong, and lowering your significance level trades one for the other. Push from five percent to one percent and you convict fewer innocents, but you also acquit more of the guilty, which is Type two error. One minus that is the power of your test. The last bullet is the practical payoff: not significant does not mean no effect.</p>
 </details>
@@ -2881,7 +3176,7 @@ Lecturer transcript
 <div id="tabset-7-2">
 <details class="transcript">
 <summary>
-Lecturer transcript
+Transcript
 </summary>
 <p>Here it is as a picture. The curve is the distribution of the t-statistic assuming the null is true. The red region is the five percent of the area furthest out in the positive tail, and the number at its edge is the critical value. If the null is true, you land in the red only five percent of the time, so a statistic in the red is either bad luck at exactly that rate or evidence against the null. That is the whole decision rule. Read the two definitions underneath and keep them apart: five percent is the level, the number is the critical value.</p>
 </details>
@@ -2925,7 +3220,7 @@ Lecturer transcript
 <div id="tabset-7-3">
 <details class="transcript">
 <summary>
-Lecturer transcript
+Transcript
 </summary>
 <p>The same curve, a smaller red region. Demanding one percent rather than five pushes the critical value further out, so you need a more extreme statistic to reject. Compare the two numbers between this tab and the last. The trade-off from the definition tab is now visible: you are less likely to reject a true null, and also less likely to reject a false one. Neither level is correct in any absolute sense. Five percent is a convention, and a result that rejects at five but not at one is exactly as informative as its p-value says.</p>
 </details>
@@ -2969,7 +3264,7 @@ Lecturer transcript
 <div id="tabset-7-4">
 <details class="transcript">
 <summary>
-Lecturer transcript
+Transcript
 </summary>
 <p>Now both tails, because the alternative allows departures in either direction. The total red area is still five percent, but it is split, so each tail gets two and a half percent, which pushes each critical value further out than the one-sided case. Read the note in the parenthesis and check it against the previous two tabs: the curve has not changed at all across these three figures. It is the same t distribution every time. All that changes is which region you shade, because that is what your alternative hypothesis decides.</p>
 </details>
@@ -3018,7 +3313,7 @@ Lecturer transcript
 <div id="tabset-8-3">
 <details class="transcript inline">
 <summary>
-Lecturer transcript
+Transcript
 </summary>
 <p>The p-value inverts the question. Instead of fixing a level and asking whether you reject, it asks: at what level would this result have been on the boundary? The figure shows a statistic of two point one six, and the shaded area either side of it is three point one percent. So if you had set your level at three point one percent, this result would sit exactly at the critical value. Any level above that and you reject; any level below and you do not. Read the decision rule at the bottom, and note it always agrees with the critical value approach.</p>
 </details>
@@ -3070,7 +3365,7 @@ Lecturer transcript
 <div id="tabset-8-4">
 <details class="transcript">
 <summary>
-Lecturer transcript
+Transcript
 </summary>
 <p>A real worked example, and I want you to follow the arithmetic. The estimated effect of experience is zero point zero zero four one with a standard error of zero point zero zero one seven, so the t-statistic is their ratio, two point four one. The alternative is one-sided, so we want the ninety-nine percent quantile of t with five hundred and twenty-two degrees of freedom, which is two point three three. Two point four one exceeds it, so we reject at the one percent level. Notice the coefficient is tiny in absolute terms and still highly significant, because the standard error is smaller still.</p>
 </details>
@@ -3105,7 +3400,7 @@ Lecturer transcript
 <div id="tabset-10-1">
 <details class="transcript">
 <summary>
-Lecturer transcript
+Transcript
 </summary>
 <p>Now the same thing in code, on real data. Two lines: load the wage data from the Wooldridge package, and run a regression of wage on education, experience and tenure. This cell runs automatically when the page loads, because the next several slides all use the objects it creates. Nothing prints, which is correct. If you want to see the model, type the object name on its own line. From here on we are extracting pieces of this fit and doing the tests we just did by hand.</p>
 </details>
@@ -3115,7 +3410,7 @@ Lecturer transcript
 <div id="tabset-10-2">
 <details class="transcript">
 <summary>
-Lecturer transcript
+Transcript
 </summary>
 <p>Broom’s tidy function turns a regression object into an ordinary data frame, which is far easier to work with than digging through the model object. Run it and read the four columns listed underneath. Estimate is beta-hat, std dot error is the estimated standard error, statistic is the t-statistic for the null that the coefficient is zero, and p dot value is the two-sided p-value for that same null. So the most common test you will ever run is already done for you. Read the last two lines: any other null hypothesis takes work, which is the next tab.</p>
 </details>
@@ -3141,7 +3436,7 @@ Lecturer transcript
 <div id="tabset-9-1">
 <details class="transcript">
 <summary>
-Lecturer transcript
+Transcript
 </summary>
 <p>Here is that work. We are testing whether the coefficient on education equals one, which is not the null R reports, so we build the statistic ourselves. Read the structure: pull out the estimate, pull out the standard error, then subtract the null value from the estimate and divide. Notice the minus one on the last line. That is the only difference from what R already gave you, and it is the whole point: the reported t-statistic assumes a null of zero. Change the null and you change the numerator.</p>
 </details>
@@ -3151,7 +3446,7 @@ Lecturer transcript
 <div id="tabset-9-2">
 <details class="transcript">
 <summary>
-Lecturer transcript
+Transcript
 </summary>
 <p>And the other half: the critical value. First get the degrees of freedom from the fit rather than counting by hand, which avoids exactly the kind of error that comes from typing a number. Then <code>qt</code> at zero point nine seven five, because this is two-sided and we want two and a half percent in each tail. Compare the absolute value of your t-statistic against it. The gap here is enormous, which should not surprise you: a return to education of one dollar per year of schooling is nothing like the estimate the data gives.</p>
 </details>
@@ -3191,7 +3486,7 @@ Lecturer transcript
 <div id="tabset-13-1">
 <details class="transcript">
 <summary>
-Lecturer transcript
+Transcript
 </summary>
 <p>Read both halves of this slide, because the second is the one people get wrong. A ninety-five percent confidence interval means that if you repeated the whole exercise on many samples, ninety-five percent of the intervals you computed would contain the true parameter. The property belongs to the procedure, not to any one interval. What it is not, on the lower half, is a probability statement about the interval you actually have. Once you have computed it, the true value is either in it or not; there is no randomness left to have a probability about.</p>
 </details>
@@ -3218,7 +3513,7 @@ Lecturer transcript
 <div id="tabset-11-1">
 <details class="transcript">
 <summary>
-Lecturer transcript
+Transcript
 </summary>
 <p>The general recipe, and it is short. To get an A percent interval, chop off the same amount of probability from each tail: A percent in the middle means one hundred minus A percent left over, split in two. So the lower bound is the hundred minus A over two quantile and the upper bound is its mirror image. Note the parentheses carefully. It is one hundred minus A, then divided by two, not one hundred minus A over two. That distinction is the difference between two point five percent and fifty-two point five percent.</p>
 </details>
@@ -3231,7 +3526,7 @@ Lecturer transcript
 <div id="tabset-11-2">
 <details class="transcript">
 <summary>
-Lecturer transcript
+Transcript
 </summary>
 <p>The recipe with numbers. For a ninety-five percent interval, five percent is left over, split into two and a half at each end, so you want the two point five and ninety-seven point five percent quantiles. If your statistic is standard Normal those quantiles are minus one point nine six and one point nine six, and the figure shows exactly that: the red tails together hold five percent of the area. Recognise the number. It is the same one point nine six that was the two-sided critical value two slides ago, which is not a coincidence.</p>
 </details>
@@ -3264,7 +3559,7 @@ Lecturer transcript
 <div id="tabset-13-3">
 <details class="transcript">
 <summary>
-Lecturer transcript
+Transcript
 </summary>
 <p>The derivation, and it has two moves. We know the distribution of the standardised quantity, so we know its interval directly: the quantiles of the t distribution. But you want an interval for beta-j, not for that ratio, so you have to invert. Solve the ratio for beta-j and you get beta-hat minus t times the standard error. Then read the last two bullets: scale each quantile by the standard error and shift by the estimate. The lower quantile is negative and the upper positive, which is what puts the estimate in the middle.</p>
 </details>
@@ -3291,7 +3586,7 @@ Lecturer transcript
 <div id="tabset-12-1">
 <details class="transcript">
 <summary>
-Lecturer transcript
+Transcript
 </summary>
 <p>The same wage regression as before, and again tidied with broom, because everything we need is in that table. Both cells run on load, so the objects are there when you arrive. Run the second one and look at the row for education: an estimate and a standard error. Those two numbers, plus the degrees of freedom, are the entire input to a confidence interval. Nothing else about the regression matters for this. The next tab collects them explicitly before we do the arithmetic.</p>
 </details>
@@ -3306,7 +3601,7 @@ Lecturer transcript
 <div id="tabset-12-2">
 <details class="transcript">
 <summary>
-Lecturer transcript
+Transcript
 </summary>
 <p>Three numbers, and I want you to see how few there are. The estimate is about zero point six, the standard error about zero point zero five, and the degrees of freedom are five hundred and twenty-two, which is five hundred and twenty-six observations minus three regressors minus one for the intercept. That is the whole input. Note the degrees of freedom is computed from the fit rather than typed in, which matters more than it sounds: a stale hardcoded number is exactly the kind of error that renders without complaint and quietly misleads.</p>
 </details>
@@ -3322,7 +3617,7 @@ Lecturer transcript
 <div id="tabset-12-3">
 <details class="transcript inline">
 <summary>
-Lecturer transcript
+Transcript
 </summary>
 <p>Now the arithmetic. We want a ninety percent interval, so ten percent is left over, five at each end, and we need the five and ninety-five percent quantiles of t with five hundred and twenty-two degrees of freedom. Run the cell: they are symmetric, about minus one point six five and one point six five. Then scale each by the standard error and shift by the estimate. Compare the result against the <code>In practice</code> tab, where broom computes the same interval directly. They agree, which is the point of doing it by hand once.</p>
 </details>
@@ -3357,7 +3652,7 @@ Lecturer transcript
 <div id="tabset-12-4">
 <details class="transcript">
 <summary>
-Lecturer transcript
+Transcript
 </summary>
 <p>And this is what you will actually do. Broom’s tidy takes a <code>conf.int</code> argument, and <code>conf.level</code> lets you ask for something other than ninety-five percent. Run it and find the education row: the low and high columns should match what we computed by hand on the previous tab. One habit worth forming now. When you report a coefficient in your paper, report the interval too, not just the star. The interval tells your reader what range of effects the data is consistent with, which is almost always the more useful statement.</p>
 </details>
@@ -3391,7 +3686,7 @@ Lecturer transcript
 <div id="tabset-15-1">
 <details class="transcript">
 <summary>
-Lecturer transcript
+Transcript
 </summary>
 <p>A genuinely different question, and notice that it is not about any single coefficient. Two dummy variables, one for attending a two-year college and one for a four-year college, so beta-one and beta-two are their respective effects on log wage. The question is whether four-year college has the bigger effect, which is a claim about the two coefficients <em>relative to each other</em>. Neither one on its own answers it. Read the hypotheses at the bottom, and notice the null is equality: the two kinds of college have the same effect.</p>
 </details>
@@ -3413,7 +3708,7 @@ Lecturer transcript
 <div id="tabset-15-2">
 <details class="transcript">
 <summary>
-Lecturer transcript
+Transcript
 </summary>
 <p>A small piece of algebra that makes the whole problem go away. Move beta-two to the other side and the hypothesis becomes a statement about beta-one minus beta-two. Then give that difference a name, alpha, and read what you are left with: the null is that alpha equals zero, the alternative that it is negative. That is exactly the shape of every test we have already done. The last line is the key observation: alpha is a linear combination of coefficients, and the next tab says why that class of things is well behaved.</p>
 </details>
@@ -3438,7 +3733,7 @@ Lecturer transcript
 <div id="tabset-15-3">
 <details class="transcript">
 <summary>
-Lecturer transcript
+Transcript
 </summary>
 <p>The fact that makes this work, in the box. For any linear combination of OLS coefficients, the standardised version follows a t distribution with the same degrees of freedom as before. Not approximately, exactly, under our assumptions. Why? Because a linear combination of jointly Normal things is Normal, and the same estimated-denominator argument gives you t. So the difference between two coefficients is no harder than a single coefficient. Read the second expression and see that the only unfamiliar piece is the standard error of the difference, which is not what you might guess.</p>
 </details>
@@ -3464,7 +3759,7 @@ Lecturer transcript
 <div id="tabset-15-4">
 <details class="transcript">
 <summary>
-Lecturer transcript
+Transcript
 </summary>
 <p>Substituting the null into the general result. Alpha is zero under the null, so the numerator is just the difference of the two estimates. Read the red “if” carefully, because it carries the whole logic: this distribution holds only under the null. Then the last sentence lists what you need to plug in. Two of the three you can read straight off the regression output. The third, the standard error of the difference, you cannot, and that is the entire subject of the next tab.</p>
 </details>
@@ -3476,7 +3771,7 @@ Lecturer transcript
 <div id="tabset-15-5">
 <details class="transcript">
 <summary>
-Lecturer transcript
+Transcript
 </summary>
 <p>Here is the trap. It would be very convenient if the variance of a difference were the sum of the variances, and the slide states plainly that it is not. Read the math aside: expanding the variance of a linear combination produces a covariance term in the middle. With a equals one and b equals minus one, the two variances add and the covariance term comes in with a minus two in front. So you need the covariance between the two coefficient estimators, which does not appear anywhere in a standard regression table. That is why the next slide introduces the variance-covariance matrix.</p>
 </details>
@@ -3507,7 +3802,7 @@ Lecturer transcript
 <div id="tabset-14-1">
 <details class="transcript">
 <summary>
-Lecturer transcript
+Transcript
 </summary>
 <p>Real data again, this time the two-year college study. Log wage on the two college dummies and experience. The cell runs on load and prints the fit, so look at the two coefficients of interest. You will see the four-year effect is larger than the two-year effect, which is what we expected. But that is a comparison of two point estimates, and both are random. The question is whether the gap is bigger than sampling noise would produce, and answering it is what the next three tabs do.</p>
 </details>
@@ -3517,7 +3812,7 @@ Lecturer transcript
 <div id="tabset-14-2">
 <details class="transcript">
 <summary>
-Lecturer transcript
+Transcript
 </summary>
 <p>The object we were missing. Read the definition: the diagonal entries are the variances of each coefficient estimator, and the off-diagonal entries are the covariances between them. The standard errors in a regression table are just the square roots of the diagonal, which is why the covariances never appear there. Run <code>vcov</code> on the fit and look at the matrix. It is symmetric, and it is square with one row and column per coefficient including the intercept, which is why the indexing in the last line starts at two rather than one.</p>
 </details>
@@ -3547,7 +3842,7 @@ Lecturer transcript
 <div id="tabset-14-3">
 <details class="transcript">
 <summary>
-Lecturer transcript
+Transcript
 </summary>
 <p>Now assemble it. The numerator is the difference between the two coefficient estimates, straightforward. The denominator is the formula from two tabs back, read directly out of the matrix: the variance of the two-year coefficient, minus two times the covariance, plus the variance of the four-year coefficient, all under a square root. Notice we index the matrix by name rather than by number, which is worth copying as a habit; positional indexing breaks silently the moment you add a regressor. Then divide, and compare the result against the critical value for a one-sided test.</p>
 </details>
@@ -3562,7 +3857,7 @@ Lecturer transcript
 <div id="tabset-14-4">
 <details class="transcript inline">
 <summary>
-Lecturer transcript
+Transcript
 </summary>
 <p>And of course there is a function for it. <code>car::linearHypothesis</code> takes the fit and the hypothesis written as a string, and does all of that internally. For this model it reports a Wald chi-squared statistic whose numerical value is the square of the t-statistic. The reference distributions are not identical in a finite sample: the exact classical one-restriction test uses F with one numerator degree of freedom, equivalently t squared, while the chi-squared reference is asymptotic. They become nearly indistinguishable with many residual degrees of freedom.</p>
 </details>
@@ -3623,7 +3918,7 @@ Lecturer transcript
 <div id="tabset-16-1">
 <details class="transcript">
 <summary>
-Lecturer transcript
+Transcript
 </summary>
 <p>A new kind of question, and read the hypothesis sentence rather than just the symbols. Once years in the league and games per year are controlled for, do the three performance measures matter <em>collectively</em>? Batting average, home runs, runs batted in. The null sets all three coefficients to zero simultaneously. Notice that is a single hypothesis about three parameters, not three separate hypotheses. And read the alternative: it is simply that the null is false, which happens as soon as any one of them is non-zero.</p>
 </details>
@@ -3645,7 +3940,7 @@ Lecturer transcript
 <div id="tabset-16-2">
 <details class="transcript">
 <summary>
-Lecturer transcript
+Transcript
 </summary>
 <p>Before we build new machinery, ask whether the old machinery would do. The obvious idea is to test each of the three coefficients separately with a t-test and combine the verdicts somehow. Think about why that is unsatisfying before moving on. Two reasons. First, running several unadjusted tests can make the chance of at least one false rejection exceed five percent; the exact family-wise rate depends on dependence among the tests. Second, and more importantly for what follows, several individually weak pieces of evidence can add up to strong joint evidence, which separate verdicts can miss.</p>
 </details>
@@ -3666,7 +3961,7 @@ Lecturer transcript
 <div id="tabset-17-1">
 <details class="transcript">
 <summary>
-Lecturer transcript
+Transcript
 </summary>
 <p>The baseball data, and the full model with all five regressors. This runs on load. Look at the tidy output and specifically at the three performance variables: batting average, home runs per year, runs batted in per year. Read their estimates and their standard errors, and form a view about each before clicking to the next tab. These are the variables the null says are all zero. You are about to discover something uncomfortable about what the individual tests say.</p>
 </details>
@@ -3676,7 +3971,7 @@ Lecturer transcript
 <div id="tabset-17-2">
 <details class="transcript">
 <summary>
-Lecturer transcript
+Transcript
 </summary>
 <p>Same output again, and now I want you to actually look. Go along the three performance rows and check the p-values. What do you find? Take a moment before opening the answer tab, because the surprise only works if you have looked. And ask yourself the follow-up question while you are there: does what you see match your intuition about whether batting average and home runs matter for a baseball player’s salary? Because the answer you are about to get is the opposite of what any baseball fan would tell you.</p>
 </details>
@@ -3687,7 +3982,7 @@ Lecturer transcript
 <div id="tabset-17-3">
 <details class="transcript">
 <summary>
-Lecturer transcript
+Transcript
 </summary>
 <p>None of the three is individually significant, not even at the ten percent level. That does <strong>not</strong> say the variables have no relationship with salary; it says each separate test fails to distinguish its partial coefficient from zero. If you converted those three failures to reject into a conclusion of no joint effect, you would be wrong. Comparing restricted and unrestricted sums of squared residuals—equivalently, their fit—answers the joint question. That is the F-test, and it is the rest of this section.</p>
 </details>
@@ -3715,7 +4010,7 @@ Lecturer transcript
 <div id="tabset-18-1">
 <details class="transcript">
 <summary>
-Lecturer transcript
+Transcript
 </summary>
 <p>The idea behind the F-test in one question, and it is worth answering out loud. We are going to fit two models: the full one, and a restricted one that simply drops the three performance variables, which is what the null says you may do. Compare their sums of squared residuals. Which is bigger, and can you be sure? Think about it in terms of what OLS does. It picks coefficients to minimise the sum of squared residuals, so what happens when you take some of its freedom away?</p>
 </details>
@@ -3724,7 +4019,7 @@ Lecturer transcript
 <div id="tabset-18-2">
 <details class="transcript">
 <summary>
-Lecturer transcript
+Transcript
 </summary>
 <p>The restricted model has the larger sum of squared residuals, and this is not a matter of probability. Setting three coefficients to zero is a constraint, and a constrained minimum can never be lower than an unconstrained one. Worst case the restriction happens to be exactly what OLS wanted anyway and the two are equal. So the difference is always non-negative. The real question is whether it is <em>large</em>, and that is what needs a distribution: large compared to what?</p>
 </details>
@@ -3749,7 +4044,7 @@ Lecturer transcript
 <div id="tabset-19-1">
 <details class="transcript">
 <summary>
-Lecturer transcript
+Transcript
 </summary>
 <p>Both sums of squared residuals are now computed, so look at the two numbers before answering. The restricted one is larger, as we argued. Now: what does the gap between them actually measure? Think about what changed between the two fits. The only difference is that three variables were allowed to help in one and forced out of the other. So whatever extra fit the full model achieved has to be attributable to those three variables, and only to them, since everything else was identical.</p>
 </details>
@@ -3758,7 +4053,7 @@ Lecturer transcript
 <div id="tabset-19-2">
 <details class="transcript">
 <summary>
-Lecturer transcript
+Transcript
 </summary>
 <p>The gap is the joint contribution of the three excluded variables to explaining the dependent variable. Not the contribution of any one of them, and not the sum of three separate contributions, but what they add together, including whatever they explain through being correlated with each other. That last part is exactly what the individual t-tests could not see. When two variables carry overlapping information, neither looks essential alone, but removing both at once costs you a great deal of fit.</p>
 </details>
@@ -3767,7 +4062,7 @@ Lecturer transcript
 <div id="tabset-19-3">
 <details class="transcript">
 <summary>
-Lecturer transcript
+Transcript
 </summary>
 <p>The natural next question, and the honest answer is on the following tab. You have a number, the gap between the two sums of squared residuals. Is it big? Look at it and try to decide. You cannot, and it is worth being clear about why: the number has units, it depends on how y was scaled, on the sample size, on how noisy the data is. A gap of five means nothing without something to compare it against.</p>
 </details>
@@ -3776,7 +4071,7 @@ Lecturer transcript
 <div id="tabset-19-4">
 <details class="transcript">
 <summary>
-Lecturer transcript
+Transcript
 </summary>
 <p>Exactly: you cannot tell, because you do not know the distribution of that difference. This is step two of the five steps from the very first slide, and it is always the hard one. We know how to compute a number; what we lack is what that number would typically look like if the null were true. The next tab supplies it, by scaling the difference into a ratio whose distribution has a name and a table.</p>
 </details>
@@ -3809,7 +4104,7 @@ y = \beta_0 +\beta_1 x_1 + \dots+\beta_k x_k +u
 <div id="tabset-20-1">
 <details class="transcript">
 <summary>
-Lecturer transcript
+Transcript
 </summary>
 <p>A quick sanity check on the formula above before we use it. The F-statistic is a ratio, and you should be able to say something about its sign without computing anything. Look at the numerator and the denominator separately. The denominator is a sum of squares divided by a positive number, so it is positive. What about the numerator? Think back to the tab where we compared the two sums of squared residuals.</p>
 </details>
@@ -3818,7 +4113,7 @@ Lecturer transcript
 <div id="tabset-20-2">
 <details class="transcript">
 <summary>
-Lecturer transcript
+Transcript
 </summary>
 <p>Non-negative, because the restricted sum of squared residuals can never be below the unrestricted one, for the constrained-minimum reason we gave earlier. That is worth noticing because it changes how you test. Unlike a t-statistic, an F-statistic never comes out negative, so there is no such thing as a two-sided F-test. You only ever look at the upper tail, and a large value is the only kind of evidence against the null.</p>
 </details>
@@ -3827,7 +4122,7 @@ Lecturer transcript
 <div id="tabset-20-3">
 <details class="transcript">
 <summary>
-Lecturer transcript
+Transcript
 </summary>
 <p>One more reading of the formula, and this one tells you what the test is actually sensitive to. Suppose the three variables collectively matter a great deal. What does that do to the gap between the two sums of squared residuals, and therefore to the F-statistic? Answer it from the formula rather than from intuition, then check. Getting this direction right is what makes the decision rule memorable rather than something you have to look up.</p>
 </details>
@@ -3836,7 +4131,7 @@ Lecturer transcript
 <div id="tabset-20-4">
 <details class="transcript">
 <summary>
-Lecturer transcript
+Transcript
 </summary>
 <p>Greater. The more the excluded variables contribute, the bigger the gap in the numerator, and the bigger F becomes. So large F means the restriction hurt, which means the variables mattered, which means reject the null. That is the whole decision rule and now you can reconstruct it rather than memorise it. And it explains why we only look at the upper tail: small F just means dropping the variables cost you nothing.</p>
 </details>
@@ -3849,7 +4144,7 @@ Lecturer transcript
 <div id="tabset-23-6">
 <details class="transcript">
 <summary>
-Lecturer transcript
+Transcript
 </summary>
 <p>The recipe on the right, and it is the same five steps from the first slide of the lecture, specialised. Define the null, fit both models, compute F, find the critical value, compare. On the left is the distribution itself. Notice it lives entirely on the positive side, consistent with what we just established, and that it is skewed rather than symmetric. Notice too that it takes <em>two</em> degrees of freedom parameters, the number of restrictions and the residual degrees of freedom, so you must get both right when you look up a critical value.</p>
 </details>
@@ -3885,7 +4180,7 @@ Lecturer transcript
 <div id="tabset-21-1">
 <details class="transcript">
 <summary>
-Lecturer transcript
+Transcript
 </summary>
 <p>Step one in code: fit both models. The unrestricted one has all five regressors; the restricted one drops exactly the three the null sets to zero. Then compute each sum of squared residuals by squaring the residuals and adding them up. Read the two model formulas side by side and check that the only difference is those three variables. That is what makes the comparison valid: everything else about the two fits, the data, the other regressors, the estimator, is identical.</p>
 </details>
@@ -3896,7 +4191,7 @@ Lecturer transcript
 <div id="tabset-21-2">
 <details class="transcript">
 <summary>
-Lecturer transcript
+Transcript
 </summary>
 <p>Now assemble the statistic. Three restrictions, so <code>df_q</code> is three. The residual degrees of freedom come from the unrestricted fit. Then the numerator is the gap divided by the number of restrictions, and the denominator is the unrestricted sum of squared residuals divided by its degrees of freedom. Notice what that denominator is: it is essentially sigma-hat squared, the estimated error variance. So the F-statistic is comparing the fit you gained against the noise level, which is the natural way to make a gap unit-free.</p>
 </details>
@@ -3907,7 +4202,7 @@ Lecturer transcript
 <div id="tabset-21-3">
 <details class="transcript">
 <summary>
-Lecturer transcript
+Transcript
 </summary>
 <p>The critical value comes from <code>qf</code>, and note it needs both degrees of freedom arguments. Five percent significance, so we want the ninety-fifth percentile, and because the test is one-tailed by construction there is no halving. Run the comparison. It comes back true, and read the callout: the three performance variables <em>are</em> jointly significant, even though not one of them was individually significant at ten percent. That is a genuine contradiction of the naive reading, and the question at the bottom is the right one to ask.</p>
 </details>
@@ -3942,7 +4237,7 @@ Lecturer transcript
 <div id="tabset-22-1">
 <details class="transcript inline">
 <summary>
-Lecturer transcript
+Transcript
 </summary>
 <p>The practical version. <code>car::linearHypothesis</code> takes the unrestricted fit and the restrictions written as text, and does everything we just did by hand. Read the note about the hypothesis argument: it is a character vector, one string per restriction, and each string is an equation. You are not limited to testing against zero, which is worth knowing; you can test whether a coefficient equals one, or whether two coefficients are equal, using exactly the same function.</p>
 </details>
@@ -3961,7 +4256,7 @@ Lecturer transcript
 <div id="tabset-22-2">
 <details class="transcript">
 <summary>
-Lecturer transcript
+Transcript
 </summary>
 <p>And here it is on the baseball model. Three restrictions in one vector, all setting a coefficient to zero. Run it and compare the statistic against the one you computed by hand two tabs ago. They should match. From now on this is what you will use, but I wanted you to build it once from sums of squared residuals so that the number means something. If you ever get a surprising F-test result, knowing it is a comparison of two model fits is what lets you work out why.</p>
 </details>
@@ -3985,7 +4280,7 @@ Lecturer transcript
 <div id="tabset-24-1">
 <details class="transcript">
 <summary>
-Lecturer transcript
+Transcript
 </summary>
 <p>A simulation to pin down what just happened, and the construction should look familiar. <code>x1</code> and <code>x2</code> are each built mostly from a shared term <code>mu</code>, so they are strongly correlated by design. <code>x3</code> is independent. And read the line that builds y: all three variables have a coefficient of one, so all three genuinely matter, and we know that because we chose it. Run the correlation cell and see how close to one it is. This is the same data generating process as Case two in the multicollinearity lecture.</p>
 </details>
@@ -3999,7 +4294,7 @@ Lecturer transcript
 <div id="tabset-24-2">
 <details class="transcript">
 <summary>
-Lecturer transcript
+Transcript
 </summary>
 <p>Run the regression and look at the two rows for <code>x1</code> and <code>x2</code>. Both are insignificant, and we know for certain that both have a true coefficient of one, because we wrote it. So this is a case where the individual t-tests are unambiguously giving you the wrong impression, and unlike with the baseball data there is no arguing about it. Look at the standard errors specifically rather than the estimates. They are enormous, and that is the mechanism: not wrong estimates, but imprecise ones.</p>
 </details>
@@ -4011,7 +4306,7 @@ Lecturer transcript
 <div id="tabset-24-3">
 <details class="transcript">
 <summary>
-Lecturer transcript
+Transcript
 </summary>
 <p>Now the joint test, built by hand so you can see it is the same machinery. The restricted model drops both correlated variables and keeps only <code>x3</code>, so there are two restrictions. Compute both sums of squared residuals, form the ratio, and compare against the critical value from <code>qf</code>. Run it and look at the size of the F-statistic. It is not marginal; it is enormous. The two variables that individually looked like noise are, taken together, overwhelmingly important, which is exactly what we built into the data.</p>
 </details>
@@ -4027,7 +4322,7 @@ Lecturer transcript
 <div id="tabset-24-4">
 <details class="transcript">
 <summary>
-Lecturer transcript
+Transcript
 </summary>
 <p>The explanation, and then the connection back. The standard errors are large because the two variables are so alike that the estimation cannot tell their individual contributions apart. Read the callout, because this is lecture 04 seen from the other side. There we showed correlation inflates the variance through the one minus R-squared-j term. A bigger variance means a bigger standard error, and a bigger standard error means a smaller t-statistic. The insignificance you saw is that inflation, arriving at the testing stage. The F-test dodges it by never asking about the variables one at a time.</p>
 </details>
@@ -4060,7 +4355,7 @@ Lecturer transcript
 <div id="tabset-25-1">
 <details class="transcript">
 <summary>
-Lecturer transcript
+Transcript
 </summary>
 <p>Back to the baseball data, to check whether the same mechanism explains what we saw there. Run the correlation matrix on the three performance variables. Home runs per year and runs batted in per year are strongly correlated, which makes sense: a home run drives in at least one run by definition, so a player who hits many home runs mechanically has a high runs-batted-in figure. Batting average is much less related to either. So two of the three are near-duplicates, and that is enough to produce what we saw.</p>
 </details>
@@ -4073,7 +4368,7 @@ Lecturer transcript
 <div id="tabset-25-2">
 <details class="transcript">
 <summary>
-Lecturer transcript
+Transcript
 </summary>
 <p>One last connection, and it ties the two halves of this lecture together. Testing a linear combination is an F-test with one restriction. The exact finite-sample identity is that an F statistic with one numerator degree of freedom equals the corresponding t statistic squared. The Wald chi-squared statistic printed above has the same numerical value, although using a chi-squared rather than an F reference distribution is asymptotic. With this large sample the critical values are very close.</p>
 </details>
@@ -4097,7 +4392,7 @@ Lecturer transcript
 <div id="tabset-26-1">
 <details class="transcript">
 <summary>
-Lecturer transcript
+Transcript
 </summary>
 <p>Everything in this lecture was one recipe, and this is it, unchanged from the first slide. State the hypotheses. Find the distribution of a statistic assuming the null. Compute it. Pick a level, which fixes a critical value. Compare. Read the sentence at the bottom, because it is the useful compression: the only thing that varied from test to test was which statistic you built and which distribution you looked it up in. If a future test looks unfamiliar, ask those two questions and it usually stops being unfamiliar.</p>
 </details>
@@ -4115,7 +4410,7 @@ Lecturer transcript
 <div id="tabset-26-2">
 <details class="transcript">
 <summary>
-Lecturer transcript
+Transcript
 </summary>
 <p>The four things we did, side by side. Read down the statistic column and notice how similar the first two are: an estimate, minus its value under the null, over its standard error. The only difference is what counts as the estimate. The third is genuinely different, because it compares two model fits rather than standardising a single number, and that is why it can answer a question the first two cannot. And read the two bullets: the covariance term is why the variance-covariance matrix had to appear at all.</p>
 </details>
@@ -4169,7 +4464,7 @@ Lecturer transcript
 <div id="tabset-26-3">
 <details class="transcript">
 <summary>
-Lecturer transcript
+Transcript
 </summary>
 <p>Two connections that reduce the count. First, the F-test with one restriction is the t-test squared, which we confirmed numerically two slides ago. Second, and this one is worth internalising: a confidence interval and a two-sided test are the same statement. The ninety-five percent interval is precisely the set of null values you would fail to reject at five percent. So reporting an interval reports infinitely many tests at once, which is a good reason to prefer it. Then read the callout, which is the thing I most want you to carry away.</p>
 </details>

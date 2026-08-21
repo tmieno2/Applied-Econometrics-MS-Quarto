@@ -3,8 +3,9 @@
 Course site for Applied Econometrics (AECN 896-004), built with Quarto and
 published to `docs/`.
 
-Read this before touching assignments or any date. See also `AGENTS.md` for the
-WebR side-by-side layout rules used by the lecture decks.
+Read this before touching assignments or any date. Lecture styling (the WebR
+side-by-side layout, figures, math, transcripts) is shared with the other
+courses and lives in `../_lecture-shared/RULES.md`.
 
 ---
 
