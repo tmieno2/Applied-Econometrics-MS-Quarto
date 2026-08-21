@@ -101,8 +101,8 @@ Verify figures by looking at the rendered PNGs under
 this section warns about was invisible in the qmd.
 
 
-**A figure must never make a slide scroll.** `notebook.scss` caps every
-stacked figure at 380px tall (`object-fit: contain`, aspect ratio kept), which
+**A figure must never make a slide scroll.** `notebook.scss` caps every knitr figure and webR canvas,
+at 380px tall (`object-fit: contain`, aspect ratio kept), which
 is what a 700px slide has left after a title, a tab bar and a callout. Do not
 work around it per slide with `fig-height` or `out-width`; if a capped figure
 is too small to read, the slide has too much on it and should be split.
