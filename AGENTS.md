@@ -5,12 +5,15 @@
 > named jobs (`sort assignments`, `build the assignments`) must be run through
 > their scripts rather than done by hand.
 
-> **Lecture styling used to be documented here. It has moved.** The WebR side-by-side layout, code
-> block width and size, the figure canvas and theme, the KaTeX pinning and the
-> transcript panels are shared by every course and are documented once in
-> [`../_lecture-shared/RULES.md`](../_lecture-shared/RULES.md). The files
-> themselves live in `_lecture-shared/` and are copied in by
-> `../sync-lecture-shared.sh`; the copies under `lectures/` are generated, so
-> edit the shared originals and run the sync. `./sync-lecture-shared.sh --check`
-> reports drift.
+> **Lecture styling used to be documented here. It has moved.** The WebR
+> side-by-side layout, code block width and size, the figure canvas and theme,
+> the KaTeX pinning and the transcript panels are documented in
+> [`lectures/RULES.md`](lectures/RULES.md), inside this repository.
+>
+> Those files, `RULES.md` included, are shared with another course and
+> maintained in a separate multi-course repository, which copies them in. On the
+> machine where that repository exists, edit the originals there and run its
+> `sync-lecture-shared.sh`; a copy under `lectures/` edited directly is
+> overwritten by the next sync. Anywhere else, including a fork of this course
+> alone, there is no upstream: edit the files here.
 

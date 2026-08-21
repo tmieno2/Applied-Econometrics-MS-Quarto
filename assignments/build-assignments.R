@@ -149,9 +149,60 @@ build_assignments <- function(year = NULL, only = NULL, render = TRUE) {
   place_final_project_template(year)
   check_materials_link(cal, year)
   assert_students_dir_shareable()
+  publish_materials(year, full = is.null(only))
 
   message(sprintf("Done. Student files: assignments/students/%s/", year))
   invisible(built)
+}
+
+#' Copy the year's built materials into the folder Drive shares with students.
+#'
+#' The repository lives on local disk; the folder students download from lives
+#' in Google Drive, which syncs it and hands out the link. `materials.publish_dir`
+#' in course-dates.json is the local path of that Drive folder -- the parent of
+#' the year folders. With the key unset nothing is published, which is what you
+#' want on a machine that has no Drive folder.
+#'
+#' Called only after assert_students_dir_shareable(), never before: nothing is
+#' copied into a link-shared folder until the tree has been checked.
+#'
+#' `full` says whether every assignment was rebuilt. Only then is the year
+#' folder pruned of files the build no longer produces -- pruning after
+#' `only = "assignment-1"` would delete the other assignments from under the
+#' class.
+publish_materials <- function(year, full = TRUE) {
+  cal <- read_course_dates()
+  dest_root <- cal$materials$publish_dir
+  if (is.null(dest_root) || !nzchar(dest_root)) {
+    message("materials.publish_dir is not set; nothing published.")
+    return(invisible(FALSE))
+  }
+  if (!dir.exists(dest_root)) {
+    stop("materials.publish_dir does not exist: ", dest_root,
+         "\n  Is Google Drive running?", call. = FALSE)
+  }
+
+  src <- here::here("assignments/students", year)
+  dest <- file.path(dest_root, year)
+  dir.create(dest, showWarnings = FALSE, recursive = TRUE)
+
+  files <- list.files(src, recursive = TRUE)
+  for (f in files) {
+    to <- file.path(dest, f)
+    dir.create(dirname(to), showWarnings = FALSE, recursive = TRUE)
+    file.copy(file.path(src, f), to, overwrite = TRUE, copy.date = TRUE)
+  }
+
+  if (full) {
+    stale <- setdiff(list.files(dest, recursive = TRUE), files)
+    if (length(stale)) {
+      file.remove(file.path(dest, stale))
+      message(sprintf("  removed %d file(s) the build no longer produces", length(stale)))
+    }
+  }
+
+  message(sprintf("Published %d file(s) to %s", length(files), dest))
+  invisible(TRUE)
 }
 
 #' The download link students use is scoped to a single year, so that nobody can
@@ -164,15 +215,15 @@ build_assignments <- function(year = NULL, only = NULL, render = TRUE) {
 check_materials_link <- function(cal, year) {
   url <- cal$materials$url
   if (is.null(url) || !nzchar(url)) {
-    warning("materials.url is not set -- share assignments/students/", year,
-            "/ in Dropbox and paste the link into course-dates.json before ",
-            "rendering the site", call. = FALSE)
+    warning("materials.url is not set -- run shareMaterials() in the Apps ",
+            "Script project and paste its two lines into course-dates.json ",
+            "before rendering the site", call. = FALSE)
     return(invisible(FALSE))
   }
   if (!identical(as.character(cal$materials$year), year)) {
     stop("materials.url points at year ", cal$materials$year, " but you are ",
-         "building ", year, ". Share assignments/students/", year,
-         "/ in Dropbox, then update materials.url and materials.year.",
+         "building ", year, ". Run shareMaterials() in the Apps Script ",
+         "project, then update materials.url and materials.year.",
          call. = FALSE)
   }
   invisible(TRUE)

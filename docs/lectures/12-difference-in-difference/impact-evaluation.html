@@ -94,7 +94,7 @@
     code span.vs { color: #20794d; } /* VerbatimString */
     code span.wa { color: #5e5e5e; font-style: italic; } /* Warning */
   </style>
-  <link rel="stylesheet" href="../../site_libs/revealjs/dist/theme/quarto-bf1223c773699056cca1ada9baf1738b.css">
+  <link rel="stylesheet" href="../../site_libs/revealjs/dist/theme/quarto-5749ef3d543d853c9975bfcccaade8de.css">
   <script defer="" src="https://cdn.jsdelivr.net/npm/katex@0.18.4/dist/katex.min.js"></script>
   <script>document.addEventListener("DOMContentLoaded", function () {
  var mathElements = document.getElementsByClassName("math");
@@ -384,8 +384,13 @@
     "use strict";
 
     var MAX_CODE_LINES = 12;
-    // Monaco's line-number gutter (~75px) plus its vertical scrollbar (~15px).
-    var EDITOR_CHROME = 90;
+    // Everything in the editor that is not code: the line-number margin plus the
+    // vertical scrollbar. MEASURED on a rendered deck, remembering that a rect on
+    // a reveal slide carries the deck's scale: margin 25px, scrollbar 14px. It was
+    // 90 when Monaco still used its default five-character number column; the
+    // vendored qwebr-monaco-editor-element.js asks for one character now, so every
+    // code column was being sized ~50px wider than it needed.
+    var EDITOR_CHROME = 45;
     // A deliberate OVER-estimate of one character. Menlo at 15.36px measures
     // ~9.2px, and erring high is what keeps the editor from wrapping when the
     // real measurement below has not landed yet.
@@ -412,6 +417,11 @@
     // it and still wrapped.
     var MIN_CODE_PX = 320;
     var MIN_CODE_SHARE = 0.18;
+    // The narrowest column a figure may be drawn into. A plot cannot overflow, so
+    // the width test the printed-text branch uses never refuses one however small
+    // the column: this is the number that does. Measured against the stacked
+    // figure, which is drawn at 55% of the 1050px slide, i.e. 577px.
+    var MIN_PLOT_PX = 380;
     // Slack on the measured output width, same purpose as CODE_SLACK: a column
     // that fits only exactly is not a column that fits.
     var OUTPUT_SLACK = 1.08;
@@ -424,19 +434,26 @@
 
     // What every cell PRINTS, measured in R at render time by
     // measure-webr-output.R and shipped beside the deck as
-    // <deck>.webr-output.json. This is the whole point of that script: the output
+    // <deck>.webr-output.js. This is the whole point of that script: the output
     // gets a say in a decision taken before the cell has ever run.
     //
-    // Missing file, missing cell, failed fetch — all mean the same thing and are
+    // Loaded with a <script src>, not fetch(). A fetch of a sibling file is
+    // blocked on a file:// page — which is how a deck is previewed while it is
+    // being written — so every cell looked unmeasured and fell through to the
+    // "judge on the code alone" branch, i.e. side by side. The preview then
+    // disagreed with the published site about every layout on the deck. A script
+    // tag is exempt from that and loads under both.
+    //
+    // Missing file, missing cell, failed load — all mean the same thing and are
     // all safe: that cell falls back to judging on its code alone.
-    var outputSizes = (function () {
-      if (!/\.html$/.test(location.pathname) || typeof fetch !== "function") {
-        return Promise.resolve({});
-      }
-      return fetch(location.pathname.replace(/\.html$/, "") + ".webr-output.json")
-        .then(function (r) { return r.ok ? r.json() : {}; })
-        .catch(function () { return {}; });
-    })();
+    var outputSizes = new Promise(function (resolve) {
+      if (!/\.html$/.test(location.pathname)) return resolve({});
+      var tag = document.createElement("script");
+      tag.src = location.pathname.replace(/\.html$/, "") + ".webr-output.js";
+      tag.onload = function () { resolve(globalThis.webrOutputSizes || {}); };
+      tag.onerror = function () { resolve({}); };
+      document.head.appendChild(tag);
+    });
 
     function detailsFor(area) {
       var match = area.id && area.id.match(/qwebr-interactive-area-(\d+)/);
@@ -529,6 +546,11 @@
     }
 
     function setTracks(host, area, codeShare) {
+      // An author who wrote the tracks into the markup owns the split. Every
+      // measurement below leads here, so one guard in this function is the whole
+      // exemption: the estimate, the Monaco measurement and the no-wrap widening
+      // all stop writing, and nothing else in the file has to know.
+      if (host.dataset.webrCodeFixed === "true") return;
       var available = Math.max(1, (area && area.clientWidth ? area.clientWidth : 1005) - 16);
       codeShare = Math.max(codeShare, MIN_CODE_PX / available);
       codeShare = Math.max(MIN_CODE_SHARE, Math.min(MAX_CODE_SHARE, codeShare));
@@ -536,6 +558,30 @@
       host.style.setProperty("--webr-code-track", codeShare + "fr");
       host.style.setProperty("--webr-output-track", outputShare + "fr");
       host.style.setProperty("--webr-code-share", (codeShare * 100) + "%");
+    }
+
+    // THE PLOT FLOOR, RE-CHECKED AGAINST THE REAL COLUMN.
+    //
+    // sideBySideFits() applies MIN_PLOT_PX to an ESTIMATE: a canvas measurement
+    // of the longest source line in the output's font, taken before Monaco has
+    // rendered. The column a cell actually gets is set twice more after that —
+    // by measureRenderedCode() from Monaco's own metrics, and again by
+    // ensureNoWrap(), which widens the code column in 2% steps until the line
+    // stops wrapping. Both make the code column WIDER, and every pixel of it
+    // comes out of the figure. So a plot that cleared the floor on the estimate
+    // can still end up in a strip well under it — a density plot in ~330px is
+    // what prompted this. The floor has to be enforced where the real number is.
+    //
+    // This can only run during load, like every other route out of side by side.
+    // `::: {.side-out}` still wins: stack() exempts a manual wrapper.
+    function keepPlotReadable(area, host) {
+      if (host.dataset.webrCodeFixed === "true") return;
+      if (host.dataset.webrPlot !== "true") return;
+      if (host.dataset.webrLayout !== "side") return;
+      var available = Math.max(1, (area.clientWidth || 1005) - 16);
+      var share = parseFloat(host.style.getPropertyValue("--webr-code-share")) / 100;
+      if (!share) return;
+      if (available * (1 - share) < MIN_PLOT_PX) stack(host, false);
     }
 
     function measureRenderedCode(area, host, code, attempt) {
@@ -568,6 +614,8 @@
       // recomputed against the OUTPUT's measured width once the cell has run.
       host.dataset.webrCodePx = Math.ceil(widest + EDITOR_CHROME);
       setTracks(host, area, ((widest + EDITOR_CHROME) * CODE_SLACK) / available);
+      keepPlotReadable(area, host);
+      if (host.dataset.webrLayout !== "side") return;
 
       // The measured code column is now the real one, so check straight away that
       // Monaco is not wrapping in it. Before, this ran only after a cell had been
@@ -604,6 +652,10 @@
     // that cannot be wrong about wrapping, because it IS the wrapping.
     function ensureNoWrap(area, host, srcLines, attempt) {
       if (host.dataset.webrLayout !== "side") return;
+      // A hand-set split is not a prediction, so there is nothing here to correct:
+      // widening is a no-op and the stack() below would throw the author's layout
+      // away. Wrapping in a column the author chose is the author's business.
+      if (host.dataset.webrCodeFixed === "true") { markGutter(area, host); return; }
       var lines = area.querySelectorAll(".view-line");
       if (!lines.length) {
         if (attempt < 100) setTimeout(function () {
@@ -621,6 +673,10 @@
         return;
       }
       setTracks(host, area, share + 0.02);
+      // Widening the code column narrows the figure beside it, so the floor is
+      // re-checked on every step, not only on the first measurement.
+      keepPlotReadable(area, host);
+      if (host.dataset.webrLayout !== "side") return;
       // Monaco relayouts asynchronously off its own resize observer; give it a
       // frame or two before reading the line count again.
       setTimeout(function () {
@@ -665,17 +721,37 @@
       // measure-webr-output.R, or R could not evaluate it. Judge on the code alone
       // rather than refuse, so an unmeasured deck still behaves reasonably.
       if (!entry) return true;
-      // A plot is not text: it is drawn to whatever width its column has, so it
-      // always fits. (The height cap in notebook.scss keeps it in bounds.)
-      if (entry.plot) return true;
-      // Ran and printed nothing. There is no right-hand content to show, so the
-      // code keeps the full width rather than facing an empty Output banner.
-      if (!entry.rows || !entry.cols) return false;
+      // Ran and printed nothing, and drew nothing. There is no right-hand content
+      // to show, so the code keeps the full width rather than facing an empty
+      // Output banner. A figure counts as content even though it prints no text.
+      if (!entry.plot && (!entry.rows || !entry.cols)) return false;
 
       var available = Math.max(1, (area.clientWidth || 1005) - 16);
       var codePx = Math.max(MIN_CODE_PX,
         (textWidthPx(area, metrics.longest) + EDITOR_CHROME) * CODE_SLACK);
       codePx = Math.min(codePx, MAX_CODE_SHARE * available);
+
+      // A figure has no natural width, so it can never FAIL the width test below:
+      // it just shrinks into whatever strip the code left over. It gets a FLOOR
+      // instead. Above the floor, code beside its figure is a good layout and is
+      // kept; below it the axis labels stop being legible — which is what a
+      // histogram beside an 86-character line of code looks like — and the cell
+      // stacks, where the figure has the whole slide.
+      //
+      // `::: {.side-out}` overrides the floor. It is a judgement, not a fit, and
+      // an author who typed the wrapper has looked at the slide.
+      if (entry.plot) {
+        if (area.closest(".side-out")) return true;
+        // Measured against the OPENING split, not the font measurement above.
+        // layOut() opens every promoted cell on the FALLBACK_CHAR_PX estimate,
+        // and on a hidden slide or an inactive tab — where clientWidth is 0 —
+        // that estimate is the split the cell KEEPS until someone navigates to
+        // it. Judging the floor on the narrower font measurement passed cells
+        // that then opened with a 317px figure, which is the bug this fixes.
+        var openingCodePx = Math.min(MAX_CODE_SHARE * available,
+          Math.max(MIN_CODE_PX, metrics.maxChars * FALLBACK_CHAR_PX + EDITOR_CHROME));
+        return available - openingCodePx >= MIN_PLOT_PX;
+      }
       var outputPx = (textWidthPx(area, repeatChar("0", entry.cols)) + 24) * OUTPUT_SLACK;
       // Width is the FIT test: the output must live in what the code did not take.
       // The code column is never narrowed to make room for it.
@@ -725,12 +801,39 @@
       if (area.dataset.webrLayoutChecked === "true") return;
       area.dataset.webrLayoutChecked = "true";
 
+      // `::: {.stacked}` is the manual OPT-OUT, and the mirror of `.side-out`:
+      // this cell keeps the vertical stack whatever the measurements say. The two
+      // wrappers are the author's overrides in each direction, and an author who
+      // has looked at the slide outranks the arithmetic in both. It is checked
+      // FIRST, before any measuring, because there is nothing left to decide.
+      if (area.closest(".stacked")) {
+        var forcedHost = area.closest(".side-out") || area.closest(".cell") ||
+          area.parentElement;
+        if (forcedHost) {
+          forcedHost.classList.remove("side-out");
+          forcedHost.dataset.webrLayout = "stacked";
+        }
+        return;
+      }
+
       var details = detailsFor(area);
       if (!details || !details.options || details.options.context === "setup") return;
+
+      // `#| layout: stacked` is the wrapper above written as a cell option, and
+      // means the same thing. Checked here rather than with the wrapper only
+      // because the options have to be read first; nothing has been measured yet.
+      if (details.options["layout"] === "stacked") {
+        var optHost = area.closest(".side-out") || area.closest(".cell") ||
+          area.parentElement;
+        if (optHost) {
+          optHost.classList.remove("side-out");
+          optHost.dataset.webrLayout = "stacked";
+        }
+        return;
+      }
+
       var metrics = codeMetrics(details.code);
       if (!metrics.lines || metrics.lines > MAX_CODE_LINES || metrics.maxChars > 88) return;
-      // Nothing to put in the Output panel, so do not open one.
-      if (printsNothing(details.code)) return;
 
       var existingWrapper = area.closest(".side-out");
 
@@ -757,12 +860,52 @@
       // measurement noise from tearing the wrapper down.
       if (existingWrapper) host.dataset.webrLayoutManual = "true";
 
+      // `::: {.side-out style="--webr-code-track: 0.45fr; ..."}` — the author has
+      // set the split by hand. Read it BEFORE the first setTracks call, which is
+      // the moment it would otherwise be overwritten, and the cell then keeps
+      // exactly the columns the qmd asked for.
+      if (host.style.getPropertyValue("--webr-code-track")) {
+        host.dataset.webrCodeFixed = "true";
+        host.dataset.webrLayoutManual = "true";
+      }
+
+      // `#| layout: side` is `::: {.side-out}` written as a cell option, and
+      // `#| code-track: 0.6` is the split written on it — the two overrides
+      // without a div, which is what a decision about ONE cell wants. The number
+      // is the code's share; the output gets the rest, so it implies `side`.
+      // qwebr passes unknown `#|` options through untouched and
+      // measure-webr-output.R strips every `#|` line, so adding one does not
+      // change the key a cell is measured under. Adding `.side-out` here rather
+      // than only setting the flags is what makes the option identical to the
+      // wrapper: the fit tests below read the class, so the cell can override the
+      // figure floor, and code that will not fit one line still stacks.
+      var codeTrack = parseFloat(details.options["code-track"]);
+      if (codeTrack > 0 && codeTrack < 1) {
+        host.style.setProperty("--webr-code-track", codeTrack + "fr");
+        host.style.setProperty("--webr-output-track", (1 - codeTrack) + "fr");
+        host.style.setProperty("--webr-code-share", (codeTrack * 100) + "%");
+        host.dataset.webrCodeFixed = "true";
+      }
+      if ((codeTrack > 0 && codeTrack < 1) || details.options["layout"] === "side") {
+        host.classList.add("side-out");
+        host.dataset.webrLayoutManual = "true";
+      }
+
       // Wait for the measured output sizes — a fetch of a small JSON sitting
       // beside the deck, so this resolves in milliseconds, long before WebR is
       // interactive and before anyone can have clicked anything. THIS is the one
       // moment the layout is decided. Nothing later may revisit it.
       outputSizes.then(function (sizes) {
         var entry = sizes[String(details.code || "").trim()] || null;
+        // printsNothing() is a GUESS from the source, and it is only consulted
+        // when there is no measurement. It reads `if <- 3` as an assignment and
+        // therefore as silent, when what that cell actually prints is a four-line
+        // syntax error — which is the whole point of the slide it sits on.
+        // A measured cell is judged on what R really printed.
+        if (!entry && printsNothing(details.code)) {
+          host.dataset.webrLayout = "stacked";
+          return;
+        }
         if (!sideBySideFits(area, metrics, entry)) {
           // force: a `::: {.side-out}` wrapper is a request, and the class is in
           // the markup, so it must be REMOVED here or the stylesheet lays the cell
@@ -770,6 +913,7 @@
           stack(host, true);
           return;
         }
+        if (entry && entry.plot) host.dataset.webrPlot = "true";
         promote(host);
         layOut(area, host, details, metrics);
       });
@@ -1129,7 +1273,7 @@
   };
 
   // Store cell data
-  globalThis.qwebrCellDetails = [{"code":"#--- load the kielmc data ---#\ndata(kielmc, package = \"wooldridge\")\n\n#--- change the scale of a variable ---#\n(\ndata <- \n  kielmc %>%\n  as_tibble() %>%\n  dplyr::mutate(rprice = rprice / 1000)\n)","id":1,"options":{"autorun":"true","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.7","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"4.5","fig-width":"7","label":"unnamed-chunk-1","message":"true","out-height":"","out-width":"55%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"(\nreg_81 <-\n  feols(\n    rprice ~ nearinc,\n    data = filter(data, year == 1981)\n  )\n)","id":2,"options":{"autorun":"true","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.7","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"4.5","fig-width":"7","label":"unnamed-chunk-2","message":"true","out-height":"","out-width":"55%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"(\nreg_78 <-\n  feols(\n    rprice ~ nearinc,\n    data = filter(data, year == 1978)\n  )\n)","id":3,"options":{"autorun":"true","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.7","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"4.5","fig-width":"7","label":"unnamed-chunk-3","message":"true","out-height":"","out-width":"55%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"(\n  fixest::feols(\n    rprice ~ y81,\n    data = filter(data, nearinc == 1)\n  )\n)","id":4,"options":{"autorun":"true","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.7","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"4.5","fig-width":"7","label":"unnamed-chunk-4","message":"true","out-height":"","out-width":"55%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"fixest::feols(\n  rprice ~ nearinc * y81,\n  vcov = \"hetero\",\n  data = data\n)","id":5,"options":{"autorun":"true","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.7","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"4.5","fig-width":"7","label":"unnamed-chunk-5","message":"true","out-height":"","out-width":"55%","output":"true","read-only":"false","results":"markup","warning":"true"}}];
+  globalThis.qwebrCellDetails = [{"code":"#--- load the kielmc data ---#\ndata(kielmc, package = \"wooldridge\")\n\n#--- change the scale of a variable ---#\n(\ndata <- \n  kielmc %>%\n  as_tibble() %>%\n  dplyr::mutate(rprice = rprice / 1000)\n)","id":1,"options":{"autorun":"true","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.7","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"6","fig-width":"10","label":"unnamed-chunk-1","message":"true","out-height":"","out-width":"100%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"(\nreg_81 <-\n  feols(\n    rprice ~ nearinc,\n    data = filter(data, year == 1981)\n  )\n)","id":2,"options":{"autorun":"true","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.7","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"6","fig-width":"10","label":"unnamed-chunk-2","message":"true","out-height":"","out-width":"100%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"(\nreg_78 <-\n  feols(\n    rprice ~ nearinc,\n    data = filter(data, year == 1978)\n  )\n)","id":3,"options":{"autorun":"true","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.7","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"6","fig-width":"10","label":"unnamed-chunk-3","message":"true","out-height":"","out-width":"100%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"(\n  fixest::feols(\n    rprice ~ y81,\n    data = filter(data, nearinc == 1)\n  )\n)","id":4,"options":{"autorun":"true","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.7","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"6","fig-width":"10","label":"unnamed-chunk-4","message":"true","out-height":"","out-width":"100%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"fixest::feols(\n  rprice ~ nearinc * y81,\n  vcov = \"hetero\",\n  data = data\n)","id":5,"options":{"autorun":"true","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.7","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"6","fig-width":"10","label":"unnamed-chunk-5","message":"true","out-height":"","out-width":"100%","output":"true","read-only":"false","results":"markup","warning":"true"}}];
 
   </script>
   <script type="module">
@@ -2136,11 +2280,23 @@
       // Store the code to run in history
       qwebrLogCodeToHistory(codeToRun, options);
 
+      // webR's canvas draws text at the `pointsize` set above but still reports
+      // its character metrics as if the font were 12pt. R sizes plot margins in
+      // "lines" from those metrics, so on a 216 dpi canvas the margins come out
+      // three times too small and base graphics draw the y-axis label off the
+      // left edge. `mex` is the factor R uses when turning margin lines into
+      // physical units, so setting it to the same dpi/72 restores them. It is
+      // prepended on the code's first line, not a line of its own, so a parse
+      // error still reports the line number the student sees in the editor.
+      const marginFix = captureOutputOptions.captureGraphics
+          ? `par(mex = ${options["dpi"] / 72}); `
+          : "";
+
       // Setup a webR canvas by making a namespace call into the {webr} package
       // Evaluate the R code
       // Remove the active canvas silently
       const result = await mainWebRCodeShelter.captureR(
-          `${codeToRun}`,
+          `${marginFix}${codeToRun}`,
           captureOutputOptions
       );
 
@@ -2428,6 +2584,23 @@ globalThis.qwebrCreateMonacoEditorInstance = function (cellData) {
       fontSize: qwebrScaledFontSize(editorDiv, qwebrOptions),         
       renderLineHighlight: "none",      // Disable current line highlighting
       hideCursorInOverviewRuler: true,  // Remove cursor indictor in right hand side scroll bar
+      // PATCHED, see RULES.md. Monaco's defaults reserve five characters of
+      // number column (`lineNumbersMinChars: 5`) and a 10px decorations strip
+      // beside it, which on a cell of at most a couple of dozen lines is a wide
+      // empty band between the number and the code. Two characters covers every
+      // cell in these decks (99 lines), and the decorations strip carries
+      // nothing here — no breakpoints, no folding.
+      lineNumbersMinChars: 1,
+      // The gap between the number and the first character. 4 put them in
+      // contact ("1#--- addition"); Monaco's default 10 sits beside a
+      // five-character number column, which is what made the band look empty.
+      // The gap between the number and the first character. The whole margin is
+      // this plus the digits: 6 read as too tight, 12 as too loose, so 9 —
+      // a 25px margin on a ten-plus-line cell, 17px on a short one, against the
+      // ~75px Monaco's defaults gave.
+      lineDecorationsWidth: 9,
+      folding: false,
+      glyphMargin: false,
       readOnly: qwebrOptions['read-only'] ?? false,
       quickSuggestions: qwebrOptions['editor-quick-suggestions'] ?? false,
       wordWrap: (qwebrOptions['editor-word-wrap'] == 'true' ? "on" : "off")
@@ -3383,7 +3556,7 @@ Transcript
 <p><strong>Data</strong></p>
 <div class="cell">
 <div class="cell-output-display">
-<div class="tabwid"><style>.cl-2ead106a{}.cl-2ea9bc12{font-family:'Helvetica';font-size:11pt;font-weight:normal;font-style:normal;text-decoration:none;color:rgba(0, 0, 0, 1.00);background-color:transparent;}.cl-2eab20c0{margin:0;text-align:left;border-bottom: 0 solid rgba(0, 0, 0, 1.00);border-top: 0 solid rgba(0, 0, 0, 1.00);border-left: 0 solid rgba(0, 0, 0, 1.00);border-right: 0 solid rgba(0, 0, 0, 1.00);padding-bottom:5pt;padding-top:5pt;padding-left:5pt;padding-right:5pt;line-height: 1;background-color:transparent;}.cl-2eab20c1{margin:0;text-align:right;border-bottom: 0 solid rgba(0, 0, 0, 1.00);border-top: 0 solid rgba(0, 0, 0, 1.00);border-left: 0 solid rgba(0, 0, 0, 1.00);border-right: 0 solid rgba(0, 0, 0, 1.00);padding-bottom:5pt;padding-top:5pt;padding-left:5pt;padding-right:5pt;line-height: 1;background-color:transparent;}.cl-2eab2f02{width:2.103in;background-color:transparent;vertical-align: middle;border-bottom: 1.5pt solid rgba(102, 102, 102, 1.00);border-top: 1.5pt solid rgba(102, 102, 102, 1.00);border-left: 0 solid rgba(0, 0, 0, 1.00);border-right: 0 solid rgba(0, 0, 0, 1.00);margin-bottom:0;margin-top:0;margin-left:0;margin-right:0;}.cl-2eab2f0c{width:0.668in;background-color:transparent;vertical-align: middle;border-bottom: 1.5pt solid rgba(102, 102, 102, 1.00);border-top: 1.5pt solid rgba(102, 102, 102, 1.00);border-left: 0 solid rgba(0, 0, 0, 1.00);border-right: 0 solid rgba(0, 0, 0, 1.00);margin-bottom:0;margin-top:0;margin-left:0;margin-right:0;}.cl-2eab2f0d{width:2.103in;background-color:transparent;vertical-align: middle;border-bottom: 0 solid rgba(0, 0, 0, 1.00);border-top: 0 solid rgba(0, 0, 0, 1.00);border-left: 0 solid rgba(0, 0, 0, 1.00);border-right: 0 solid rgba(0, 0, 0, 1.00);margin-bottom:0;margin-top:0;margin-left:0;margin-right:0;}.cl-2eab2f0e{width:0.668in;background-color:transparent;vertical-align: middle;border-bottom: 0 solid rgba(0, 0, 0, 1.00);border-top: 0 solid rgba(0, 0, 0, 1.00);border-left: 0 solid rgba(0, 0, 0, 1.00);border-right: 0 solid rgba(0, 0, 0, 1.00);margin-bottom:0;margin-top:0;margin-left:0;margin-right:0;}.cl-2eab2f0f{width:2.103in;background-color:transparent;vertical-align: middle;border-bottom: 1.5pt solid rgba(102, 102, 102, 1.00);border-top: 0 solid rgba(0, 0, 0, 1.00);border-left: 0 solid rgba(0, 0, 0, 1.00);border-right: 0 solid rgba(0, 0, 0, 1.00);margin-bottom:0;margin-top:0;margin-left:0;margin-right:0;}.cl-2eab2f16{width:0.668in;background-color:transparent;vertical-align: middle;border-bottom: 1.5pt solid rgba(102, 102, 102, 1.00);border-top: 0 solid rgba(0, 0, 0, 1.00);border-left: 0 solid rgba(0, 0, 0, 1.00);border-right: 0 solid rgba(0, 0, 0, 1.00);margin-bottom:0;margin-top:0;margin-left:0;margin-right:0;}</style><table data-quarto-disable-processing="true" class="cl-2ead106a"><thead><tr style="overflow-wrap:break-word;"><th class="cl-2eab2f02"><p class="cl-2eab20c0"><span class="cl-2ea9bc12">Supplier</span></p></th><th class="cl-2eab2f0c"><p class="cl-2eab20c1"><span class="cl-2ea9bc12">1849</span></p></th><th class="cl-2eab2f0c"><p class="cl-2eab20c1"><span class="cl-2ea9bc12">1854</span></p></th></tr></thead><tbody><tr style="overflow-wrap:break-word;"><td class="cl-2eab2f0d"><p class="cl-2eab20c0"><span class="cl-2ea9bc12">Southwark &amp; Vauxhall only</span></p></td><td class="cl-2eab2f0e"><p class="cl-2eab20c1"><span class="cl-2ea9bc12">134.9</span></p></td><td class="cl-2eab2f0e"><p class="cl-2eab20c1"><span class="cl-2ea9bc12">146.6</span></p></td></tr><tr style="overflow-wrap:break-word;"><td class="cl-2eab2f0f"><p class="cl-2eab20c0"><span class="cl-2ea9bc12">Lambeth + other suppliers</span></p></td><td class="cl-2eab2f16"><p class="cl-2eab20c1"><span class="cl-2ea9bc12">130.1</span></p></td><td class="cl-2eab2f16"><p class="cl-2eab20c1"><span class="cl-2ea9bc12">84.9</span></p></td></tr></tbody></table></div>
+<div class="tabwid"><style>.cl-0efe3378{}.cl-0efb5220{font-family:'Helvetica';font-size:11pt;font-weight:normal;font-style:normal;text-decoration:none;color:rgba(0, 0, 0, 1.00);background-color:transparent;}.cl-0efc7d1c{margin:0;text-align:left;border-bottom: 0 solid rgba(0, 0, 0, 1.00);border-top: 0 solid rgba(0, 0, 0, 1.00);border-left: 0 solid rgba(0, 0, 0, 1.00);border-right: 0 solid rgba(0, 0, 0, 1.00);padding-bottom:5pt;padding-top:5pt;padding-left:5pt;padding-right:5pt;line-height: 1;background-color:transparent;}.cl-0efc7d26{margin:0;text-align:right;border-bottom: 0 solid rgba(0, 0, 0, 1.00);border-top: 0 solid rgba(0, 0, 0, 1.00);border-left: 0 solid rgba(0, 0, 0, 1.00);border-right: 0 solid rgba(0, 0, 0, 1.00);padding-bottom:5pt;padding-top:5pt;padding-left:5pt;padding-right:5pt;line-height: 1;background-color:transparent;}.cl-0efc894c{width:2.103in;background-color:transparent;vertical-align: middle;border-bottom: 1.5pt solid rgba(102, 102, 102, 1.00);border-top: 1.5pt solid rgba(102, 102, 102, 1.00);border-left: 0 solid rgba(0, 0, 0, 1.00);border-right: 0 solid rgba(0, 0, 0, 1.00);margin-bottom:0;margin-top:0;margin-left:0;margin-right:0;}.cl-0efc8956{width:0.668in;background-color:transparent;vertical-align: middle;border-bottom: 1.5pt solid rgba(102, 102, 102, 1.00);border-top: 1.5pt solid rgba(102, 102, 102, 1.00);border-left: 0 solid rgba(0, 0, 0, 1.00);border-right: 0 solid rgba(0, 0, 0, 1.00);margin-bottom:0;margin-top:0;margin-left:0;margin-right:0;}.cl-0efc8957{width:2.103in;background-color:transparent;vertical-align: middle;border-bottom: 0 solid rgba(0, 0, 0, 1.00);border-top: 0 solid rgba(0, 0, 0, 1.00);border-left: 0 solid rgba(0, 0, 0, 1.00);border-right: 0 solid rgba(0, 0, 0, 1.00);margin-bottom:0;margin-top:0;margin-left:0;margin-right:0;}.cl-0efc8958{width:0.668in;background-color:transparent;vertical-align: middle;border-bottom: 0 solid rgba(0, 0, 0, 1.00);border-top: 0 solid rgba(0, 0, 0, 1.00);border-left: 0 solid rgba(0, 0, 0, 1.00);border-right: 0 solid rgba(0, 0, 0, 1.00);margin-bottom:0;margin-top:0;margin-left:0;margin-right:0;}.cl-0efc8959{width:2.103in;background-color:transparent;vertical-align: middle;border-bottom: 1.5pt solid rgba(102, 102, 102, 1.00);border-top: 0 solid rgba(0, 0, 0, 1.00);border-left: 0 solid rgba(0, 0, 0, 1.00);border-right: 0 solid rgba(0, 0, 0, 1.00);margin-bottom:0;margin-top:0;margin-left:0;margin-right:0;}.cl-0efc8960{width:0.668in;background-color:transparent;vertical-align: middle;border-bottom: 1.5pt solid rgba(102, 102, 102, 1.00);border-top: 0 solid rgba(0, 0, 0, 1.00);border-left: 0 solid rgba(0, 0, 0, 1.00);border-right: 0 solid rgba(0, 0, 0, 1.00);margin-bottom:0;margin-top:0;margin-left:0;margin-right:0;}</style><table data-quarto-disable-processing="true" class="cl-0efe3378"><thead><tr style="overflow-wrap:break-word;"><th class="cl-0efc894c"><p class="cl-0efc7d1c"><span class="cl-0efb5220">Supplier</span></p></th><th class="cl-0efc8956"><p class="cl-0efc7d26"><span class="cl-0efb5220">1849</span></p></th><th class="cl-0efc8956"><p class="cl-0efc7d26"><span class="cl-0efb5220">1854</span></p></th></tr></thead><tbody><tr style="overflow-wrap:break-word;"><td class="cl-0efc8957"><p class="cl-0efc7d1c"><span class="cl-0efb5220">Southwark &amp; Vauxhall only</span></p></td><td class="cl-0efc8958"><p class="cl-0efc7d26"><span class="cl-0efb5220">134.9</span></p></td><td class="cl-0efc8958"><p class="cl-0efc7d26"><span class="cl-0efb5220">146.6</span></p></td></tr><tr style="overflow-wrap:break-word;"><td class="cl-0efc8959"><p class="cl-0efc7d1c"><span class="cl-0efb5220">Lambeth + other suppliers</span></p></td><td class="cl-0efc8960"><p class="cl-0efc7d26"><span class="cl-0efb5220">130.1</span></p></td><td class="cl-0efc8960"><p class="cl-0efc7d26"><span class="cl-0efb5220">84.9</span></p></td></tr></tbody></table></div>
 </div>
 </div>
 <p><strong>DID estimate</strong></p>
@@ -3867,7 +4040,7 @@ Transcript
 <span id="cb19-9"><a></a>  <span class="fu">autofit</span>()</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 </details>
 <div class="cell-output-display">
-<div class="tabwid"><style>.cl-3121000e{}.cl-311ddc80{font-family:'Helvetica';font-size:9pt;font-weight:normal;font-style:normal;text-decoration:none;color:rgba(0, 0, 0, 1.00);background-color:transparent;}.cl-311ddc8a{font-family:'Helvetica';font-size:9pt;font-weight:normal;font-style:normal;text-decoration:none;color:rgba(255, 0, 0, 1.00);background-color:transparent;}.cl-311f2a7c{margin:0;text-align:left;border-bottom: 0 solid rgba(0, 0, 0, 1.00);border-top: 0 solid rgba(0, 0, 0, 1.00);border-left: 0 solid rgba(0, 0, 0, 1.00);border-right: 0 solid rgba(0, 0, 0, 1.00);padding-bottom:5pt;padding-top:5pt;padding-left:5pt;padding-right:5pt;line-height: 1;background-color:transparent;}.cl-311f2a86{margin:0;text-align:center;border-bottom: 0 solid rgba(0, 0, 0, 1.00);border-top: 0 solid rgba(0, 0, 0, 1.00);border-left: 0 solid rgba(0, 0, 0, 1.00);border-right: 0 solid rgba(0, 0, 0, 1.00);padding-bottom:5pt;padding-top:5pt;padding-left:5pt;padding-right:5pt;line-height: 1;background-color:transparent;}.cl-311f380a{width:1.626in;background-color:transparent;vertical-align: middle;border-bottom: 1.5pt solid rgba(102, 102, 102, 1.00);border-top: 1.5pt solid rgba(102, 102, 102, 1.00);border-left: 0 solid rgba(0, 0, 0, 1.00);border-right: 0 solid rgba(0, 0, 0, 1.00);margin-bottom:0;margin-top:0;margin-left:0;margin-right:0;}.cl-311f380b{width:0.855in;background-color:transparent;vertical-align: middle;border-bottom: 1.5pt solid rgba(102, 102, 102, 1.00);border-top: 1.5pt solid rgba(102, 102, 102, 1.00);border-left: 0 solid rgba(0, 0, 0, 1.00);border-right: 0 solid rgba(0, 0, 0, 1.00);margin-bottom:0;margin-top:0;margin-left:0;margin-right:0;}.cl-311f3814{width:1.626in;background-color:transparent;vertical-align: middle;border-bottom: 0 solid rgba(0, 0, 0, 1.00);border-top: 0 solid rgba(0, 0, 0, 1.00);border-left: 0 solid rgba(0, 0, 0, 1.00);border-right: 0 solid rgba(0, 0, 0, 1.00);margin-bottom:0;margin-top:0;margin-left:0;margin-right:0;}.cl-311f3815{width:0.855in;background-color:transparent;vertical-align: middle;border-bottom: 0 solid rgba(0, 0, 0, 1.00);border-top: 0 solid rgba(0, 0, 0, 1.00);border-left: 0 solid rgba(0, 0, 0, 1.00);border-right: 0 solid rgba(0, 0, 0, 1.00);margin-bottom:0;margin-top:0;margin-left:0;margin-right:0;}.cl-311f381e{width:1.626in;background-color:transparent;vertical-align: middle;border-bottom: 0 solid rgba(0, 0, 0, 1.00);border-top: 0 solid rgba(0, 0, 0, 1.00);border-left: 0 solid rgba(0, 0, 0, 1.00);border-right: 0 solid rgba(0, 0, 0, 1.00);margin-bottom:0;margin-top:0;margin-left:0;margin-right:0;}.cl-311f381f{width:0.855in;background-color:transparent;vertical-align: middle;border-bottom: 0 solid rgba(0, 0, 0, 1.00);border-top: 0 solid rgba(0, 0, 0, 1.00);border-left: 0 solid rgba(0, 0, 0, 1.00);border-right: 0 solid rgba(0, 0, 0, 1.00);margin-bottom:0;margin-top:0;margin-left:0;margin-right:0;}.cl-311f3820{width:1.626in;background-color:transparent;vertical-align: middle;border-bottom: 0 solid rgba(0, 0, 0, 1.00);border-top: 0 solid rgba(0, 0, 0, 1.00);border-left: 0 solid rgba(0, 0, 0, 1.00);border-right: 0 solid rgba(0, 0, 0, 1.00);margin-bottom:0;margin-top:0;margin-left:0;margin-right:0;}.cl-311f3828{width:0.855in;background-color:transparent;vertical-align: middle;border-bottom: 0 solid rgba(0, 0, 0, 1.00);border-top: 0 solid rgba(0, 0, 0, 1.00);border-left: 0 solid rgba(0, 0, 0, 1.00);border-right: 0 solid rgba(0, 0, 0, 1.00);margin-bottom:0;margin-top:0;margin-left:0;margin-right:0;}.cl-311f3829{width:1.626in;background-color:transparent;vertical-align: middle;border-bottom: 0.75pt solid rgba(102, 102, 102, 1.00);border-top: 0 solid rgba(0, 0, 0, 1.00);border-left: 0 solid rgba(0, 0, 0, 1.00);border-right: 0 solid rgba(0, 0, 0, 1.00);margin-bottom:0;margin-top:0;margin-left:0;margin-right:0;}.cl-311f382a{width:0.855in;background-color:transparent;vertical-align: middle;border-bottom: 0.75pt solid rgba(102, 102, 102, 1.00);border-top: 0 solid rgba(0, 0, 0, 1.00);border-left: 0 solid rgba(0, 0, 0, 1.00);border-right: 0 solid rgba(0, 0, 0, 1.00);margin-bottom:0;margin-top:0;margin-left:0;margin-right:0;}.cl-311f3832{width:1.626in;background-color:transparent;vertical-align: middle;border-bottom: 0 solid rgba(0, 0, 0, 1.00);border-top: 0.75pt solid rgba(102, 102, 102, 1.00);border-left: 0 solid rgba(0, 0, 0, 1.00);border-right: 0 solid rgba(0, 0, 0, 1.00);margin-bottom:0;margin-top:0;margin-left:0;margin-right:0;}.cl-311f3833{width:0.855in;background-color:transparent;vertical-align: middle;border-bottom: 0 solid rgba(0, 0, 0, 1.00);border-top: 0.75pt solid rgba(102, 102, 102, 1.00);border-left: 0 solid rgba(0, 0, 0, 1.00);border-right: 0 solid rgba(0, 0, 0, 1.00);margin-bottom:0;margin-top:0;margin-left:0;margin-right:0;}.cl-311f3834{width:1.626in;background-color:transparent;vertical-align: middle;border-bottom: 0 solid rgba(0, 0, 0, 1.00);border-top: 0 solid rgba(0, 0, 0, 1.00);border-left: 0 solid rgba(0, 0, 0, 1.00);border-right: 0 solid rgba(0, 0, 0, 1.00);margin-bottom:0;margin-top:0;margin-left:0;margin-right:0;}.cl-311f383c{width:0.855in;background-color:transparent;vertical-align: middle;border-bottom: 0 solid rgba(0, 0, 0, 1.00);border-top: 0 solid rgba(0, 0, 0, 1.00);border-left: 0 solid rgba(0, 0, 0, 1.00);border-right: 0 solid rgba(0, 0, 0, 1.00);margin-bottom:0;margin-top:0;margin-left:0;margin-right:0;}.cl-311f383d{width:1.626in;background-color:transparent;vertical-align: middle;border-bottom: 1.5pt solid rgba(102, 102, 102, 1.00);border-top: 0 solid rgba(0, 0, 0, 1.00);border-left: 0 solid rgba(0, 0, 0, 1.00);border-right: 0 solid rgba(0, 0, 0, 1.00);margin-bottom:0;margin-top:0;margin-left:0;margin-right:0;}.cl-311f3846{width:0.855in;background-color:transparent;vertical-align: middle;border-bottom: 1.5pt solid rgba(102, 102, 102, 1.00);border-top: 0 solid rgba(0, 0, 0, 1.00);border-left: 0 solid rgba(0, 0, 0, 1.00);border-right: 0 solid rgba(0, 0, 0, 1.00);margin-bottom:0;margin-top:0;margin-left:0;margin-right:0;}.cl-311f3847{width:1.626in;background-color:transparent;vertical-align: middle;border-bottom: 0 solid rgba(255, 255, 255, 0.00);border-top: 0 solid rgba(255, 255, 255, 0.00);border-left: 0 solid rgba(255, 255, 255, 0.00);border-right: 0 solid rgba(255, 255, 255, 0.00);margin-bottom:0;margin-top:0;margin-left:0;margin-right:0;}.cl-311f3848{width:0.855in;background-color:transparent;vertical-align: middle;border-bottom: 0 solid rgba(255, 255, 255, 0.00);border-top: 0 solid rgba(255, 255, 255, 0.00);border-left: 0 solid rgba(255, 255, 255, 0.00);border-right: 0 solid rgba(255, 255, 255, 0.00);margin-bottom:0;margin-top:0;margin-left:0;margin-right:0;}</style><table data-quarto-disable-processing="true" class="cl-3121000e"><thead><tr style="overflow-wrap:break-word;"><th class="cl-311f380a"><p class="cl-311f2a7c"><span class="cl-311ddc80"> </span></p></th><th class="cl-311f380b"><p class="cl-311f2a86"><span class="cl-311ddc80">(1)</span></p></th></tr></thead><tbody><tr style="overflow-wrap:break-word;"><td class="cl-311f3814"><p class="cl-311f2a7c"><span class="cl-311ddc80">I(after_1993 * in_LEMA)</span></p></td><td class="cl-311f3815"><p class="cl-311f2a86"><span class="cl-311ddc8a">-16.386***</span></p></td></tr><tr style="overflow-wrap:break-word;"><td class="cl-311f3814"><p class="cl-311f2a7c"><span class="cl-311ddc80"></span></p></td><td class="cl-311f3815"><p class="cl-311f2a86"><span class="cl-311ddc80">(3.900)</span></p></td></tr><tr style="overflow-wrap:break-word;"><td class="cl-311f381e"><p class="cl-311f2a7c"><span class="cl-311ddc80">pr</span></p></td><td class="cl-311f381f"><p class="cl-311f2a86"><span class="cl-311ddc80">-0.121***</span></p></td></tr><tr style="overflow-wrap:break-word;"><td class="cl-311f3814"><p class="cl-311f2a7c"><span class="cl-311ddc80"></span></p></td><td class="cl-311f3815"><p class="cl-311f2a86"><span class="cl-311ddc80">(0.026)</span></p></td></tr><tr style="overflow-wrap:break-word;"><td class="cl-311f3820"><p class="cl-311f2a7c"><span class="cl-311ddc80">et0</span></p></td><td class="cl-311f3828"><p class="cl-311f2a86"><span class="cl-311ddc80">0.114+</span></p></td></tr><tr style="overflow-wrap:break-word;"><td class="cl-311f3829"><p class="cl-311f2a7c"><span class="cl-311ddc80"></span></p></td><td class="cl-311f382a"><p class="cl-311f2a86"><span class="cl-311ddc80">(0.065)</span></p></td></tr><tr style="overflow-wrap:break-word;"><td class="cl-311f3832"><p class="cl-311f2a7c"><span class="cl-311ddc80">Num.Obs.</span></p></td><td class="cl-311f3833"><p class="cl-311f2a86"><span class="cl-311ddc80">11288</span></p></td></tr><tr style="overflow-wrap:break-word;"><td class="cl-311f3820"><p class="cl-311f2a7c"><span class="cl-311ddc80">R2</span></p></td><td class="cl-311f3828"><p class="cl-311f2a86"><span class="cl-311ddc80">0.714</span></p></td></tr><tr style="overflow-wrap:break-word;"><td class="cl-311f3834"><p class="cl-311f2a7c"><span class="cl-311ddc80">RMSE</span></p></td><td class="cl-311f383c"><p class="cl-311f2a86"><span class="cl-311ddc80">41.02</span></p></td></tr><tr style="overflow-wrap:break-word;"><td class="cl-311f383d"><p class="cl-311f2a7c"><span class="cl-311ddc80">Std.Errors</span></p></td><td class="cl-311f3846"><p class="cl-311f2a86"><span class="cl-311ddc80">by: site</span></p></td></tr></tbody><tfoot><tr style="overflow-wrap:break-word;"><td colspan="2" class="cl-311f3847"><p class="cl-311f2a7c"><span class="cl-311ddc80">+ p &lt; 0.1, * p &lt; 0.05, ** p &lt; 0.01, *** p &lt; 0.001</span></p></td></tr></tfoot></table></div>
+<div class="tabwid"><style>.cl-1103bf3a{}.cl-1100efe4{font-family:'Helvetica';font-size:9pt;font-weight:normal;font-style:normal;text-decoration:none;color:rgba(0, 0, 0, 1.00);background-color:transparent;}.cl-1100efee{font-family:'Helvetica';font-size:9pt;font-weight:normal;font-style:normal;text-decoration:none;color:rgba(255, 0, 0, 1.00);background-color:transparent;}.cl-11021c20{margin:0;text-align:left;border-bottom: 0 solid rgba(0, 0, 0, 1.00);border-top: 0 solid rgba(0, 0, 0, 1.00);border-left: 0 solid rgba(0, 0, 0, 1.00);border-right: 0 solid rgba(0, 0, 0, 1.00);padding-bottom:5pt;padding-top:5pt;padding-left:5pt;padding-right:5pt;line-height: 1;background-color:transparent;}.cl-11021c21{margin:0;text-align:center;border-bottom: 0 solid rgba(0, 0, 0, 1.00);border-top: 0 solid rgba(0, 0, 0, 1.00);border-left: 0 solid rgba(0, 0, 0, 1.00);border-right: 0 solid rgba(0, 0, 0, 1.00);padding-bottom:5pt;padding-top:5pt;padding-left:5pt;padding-right:5pt;line-height: 1;background-color:transparent;}.cl-1102288c{width:1.626in;background-color:transparent;vertical-align: middle;border-bottom: 1.5pt solid rgba(102, 102, 102, 1.00);border-top: 1.5pt solid rgba(102, 102, 102, 1.00);border-left: 0 solid rgba(0, 0, 0, 1.00);border-right: 0 solid rgba(0, 0, 0, 1.00);margin-bottom:0;margin-top:0;margin-left:0;margin-right:0;}.cl-1102288d{width:0.855in;background-color:transparent;vertical-align: middle;border-bottom: 1.5pt solid rgba(102, 102, 102, 1.00);border-top: 1.5pt solid rgba(102, 102, 102, 1.00);border-left: 0 solid rgba(0, 0, 0, 1.00);border-right: 0 solid rgba(0, 0, 0, 1.00);margin-bottom:0;margin-top:0;margin-left:0;margin-right:0;}.cl-1102288e{width:1.626in;background-color:transparent;vertical-align: middle;border-bottom: 0 solid rgba(0, 0, 0, 1.00);border-top: 0 solid rgba(0, 0, 0, 1.00);border-left: 0 solid rgba(0, 0, 0, 1.00);border-right: 0 solid rgba(0, 0, 0, 1.00);margin-bottom:0;margin-top:0;margin-left:0;margin-right:0;}.cl-11022896{width:0.855in;background-color:transparent;vertical-align: middle;border-bottom: 0 solid rgba(0, 0, 0, 1.00);border-top: 0 solid rgba(0, 0, 0, 1.00);border-left: 0 solid rgba(0, 0, 0, 1.00);border-right: 0 solid rgba(0, 0, 0, 1.00);margin-bottom:0;margin-top:0;margin-left:0;margin-right:0;}.cl-11022897{width:1.626in;background-color:transparent;vertical-align: middle;border-bottom: 0 solid rgba(0, 0, 0, 1.00);border-top: 0 solid rgba(0, 0, 0, 1.00);border-left: 0 solid rgba(0, 0, 0, 1.00);border-right: 0 solid rgba(0, 0, 0, 1.00);margin-bottom:0;margin-top:0;margin-left:0;margin-right:0;}.cl-11022898{width:0.855in;background-color:transparent;vertical-align: middle;border-bottom: 0 solid rgba(0, 0, 0, 1.00);border-top: 0 solid rgba(0, 0, 0, 1.00);border-left: 0 solid rgba(0, 0, 0, 1.00);border-right: 0 solid rgba(0, 0, 0, 1.00);margin-bottom:0;margin-top:0;margin-left:0;margin-right:0;}.cl-110228a0{width:1.626in;background-color:transparent;vertical-align: middle;border-bottom: 0 solid rgba(0, 0, 0, 1.00);border-top: 0 solid rgba(0, 0, 0, 1.00);border-left: 0 solid rgba(0, 0, 0, 1.00);border-right: 0 solid rgba(0, 0, 0, 1.00);margin-bottom:0;margin-top:0;margin-left:0;margin-right:0;}.cl-110228a1{width:0.855in;background-color:transparent;vertical-align: middle;border-bottom: 0 solid rgba(0, 0, 0, 1.00);border-top: 0 solid rgba(0, 0, 0, 1.00);border-left: 0 solid rgba(0, 0, 0, 1.00);border-right: 0 solid rgba(0, 0, 0, 1.00);margin-bottom:0;margin-top:0;margin-left:0;margin-right:0;}.cl-110228aa{width:1.626in;background-color:transparent;vertical-align: middle;border-bottom: 0.75pt solid rgba(102, 102, 102, 1.00);border-top: 0 solid rgba(0, 0, 0, 1.00);border-left: 0 solid rgba(0, 0, 0, 1.00);border-right: 0 solid rgba(0, 0, 0, 1.00);margin-bottom:0;margin-top:0;margin-left:0;margin-right:0;}.cl-110228ab{width:0.855in;background-color:transparent;vertical-align: middle;border-bottom: 0.75pt solid rgba(102, 102, 102, 1.00);border-top: 0 solid rgba(0, 0, 0, 1.00);border-left: 0 solid rgba(0, 0, 0, 1.00);border-right: 0 solid rgba(0, 0, 0, 1.00);margin-bottom:0;margin-top:0;margin-left:0;margin-right:0;}.cl-110228ac{width:1.626in;background-color:transparent;vertical-align: middle;border-bottom: 0 solid rgba(0, 0, 0, 1.00);border-top: 0.75pt solid rgba(102, 102, 102, 1.00);border-left: 0 solid rgba(0, 0, 0, 1.00);border-right: 0 solid rgba(0, 0, 0, 1.00);margin-bottom:0;margin-top:0;margin-left:0;margin-right:0;}.cl-110228ad{width:0.855in;background-color:transparent;vertical-align: middle;border-bottom: 0 solid rgba(0, 0, 0, 1.00);border-top: 0.75pt solid rgba(102, 102, 102, 1.00);border-left: 0 solid rgba(0, 0, 0, 1.00);border-right: 0 solid rgba(0, 0, 0, 1.00);margin-bottom:0;margin-top:0;margin-left:0;margin-right:0;}.cl-110228b4{width:1.626in;background-color:transparent;vertical-align: middle;border-bottom: 0 solid rgba(0, 0, 0, 1.00);border-top: 0 solid rgba(0, 0, 0, 1.00);border-left: 0 solid rgba(0, 0, 0, 1.00);border-right: 0 solid rgba(0, 0, 0, 1.00);margin-bottom:0;margin-top:0;margin-left:0;margin-right:0;}.cl-110228b5{width:0.855in;background-color:transparent;vertical-align: middle;border-bottom: 0 solid rgba(0, 0, 0, 1.00);border-top: 0 solid rgba(0, 0, 0, 1.00);border-left: 0 solid rgba(0, 0, 0, 1.00);border-right: 0 solid rgba(0, 0, 0, 1.00);margin-bottom:0;margin-top:0;margin-left:0;margin-right:0;}.cl-110228b6{width:1.626in;background-color:transparent;vertical-align: middle;border-bottom: 1.5pt solid rgba(102, 102, 102, 1.00);border-top: 0 solid rgba(0, 0, 0, 1.00);border-left: 0 solid rgba(0, 0, 0, 1.00);border-right: 0 solid rgba(0, 0, 0, 1.00);margin-bottom:0;margin-top:0;margin-left:0;margin-right:0;}.cl-110228b7{width:0.855in;background-color:transparent;vertical-align: middle;border-bottom: 1.5pt solid rgba(102, 102, 102, 1.00);border-top: 0 solid rgba(0, 0, 0, 1.00);border-left: 0 solid rgba(0, 0, 0, 1.00);border-right: 0 solid rgba(0, 0, 0, 1.00);margin-bottom:0;margin-top:0;margin-left:0;margin-right:0;}.cl-110228be{width:1.626in;background-color:transparent;vertical-align: middle;border-bottom: 0 solid rgba(255, 255, 255, 0.00);border-top: 0 solid rgba(255, 255, 255, 0.00);border-left: 0 solid rgba(255, 255, 255, 0.00);border-right: 0 solid rgba(255, 255, 255, 0.00);margin-bottom:0;margin-top:0;margin-left:0;margin-right:0;}.cl-110228bf{width:0.855in;background-color:transparent;vertical-align: middle;border-bottom: 0 solid rgba(255, 255, 255, 0.00);border-top: 0 solid rgba(255, 255, 255, 0.00);border-left: 0 solid rgba(255, 255, 255, 0.00);border-right: 0 solid rgba(255, 255, 255, 0.00);margin-bottom:0;margin-top:0;margin-left:0;margin-right:0;}</style><table data-quarto-disable-processing="true" class="cl-1103bf3a"><thead><tr style="overflow-wrap:break-word;"><th class="cl-1102288c"><p class="cl-11021c20"><span class="cl-1100efe4"> </span></p></th><th class="cl-1102288d"><p class="cl-11021c21"><span class="cl-1100efe4">(1)</span></p></th></tr></thead><tbody><tr style="overflow-wrap:break-word;"><td class="cl-1102288e"><p class="cl-11021c20"><span class="cl-1100efe4">I(after_1993 * in_LEMA)</span></p></td><td class="cl-11022896"><p class="cl-11021c21"><span class="cl-1100efee">-16.386***</span></p></td></tr><tr style="overflow-wrap:break-word;"><td class="cl-1102288e"><p class="cl-11021c20"><span class="cl-1100efe4"></span></p></td><td class="cl-11022896"><p class="cl-11021c21"><span class="cl-1100efe4">(3.900)</span></p></td></tr><tr style="overflow-wrap:break-word;"><td class="cl-11022897"><p class="cl-11021c20"><span class="cl-1100efe4">pr</span></p></td><td class="cl-11022898"><p class="cl-11021c21"><span class="cl-1100efe4">-0.121***</span></p></td></tr><tr style="overflow-wrap:break-word;"><td class="cl-1102288e"><p class="cl-11021c20"><span class="cl-1100efe4"></span></p></td><td class="cl-11022896"><p class="cl-11021c21"><span class="cl-1100efe4">(0.026)</span></p></td></tr><tr style="overflow-wrap:break-word;"><td class="cl-110228a0"><p class="cl-11021c20"><span class="cl-1100efe4">et0</span></p></td><td class="cl-110228a1"><p class="cl-11021c21"><span class="cl-1100efe4">0.114+</span></p></td></tr><tr style="overflow-wrap:break-word;"><td class="cl-110228aa"><p class="cl-11021c20"><span class="cl-1100efe4"></span></p></td><td class="cl-110228ab"><p class="cl-11021c21"><span class="cl-1100efe4">(0.065)</span></p></td></tr><tr style="overflow-wrap:break-word;"><td class="cl-110228ac"><p class="cl-11021c20"><span class="cl-1100efe4">Num.Obs.</span></p></td><td class="cl-110228ad"><p class="cl-11021c21"><span class="cl-1100efe4">11288</span></p></td></tr><tr style="overflow-wrap:break-word;"><td class="cl-110228a0"><p class="cl-11021c20"><span class="cl-1100efe4">R2</span></p></td><td class="cl-110228a1"><p class="cl-11021c21"><span class="cl-1100efe4">0.714</span></p></td></tr><tr style="overflow-wrap:break-word;"><td class="cl-110228b4"><p class="cl-11021c20"><span class="cl-1100efe4">RMSE</span></p></td><td class="cl-110228b5"><p class="cl-11021c21"><span class="cl-1100efe4">41.02</span></p></td></tr><tr style="overflow-wrap:break-word;"><td class="cl-110228b6"><p class="cl-11021c20"><span class="cl-1100efe4">Std.Errors</span></p></td><td class="cl-110228b7"><p class="cl-11021c21"><span class="cl-1100efe4">by: site</span></p></td></tr></tbody><tfoot><tr style="overflow-wrap:break-word;"><td colspan="2" class="cl-110228be"><p class="cl-11021c20"><span class="cl-1100efe4">+ p &lt; 0.1, * p &lt; 0.05, ** p &lt; 0.01, *** p &lt; 0.001</span></p></td></tr></tfoot></table></div>
 </div>
 </div>
 <ul>

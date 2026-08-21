@@ -4,8 +4,43 @@ Course site for Applied Econometrics (AECN 896-004), built with Quarto and
 published to `docs/`.
 
 Read this before touching assignments or any date. Lecture styling (the WebR
-side-by-side layout, figures, math, transcripts) is shared with the other
-courses and lives in `../_lecture-shared/RULES.md`.
+side-by-side layout, figures, math, transcripts) is documented in
+`lectures/RULES.md`; see `AGENTS.md` for where those files are maintained.
+
+**Where this repository lives, and why it matters.** On local disk, at
+`~/Teaching/AE-MS`, with GitHub as the sync. It is deliberately NOT inside
+Google Drive or Dropbox: a full render rewrites ~100MB across ~370 files, and
+doing that inside a cloud-synced folder made the sync client report hundreds of
+files as deleted while they were still on disk, twice in one day. Two folders do
+still live in Drive, because the assignment automation needs them there:
+`assignments/submission` (a symlink) and the publish target of
+`assignments/students` (`materials.publish_dir` in `course-dates.json`).
+
+Two consequences, both cheap to guard against:
+
+*Render before you commit, and read the exit code yourself.* Quarto writes each
+page's HTML at the repository root and moves it into `docs/` at the end, so a
+stray root `*.html` left over from rendering a single file makes the next
+project render stop partway.
+
+```sh
+rm -f *.html                                  # repository root only, never docs/
+quarto render > /tmp/render.log 2>&1; echo "EXIT: $?"
+find docs -name '*.html' | wc -l              # expect 24
+```
+
+*Inside the two Drive folders, git can see deletions that are not real.* The
+file provider may list a file it has not materialised, git reads that as a
+deletion, and `git add -A` stages it. Before committing:
+
+```sh
+git add -A
+git diff --cached --name-only --diff-filter=D | while read -r f; do
+  [ -e "$f" ] && echo "PHANTOM: $f"
+done
+```
+
+Anything printed is Drive, not you: `git add -- <file>` it back and check again.
 
 ---
 
@@ -172,19 +207,31 @@ deadline is the one printed in the assignment. Do not add one.
 
 ### How students get the files
 
-One permanent Dropbox shared-folder link, in the `materials` block of
+One permanent Google Drive shared-folder link, in the `materials` block of
 `course-dates.json`, referenced as `materials_url()` (or `{{materials}}`).
 
 **Share `assignments/students/<year>/` — the year folder, not `students/`.**
 Sharing `students/` would let a student browse into another year and download
 the wrong assignment. The year folder contains only that year.
 
-It lives inside Dropbox, so `Rscript assignments/build-assignments.R` publishes
-to students with no upload step — the build writes the qmd, copies each
-assignment's datasets next to it, and drops in the final project template.
+This repository lives on local disk, and the folder students download from
+lives in Google Drive. `Rscript assignments/build-assignments.R` still publishes
+with no upload step: it writes the qmd, copies each assignment's datasets next
+to it, drops in the final project template, and then `publish_materials()`
+copies the year folder into the Drive folder named by `materials.publish_dir`.
+That copy happens only after `assert_students_dir_shareable()` has passed, so
+nothing reaches a link-shared folder unchecked, and the year folder is pruned of
+files the build no longer produces only on a full build — pruning after
+`only = "assignment-1"` would delete the other assignments from under the class.
+
+**Sharing is a function, not a click.** `shareMaterials()` in the Apps Script
+project (`assignments/webform/Materials.gs`) sets the year folder to
+anyone-with-the-link, view only, and prints the two lines to paste into
+`course-dates.json`. It refuses if the folder holds anything matching
+`key|solution|answer|submission|roster|grade`.
 
 Because the link is year-scoped, **rolling the term means re-sharing.** After
-changing `term`, share the new year folder and update both `materials.url` and
+changing `term`, run `shareMaterials()` and update both `materials.url` and
 `materials.year`. Two guards make that impossible to forget silently:
 `check_materials_link()` fails the build when `materials.year` disagrees with
 the term (and warns when the link is simply unset), and `materials_url()` throws
@@ -212,10 +259,18 @@ student called the file. `submission.url` in `course-dates.json` is its `/exec`
 URL; `submission.folder` is that destination, and `submission.drive_folder_id`
 is the same folder's Drive id, which the web app is configured with.
 
-The repository lives in Google Drive, so submitted work syncs down to sit
-beside the course materials for grading, while `**/submission/` in `.gitignore`
-guarantees it can never be committed. That combination is the whole point;
-verify `git check-ignore` still covers the path before changing it.
+`assignments/submission` is a **symlink** into that Drive folder, so submitted
+work appears beside the course materials for grading while the repository itself
+lives on local disk. `.gitignore` names the symlink explicitly as well as
+`**/submission/`: the directory rule does not match a symlink, and without the
+explicit line the rule that keeps student work out of this public repo would
+look like it covered the path and would not. Verify `git check-ignore` still
+covers it before changing anything here.
+
+Only that folder and `assignments/students` need Drive. Everything else is
+local, which is deliberate: a full render rewrites ~100MB across ~370 files, and
+doing that inside a cloud-synced folder made the sync client report files as
+deleted while they were still there. See `../README.md`.
 
 `assignments/webform/README.md` covers deploying it, rolling it to a new year,
 and the guarantees not to break — chiefly that nothing is ever overwritten (a
@@ -283,6 +338,13 @@ fix the source, do not patch the output.
 Each built file carries an md5 stamp of the instructor source it came from, so
 `check_student_versions()` can tell you when a built copy is stale.
 
+**Adding a dataset takes two edits, not one.** The manifest in
+`build-assignments.R`, and the negation list in `.gitignore` section 5. Data
+files are denied globally so that a stray roster is ignored wherever it lands,
+which means a new dataset is invisible to git until it is named. Skip the second
+edit and the build still works here while breaking for anyone who clones the
+repository.
+
 ---
 
 ## 4. Verify by rendering, not by reading
@@ -308,3 +370,34 @@ not build from a fresh clone.
 
 Data files under `assignments/data/` are intentionally untracked. They have no
 version-control safety net, so move them rather than deleting them.
+
+---
+
+## 6. Never delete a file you cannot account for
+
+Do not describe a file as debris, junk, or a leftover, and do not offer to
+delete it, until you have established what wrote it and whether anything is
+still writing it. A command returning is not the same as its work being
+finished.
+
+A `quarto render` of this site writes each deck's HTML next to its `.qmd` and
+moves it into `docs/` afterwards, and it keeps working after the parent command
+has reported an error. Deck HTML sitting beside a `.qmd` is therefore ambiguous:
+it may be output still in flight. On 2026-08-21 four such files were called
+debris and proposed for deletion; minutes later the render moved all four into
+`docs/` by itself. Deleting them would have destroyed live output.
+
+The same rule applies to naming causes. Do not attribute a missing or odd file
+to a sync client, a watcher, or any other part of the environment without
+checking it on this machine (`df`, `mount`, `ls -ld`, `ps`).
+
+Know where the Drive boundary actually is, because it runs through this repo
+rather than around it. `AE-MS/assignments/submission` is a symlink into Google
+Drive, where the file-request web app writes student uploads, and the published
+student folders are a Drive path too. Those really can show a file that is
+listed but not materialised, and `../README.md` explains what that does to
+`git add -A`. Everything else, the lecture sources and the rendered `docs/`
+tree, is on local disk, so a file that appears or disappears there needs a
+different explanation. Check which side of that line you are on before blaming
+Drive. "I do not know what caused this" is a better answer than a plausible
+culprit you have not verified.

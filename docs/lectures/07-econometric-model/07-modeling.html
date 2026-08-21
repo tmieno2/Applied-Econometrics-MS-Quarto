@@ -28,7 +28,7 @@
       vertical-align: middle;
     }
   </style>
-  <link rel="stylesheet" href="../../site_libs/revealjs/dist/theme/quarto-bf1223c773699056cca1ada9baf1738b.css">
+  <link rel="stylesheet" href="../../site_libs/revealjs/dist/theme/quarto-5749ef3d543d853c9975bfcccaade8de.css">
   <script defer="" src="https://cdn.jsdelivr.net/npm/katex@0.18.4/dist/katex.min.js"></script>
   <script>document.addEventListener("DOMContentLoaded", function () {
  var mathElements = document.getElementsByClassName("math");
@@ -318,8 +318,13 @@
     "use strict";
 
     var MAX_CODE_LINES = 12;
-    // Monaco's line-number gutter (~75px) plus its vertical scrollbar (~15px).
-    var EDITOR_CHROME = 90;
+    // Everything in the editor that is not code: the line-number margin plus the
+    // vertical scrollbar. MEASURED on a rendered deck, remembering that a rect on
+    // a reveal slide carries the deck's scale: margin 25px, scrollbar 14px. It was
+    // 90 when Monaco still used its default five-character number column; the
+    // vendored qwebr-monaco-editor-element.js asks for one character now, so every
+    // code column was being sized ~50px wider than it needed.
+    var EDITOR_CHROME = 45;
     // A deliberate OVER-estimate of one character. Menlo at 15.36px measures
     // ~9.2px, and erring high is what keeps the editor from wrapping when the
     // real measurement below has not landed yet.
@@ -346,6 +351,11 @@
     // it and still wrapped.
     var MIN_CODE_PX = 320;
     var MIN_CODE_SHARE = 0.18;
+    // The narrowest column a figure may be drawn into. A plot cannot overflow, so
+    // the width test the printed-text branch uses never refuses one however small
+    // the column: this is the number that does. Measured against the stacked
+    // figure, which is drawn at 55% of the 1050px slide, i.e. 577px.
+    var MIN_PLOT_PX = 380;
     // Slack on the measured output width, same purpose as CODE_SLACK: a column
     // that fits only exactly is not a column that fits.
     var OUTPUT_SLACK = 1.08;
@@ -358,19 +368,26 @@
 
     // What every cell PRINTS, measured in R at render time by
     // measure-webr-output.R and shipped beside the deck as
-    // <deck>.webr-output.json. This is the whole point of that script: the output
+    // <deck>.webr-output.js. This is the whole point of that script: the output
     // gets a say in a decision taken before the cell has ever run.
     //
-    // Missing file, missing cell, failed fetch — all mean the same thing and are
+    // Loaded with a <script src>, not fetch(). A fetch of a sibling file is
+    // blocked on a file:// page — which is how a deck is previewed while it is
+    // being written — so every cell looked unmeasured and fell through to the
+    // "judge on the code alone" branch, i.e. side by side. The preview then
+    // disagreed with the published site about every layout on the deck. A script
+    // tag is exempt from that and loads under both.
+    //
+    // Missing file, missing cell, failed load — all mean the same thing and are
     // all safe: that cell falls back to judging on its code alone.
-    var outputSizes = (function () {
-      if (!/\.html$/.test(location.pathname) || typeof fetch !== "function") {
-        return Promise.resolve({});
-      }
-      return fetch(location.pathname.replace(/\.html$/, "") + ".webr-output.json")
-        .then(function (r) { return r.ok ? r.json() : {}; })
-        .catch(function () { return {}; });
-    })();
+    var outputSizes = new Promise(function (resolve) {
+      if (!/\.html$/.test(location.pathname)) return resolve({});
+      var tag = document.createElement("script");
+      tag.src = location.pathname.replace(/\.html$/, "") + ".webr-output.js";
+      tag.onload = function () { resolve(globalThis.webrOutputSizes || {}); };
+      tag.onerror = function () { resolve({}); };
+      document.head.appendChild(tag);
+    });
 
     function detailsFor(area) {
       var match = area.id && area.id.match(/qwebr-interactive-area-(\d+)/);
@@ -463,6 +480,11 @@
     }
 
     function setTracks(host, area, codeShare) {
+      // An author who wrote the tracks into the markup owns the split. Every
+      // measurement below leads here, so one guard in this function is the whole
+      // exemption: the estimate, the Monaco measurement and the no-wrap widening
+      // all stop writing, and nothing else in the file has to know.
+      if (host.dataset.webrCodeFixed === "true") return;
       var available = Math.max(1, (area && area.clientWidth ? area.clientWidth : 1005) - 16);
       codeShare = Math.max(codeShare, MIN_CODE_PX / available);
       codeShare = Math.max(MIN_CODE_SHARE, Math.min(MAX_CODE_SHARE, codeShare));
@@ -470,6 +492,30 @@
       host.style.setProperty("--webr-code-track", codeShare + "fr");
       host.style.setProperty("--webr-output-track", outputShare + "fr");
       host.style.setProperty("--webr-code-share", (codeShare * 100) + "%");
+    }
+
+    // THE PLOT FLOOR, RE-CHECKED AGAINST THE REAL COLUMN.
+    //
+    // sideBySideFits() applies MIN_PLOT_PX to an ESTIMATE: a canvas measurement
+    // of the longest source line in the output's font, taken before Monaco has
+    // rendered. The column a cell actually gets is set twice more after that —
+    // by measureRenderedCode() from Monaco's own metrics, and again by
+    // ensureNoWrap(), which widens the code column in 2% steps until the line
+    // stops wrapping. Both make the code column WIDER, and every pixel of it
+    // comes out of the figure. So a plot that cleared the floor on the estimate
+    // can still end up in a strip well under it — a density plot in ~330px is
+    // what prompted this. The floor has to be enforced where the real number is.
+    //
+    // This can only run during load, like every other route out of side by side.
+    // `::: {.side-out}` still wins: stack() exempts a manual wrapper.
+    function keepPlotReadable(area, host) {
+      if (host.dataset.webrCodeFixed === "true") return;
+      if (host.dataset.webrPlot !== "true") return;
+      if (host.dataset.webrLayout !== "side") return;
+      var available = Math.max(1, (area.clientWidth || 1005) - 16);
+      var share = parseFloat(host.style.getPropertyValue("--webr-code-share")) / 100;
+      if (!share) return;
+      if (available * (1 - share) < MIN_PLOT_PX) stack(host, false);
     }
 
     function measureRenderedCode(area, host, code, attempt) {
@@ -502,6 +548,8 @@
       // recomputed against the OUTPUT's measured width once the cell has run.
       host.dataset.webrCodePx = Math.ceil(widest + EDITOR_CHROME);
       setTracks(host, area, ((widest + EDITOR_CHROME) * CODE_SLACK) / available);
+      keepPlotReadable(area, host);
+      if (host.dataset.webrLayout !== "side") return;
 
       // The measured code column is now the real one, so check straight away that
       // Monaco is not wrapping in it. Before, this ran only after a cell had been
@@ -538,6 +586,10 @@
     // that cannot be wrong about wrapping, because it IS the wrapping.
     function ensureNoWrap(area, host, srcLines, attempt) {
       if (host.dataset.webrLayout !== "side") return;
+      // A hand-set split is not a prediction, so there is nothing here to correct:
+      // widening is a no-op and the stack() below would throw the author's layout
+      // away. Wrapping in a column the author chose is the author's business.
+      if (host.dataset.webrCodeFixed === "true") { markGutter(area, host); return; }
       var lines = area.querySelectorAll(".view-line");
       if (!lines.length) {
         if (attempt < 100) setTimeout(function () {
@@ -555,6 +607,10 @@
         return;
       }
       setTracks(host, area, share + 0.02);
+      // Widening the code column narrows the figure beside it, so the floor is
+      // re-checked on every step, not only on the first measurement.
+      keepPlotReadable(area, host);
+      if (host.dataset.webrLayout !== "side") return;
       // Monaco relayouts asynchronously off its own resize observer; give it a
       // frame or two before reading the line count again.
       setTimeout(function () {
@@ -599,17 +655,37 @@
       // measure-webr-output.R, or R could not evaluate it. Judge on the code alone
       // rather than refuse, so an unmeasured deck still behaves reasonably.
       if (!entry) return true;
-      // A plot is not text: it is drawn to whatever width its column has, so it
-      // always fits. (The height cap in notebook.scss keeps it in bounds.)
-      if (entry.plot) return true;
-      // Ran and printed nothing. There is no right-hand content to show, so the
-      // code keeps the full width rather than facing an empty Output banner.
-      if (!entry.rows || !entry.cols) return false;
+      // Ran and printed nothing, and drew nothing. There is no right-hand content
+      // to show, so the code keeps the full width rather than facing an empty
+      // Output banner. A figure counts as content even though it prints no text.
+      if (!entry.plot && (!entry.rows || !entry.cols)) return false;
 
       var available = Math.max(1, (area.clientWidth || 1005) - 16);
       var codePx = Math.max(MIN_CODE_PX,
         (textWidthPx(area, metrics.longest) + EDITOR_CHROME) * CODE_SLACK);
       codePx = Math.min(codePx, MAX_CODE_SHARE * available);
+
+      // A figure has no natural width, so it can never FAIL the width test below:
+      // it just shrinks into whatever strip the code left over. It gets a FLOOR
+      // instead. Above the floor, code beside its figure is a good layout and is
+      // kept; below it the axis labels stop being legible — which is what a
+      // histogram beside an 86-character line of code looks like — and the cell
+      // stacks, where the figure has the whole slide.
+      //
+      // `::: {.side-out}` overrides the floor. It is a judgement, not a fit, and
+      // an author who typed the wrapper has looked at the slide.
+      if (entry.plot) {
+        if (area.closest(".side-out")) return true;
+        // Measured against the OPENING split, not the font measurement above.
+        // layOut() opens every promoted cell on the FALLBACK_CHAR_PX estimate,
+        // and on a hidden slide or an inactive tab — where clientWidth is 0 —
+        // that estimate is the split the cell KEEPS until someone navigates to
+        // it. Judging the floor on the narrower font measurement passed cells
+        // that then opened with a 317px figure, which is the bug this fixes.
+        var openingCodePx = Math.min(MAX_CODE_SHARE * available,
+          Math.max(MIN_CODE_PX, metrics.maxChars * FALLBACK_CHAR_PX + EDITOR_CHROME));
+        return available - openingCodePx >= MIN_PLOT_PX;
+      }
       var outputPx = (textWidthPx(area, repeatChar("0", entry.cols)) + 24) * OUTPUT_SLACK;
       // Width is the FIT test: the output must live in what the code did not take.
       // The code column is never narrowed to make room for it.
@@ -659,12 +735,39 @@
       if (area.dataset.webrLayoutChecked === "true") return;
       area.dataset.webrLayoutChecked = "true";
 
+      // `::: {.stacked}` is the manual OPT-OUT, and the mirror of `.side-out`:
+      // this cell keeps the vertical stack whatever the measurements say. The two
+      // wrappers are the author's overrides in each direction, and an author who
+      // has looked at the slide outranks the arithmetic in both. It is checked
+      // FIRST, before any measuring, because there is nothing left to decide.
+      if (area.closest(".stacked")) {
+        var forcedHost = area.closest(".side-out") || area.closest(".cell") ||
+          area.parentElement;
+        if (forcedHost) {
+          forcedHost.classList.remove("side-out");
+          forcedHost.dataset.webrLayout = "stacked";
+        }
+        return;
+      }
+
       var details = detailsFor(area);
       if (!details || !details.options || details.options.context === "setup") return;
+
+      // `#| layout: stacked` is the wrapper above written as a cell option, and
+      // means the same thing. Checked here rather than with the wrapper only
+      // because the options have to be read first; nothing has been measured yet.
+      if (details.options["layout"] === "stacked") {
+        var optHost = area.closest(".side-out") || area.closest(".cell") ||
+          area.parentElement;
+        if (optHost) {
+          optHost.classList.remove("side-out");
+          optHost.dataset.webrLayout = "stacked";
+        }
+        return;
+      }
+
       var metrics = codeMetrics(details.code);
       if (!metrics.lines || metrics.lines > MAX_CODE_LINES || metrics.maxChars > 88) return;
-      // Nothing to put in the Output panel, so do not open one.
-      if (printsNothing(details.code)) return;
 
       var existingWrapper = area.closest(".side-out");
 
@@ -691,12 +794,52 @@
       // measurement noise from tearing the wrapper down.
       if (existingWrapper) host.dataset.webrLayoutManual = "true";
 
+      // `::: {.side-out style="--webr-code-track: 0.45fr; ..."}` — the author has
+      // set the split by hand. Read it BEFORE the first setTracks call, which is
+      // the moment it would otherwise be overwritten, and the cell then keeps
+      // exactly the columns the qmd asked for.
+      if (host.style.getPropertyValue("--webr-code-track")) {
+        host.dataset.webrCodeFixed = "true";
+        host.dataset.webrLayoutManual = "true";
+      }
+
+      // `#| layout: side` is `::: {.side-out}` written as a cell option, and
+      // `#| code-track: 0.6` is the split written on it — the two overrides
+      // without a div, which is what a decision about ONE cell wants. The number
+      // is the code's share; the output gets the rest, so it implies `side`.
+      // qwebr passes unknown `#|` options through untouched and
+      // measure-webr-output.R strips every `#|` line, so adding one does not
+      // change the key a cell is measured under. Adding `.side-out` here rather
+      // than only setting the flags is what makes the option identical to the
+      // wrapper: the fit tests below read the class, so the cell can override the
+      // figure floor, and code that will not fit one line still stacks.
+      var codeTrack = parseFloat(details.options["code-track"]);
+      if (codeTrack > 0 && codeTrack < 1) {
+        host.style.setProperty("--webr-code-track", codeTrack + "fr");
+        host.style.setProperty("--webr-output-track", (1 - codeTrack) + "fr");
+        host.style.setProperty("--webr-code-share", (codeTrack * 100) + "%");
+        host.dataset.webrCodeFixed = "true";
+      }
+      if ((codeTrack > 0 && codeTrack < 1) || details.options["layout"] === "side") {
+        host.classList.add("side-out");
+        host.dataset.webrLayoutManual = "true";
+      }
+
       // Wait for the measured output sizes — a fetch of a small JSON sitting
       // beside the deck, so this resolves in milliseconds, long before WebR is
       // interactive and before anyone can have clicked anything. THIS is the one
       // moment the layout is decided. Nothing later may revisit it.
       outputSizes.then(function (sizes) {
         var entry = sizes[String(details.code || "").trim()] || null;
+        // printsNothing() is a GUESS from the source, and it is only consulted
+        // when there is no measurement. It reads `if <- 3` as an assignment and
+        // therefore as silent, when what that cell actually prints is a four-line
+        // syntax error — which is the whole point of the slide it sits on.
+        // A measured cell is judged on what R really printed.
+        if (!entry && printsNothing(details.code)) {
+          host.dataset.webrLayout = "stacked";
+          return;
+        }
         if (!sideBySideFits(area, metrics, entry)) {
           // force: a `::: {.side-out}` wrapper is a request, and the class is in
           // the markup, so it must be REMOVED here or the stylesheet lays the cell
@@ -704,6 +847,7 @@
           stack(host, true);
           return;
         }
+        if (entry && entry.plot) host.dataset.webrPlot = "true";
         promote(host);
         layOut(area, host, details, metrics);
       });
@@ -1061,7 +1205,7 @@
   };
 
   // Store cell data
-  globalThis.qwebrCellDetails = [{"code":"# NOTE: a webr setup cell renders a loading widget wherever it sits, so keep it\n# inside a content slide rather than on a section divider (or, worse, above the\n# first heading, where it becomes an untitled slide of its own).\n# Mirror of lecture_theme() in lectures/_lecture-theme.R. WebR runs in the\n# browser, against a virtual filesystem that does not hold the repo, so it\n# cannot source that file. Edit the file first, then run\n#     Rscript lectures/check-lecture-theme.R\n# which fails if this copy has drifted from it.\nlecture_theme <- function(base_size = 16) {\n  ggplot2::theme_bw(base_size = base_size) +\n    ggplot2::theme(\n      axis.text = ggplot2::element_text(size = base_size * 0.9),\n      axis.title = ggplot2::element_text(size = base_size),\n      legend.text = ggplot2::element_text(size = base_size * 0.9),\n      legend.title = ggplot2::element_text(size = base_size * 0.9),\n      plot.background = ggplot2::element_rect(fill = \"transparent\", colour = NA),\n      panel.background = ggplot2::element_rect(fill = \"transparent\", colour = NA),\n      legend.background = ggplot2::element_rect(fill = \"transparent\", colour = NA),\n      legend.key = ggplot2::element_rect(fill = \"transparent\", colour = NA),\n      # theme_bw's grey92 grid was chosen against a white panel and all but\n      # disappears on the warm paper once the panel stops being opaque.\n      panel.grid = ggplot2::element_line(colour = \"grey87\")\n    )\n}\n\n# The WebR canvas is 7x4.5in at out-width 55% of its output track\n# (lectures/_metadata.yml) — a similar pixels-per-inch to the 10in knitr canvas,\n# but often narrower when the cell renders side by side, so it runs a little\n# larger than the 16pt default. 30pt did not fit this canvas at all: the panel\n# collapsed into the top third and the legend clipped.\n# webR draws its canvas at 72 dpi no matter what `dpi` says, so on a 216-dpi\n# canvas everything ggplot measures in points or mm comes out a third of its\n# size. Scale ggplot2's mm-to-point constants and the theme by the same\n# factor and the figure matches the knitr ones. Keep in step with `dpi` above.\nwebr_scale <- 216 / 72\nassignInNamespace(\".pt\", ggplot2::.pt * webr_scale, \"ggplot2\")\nassignInNamespace(\".stroke\", ggplot2::.stroke * webr_scale, \"ggplot2\")\ntheme_lecture <- lecture_theme(18 * webr_scale) +\n  # base_size also sets the theme line widths, which are in mm and already\n  # pass through the scaled .pt; pin them to what 18pt gives or they come\n  # out 9x thick.\n  ggplot2::theme(\n    line = ggplot2::element_line(linewidth = 18 / 22),\n    rect = ggplot2::element_rect(linewidth = 18 / 22)\n  )\nggplot2::theme_set(theme_lecture)","id":1,"options":{"autorun":"true","classes":"","comment":"","context":"setup","dpi":"216","editor-font-scale":"0.7","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"4.5","fig-width":"7","label":"unnamed-chunk-1","message":"true","out-height":"","out-width":"55%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"#--- prepare a dataset ---#\ndata(\"wage1\", package = \"wooldridge\")\n\n#--- run a regression ---#\nquad_reg <- fixest::feols(wage ~ female + educ + I(educ^2), vcov = \"hetero\", data = wage1)\n\n#--- look at the results ---#\nbroom::tidy(quad_reg)","id":2,"options":{"autorun":"true","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.7","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"4.5","fig-width":"7","label":"unnamed-chunk-2","message":"true","out-height":"","out-width":"55%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"N <- 1000\nx <- seq(min(wage1$educ), max(wage1$educ), length = N)\ndata <- data.table(educ = x, female = 1) %>%\n  mutate(y = predict(quad_reg, newdata = .))\n\ng_quad_ex <- \n  ggplot() +\n  geom_point(data = wage1, aes(y = wage, x = educ), size = 0.4) +\n  geom_line(data = data, aes(y = y, x = x)) +\n  theme_lecture\n\ng_quad_ex","id":3,"options":{"autorun":"true","classes":"","comment":"","context":"output","dpi":"216","editor-font-scale":"0.7","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"4.5","fig-width":"7","label":"unnamed-chunk-3","message":"true","out-height":"","out-width":"55%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"linear_reg <- fixest::feols(wage ~ female + educ, vcov = \"hetero\", data = wage1)\nbroom::tidy(linear_reg)","id":4,"options":{"autorun":"true","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.7","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"4.5","fig-width":"7","label":"unnamed-chunk-4","message":"true","out-height":"","out-width":"55%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"car::linearHypothesis(quad_reg, \"educ + 8*I(educ^2)=0\")","id":5,"options":{"autorun":"false","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.7","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"4.5","fig-width":"7","label":"unnamed-chunk-5","message":"true","out-height":"","out-width":"55%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"car::linearHypothesis(quad_reg, \"educ + 20*I(educ^2)=0\")","id":6,"options":{"autorun":"false","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.7","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"4.5","fig-width":"7","label":"unnamed-chunk-6","message":"true","out-height":"","out-width":"55%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"(\nreg_int <- fixest::feols(wage ~ female + exper + I(exper * educ), data = wage1)\n)","id":7,"options":{"autorun":"true","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.7","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"4.5","fig-width":"7","label":"unnamed-chunk-7","message":"true","out-height":"","out-width":"55%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"car::linearHypothesis(reg_int, \"exper+10*I(exper * educ)=0\")","id":8,"options":{"autorun":"true","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.7","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"4.5","fig-width":"7","label":"unnamed-chunk-8","message":"true","out-height":"","out-width":"55%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"dplyr::select(wage1, wage, educ, exper, female, married) %>%\n  head()","id":9,"options":{"autorun":"false","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.7","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"4.5","fig-width":"7","label":"unnamed-chunk-9","message":"true","out-height":"","out-width":"55%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"reg_df <- fixest::feols(wage ~ female + educ, data = wage1)\n\nreg_df","id":10,"options":{"autorun":"false","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.7","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"4.5","fig-width":"7","label":"unnamed-chunk-10","message":"true","out-height":"","out-width":"55%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"wage1 <- dplyr::mutate(wage1, male = 1 - female)\n\nreg_df <- fixest::feols(wage ~ male + educ, data = wage1)\n\nreg_df","id":11,"options":{"autorun":"true","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.7","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"4.5","fig-width":"7","label":"unnamed-chunk-11","message":"true","out-height":"","out-width":"55%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"reg_dmf <- fixest::feols(wage ~ male + female + educ, data = wage1)\n\nreg_dmf","id":12,"options":{"autorun":"true","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.7","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"4.5","fig-width":"7","label":"unnamed-chunk-12","message":"true","out-height":"","out-width":"55%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"(\nreg_di <- fixest::feols(wage ~ female + educ + I(female * educ), data = wage1)\n)","id":13,"options":{"autorun":"false","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.7","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"4.5","fig-width":"7","label":"unnamed-chunk-13","message":"true","out-height":"","out-width":"55%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"data(\"gpa3\", package = \"wooldridge\")\n\ngpa <-\n  gpa3 %>%\n  dplyr::filter(!is.na(ctothrs)) %>%\n  #--- create interaction terms ---#\n  dplyr::mutate(\n    female_sat := female * sat,\n    female_hsperc := female * hsperc,\n    female_tothrs := female * tothrs\n  )\n\n#--- regression with female dummy ---#\nreg_full <-\n  fixest::feols(\n    cumgpa ~\n      female + sat + female_sat + hsperc + female_hsperc +\n      tothrs + female_tothrs,\n    data = gpa\n  )","id":14,"options":{"autorun":"true","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.7","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"4.5","fig-width":"7","label":"unnamed-chunk-14","message":"true","out-height":"","out-width":"55%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"summary(reg_full)","id":15,"options":{"autorun":"true","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.7","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"4.5","fig-width":"7","label":"unnamed-chunk-15","message":"true","out-height":"","out-width":"55%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"car::linearHypothesis(\n  reg_full,\n  c(\n    \"female = 0\",\n    \"female_hsperc = 0\",\n    \"female_sat = 0\",\n    \"female_tothrs = 0\"\n  )\n)","id":16,"options":{"autorun":"true","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.7","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"4.5","fig-width":"7","label":"unnamed-chunk-16","message":"true","out-height":"","out-width":"55%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"#* get big9salary\ndata(\"big9salary\", package = \"wooldridge\")\n\n#* create a variable that indicates university\n#* this is how the data would look most of the time (instead of having a bunch of dummy variables)\nbig9salary_c <-\n  as_tibble(big9salary) %>%\n  dplyr::mutate(\n    university =\n      case_when(\n        osu == 1 ~ \"Ohio State U\",\n        iowa == 1 ~ \"U of Iowa\",\n        indiana == 1 ~ \"Indiana U\",\n        purdue == 1 ~ \"Purdue U\",\n        msu == 1 ~ \"Michigan State U\",\n        mich == 1 ~ \"Michigan U\",\n        wisc == 1 ~ \"U of Wisconsin\",\n        illinois == 1 ~ \"U of Illinois\"\n      )\n  ) %>%\n  dplyr::relocate(id, year, salary, pubindx, university)","id":17,"options":{"autorun":"false","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.7","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"4.5","fig-width":"7","label":"unnamed-chunk-17","message":"true","out-height":"","out-width":"55%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"head(big9salary_c)\n\ntail(big9salary_c)","id":18,"options":{"autorun":"false","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.7","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"4.5","fig-width":"7","label":"unnamed-chunk-18","message":"true","out-height":"","out-width":"55%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"fixest::feols(salary ~ pubindx + female + i(university, ref = \"Indiana U\"), data = big9salary_c) %>%\n  broom::tidy()","id":19,"options":{"autorun":"false","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.7","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"4.5","fig-width":"7","label":"unnamed-chunk-19","message":"true","out-height":"","out-width":"55%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"fixest::feols(salary ~ female + pubindx + i(university, ref = \"Indiana U\") + i(university, pubindx, ref = \"Indiana U\"), data = big9salary_c) %>%\n  broom::tidy()","id":20,"options":{"autorun":"false","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.7","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"4.5","fig-width":"7","label":"unnamed-chunk-20","message":"true","out-height":"","out-width":"55%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"data(apple, package = \"wooldridge\")\n\n(\nfixest::feols(ecolbs ~ regprc + ecoprc, data = apple)\n)","id":21,"options":{"autorun":"false","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.7","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"4.5","fig-width":"7","label":"unnamed-chunk-21","message":"true","out-height":"","out-width":"55%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"#--- regression with original scale ---#\nfixest::feols(wage ~ female + educ, data = wage1)","id":22,"options":{"autorun":"true","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.7","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"4.5","fig-width":"7","label":"unnamed-chunk-22","message":"true","out-height":"","out-width":"55%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"#--- regression with scaled educ ---#\nfixest::feols(wage ~ female + I(educ * 12), data = wage1)","id":23,"options":{"autorun":"true","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.7","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"4.5","fig-width":"7","label":"unnamed-chunk-23","message":"true","out-height":"","out-width":"55%","output":"true","read-only":"false","results":"markup","warning":"true"}}];
+  globalThis.qwebrCellDetails = [{"code":"# NOTE: a webr setup cell renders a loading widget wherever it sits, so keep it\n# inside a content slide rather than on a section divider (or, worse, above the\n# first heading, where it becomes an untitled slide of its own).\n# Mirror of lecture_theme() in lectures/_lecture-theme.R. WebR runs in the\n# browser, against a virtual filesystem that does not hold the repo, so it\n# cannot source that file. Edit the file first, then run\n#     Rscript lectures/check-lecture-theme.R\n# which fails if this copy has drifted from it.\nlecture_theme <- function(base_size = 16) {\n  ggplot2::theme_bw(base_size = base_size) +\n    ggplot2::theme(\n      axis.text = ggplot2::element_text(size = base_size * 0.9),\n      axis.title = ggplot2::element_text(size = base_size),\n      legend.text = ggplot2::element_text(size = base_size * 0.9),\n      legend.title = ggplot2::element_text(size = base_size * 0.9),\n      plot.background = ggplot2::element_rect(fill = \"transparent\", colour = NA),\n      panel.background = ggplot2::element_rect(fill = \"transparent\", colour = NA),\n      legend.background = ggplot2::element_rect(fill = \"transparent\", colour = NA),\n      legend.key = ggplot2::element_rect(fill = \"transparent\", colour = NA),\n      # theme_bw's grey92 grid was chosen against a white panel and all but\n      # disappears on the warm paper once the panel stops being opaque.\n      panel.grid = ggplot2::element_line(colour = \"grey87\")\n    )\n}\n\n# The WebR canvas is 10x6in at out-width 100% of its output track\n# (lectures/_metadata.yml), the same canvas the knitr figures use. It asks for\n# the whole track because the 420px height cap in notebook.scss is what really\n# sizes it. 18pt rather than the 16pt knitr default: on a full slide both land\n# at 700x420, where 18pt reads at 17.5px and 16pt at 15.5px, and these decks\n# put figures in half-width columns where the smaller size gets hard to read.\n# webR draws its canvas at 72 dpi no matter what `dpi` says, so on a 216-dpi\n# canvas everything ggplot measures in points or mm comes out a third of its\n# size. Scale ggplot2's mm-to-point constants and the theme by the same\n# factor and the figure matches the knitr ones. Keep in step with `dpi` above.\nwebr_scale <- 216 / 72\nassignInNamespace(\".pt\", ggplot2::.pt * webr_scale, \"ggplot2\")\nassignInNamespace(\".stroke\", ggplot2::.stroke * webr_scale, \"ggplot2\")\ntheme_lecture <- lecture_theme(18 * webr_scale) +\n  # base_size also sets the theme line widths, which are in mm and already\n  # pass through the scaled .pt; pin them to what 18pt gives or they come\n  # out 9x thick.\n  ggplot2::theme(\n    line = ggplot2::element_line(linewidth = 18 / 22),\n    rect = ggplot2::element_rect(linewidth = 18 / 22)\n  )\nggplot2::theme_set(theme_lecture)","id":1,"options":{"autorun":"true","classes":"","comment":"","context":"setup","dpi":"216","editor-font-scale":"0.7","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"6","fig-width":"10","label":"unnamed-chunk-1","message":"true","out-height":"","out-width":"100%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"#--- prepare a dataset ---#\ndata(\"wage1\", package = \"wooldridge\")\n\n#--- run a regression ---#\nquad_reg <- fixest::feols(wage ~ female + educ + I(educ^2), vcov = \"hetero\", data = wage1)\n\n#--- look at the results ---#\nbroom::tidy(quad_reg)","id":2,"options":{"autorun":"true","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.7","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"6","fig-width":"10","label":"unnamed-chunk-2","message":"true","out-height":"","out-width":"100%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"N <- 1000\nx <- seq(min(wage1$educ), max(wage1$educ), length = N)\ndata <- data.table(educ = x, female = 1) %>%\n  mutate(y = predict(quad_reg, newdata = .))\n\ng_quad_ex <- \n  ggplot() +\n  geom_point(data = wage1, aes(y = wage, x = educ), size = 0.4) +\n  geom_line(data = data, aes(y = y, x = x)) +\n  theme_lecture\n\ng_quad_ex","id":3,"options":{"autorun":"true","classes":"","comment":"","context":"output","dpi":"216","editor-font-scale":"0.7","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"6","fig-width":"10","label":"unnamed-chunk-3","message":"true","out-height":"","out-width":"100%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"linear_reg <- fixest::feols(wage ~ female + educ, vcov = \"hetero\", data = wage1)\nbroom::tidy(linear_reg)","id":4,"options":{"autorun":"true","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.7","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"6","fig-width":"10","label":"unnamed-chunk-4","message":"true","out-height":"","out-width":"100%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"car::linearHypothesis(quad_reg, \"educ + 8*I(educ^2)=0\")","id":5,"options":{"autorun":"false","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.7","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"6","fig-width":"10","label":"unnamed-chunk-5","message":"true","out-height":"","out-width":"100%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"car::linearHypothesis(quad_reg, \"educ + 20*I(educ^2)=0\")","id":6,"options":{"autorun":"false","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.7","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"6","fig-width":"10","label":"unnamed-chunk-6","message":"true","out-height":"","out-width":"100%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"(\nreg_int <- fixest::feols(wage ~ female + exper + I(exper * educ), data = wage1)\n)","id":7,"options":{"autorun":"true","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.7","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"6","fig-width":"10","label":"unnamed-chunk-7","message":"true","out-height":"","out-width":"100%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"car::linearHypothesis(reg_int, \"exper+10*I(exper * educ)=0\")","id":8,"options":{"autorun":"true","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.7","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"6","fig-width":"10","label":"unnamed-chunk-8","message":"true","out-height":"","out-width":"100%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"dplyr::select(wage1, wage, educ, exper, female, married) %>%\n  head()","id":9,"options":{"autorun":"false","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.7","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"6","fig-width":"10","label":"unnamed-chunk-9","message":"true","out-height":"","out-width":"100%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"reg_df <- fixest::feols(wage ~ female + educ, data = wage1)\n\nreg_df","id":10,"options":{"autorun":"false","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.7","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"6","fig-width":"10","label":"unnamed-chunk-10","message":"true","out-height":"","out-width":"100%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"wage1 <- dplyr::mutate(wage1, male = 1 - female)\n\nreg_df <- fixest::feols(wage ~ male + educ, data = wage1)\n\nreg_df","id":11,"options":{"autorun":"true","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.7","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"6","fig-width":"10","label":"unnamed-chunk-11","message":"true","out-height":"","out-width":"100%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"reg_dmf <- fixest::feols(wage ~ male + female + educ, data = wage1)\n\nreg_dmf","id":12,"options":{"autorun":"true","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.7","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"6","fig-width":"10","label":"unnamed-chunk-12","message":"true","out-height":"","out-width":"100%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"(\nreg_di <- fixest::feols(wage ~ female + educ + I(female * educ), data = wage1)\n)","id":13,"options":{"autorun":"false","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.7","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"6","fig-width":"10","label":"unnamed-chunk-13","message":"true","out-height":"","out-width":"100%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"data(\"gpa3\", package = \"wooldridge\")\n\ngpa <-\n  gpa3 %>%\n  dplyr::filter(!is.na(ctothrs)) %>%\n  #--- create interaction terms ---#\n  dplyr::mutate(\n    female_sat := female * sat,\n    female_hsperc := female * hsperc,\n    female_tothrs := female * tothrs\n  )\n\n#--- regression with female dummy ---#\nreg_full <-\n  fixest::feols(\n    cumgpa ~\n      female + sat + female_sat + hsperc + female_hsperc +\n      tothrs + female_tothrs,\n    data = gpa\n  )","id":14,"options":{"autorun":"true","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.7","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"6","fig-width":"10","label":"unnamed-chunk-14","message":"true","out-height":"","out-width":"100%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"summary(reg_full)","id":15,"options":{"autorun":"true","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.7","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"6","fig-width":"10","label":"unnamed-chunk-15","message":"true","out-height":"","out-width":"100%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"car::linearHypothesis(\n  reg_full,\n  c(\n    \"female = 0\",\n    \"female_hsperc = 0\",\n    \"female_sat = 0\",\n    \"female_tothrs = 0\"\n  )\n)","id":16,"options":{"autorun":"true","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.7","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"6","fig-width":"10","label":"unnamed-chunk-16","message":"true","out-height":"","out-width":"100%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"#* get big9salary\ndata(\"big9salary\", package = \"wooldridge\")\n\n#* create a variable that indicates university\n#* this is how the data would look most of the time (instead of having a bunch of dummy variables)\nbig9salary_c <-\n  as_tibble(big9salary) %>%\n  dplyr::mutate(\n    university =\n      case_when(\n        osu == 1 ~ \"Ohio State U\",\n        iowa == 1 ~ \"U of Iowa\",\n        indiana == 1 ~ \"Indiana U\",\n        purdue == 1 ~ \"Purdue U\",\n        msu == 1 ~ \"Michigan State U\",\n        mich == 1 ~ \"Michigan U\",\n        wisc == 1 ~ \"U of Wisconsin\",\n        illinois == 1 ~ \"U of Illinois\"\n      )\n  ) %>%\n  dplyr::relocate(id, year, salary, pubindx, university)","id":17,"options":{"autorun":"false","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.7","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"6","fig-width":"10","label":"unnamed-chunk-17","message":"true","out-height":"","out-width":"100%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"head(big9salary_c)\n\ntail(big9salary_c)","id":18,"options":{"autorun":"false","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.7","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"6","fig-width":"10","label":"unnamed-chunk-18","message":"true","out-height":"","out-width":"100%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"fixest::feols(salary ~ pubindx + female + i(university, ref = \"Indiana U\"), data = big9salary_c) %>%\n  broom::tidy()","id":19,"options":{"autorun":"false","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.7","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"6","fig-width":"10","label":"unnamed-chunk-19","message":"true","out-height":"","out-width":"100%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"fixest::feols(salary ~ female + pubindx + i(university, ref = \"Indiana U\") + i(university, pubindx, ref = \"Indiana U\"), data = big9salary_c) %>%\n  broom::tidy()","id":20,"options":{"autorun":"false","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.7","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"6","fig-width":"10","label":"unnamed-chunk-20","message":"true","out-height":"","out-width":"100%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"data(apple, package = \"wooldridge\")\n\n(\nfixest::feols(ecolbs ~ regprc + ecoprc, data = apple)\n)","id":21,"options":{"autorun":"false","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.7","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"6","fig-width":"10","label":"unnamed-chunk-21","message":"true","out-height":"","out-width":"100%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"#--- regression with original scale ---#\nfixest::feols(wage ~ female + educ, data = wage1)","id":22,"options":{"autorun":"true","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.7","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"6","fig-width":"10","label":"unnamed-chunk-22","message":"true","out-height":"","out-width":"100%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"#--- regression with scaled educ ---#\nfixest::feols(wage ~ female + I(educ * 12), data = wage1)","id":23,"options":{"autorun":"true","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.7","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"6","fig-width":"10","label":"unnamed-chunk-23","message":"true","out-height":"","out-width":"100%","output":"true","read-only":"false","results":"markup","warning":"true"}}];
 
   </script>
   <script type="module">
@@ -2068,11 +2212,23 @@
       // Store the code to run in history
       qwebrLogCodeToHistory(codeToRun, options);
 
+      // webR's canvas draws text at the `pointsize` set above but still reports
+      // its character metrics as if the font were 12pt. R sizes plot margins in
+      // "lines" from those metrics, so on a 216 dpi canvas the margins come out
+      // three times too small and base graphics draw the y-axis label off the
+      // left edge. `mex` is the factor R uses when turning margin lines into
+      // physical units, so setting it to the same dpi/72 restores them. It is
+      // prepended on the code's first line, not a line of its own, so a parse
+      // error still reports the line number the student sees in the editor.
+      const marginFix = captureOutputOptions.captureGraphics
+          ? `par(mex = ${options["dpi"] / 72}); `
+          : "";
+
       // Setup a webR canvas by making a namespace call into the {webr} package
       // Evaluate the R code
       // Remove the active canvas silently
       const result = await mainWebRCodeShelter.captureR(
-          `${codeToRun}`,
+          `${marginFix}${codeToRun}`,
           captureOutputOptions
       );
 
@@ -2360,6 +2516,23 @@ globalThis.qwebrCreateMonacoEditorInstance = function (cellData) {
       fontSize: qwebrScaledFontSize(editorDiv, qwebrOptions),         
       renderLineHighlight: "none",      // Disable current line highlighting
       hideCursorInOverviewRuler: true,  // Remove cursor indictor in right hand side scroll bar
+      // PATCHED, see RULES.md. Monaco's defaults reserve five characters of
+      // number column (`lineNumbersMinChars: 5`) and a 10px decorations strip
+      // beside it, which on a cell of at most a couple of dozen lines is a wide
+      // empty band between the number and the code. Two characters covers every
+      // cell in these decks (99 lines), and the decorations strip carries
+      // nothing here — no breakpoints, no folding.
+      lineNumbersMinChars: 1,
+      // The gap between the number and the first character. 4 put them in
+      // contact ("1#--- addition"); Monaco's default 10 sits beside a
+      // five-character number column, which is what made the band look empty.
+      // The gap between the number and the first character. The whole margin is
+      // this plus the digits: 6 read as too tight, 12 as too loose, so 9 —
+      // a 25px margin on a ten-plus-line cell, 17px on a short one, against the
+      // ~75px Monaco's defaults gave.
+      lineDecorationsWidth: 9,
+      folding: false,
+      glyphMargin: false,
       readOnly: qwebrOptions['read-only'] ?? false,
       quickSuggestions: qwebrOptions['editor-quick-suggestions'] ?? false,
       wordWrap: (qwebrOptions['editor-word-wrap'] == 'true' ? "on" : "off")
@@ -2686,14 +2859,14 @@ Transcript
 <p>Take logs of the dependent variable only. Differentiating both sides with respect to x, the chain rule puts one over y on the left, so beta one equals the proportional change in y per one-unit change in x. Multiply by one hundred and you have a percentage. The wording matters: a one-unit increase in x is associated with a beta-one-times-one-hundred percent change in y, not a beta-one-unit change. This approximation is good for small beta one; for larger coefficients the exact percentage is one hundred times the quantity exponential of beta one minus one.</p>
 </details>
 <p><strong>Model</strong></p>
-<span class="math display">\begin{align}
+<span class="math display">\begin{align*}
   log(y_i)= \beta_0+\beta_1 x_i + u_i \notag
-\end{align}</span>
+\end{align*}</span>
 <p><strong>Calculus</strong></p>
 <p>Differentiating the both sides wrt <span class="math inline">x_i</span>,</p>
-<span class="math display">\begin{align}
+<span class="math display">\begin{align*}
   \frac{1}{y_i}\cdot\frac{\partial y_i}{\partial x_i} = \beta_1 \Rightarrow \frac{\Delta y_i}{y_i} = \beta_1 \Delta x_i \notag
-\end{align}</span>
+\end{align*}</span>
 <p><strong>Interpretation</strong></p>
 <p><span class="math inline">\beta_1</span> measures a percentage change in <span class="math inline">y_i</span> (once multiplied by 100) when <span class="math inline">x_i</span> is increased by one unit</p>
 </div>
@@ -2722,14 +2895,14 @@ Transcript
 <p>Applying the same algebra to the wage equation gives the interpretation you will use constantly in labor economics. Beta one is the proportional change in wage per additional year of schooling, so multiplying by one hundred gives the return to education in percent. This is why log wage rather than wage is the standard left-hand-side variable in this literature. A percentage return is comparable across countries, decades, and wage levels, whereas a dollar return is not.</p>
 </details>
 <p><strong>Model</strong></p>
-<span class="math display">\begin{align}
+<span class="math display">\begin{align*}
     log(wage)=\beta_0 + \beta_1 educ + u \notag
-\end{align}</span>
+\end{align*}</span>
 <p><strong>Calculus</strong></p>
 <p>Differentiating both sides with respect to <span class="math inline">educ</span>,</p>
-<span class="math display">\begin{align}
+<span class="math display">\begin{align*}
     \frac{1}{wage} \frac{\partial wage}{\partial educ} = \beta_1 \Rightarrow \frac{\Delta wage}{wage} = \beta_1\Delta educ\notag
-\end{align}</span>
+\end{align*}</span>
 <p><strong>Interpretation</strong></p>
 <p>If education increases by 1 year <span class="math inline">(\Delta educ=1)</span>, then wage increases by <span class="math inline">\beta_1*100\%</span> <span class="math inline">(\frac{\Delta wage}{wage}=\beta_1)</span></p>
 </div>
@@ -2746,12 +2919,12 @@ Transcript
 <p><span class="math display">log(wage)=\beta_0 + \beta_1 educ + u \notag</span></p>
 <p><br></p>
 <p>Then, the estimated equation is the following:</p>
-<span class="math display">\begin{align}
+<span class="math display">\begin{align*}
   \widehat{log(wage)}=0.584+0.083 educ \notag
-\end{align}</span>
-<span class="math display">\begin{align}
+\end{align*}</span>
+<span class="math display">\begin{align*}
   \widehat{wage}=e^{0.584+0.083 educ}
-\end{align}</span>
+\end{align*}</span>
 <div title="Careful">
 <div class="callout callout-note no-icon callout-titled callout-style-default">
 <div class="callout-body">
@@ -2794,14 +2967,14 @@ Transcript
 <p>Now the transformation is on the right-hand side instead. Differentiating, the derivative of the log puts one over x on the right, so beta one multiplies the proportional change in x. Read the interpretation carefully: a one percent increase in x, meaning delta x over x equals zero point zero one, raises y by beta one times zero point zero one in the units of y. Students routinely misstate this as a one-unit change in x, so slow down here. This form suits a regressor with strongly diminishing returns, such as firm size or income.</p>
 </details>
 <p><strong>Model</strong></p>
-<span class="math display">\begin{align}
+<span class="math display">\begin{align*}
   y_i= \beta_0+\beta_1 log(x_i) +u_i \notag
-\end{align}</span>
+\end{align*}</span>
 <p><strong>Calculus</strong></p>
 <p>Differentiating the both sides wrt <span class="math inline">x_i</span>,</p>
-<span class="math display">\begin{align}
+<span class="math display">\begin{align*}
   \frac{\partial y_i}{\partial x_i} = \frac{\beta_1}{x_i} \Rightarrow \Delta y_i = \beta_1\frac{\Delta x_i}{x_i} \notag
-\end{align}</span>
+\end{align*}</span>
 <p><strong>Interpretation</strong></p>
 <p>When <span class="math inline">x</span> increases by <span class="math inline">1\%</span> (that is, <span class="math inline">\frac{\Delta x_i}{x_i} = 0.01</span>), <span class="math inline">y</span> increases by <span class="math inline">\beta_1 \times 0.01</span> units.</p>
 </div>
@@ -2835,14 +3008,14 @@ Transcript
 <p>Logs on both sides give the constant-elasticity model, which is why this specification appears everywhere in demand and production estimation. Beta one is an elasticity: a one percent change in x produces a beta-one percent change in y, and crucially that percentage is the same everywhere along the curve. That constancy is a real restriction. If you believe demand is more elastic at high prices than at low ones, log-log has assumed the problem away, and you would need interactions or a more flexible form to let the elasticity vary.</p>
 </details>
 <p><strong>Model</strong></p>
-<span class="math display">\begin{align}
+<span class="math display">\begin{align*}
   log(y_i)= \beta_0+\beta_1 log(x_i) +u_i \notag
-\end{align}</span>
+\end{align*}</span>
 <p><strong>Calculus</strong></p>
 <p>Differentiating the both sides wrt <span class="math inline">x_i</span>,</p>
-<span class="math display">\begin{align}
+<span class="math display">\begin{align*}
   \frac{\partial y_i}{y_i}/\frac{\partial x_i}{x_i} = \beta_1 \Rightarrow \frac{\Delta y_i}{y_i} = \beta_1 \frac{\Delta x_i}{x_i}\notag
-\end{align}</span>
+\end{align*}</span>
 <p><strong>Interpretation</strong></p>
 <p>A <span style="color: blue;"> percentage </span> change in <span class="math inline">x</span> would result in a <span class="math inline">\beta_1</span> <span style="color: blue;"> percentage </span> change in <span class="math inline">y_i</span> (constant elasticity)</p>
 </div>

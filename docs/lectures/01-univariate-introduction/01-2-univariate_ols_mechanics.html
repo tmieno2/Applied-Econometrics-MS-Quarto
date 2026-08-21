@@ -28,7 +28,7 @@
       vertical-align: middle;
     }
   </style>
-  <link rel="stylesheet" href="../../site_libs/revealjs/dist/theme/quarto-bf1223c773699056cca1ada9baf1738b.css">
+  <link rel="stylesheet" href="../../site_libs/revealjs/dist/theme/quarto-5749ef3d543d853c9975bfcccaade8de.css">
   <script defer="" src="https://cdn.jsdelivr.net/npm/katex@0.18.4/dist/katex.min.js"></script>
   <script>document.addEventListener("DOMContentLoaded", function () {
  var mathElements = document.getElementsByClassName("math");
@@ -318,8 +318,13 @@
     "use strict";
 
     var MAX_CODE_LINES = 12;
-    // Monaco's line-number gutter (~75px) plus its vertical scrollbar (~15px).
-    var EDITOR_CHROME = 90;
+    // Everything in the editor that is not code: the line-number margin plus the
+    // vertical scrollbar. MEASURED on a rendered deck, remembering that a rect on
+    // a reveal slide carries the deck's scale: margin 25px, scrollbar 14px. It was
+    // 90 when Monaco still used its default five-character number column; the
+    // vendored qwebr-monaco-editor-element.js asks for one character now, so every
+    // code column was being sized ~50px wider than it needed.
+    var EDITOR_CHROME = 45;
     // A deliberate OVER-estimate of one character. Menlo at 15.36px measures
     // ~9.2px, and erring high is what keeps the editor from wrapping when the
     // real measurement below has not landed yet.
@@ -346,6 +351,11 @@
     // it and still wrapped.
     var MIN_CODE_PX = 320;
     var MIN_CODE_SHARE = 0.18;
+    // The narrowest column a figure may be drawn into. A plot cannot overflow, so
+    // the width test the printed-text branch uses never refuses one however small
+    // the column: this is the number that does. Measured against the stacked
+    // figure, which is drawn at 55% of the 1050px slide, i.e. 577px.
+    var MIN_PLOT_PX = 380;
     // Slack on the measured output width, same purpose as CODE_SLACK: a column
     // that fits only exactly is not a column that fits.
     var OUTPUT_SLACK = 1.08;
@@ -358,19 +368,26 @@
 
     // What every cell PRINTS, measured in R at render time by
     // measure-webr-output.R and shipped beside the deck as
-    // <deck>.webr-output.json. This is the whole point of that script: the output
+    // <deck>.webr-output.js. This is the whole point of that script: the output
     // gets a say in a decision taken before the cell has ever run.
     //
-    // Missing file, missing cell, failed fetch — all mean the same thing and are
+    // Loaded with a <script src>, not fetch(). A fetch of a sibling file is
+    // blocked on a file:// page — which is how a deck is previewed while it is
+    // being written — so every cell looked unmeasured and fell through to the
+    // "judge on the code alone" branch, i.e. side by side. The preview then
+    // disagreed with the published site about every layout on the deck. A script
+    // tag is exempt from that and loads under both.
+    //
+    // Missing file, missing cell, failed load — all mean the same thing and are
     // all safe: that cell falls back to judging on its code alone.
-    var outputSizes = (function () {
-      if (!/\.html$/.test(location.pathname) || typeof fetch !== "function") {
-        return Promise.resolve({});
-      }
-      return fetch(location.pathname.replace(/\.html$/, "") + ".webr-output.json")
-        .then(function (r) { return r.ok ? r.json() : {}; })
-        .catch(function () { return {}; });
-    })();
+    var outputSizes = new Promise(function (resolve) {
+      if (!/\.html$/.test(location.pathname)) return resolve({});
+      var tag = document.createElement("script");
+      tag.src = location.pathname.replace(/\.html$/, "") + ".webr-output.js";
+      tag.onload = function () { resolve(globalThis.webrOutputSizes || {}); };
+      tag.onerror = function () { resolve({}); };
+      document.head.appendChild(tag);
+    });
 
     function detailsFor(area) {
       var match = area.id && area.id.match(/qwebr-interactive-area-(\d+)/);
@@ -463,6 +480,11 @@
     }
 
     function setTracks(host, area, codeShare) {
+      // An author who wrote the tracks into the markup owns the split. Every
+      // measurement below leads here, so one guard in this function is the whole
+      // exemption: the estimate, the Monaco measurement and the no-wrap widening
+      // all stop writing, and nothing else in the file has to know.
+      if (host.dataset.webrCodeFixed === "true") return;
       var available = Math.max(1, (area && area.clientWidth ? area.clientWidth : 1005) - 16);
       codeShare = Math.max(codeShare, MIN_CODE_PX / available);
       codeShare = Math.max(MIN_CODE_SHARE, Math.min(MAX_CODE_SHARE, codeShare));
@@ -470,6 +492,30 @@
       host.style.setProperty("--webr-code-track", codeShare + "fr");
       host.style.setProperty("--webr-output-track", outputShare + "fr");
       host.style.setProperty("--webr-code-share", (codeShare * 100) + "%");
+    }
+
+    // THE PLOT FLOOR, RE-CHECKED AGAINST THE REAL COLUMN.
+    //
+    // sideBySideFits() applies MIN_PLOT_PX to an ESTIMATE: a canvas measurement
+    // of the longest source line in the output's font, taken before Monaco has
+    // rendered. The column a cell actually gets is set twice more after that —
+    // by measureRenderedCode() from Monaco's own metrics, and again by
+    // ensureNoWrap(), which widens the code column in 2% steps until the line
+    // stops wrapping. Both make the code column WIDER, and every pixel of it
+    // comes out of the figure. So a plot that cleared the floor on the estimate
+    // can still end up in a strip well under it — a density plot in ~330px is
+    // what prompted this. The floor has to be enforced where the real number is.
+    //
+    // This can only run during load, like every other route out of side by side.
+    // `::: {.side-out}` still wins: stack() exempts a manual wrapper.
+    function keepPlotReadable(area, host) {
+      if (host.dataset.webrCodeFixed === "true") return;
+      if (host.dataset.webrPlot !== "true") return;
+      if (host.dataset.webrLayout !== "side") return;
+      var available = Math.max(1, (area.clientWidth || 1005) - 16);
+      var share = parseFloat(host.style.getPropertyValue("--webr-code-share")) / 100;
+      if (!share) return;
+      if (available * (1 - share) < MIN_PLOT_PX) stack(host, false);
     }
 
     function measureRenderedCode(area, host, code, attempt) {
@@ -502,6 +548,8 @@
       // recomputed against the OUTPUT's measured width once the cell has run.
       host.dataset.webrCodePx = Math.ceil(widest + EDITOR_CHROME);
       setTracks(host, area, ((widest + EDITOR_CHROME) * CODE_SLACK) / available);
+      keepPlotReadable(area, host);
+      if (host.dataset.webrLayout !== "side") return;
 
       // The measured code column is now the real one, so check straight away that
       // Monaco is not wrapping in it. Before, this ran only after a cell had been
@@ -538,6 +586,10 @@
     // that cannot be wrong about wrapping, because it IS the wrapping.
     function ensureNoWrap(area, host, srcLines, attempt) {
       if (host.dataset.webrLayout !== "side") return;
+      // A hand-set split is not a prediction, so there is nothing here to correct:
+      // widening is a no-op and the stack() below would throw the author's layout
+      // away. Wrapping in a column the author chose is the author's business.
+      if (host.dataset.webrCodeFixed === "true") { markGutter(area, host); return; }
       var lines = area.querySelectorAll(".view-line");
       if (!lines.length) {
         if (attempt < 100) setTimeout(function () {
@@ -555,6 +607,10 @@
         return;
       }
       setTracks(host, area, share + 0.02);
+      // Widening the code column narrows the figure beside it, so the floor is
+      // re-checked on every step, not only on the first measurement.
+      keepPlotReadable(area, host);
+      if (host.dataset.webrLayout !== "side") return;
       // Monaco relayouts asynchronously off its own resize observer; give it a
       // frame or two before reading the line count again.
       setTimeout(function () {
@@ -599,17 +655,37 @@
       // measure-webr-output.R, or R could not evaluate it. Judge on the code alone
       // rather than refuse, so an unmeasured deck still behaves reasonably.
       if (!entry) return true;
-      // A plot is not text: it is drawn to whatever width its column has, so it
-      // always fits. (The height cap in notebook.scss keeps it in bounds.)
-      if (entry.plot) return true;
-      // Ran and printed nothing. There is no right-hand content to show, so the
-      // code keeps the full width rather than facing an empty Output banner.
-      if (!entry.rows || !entry.cols) return false;
+      // Ran and printed nothing, and drew nothing. There is no right-hand content
+      // to show, so the code keeps the full width rather than facing an empty
+      // Output banner. A figure counts as content even though it prints no text.
+      if (!entry.plot && (!entry.rows || !entry.cols)) return false;
 
       var available = Math.max(1, (area.clientWidth || 1005) - 16);
       var codePx = Math.max(MIN_CODE_PX,
         (textWidthPx(area, metrics.longest) + EDITOR_CHROME) * CODE_SLACK);
       codePx = Math.min(codePx, MAX_CODE_SHARE * available);
+
+      // A figure has no natural width, so it can never FAIL the width test below:
+      // it just shrinks into whatever strip the code left over. It gets a FLOOR
+      // instead. Above the floor, code beside its figure is a good layout and is
+      // kept; below it the axis labels stop being legible — which is what a
+      // histogram beside an 86-character line of code looks like — and the cell
+      // stacks, where the figure has the whole slide.
+      //
+      // `::: {.side-out}` overrides the floor. It is a judgement, not a fit, and
+      // an author who typed the wrapper has looked at the slide.
+      if (entry.plot) {
+        if (area.closest(".side-out")) return true;
+        // Measured against the OPENING split, not the font measurement above.
+        // layOut() opens every promoted cell on the FALLBACK_CHAR_PX estimate,
+        // and on a hidden slide or an inactive tab — where clientWidth is 0 —
+        // that estimate is the split the cell KEEPS until someone navigates to
+        // it. Judging the floor on the narrower font measurement passed cells
+        // that then opened with a 317px figure, which is the bug this fixes.
+        var openingCodePx = Math.min(MAX_CODE_SHARE * available,
+          Math.max(MIN_CODE_PX, metrics.maxChars * FALLBACK_CHAR_PX + EDITOR_CHROME));
+        return available - openingCodePx >= MIN_PLOT_PX;
+      }
       var outputPx = (textWidthPx(area, repeatChar("0", entry.cols)) + 24) * OUTPUT_SLACK;
       // Width is the FIT test: the output must live in what the code did not take.
       // The code column is never narrowed to make room for it.
@@ -659,12 +735,39 @@
       if (area.dataset.webrLayoutChecked === "true") return;
       area.dataset.webrLayoutChecked = "true";
 
+      // `::: {.stacked}` is the manual OPT-OUT, and the mirror of `.side-out`:
+      // this cell keeps the vertical stack whatever the measurements say. The two
+      // wrappers are the author's overrides in each direction, and an author who
+      // has looked at the slide outranks the arithmetic in both. It is checked
+      // FIRST, before any measuring, because there is nothing left to decide.
+      if (area.closest(".stacked")) {
+        var forcedHost = area.closest(".side-out") || area.closest(".cell") ||
+          area.parentElement;
+        if (forcedHost) {
+          forcedHost.classList.remove("side-out");
+          forcedHost.dataset.webrLayout = "stacked";
+        }
+        return;
+      }
+
       var details = detailsFor(area);
       if (!details || !details.options || details.options.context === "setup") return;
+
+      // `#| layout: stacked` is the wrapper above written as a cell option, and
+      // means the same thing. Checked here rather than with the wrapper only
+      // because the options have to be read first; nothing has been measured yet.
+      if (details.options["layout"] === "stacked") {
+        var optHost = area.closest(".side-out") || area.closest(".cell") ||
+          area.parentElement;
+        if (optHost) {
+          optHost.classList.remove("side-out");
+          optHost.dataset.webrLayout = "stacked";
+        }
+        return;
+      }
+
       var metrics = codeMetrics(details.code);
       if (!metrics.lines || metrics.lines > MAX_CODE_LINES || metrics.maxChars > 88) return;
-      // Nothing to put in the Output panel, so do not open one.
-      if (printsNothing(details.code)) return;
 
       var existingWrapper = area.closest(".side-out");
 
@@ -691,12 +794,52 @@
       // measurement noise from tearing the wrapper down.
       if (existingWrapper) host.dataset.webrLayoutManual = "true";
 
+      // `::: {.side-out style="--webr-code-track: 0.45fr; ..."}` — the author has
+      // set the split by hand. Read it BEFORE the first setTracks call, which is
+      // the moment it would otherwise be overwritten, and the cell then keeps
+      // exactly the columns the qmd asked for.
+      if (host.style.getPropertyValue("--webr-code-track")) {
+        host.dataset.webrCodeFixed = "true";
+        host.dataset.webrLayoutManual = "true";
+      }
+
+      // `#| layout: side` is `::: {.side-out}` written as a cell option, and
+      // `#| code-track: 0.6` is the split written on it — the two overrides
+      // without a div, which is what a decision about ONE cell wants. The number
+      // is the code's share; the output gets the rest, so it implies `side`.
+      // qwebr passes unknown `#|` options through untouched and
+      // measure-webr-output.R strips every `#|` line, so adding one does not
+      // change the key a cell is measured under. Adding `.side-out` here rather
+      // than only setting the flags is what makes the option identical to the
+      // wrapper: the fit tests below read the class, so the cell can override the
+      // figure floor, and code that will not fit one line still stacks.
+      var codeTrack = parseFloat(details.options["code-track"]);
+      if (codeTrack > 0 && codeTrack < 1) {
+        host.style.setProperty("--webr-code-track", codeTrack + "fr");
+        host.style.setProperty("--webr-output-track", (1 - codeTrack) + "fr");
+        host.style.setProperty("--webr-code-share", (codeTrack * 100) + "%");
+        host.dataset.webrCodeFixed = "true";
+      }
+      if ((codeTrack > 0 && codeTrack < 1) || details.options["layout"] === "side") {
+        host.classList.add("side-out");
+        host.dataset.webrLayoutManual = "true";
+      }
+
       // Wait for the measured output sizes — a fetch of a small JSON sitting
       // beside the deck, so this resolves in milliseconds, long before WebR is
       // interactive and before anyone can have clicked anything. THIS is the one
       // moment the layout is decided. Nothing later may revisit it.
       outputSizes.then(function (sizes) {
         var entry = sizes[String(details.code || "").trim()] || null;
+        // printsNothing() is a GUESS from the source, and it is only consulted
+        // when there is no measurement. It reads `if <- 3` as an assignment and
+        // therefore as silent, when what that cell actually prints is a four-line
+        // syntax error — which is the whole point of the slide it sits on.
+        // A measured cell is judged on what R really printed.
+        if (!entry && printsNothing(details.code)) {
+          host.dataset.webrLayout = "stacked";
+          return;
+        }
         if (!sideBySideFits(area, metrics, entry)) {
           // force: a `::: {.side-out}` wrapper is a request, and the class is in
           // the markup, so it must be REMOVED here or the stylesheet lays the cell
@@ -704,6 +847,7 @@
           stack(host, true);
           return;
         }
+        if (entry && entry.plot) host.dataset.webrPlot = "true";
         promote(host);
         layOut(area, host, details, metrics);
       });
@@ -1061,7 +1205,7 @@
   };
 
   // Store cell data
-  globalThis.qwebrCellDetails = [{"code":"# NOTE: keep every webr setup cell BELOW the first heading. A setup cell placed\n# above it renders its loading widget as an untitled slide of its own.\ndata(HousePrices, package = \"AER\")\n\n# Mirror of lecture_theme() in lectures/_lecture-theme.R — WebR cannot source\n# that file. Edit it first, then run `Rscript lectures/check-lecture-theme.R`,\n# which fails if this copy has drifted.\nlecture_theme <- function(base_size = 16) {\n  ggplot2::theme_bw(base_size = base_size) +\n    ggplot2::theme(\n      axis.text = ggplot2::element_text(size = base_size * 0.9),\n      axis.title = ggplot2::element_text(size = base_size),\n      legend.text = ggplot2::element_text(size = base_size * 0.9),\n      legend.title = ggplot2::element_text(size = base_size * 0.9),\n      plot.background = ggplot2::element_rect(fill = \"transparent\", colour = NA),\n      panel.background = ggplot2::element_rect(fill = \"transparent\", colour = NA),\n      legend.background = ggplot2::element_rect(fill = \"transparent\", colour = NA),\n      legend.key = ggplot2::element_rect(fill = \"transparent\", colour = NA),\n      # theme_bw's grey92 grid was chosen against a white panel and all but\n      # disappears on the warm paper once the panel stops being opaque.\n      panel.grid = ggplot2::element_line(colour = \"grey87\")\n    )\n}\n# The WebR canvas is 7x4.5in at out-width 55% of its output track\n# (lectures/_metadata.yml) — a similar pixels-per-inch to the 10in knitr canvas,\n# but often narrower when the cell renders side by side, so it runs a little\n# larger than the 16pt default. 30pt did not fit this canvas at all: the panel\n# collapsed into the top third and the legend clipped.\n# webR draws its canvas at 72 dpi no matter what `dpi` says, so on a 216-dpi\n# canvas everything ggplot measures in points or mm comes out a third of its\n# size. Scale ggplot2's mm-to-point constants and the theme by the same\n# factor and the figure matches the knitr ones. Keep in step with `dpi` above.\nwebr_scale <- 216 / 72\nassignInNamespace(\".pt\", ggplot2::.pt * webr_scale, \"ggplot2\")\nassignInNamespace(\".stroke\", ggplot2::.stroke * webr_scale, \"ggplot2\")\ntheme_lecture <- lecture_theme(18 * webr_scale) +\n  # base_size also sets the theme line widths, which are in mm and already\n  # pass through the scaled .pt; pin them to what 18pt gives or they come\n  # out 9x thick.\n  ggplot2::theme(\n    line = ggplot2::element_line(linewidth = 18 / 22),\n    rect = ggplot2::element_rect(linewidth = 18 / 22)\n  )\nggplot2::theme_set(theme_lecture)","id":1,"options":{"autorun":"true","classes":"","comment":"","context":"setup","dpi":"216","editor-font-scale":"0.7","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"4.5","fig-width":"7","label":"unnamed-chunk-1","message":"false","out-height":"","out-width":"55%","output":"true","read-only":"false","results":"markup","warning":"false"}},{"code":"#--- load the AER package  ---#\nlibrary(AER) # load the AER package\n\n#--- load the HousePrices data set ---#\ndata(HousePrices) # load\n\n#--- inspect the two variables used in this lecture ---#\nhead(HousePrices[, c(\"price\", \"lotsize\")])","id":2,"options":{"autorun":"true","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.7","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"4.5","fig-width":"7","label":"unnamed-chunk-2","message":"false","out-height":"","out-width":"55%","output":"true","read-only":"false","results":"markup","warning":"false"}},{"code":"g_hp <-\n  ggplot(data = HousePrices) +\n  geom_point(aes(y = price, x = lotsize), size = 0.6) +\n  ylab(\"House Price ($)\") +\n  xlab(\"Lot Size\") +\n  theme_lecture\n\ng_hp","id":3,"options":{"autorun":"true","classes":"","comment":"","context":"output","dpi":"216","editor-font-scale":"0.7","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"4.5","fig-width":"7","label":"unnamed-chunk-3","message":"false","out-height":"","out-width":"55%","output":"true","read-only":"false","results":"markup","warning":"false"}},{"code":"g_hp + geom_smooth(aes(y = price, x = lotsize), method = \"lm\", se = F)","id":4,"options":{"autorun":"true","classes":"","comment":"","context":"output","dpi":"216","editor-font-scale":"0.7","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"4.5","fig-width":"7","label":"unnamed-chunk-4","message":"false","out-height":"","out-width":"55%","output":"true","read-only":"false","results":"markup","warning":"false"}},{"code":"g_hp +\n  geom_abline(intercept = 20000, slope = 7, color = \"red\")","id":5,"options":{"autorun":"true","classes":"","comment":"","context":"output","dpi":"216","editor-font-scale":"0.7","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"4.5","fig-width":"7","label":"unnamed-chunk-5","message":"false","out-height":"","out-width":"55%","output":"true","read-only":"false","results":"markup","warning":"false"}},{"code":"g_hp +\n  geom_abline(intercept = 70000, slope = 3.8, color = \"red\")","id":6,"options":{"autorun":"true","classes":"","comment":"","context":"output","dpi":"216","editor-font-scale":"0.7","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"4.5","fig-width":"7","label":"unnamed-chunk-6","message":"false","out-height":"","out-width":"55%","output":"true","read-only":"false","results":"markup","warning":"false"}},{"code":"#--- a handful of points, so the residuals are actually visible ---#\nset.seed(543)\nhp_few <- HousePrices[sample(nrow(HousePrices), 25), ]\nfit_few <- lm(price ~ lotsize, data = hp_few)\n\nggplot(data = hp_few, aes(x = lotsize, y = price)) +\n  geom_segment(\n    aes(xend = lotsize, yend = fitted(fit_few)),\n    color = \"red\"\n  ) +\n  geom_point(size = 1.2) +\n  geom_smooth(method = \"lm\", se = FALSE) +\n  ylab(\"House Price ($)\") +\n  xlab(\"Lot Size\") +\n  theme_lecture","id":7,"options":{"autorun":"true","classes":"","comment":"","context":"output","dpi":"216","editor-font-scale":"0.7","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"4.5","fig-width":"7","label":"unnamed-chunk-7","message":"false","out-height":"","out-width":"55%","output":"true","read-only":"false","results":"markup","warning":"false"}},{"code":"# NOTE: \"_demo\" names, so this illustration does not overwrite the x, y and\n# data objects the \"R code: hard way\" tab builds from HousePrices.\nx_demo <- 200 * runif(20)\ny_demo <- 100 + 0.5 * x_demo + rnorm(20) * 30\ndata_demo <- data.table(y = y_demo, x = x_demo)\ncoefs <- lm(y ~ x, data = data_demo)$coef\nggplot() +\n  geom_point(data = data_demo, aes(y = y, x = x)) +\n  geom_abline(intercept = coefs[1], slope = coefs[2]) +\n  geom_hline(yintercept = 0) +\n  geom_vline(xintercept = 0) +\n  #* slope\n  geom_curve(\n    aes(\n      x = 120, y = coefs[1] + coefs[2] * 100,\n      xend = 120, yend = coefs[1] + coefs[2] * 120\n    ),\n    color = \"red\"\n  ) +\n  geom_segment(\n    aes(\n      x = 100, y = coefs[1] + coefs[2] * 100,\n      xend = 130, yend = coefs[1] + coefs[2] * 100\n    ),\n    color = \"red\"\n  ) +\n  theme_lecture","id":8,"options":{"autorun":"true","classes":"","comment":"","context":"output","dpi":"216","editor-font-scale":"0.7","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"4.5","fig-width":"7","label":"unnamed-chunk-8","message":"false","out-height":"","out-width":"55%","output":"true","read-only":"false","results":"markup","warning":"false"}},{"code":"y <- HousePrices$price\nx <- HousePrices$lotsize\n\n#--- beta_1 ---#\nb1_num <- sum((x - mean(x)) * (y - mean(y)))\nb1_denom <- sum((x - mean(x))^2)\nb1 <- b1_num / b1_denom\nb1","id":9,"options":{"autorun":"true","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.7","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"4.5","fig-width":"7","label":"unnamed-chunk-9","message":"false","out-height":"","out-width":"55%","output":"true","read-only":"false","results":"markup","warning":"false"}},{"code":"library(fixest)\n\n#--- run OLS on the above model ---#\n# base R equivalent: lm(price ~ lotsize, data = HousePrices)\nuni_reg <- feols(price ~ lotsize, data = HousePrices)\n\nuni_reg","id":10,"options":{"autorun":"true","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.7","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"4.5","fig-width":"7","label":"unnamed-chunk-10","message":"false","out-height":"","out-width":"55%","output":"true","read-only":"false","results":"markup","warning":"false"}},{"code":"#--- list the things inside the regression results ---#\nls(uni_reg)","id":11,"options":{"autorun":"false","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.7","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"4.5","fig-width":"7","label":"unnamed-chunk-11","message":"false","out-height":"","out-width":"55%","output":"true","read-only":"false","results":"markup","warning":"false"}},{"code":"uni_reg$coefficients","id":12,"options":{"autorun":"false","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.7","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"4.5","fig-width":"7","label":"unnamed-chunk-12","message":"false","out-height":"","out-width":"55%","output":"true","read-only":"false","results":"markup","warning":"false"}},{"code":"#* fitted values for the first 5 observation points\nuni_reg$fitted.values[1:5]","id":13,"options":{"autorun":"false","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.7","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"4.5","fig-width":"7","label":"unnamed-chunk-13","message":"false","out-height":"","out-width":"55%","output":"true","read-only":"false","results":"markup","warning":"false"}},{"code":"#* residuals for the first 5 observation points\nuni_reg$residuals[1:5]","id":14,"options":{"autorun":"false","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.7","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"4.5","fig-width":"7","label":"unnamed-chunk-14","message":"false","out-height":"","out-width":"55%","output":"true","read-only":"false","results":"markup","warning":"false"}},{"code":"summary(uni_reg)","id":15,"options":{"autorun":"false","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.7","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"4.5","fig-width":"7","label":"unnamed-chunk-15","message":"false","out-height":"","out-width":"55%","output":"true","read-only":"false","results":"markup","warning":"false"}},{"code":"uni_reg$fitted.values[1:5]","id":16,"options":{"autorun":"true","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.7","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"4.5","fig-width":"7","label":"unnamed-chunk-16","message":"false","out-height":"","out-width":"55%","output":"true","read-only":"false","results":"markup","warning":"false"}},{"code":"(\nnew_data <- data.frame(lotsize = c(3000, 12000, 15000))\n)","id":17,"options":{"autorun":"true","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.7","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"4.5","fig-width":"7","label":"unnamed-chunk-17","message":"false","out-height":"","out-width":"55%","output":"true","read-only":"false","results":"markup","warning":"false"}},{"code":"predict(uni_reg, newdata = new_data)","id":18,"options":{"autorun":"true","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.7","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"4.5","fig-width":"7","label":"unnamed-chunk-18","message":"false","out-height":"","out-width":"55%","output":"true","read-only":"false","results":"markup","warning":"false"}},{"code":"","id":19,"options":{"autorun":"false","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.7","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"4.5","fig-width":"7","label":"unnamed-chunk-19","message":"false","out-height":"","out-width":"55%","output":"true","read-only":"false","results":"markup","warning":"false"}},{"code":"#--- access the coefficient values  ---#\nuni_reg$coefficients\n# class(uni_reg)\n\n#--- assess the impact ---#\nuni_reg$coefficients[\"lotsize\"] * 1000 - 5000","id":20,"options":{"autorun":"false","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.7","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"4.5","fig-width":"7","label":"unnamed-chunk-20","message":"false","out-height":"","out-width":"55%","output":"true","read-only":"false","results":"markup","warning":"false"}},{"code":"#--- pick the house where BOTH pieces are large, so neither arrow is a stub ---#\nfit_all <- lm(price ~ lotsize, data = HousePrices)\ny_bar <- mean(HousePrices$price)\ni <- which.max(pmin(abs(fitted(fit_all) - y_bar), abs(resid(fit_all))))\nx_i <- HousePrices$lotsize[i]\ny_i <- HousePrices$price[i]\nyhat_i <- fitted(fit_all)[i]\n\ng_hp +\n  geom_smooth(\n    aes(y = price, x = lotsize),\n    method = \"lm\", se = F, linewidth = 0.8\n  ) +\n  geom_hline(yintercept = y_bar, color = \"red\") +\n  #--- explained deviation: y_bar up to the fitted value ---#\n  annotate(\"segment\",\n    x = x_i, xend = x_i, y = y_bar, yend = yhat_i,\n    color = \"darkgreen\", linewidth = 0.8,\n    arrow = arrow(length = unit(0.015, \"npc\"), ends = \"both\")\n  ) +\n  #--- curved leaders connect both interval endpoints to its label ---#\n  annotate(\"curve\",\n    x = x_i, y = y_bar,\n    xend = x_i - 1100, yend = (y_bar + yhat_i) / 2 - 7000,\n    curvature = -0.25, color = \"darkgreen\", linewidth = 0.7\n  ) +\n  annotate(\"curve\",\n    x = x_i, y = yhat_i,\n    xend = x_i - 1100, yend = (y_bar + yhat_i) / 2 + 7000,\n    curvature = 0.25, color = \"darkgreen\", linewidth = 0.7\n  ) +\n  #--- residual: fitted value up to the observed point ---#\n  annotate(\"segment\",\n    x = x_i, xend = x_i, y = yhat_i, yend = y_i,\n    color = \"purple\", linewidth = 0.8,\n    arrow = arrow(length = unit(0.015, \"npc\"), ends = \"both\")\n  ) +\n  annotate(\"point\", x = x_i, y = y_i, size = 3.2) +\n  annotate(\"text\",\n    x = x_i - 1100, y = (y_bar + yhat_i) / 2,\n    label = \"hat(y)[i] - bar(y)\", parse = TRUE, color = \"darkgreen\",\n    size = 4.2, hjust = 0.5\n  ) +\n  annotate(\"text\",\n    x = x_i + 350, y = (yhat_i + y_i) / 2,\n    label = \"hat(u)[i]\", parse = TRUE, color = \"purple\",\n    size = 4.2, hjust = 0\n  ) +\n  annotate(\"text\",\n    x = 3000, y = y_bar * 1.12, label = \"bar(y)\",\n    parse = TRUE, color = \"red\", size = 3\n  )","id":21,"options":{"autorun":"true","classes":"","comment":"","context":"output","dpi":"216","editor-font-scale":"0.7","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"4.5","fig-width":"7","label":"unnamed-chunk-21","message":"false","out-height":"","out-width":"55%","output":"true","read-only":"false","results":"markup","warning":"false"}},{"code":"#--- R-squared of the house price regression ---#\nr2(uni_reg, \"r2\")","id":22,"options":{"autorun":"true","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.7","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"4.5","fig-width":"7","label":"unnamed-chunk-22","message":"false","out-height":"","out-width":"55%","output":"true","read-only":"false","results":"markup","warning":"false"}}];
+  globalThis.qwebrCellDetails = [{"code":"# NOTE: keep every webr setup cell BELOW the first heading. A setup cell placed\n# above it renders its loading widget as an untitled slide of its own.\ndata(HousePrices, package = \"AER\")\n\n# Mirror of lecture_theme() in lectures/_lecture-theme.R — WebR cannot source\n# that file. Edit it first, then run `Rscript lectures/check-lecture-theme.R`,\n# which fails if this copy has drifted.\nlecture_theme <- function(base_size = 16) {\n  ggplot2::theme_bw(base_size = base_size) +\n    ggplot2::theme(\n      axis.text = ggplot2::element_text(size = base_size * 0.9),\n      axis.title = ggplot2::element_text(size = base_size),\n      legend.text = ggplot2::element_text(size = base_size * 0.9),\n      legend.title = ggplot2::element_text(size = base_size * 0.9),\n      plot.background = ggplot2::element_rect(fill = \"transparent\", colour = NA),\n      panel.background = ggplot2::element_rect(fill = \"transparent\", colour = NA),\n      legend.background = ggplot2::element_rect(fill = \"transparent\", colour = NA),\n      legend.key = ggplot2::element_rect(fill = \"transparent\", colour = NA),\n      # theme_bw's grey92 grid was chosen against a white panel and all but\n      # disappears on the warm paper once the panel stops being opaque.\n      panel.grid = ggplot2::element_line(colour = \"grey87\")\n    )\n}\n# The WebR canvas is 10x6in at out-width 100% of its output track\n# (lectures/_metadata.yml), the same canvas the knitr figures use. It asks for\n# the whole track because the 420px height cap in notebook.scss is what really\n# sizes it. 18pt rather than the 16pt knitr default: on a full slide both land\n# at 700x420, where 18pt reads at 17.5px and 16pt at 15.5px, and these decks\n# put figures in half-width columns where the smaller size gets hard to read.\n# webR draws its canvas at 72 dpi no matter what `dpi` says, so on a 216-dpi\n# canvas everything ggplot measures in points or mm comes out a third of its\n# size. Scale ggplot2's mm-to-point constants and the theme by the same\n# factor and the figure matches the knitr ones. Keep in step with `dpi` above.\nwebr_scale <- 216 / 72\nassignInNamespace(\".pt\", ggplot2::.pt * webr_scale, \"ggplot2\")\nassignInNamespace(\".stroke\", ggplot2::.stroke * webr_scale, \"ggplot2\")\ntheme_lecture <- lecture_theme(18 * webr_scale) +\n  # base_size also sets the theme line widths, which are in mm and already\n  # pass through the scaled .pt; pin them to what 18pt gives or they come\n  # out 9x thick.\n  ggplot2::theme(\n    line = ggplot2::element_line(linewidth = 18 / 22),\n    rect = ggplot2::element_rect(linewidth = 18 / 22)\n  )\nggplot2::theme_set(theme_lecture)","id":1,"options":{"autorun":"true","classes":"","comment":"","context":"setup","dpi":"216","editor-font-scale":"0.7","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"6","fig-width":"10","label":"unnamed-chunk-1","message":"false","out-height":"","out-width":"100%","output":"true","read-only":"false","results":"markup","warning":"false"}},{"code":"#--- load the AER package  ---#\nlibrary(AER) # load the AER package\n\n#--- load the HousePrices data set ---#\ndata(HousePrices) # load\n\n#--- inspect the two variables used in this lecture ---#\nhead(HousePrices[, c(\"price\", \"lotsize\")])","id":2,"options":{"autorun":"true","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.7","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"6","fig-width":"10","label":"unnamed-chunk-2","message":"false","out-height":"","out-width":"100%","output":"true","read-only":"false","results":"markup","warning":"false"}},{"code":"g_hp <-\n  ggplot(data = HousePrices) +\n  geom_point(aes(y = price, x = lotsize), size = 0.6) +\n  ylab(\"House Price ($)\") +\n  xlab(\"Lot Size\") +\n  theme_lecture\n\ng_hp","id":3,"options":{"autorun":"true","classes":"","comment":"","context":"output","dpi":"216","editor-font-scale":"0.7","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"6","fig-width":"10","label":"unnamed-chunk-3","message":"false","out-height":"","out-width":"100%","output":"true","read-only":"false","results":"markup","warning":"false"}},{"code":"g_hp + geom_smooth(aes(y = price, x = lotsize), method = \"lm\", se = F)","id":4,"options":{"autorun":"true","classes":"","comment":"","context":"output","dpi":"216","editor-font-scale":"0.7","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"6","fig-width":"10","label":"unnamed-chunk-4","message":"false","out-height":"","out-width":"100%","output":"true","read-only":"false","results":"markup","warning":"false"}},{"code":"g_hp +\n  geom_abline(intercept = 20000, slope = 7, color = \"red\")","id":5,"options":{"autorun":"true","classes":"","comment":"","context":"output","dpi":"216","editor-font-scale":"0.7","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"6","fig-width":"10","label":"unnamed-chunk-5","message":"false","out-height":"","out-width":"100%","output":"true","read-only":"false","results":"markup","warning":"false"}},{"code":"g_hp +\n  geom_abline(intercept = 70000, slope = 3.8, color = \"red\")","id":6,"options":{"autorun":"true","classes":"","comment":"","context":"output","dpi":"216","editor-font-scale":"0.7","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"6","fig-width":"10","label":"unnamed-chunk-6","message":"false","out-height":"","out-width":"100%","output":"true","read-only":"false","results":"markup","warning":"false"}},{"code":"#--- a handful of points, so the residuals are actually visible ---#\nset.seed(543)\nhp_few <- HousePrices[sample(nrow(HousePrices), 25), ]\nfit_few <- lm(price ~ lotsize, data = hp_few)\n\nggplot(data = hp_few, aes(x = lotsize, y = price)) +\n  geom_segment(\n    aes(xend = lotsize, yend = fitted(fit_few)),\n    color = \"red\"\n  ) +\n  geom_point(size = 1.2) +\n  geom_smooth(method = \"lm\", se = FALSE) +\n  ylab(\"House Price ($)\") +\n  xlab(\"Lot Size\") +\n  theme_lecture","id":7,"options":{"autorun":"true","classes":"","comment":"","context":"output","dpi":"216","editor-font-scale":"0.7","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"6","fig-width":"10","label":"unnamed-chunk-7","message":"false","out-height":"","out-width":"100%","output":"true","read-only":"false","results":"markup","warning":"false"}},{"code":"# NOTE: \"_demo\" names, so this illustration does not overwrite the x, y and\n# data objects the \"R code: hard way\" tab builds from HousePrices.\nx_demo <- 200 * runif(20)\ny_demo <- 100 + 0.5 * x_demo + rnorm(20) * 30\ndata_demo <- data.table(y = y_demo, x = x_demo)\ncoefs <- lm(y ~ x, data = data_demo)$coef\nggplot() +\n  geom_point(data = data_demo, aes(y = y, x = x)) +\n  geom_abline(intercept = coefs[1], slope = coefs[2]) +\n  geom_hline(yintercept = 0) +\n  geom_vline(xintercept = 0) +\n  #* slope\n  geom_curve(\n    aes(\n      x = 120, y = coefs[1] + coefs[2] * 100,\n      xend = 120, yend = coefs[1] + coefs[2] * 120\n    ),\n    color = \"red\"\n  ) +\n  geom_segment(\n    aes(\n      x = 100, y = coefs[1] + coefs[2] * 100,\n      xend = 130, yend = coefs[1] + coefs[2] * 100\n    ),\n    color = \"red\"\n  ) +\n  theme_lecture","id":8,"options":{"autorun":"true","classes":"","comment":"","context":"output","dpi":"216","editor-font-scale":"0.7","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"6","fig-width":"10","label":"unnamed-chunk-8","message":"false","out-height":"","out-width":"100%","output":"true","read-only":"false","results":"markup","warning":"false"}},{"code":"y <- HousePrices$price\nx <- HousePrices$lotsize\n\n#--- beta_1 ---#\nb1_num <- sum((x - mean(x)) * (y - mean(y)))\nb1_denom <- sum((x - mean(x))^2)\nb1 <- b1_num / b1_denom\nb1","id":9,"options":{"autorun":"true","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.7","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"6","fig-width":"10","label":"unnamed-chunk-9","message":"false","out-height":"","out-width":"100%","output":"true","read-only":"false","results":"markup","warning":"false"}},{"code":"library(fixest)\n\n#--- run OLS on the above model ---#\n# base R equivalent: lm(price ~ lotsize, data = HousePrices)\nuni_reg <- feols(price ~ lotsize, data = HousePrices)\n\nuni_reg","id":10,"options":{"autorun":"true","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.7","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"6","fig-width":"10","label":"unnamed-chunk-10","message":"false","out-height":"","out-width":"100%","output":"true","read-only":"false","results":"markup","warning":"false"}},{"code":"#--- list the things inside the regression results ---#\nls(uni_reg)","id":11,"options":{"autorun":"false","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.7","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"6","fig-width":"10","label":"unnamed-chunk-11","message":"false","out-height":"","out-width":"100%","output":"true","read-only":"false","results":"markup","warning":"false"}},{"code":"uni_reg$coefficients","id":12,"options":{"autorun":"false","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.7","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"6","fig-width":"10","label":"unnamed-chunk-12","message":"false","out-height":"","out-width":"100%","output":"true","read-only":"false","results":"markup","warning":"false"}},{"code":"#* fitted values for the first 5 observation points\nuni_reg$fitted.values[1:5]","id":13,"options":{"autorun":"false","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.7","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"6","fig-width":"10","label":"unnamed-chunk-13","message":"false","out-height":"","out-width":"100%","output":"true","read-only":"false","results":"markup","warning":"false"}},{"code":"#* residuals for the first 5 observation points\nuni_reg$residuals[1:5]","id":14,"options":{"autorun":"false","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.7","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"6","fig-width":"10","label":"unnamed-chunk-14","message":"false","out-height":"","out-width":"100%","output":"true","read-only":"false","results":"markup","warning":"false"}},{"code":"summary(uni_reg)","id":15,"options":{"autorun":"false","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.7","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"6","fig-width":"10","label":"unnamed-chunk-15","message":"false","out-height":"","out-width":"100%","output":"true","read-only":"false","results":"markup","warning":"false"}},{"code":"uni_reg$fitted.values[1:5]","id":16,"options":{"autorun":"true","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.7","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"6","fig-width":"10","label":"unnamed-chunk-16","message":"false","out-height":"","out-width":"100%","output":"true","read-only":"false","results":"markup","warning":"false"}},{"code":"(\nnew_data <- data.frame(lotsize = c(3000, 12000, 15000))\n)","id":17,"options":{"autorun":"true","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.7","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"6","fig-width":"10","label":"unnamed-chunk-17","message":"false","out-height":"","out-width":"100%","output":"true","read-only":"false","results":"markup","warning":"false"}},{"code":"predict(uni_reg, newdata = new_data)","id":18,"options":{"autorun":"true","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.7","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"6","fig-width":"10","label":"unnamed-chunk-18","message":"false","out-height":"","out-width":"100%","output":"true","read-only":"false","results":"markup","warning":"false"}},{"code":"","id":19,"options":{"autorun":"false","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.7","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"6","fig-width":"10","label":"unnamed-chunk-19","message":"false","out-height":"","out-width":"100%","output":"true","read-only":"false","results":"markup","warning":"false"}},{"code":"#--- access the coefficient values  ---#\nuni_reg$coefficients\n# class(uni_reg)\n\n#--- assess the impact ---#\nuni_reg$coefficients[\"lotsize\"] * 1000 - 5000","id":20,"options":{"autorun":"false","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.7","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"6","fig-width":"10","label":"unnamed-chunk-20","message":"false","out-height":"","out-width":"100%","output":"true","read-only":"false","results":"markup","warning":"false"}},{"code":"#--- pick the house where BOTH pieces are large, so neither arrow is a stub ---#\nfit_all <- lm(price ~ lotsize, data = HousePrices)\ny_bar <- mean(HousePrices$price)\ni <- which.max(pmin(abs(fitted(fit_all) - y_bar), abs(resid(fit_all))))\nx_i <- HousePrices$lotsize[i]\ny_i <- HousePrices$price[i]\nyhat_i <- fitted(fit_all)[i]\n\ng_hp +\n  geom_smooth(\n    aes(y = price, x = lotsize),\n    method = \"lm\", se = F, linewidth = 0.8\n  ) +\n  geom_hline(yintercept = y_bar, color = \"red\") +\n  #--- explained deviation: y_bar up to the fitted value ---#\n  annotate(\"segment\",\n    x = x_i, xend = x_i, y = y_bar, yend = yhat_i,\n    color = \"darkgreen\", linewidth = 0.8,\n    arrow = arrow(length = unit(0.015, \"npc\"), ends = \"both\")\n  ) +\n  #--- curved leaders connect both interval endpoints to its label ---#\n  annotate(\"curve\",\n    x = x_i, y = y_bar,\n    xend = x_i - 1100, yend = (y_bar + yhat_i) / 2 - 7000,\n    curvature = -0.25, color = \"darkgreen\", linewidth = 0.7\n  ) +\n  annotate(\"curve\",\n    x = x_i, y = yhat_i,\n    xend = x_i - 1100, yend = (y_bar + yhat_i) / 2 + 7000,\n    curvature = 0.25, color = \"darkgreen\", linewidth = 0.7\n  ) +\n  #--- residual: fitted value up to the observed point ---#\n  annotate(\"segment\",\n    x = x_i, xend = x_i, y = yhat_i, yend = y_i,\n    color = \"purple\", linewidth = 0.8,\n    arrow = arrow(length = unit(0.015, \"npc\"), ends = \"both\")\n  ) +\n  annotate(\"point\", x = x_i, y = y_i, size = 3.2) +\n  annotate(\"text\",\n    x = x_i - 1100, y = (y_bar + yhat_i) / 2,\n    label = \"hat(y)[i] - bar(y)\", parse = TRUE, color = \"darkgreen\",\n    size = 4.2, hjust = 0.5\n  ) +\n  annotate(\"text\",\n    x = x_i + 350, y = (yhat_i + y_i) / 2,\n    label = \"hat(u)[i]\", parse = TRUE, color = \"purple\",\n    size = 4.2, hjust = 0\n  ) +\n  #--- the y-bar label sits in clear air above the line, not in the point\n  #--- cloud on the left where it was being swallowed, and at the same size\n  #--- as the other two labels\n  annotate(\"text\",\n    x = 11000, y = y_bar * 1.09, label = \"bar(y)\",\n    parse = TRUE, color = \"red\", size = 4.2\n  )","id":21,"options":{"autorun":"true","classes":"","comment":"","context":"output","dpi":"216","editor-font-scale":"0.7","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"6","fig-width":"10","label":"unnamed-chunk-21","message":"false","out-height":"","out-width":"100%","output":"true","read-only":"false","results":"markup","warning":"false"}},{"code":"#--- R-squared of the house price regression ---#\nr2(uni_reg, \"r2\")","id":22,"options":{"autorun":"true","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.7","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"6","fig-width":"10","label":"unnamed-chunk-22","message":"false","out-height":"","out-width":"100%","output":"true","read-only":"false","results":"markup","warning":"false"}}];
 
   </script>
   <script type="module">
@@ -2068,11 +2212,23 @@
       // Store the code to run in history
       qwebrLogCodeToHistory(codeToRun, options);
 
+      // webR's canvas draws text at the `pointsize` set above but still reports
+      // its character metrics as if the font were 12pt. R sizes plot margins in
+      // "lines" from those metrics, so on a 216 dpi canvas the margins come out
+      // three times too small and base graphics draw the y-axis label off the
+      // left edge. `mex` is the factor R uses when turning margin lines into
+      // physical units, so setting it to the same dpi/72 restores them. It is
+      // prepended on the code's first line, not a line of its own, so a parse
+      // error still reports the line number the student sees in the editor.
+      const marginFix = captureOutputOptions.captureGraphics
+          ? `par(mex = ${options["dpi"] / 72}); `
+          : "";
+
       // Setup a webR canvas by making a namespace call into the {webr} package
       // Evaluate the R code
       // Remove the active canvas silently
       const result = await mainWebRCodeShelter.captureR(
-          `${codeToRun}`,
+          `${marginFix}${codeToRun}`,
           captureOutputOptions
       );
 
@@ -2360,6 +2516,23 @@ globalThis.qwebrCreateMonacoEditorInstance = function (cellData) {
       fontSize: qwebrScaledFontSize(editorDiv, qwebrOptions),         
       renderLineHighlight: "none",      // Disable current line highlighting
       hideCursorInOverviewRuler: true,  // Remove cursor indictor in right hand side scroll bar
+      // PATCHED, see RULES.md. Monaco's defaults reserve five characters of
+      // number column (`lineNumbersMinChars: 5`) and a 10px decorations strip
+      // beside it, which on a cell of at most a couple of dozen lines is a wide
+      // empty band between the number and the code. Two characters covers every
+      // cell in these decks (99 lines), and the decorations strip carries
+      // nothing here — no breakpoints, no folding.
+      lineNumbersMinChars: 1,
+      // The gap between the number and the first character. 4 put them in
+      // contact ("1#--- addition"); Monaco's default 10 sits beside a
+      // five-character number column, which is what made the band look empty.
+      // The gap between the number and the first character. The whole margin is
+      // this plus the digits: 6 read as too tight, 12 as too loose, so 9 —
+      // a 25px margin on a ten-plus-line cell, 17px on a short one, against the
+      // ~75px Monaco's defaults gave.
+      lineDecorationsWidth: 9,
+      folding: false,
+      glyphMargin: false,
       readOnly: qwebrOptions['read-only'] ?? false,
       quickSuggestions: qwebrOptions['editor-quick-suggestions'] ?? false,
       wordWrap: (qwebrOptions['editor-word-wrap'] == 'true' ? "on" : "off")
@@ -2607,7 +2780,7 @@ Transcript
 </summary>
 <p>Here is the code that gets you the data, and this is a live R session running inside your browser, so you can edit it and press run. We load the AER package, which is where the HousePrices data lives, then call data to bring it into memory. The dataset has twelve columns, but the final line selects and previews only the two we use in this lecture: price and lot size. Do run it yourself rather than just reading it. The first time you press run it takes a moment, because R itself is downloading into the tab.</p>
 </details>
-<div class="side-out">
+<div class="side-out" style="--webr-code-track: 0.6fr; --webr-output-track: 0.4fr;">
 <div id="qwebr-insertion-location-2"></div>
 <noscript>Please enable JavaScript to experience the dynamic code cell content on this page.</noscript>
 </div>
@@ -2771,10 +2944,10 @@ Transcript
 <p><strong>FOC</strong></p>
 <p><span class="math display">
 \def\sumn{\sum_{i=1}^{n}}
-\begin{align}
+\begin{align*}
 \frac{\partial S}{\partial \widehat{\beta}_0}=&amp; -2 \sumn [y_i-(\widehat{\beta}_0+\widehat{\beta}_1 x_i)] = -2\sumn \widehat{u}_i = 0 \\\\
 \frac{\partial S}{\partial \widehat{\beta}_1}=&amp; -2 \sumn x_i\cdot [y_i-(\widehat{\beta}_0+\widehat{\beta}_1 x_i)] = -2\sumn x_i\cdot \widehat{u}_i = 0
-\end{align}
+\end{align*}
 </span></p>
 <p>Dividing each by <span class="math inline">-2</span> leaves the two conditions OLS always satisfies:</p>
 <p><span class="math display">
@@ -2999,7 +3172,7 @@ Transcript
 <ol type="1">
 <li>create a new <code>data.frame</code> with values of <span class="math inline">x</span> of your choice.</li>
 </ol>
-<div class="side-out">
+<div class="side-out" style="--webr-code-track: 0.6fr; --webr-output-track: 0.4fr;">
 <div id="qwebr-insertion-location-17"></div>
 <noscript>Please enable JavaScript to experience the dynamic code cell content on this page.</noscript>
 </div>
@@ -3007,7 +3180,7 @@ Transcript
 <ol start="2" type="1">
 <li>apply <code>predict()</code> to the <code>data.frame</code> using the regression results.</li>
 </ol>
-<div class="side-out tight">
+<div class="side-out" style="--webr-code-track: 0.6fr; --webr-output-track: 0.4fr;">
 <div id="qwebr-insertion-location-18"></div>
 <noscript>Please enable JavaScript to experience the dynamic code cell content on this page.</noscript>
 </div>
@@ -3150,11 +3323,11 @@ Transcript
 </div>
 <p><br></p>
 <p><strong>Where did it come from?</strong></p>
-<span class="math display">\begin{align}
+<span class="math display">\begin{align*}
 &amp; SST = SSE + SSR  \\
 \Rightarrow &amp; SSE = SST - SSR \\
 \Rightarrow &amp; SSE/SST = 1 - SSR/SST = R^2\\
-\end{align}</span>
+\end{align*}</span>
 <p>The value of <span class="math inline">R^2</span> always lies between <span class="math inline">0</span> and <span class="math inline">1</span> as long as an intercept is included in the econometric model.</p>
 <p><br></p>
 <p><strong>What does it measure?</strong></p>

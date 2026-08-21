@@ -21,9 +21,9 @@ webr:
   cell-options:
     editor-font-scale: 0.7
     dpi: 216
-    fig-width: 7
-    fig-height: 4.5
-    out-width: 55%
+    fig-width: 10
+    fig-height: 6
+    out-width: 100%
 filters:
   - webr
 ---
@@ -58,11 +58,12 @@ lecture_theme <- function(base_size = 16) {
       panel.grid = ggplot2::element_line(colour = "grey87")
     )
 }
-# The WebR canvas is 7x4.5in at out-width 55% of its output track
-# (lectures/_metadata.yml) — a similar pixels-per-inch to the 10in knitr canvas,
-# but often narrower when the cell renders side by side, so it runs a little
-# larger than the 16pt default. 30pt did not fit this canvas at all: the panel
-# collapsed into the top third and the legend clipped.
+# The WebR canvas is 10x6in at out-width 100% of its output track
+# (lectures/_metadata.yml), the same canvas the knitr figures use. It asks for
+# the whole track because the 420px height cap in notebook.scss is what really
+# sizes it. 18pt rather than the 16pt knitr default: on a full slide both land
+# at 700x420, where 18pt reads at 17.5px and 16pt at 15.5px, and these decks
+# put figures in half-width columns where the smaller size gets hard to read.
 # webR draws its canvas at 72 dpi no matter what `dpi` says, so on a 216-dpi
 # canvas everything ggplot measures in points or mm comes out a third of its
 # size. Scale ggplot2's mm-to-point constants and the theme by the same
@@ -77,8 +78,7 @@ theme_lecture <- lecture_theme(18 * webr_scale) +
   ggplot2::theme(
     line = ggplot2::element_line(linewidth = 18 / 22),
     rect = ggplot2::element_rect(linewidth = 18 / 22)
-  ) +
-  ggplot2::theme(strip.text = ggplot2::element_text(size = 18 * webr_scale))
+  )
 ggplot2::theme_set(theme_lecture)
 ```
 
@@ -180,9 +180,10 @@ Here is what running it a thousand times looks like. The top panel is our sample
 #| context: output
 #| message: false
 #| warning: false
-#| out-width: 70%
-#| fig-width: 9
-#| fig-height: 5.8
+#| out-width: 80%
+#| fig-width: 10
+#| fig-height: 7
+#| classes: figure-slide
 
 #--- set seed ---#
 set.seed(28394)
@@ -412,12 +413,14 @@ Now we tidy up the three pieces. The first has beta-zero multiplied by the sum o
 </details>
 
 $$
+\def\sumn{\sum_{i=1}^{n}}
 \begin{aligned}
   \widehat{\beta}_1 = & \frac{\sumn  (x_i-\bar{x})\beta_0 + \beta_1 \sumn  (x_i-\bar{x})x_i+\sumn (x_i-\bar{x})u_i}{SST_x}
 \end{aligned}
 $$
 
 $$
+\def\sumn{\sum_{i=1}^{n}}
 \begin{aligned}
   \text{Since } & \sumn  (x_i-\bar{x})=0\;\; \text{and}\\
     & \sumn  (x_i-\bar{x})x_i=\sumn  (x_i-\bar{x})^2=SST_x,
@@ -425,6 +428,7 @@ $$
 $$
 
 $$
+\def\sumn{\sum_{i=1}^{n}}
 \begin{aligned}
   \widehat{\beta}_1 = \frac{\beta_1 SST_x+\sumn (x_i-\bar{x})u_i}{SST_x} 
   = \beta_1+(1/SST_x)\sumn (x_i-\bar{x})u_i
@@ -440,25 +444,28 @@ And here is the punchline, on a single line. Beta-one-hat equals beta-one, plus 
 
 </details>
 
-$$\widehat{\beta}_1 = \beta_1+(1/SST_x)\sumn (x_i-\bar{x})u_i$$
+$$
+\def\sumn{\sum_{i=1}^{n}}
+\widehat{\beta}_1 = \beta_1+(1/SST_x)\sumn (x_i-\bar{x})u_i$$
 
 The estimator is the truth plus a term built entirely out of the errors. Taking the expectation of $\widehat{\beta}_1$ conditional on $\mathbf{x}=\{x_1,\dots,x_n\}$,
 
 $$
-\begin{align}
+\def\sumn{\sum_{i=1}^{n}}
+\begin{align*}
 \Rightarrow E[\widehat{\beta}_1|\mathbf{x}] = & E[\beta_1|\mathbf{x}]+E[(1/SST_x)\sumn (x_i-\bar{x})u_i|\mathbf{x}]  \\\\
 = & \beta_1 + (1/SST_x)\sumn (x_i-\bar{x}) E[u_i|\mathbf{x}]
-\end{align}
+\end{align*}
 $$
 
 So, if condition 4 $(E[u_i|\mathbf{x}]=0)$ is satisfied, that second term vanishes:
 
 $$
 \def\Ex{E_{\mathbf{x}}}
-\begin{align}
+\begin{align*}
 E[\widehat{\beta}_1|\mathbf{x}] = & \beta_1 \\\\
 \Ex\big[E[\widehat{\beta}_1|\mathbf{x}]\big] = & E[\widehat{\beta}_1] = \beta_1
-\end{align}
+\end{align*}
 $$
 
 :::{.callout-note}
@@ -564,10 +571,10 @@ Here is why variance matters even when bias does not. Two estimators of the same
 Consider two estimators of $E[x]$:
 
 ```{=tex}
-\begin{align}
+\begin{align*}
 \theta_{smart} = & \frac{1}{n} \sum_{i=1}^{n} x_i  \;\;(n=1000) \\\\
 \theta_{naive} = & \frac{1}{10} \sum_{i=1}^{10} x_i
-\end{align}
+\end{align*}
 ```
 
 Both are unbiased &mdash; the naive one simply throws away 990 of the 1000 observations.
@@ -621,9 +628,10 @@ Here is the formula, and it is simple enough to memorise. The variance of beta-o
 If $Var(u|x)=\sigma^2$ and the four conditions (we used to prove unbiasedness of the OLS estimator) are satisfied,
 
 $$
-\begin{align}
+\def\sumn{\sum_{i=1}^{n}}
+\begin{align*}
   Var(\widehat{\beta}_1) = \frac{\sigma^2}{\sumn (x_i-\bar{x})^2}=\frac{\sigma^2}{SST_x} 
-\end{align}
+\end{align*}
 $$
 
 <br>
@@ -825,14 +833,18 @@ A short tab with a large motivation behind it. We have a formula for the varianc
 
 Once you estimate $Var(\widehat{\beta}_1|x)$, you can test the statistical significance of $\widehat{\beta}_1$ (More on this later)
 
-### Problem
+### Problem & proposal
 
 <details class="transcript">
 <summary>Transcript</summary>
 
-Here is the obstacle, laid out in steps. We know the variance of beta-one-hat is sigma squared over SST-x. SST-x is fine, because it is built from x, which you observe. So everything hinges on sigma squared, the variance of the error. And there is a natural estimator for that: since the error has mean zero, its variance is the expected value of u squared, so you would just average the squared errors. The logic is sound line by line. Then the last bullet pulls the rug out. We never observe u. Read the fragment, which is the way out: we do observe the residuals.
+Here is the obstacle, laid out in steps. We know the variance of beta-one-hat is sigma squared over SST-x. SST-x is fine, because it is built from x, which you observe. So everything hinges on sigma squared, the variance of the error. And there is a natural estimator for that: since the error has mean zero, its variance is the expected value of u squared, so you would just average the squared errors. The logic is sound line by line. Then the last bullet pulls the rug out. We never observe u. But we do observe the residuals.
+
+So the obvious move is to substitute what we have for what we want, and use u-hat, the residual, wherever the formula asks for u, the error. It is not an unreasonable move, because the expected difference between a residual and its error is zero; the proof is in the last tab of this slide if you want it. So the proposal is to average the squared residuals. Then read the final line, which is the twist: that estimator is biased. Not fatally, and not mysteriously. The next tab explains exactly where the problem comes from.
 
 </details>
+
+**The problem**
 
 + We know that $Var(\widehat{\beta}_1|x) = \sigma^2/SST_x$.
 
@@ -849,28 +861,23 @@ We observe $\widehat{u_i}$ (residuals)!! Can we use residuals instead?
 :::
 <!--end of the fragment-->
 
-### Proposal
+::: {.fragment}
 
-<details class="transcript">
-<summary>Transcript</summary>
+<br>
 
-So the obvious move is to substitute what we have for what we want, and use u-hat, the residual, wherever the formula asks for u, the error. It is not an unreasonable move, because the expected difference between a residual and its error is zero; the proof is in the last tab of this slide if you want it. So the proposal is to average the squared residuals. Then read the final line, which is the twist: that estimator is biased. Not fatally, and not mysteriously. The next tab explains exactly where the problem comes from.
-
-</details>
+**The proposal**
 
 We know $E[\widehat{u}_i-u_i]=0$ (the proof is in the <span style = "color: blue;"> (Math) Residual vs error </span> tab at the end of this slide), so, why don't we use $\widehat{u}_i$ (observable) in place of $u_i$ (unobservable)?
 
-<br>
+:::
+<!--end of the fragment-->
 
 ::: {.fragment}
 :::{.callout-note title="Proposed Estimator of $\sigma^2$"}
 $\frac{1}{n}\sum_{i=1}^n \widehat{u}_i^2$
 :::
-
 :::
 <!--end of the fragment-->
-
-<br>
 
 ::: {.fragment}
 Unfortunately, $\frac{1}{n}\sum_{i=1}^n \hat{u}_i^2$ is a biased estimator of $\sigma^2$
@@ -889,9 +896,9 @@ Here is the reason, and it goes back to the first-order conditions we derived la
 **FOCs of the minimization problem OLS solves**
 
 ```{=tex}
-\begin{align}
+\begin{align*}
     \sum_{i=1}^n \widehat{u}_i=0\;\; \text{and}\;\; \sum_{i=1}^n x_i\widehat{u}_i=0\notag
-\end{align}
+\end{align*}
 ```
 
 + this means that once you know the value of $n-2$ residuals, you can find the value of the other two by solving the above equations
@@ -959,21 +966,21 @@ This is the proof I promised back on the Proposal tab, and the conditioning matt
 **Error and Residual** 
 
 ```{=tex}
-\begin{align}
+\begin{align*}
     y_i = \beta_0+\beta_1 x_i + u_i \\
     y_i = \hat{\beta}_0+\hat{\beta}_1 x_i + \hat{u}_i 
-\end{align}
+\end{align*}
 ```
 
 **Residuals as unbiased estimators of error**
 
 ```{=tex}
-\begin{align}
+\begin{align*}
   \hat{u}_i & = y_i -\hat{\beta}_0-\hat{\beta}_1 x_i \\
   \hat{u}_i & = \beta_0+\beta_1 x_i + u_i -\hat{\beta}_0-\hat{\beta}_1 x_i \\
   \Rightarrow \hat{u}_i -u_i & = (\beta_0-\hat{\beta}_0)+(\beta_1-\hat{\beta}_1) x_i \\
   \Rightarrow E[\hat{u}_i-u_i|\mathbf{x}] & = E[(\beta_0-\hat{\beta}_0)+(\beta_1-\hat{\beta}_1)x_i|\mathbf{x}]=0
-\end{align}
+\end{align*}
 ```
 :::
 <!--end of panel-->

@@ -146,11 +146,23 @@ globalThis.qwebrComputeEngine = async function(
     // Store the code to run in history
     qwebrLogCodeToHistory(codeToRun, options);
 
+    // webR's canvas draws text at the `pointsize` set above but still reports
+    // its character metrics as if the font were 12pt. R sizes plot margins in
+    // "lines" from those metrics, so on a 216 dpi canvas the margins come out
+    // three times too small and base graphics draw the y-axis label off the
+    // left edge. `mex` is the factor R uses when turning margin lines into
+    // physical units, so setting it to the same dpi/72 restores them. It is
+    // prepended on the code's first line, not a line of its own, so a parse
+    // error still reports the line number the student sees in the editor.
+    const marginFix = captureOutputOptions.captureGraphics
+        ? `par(mex = ${options["dpi"] / 72}); `
+        : "";
+
     // Setup a webR canvas by making a namespace call into the {webr} package
     // Evaluate the R code
     // Remove the active canvas silently
     const result = await mainWebRCodeShelter.captureR(
-        `${codeToRun}`,
+        `${marginFix}${codeToRun}`,
         captureOutputOptions
     );
 

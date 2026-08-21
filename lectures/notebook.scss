@@ -69,6 +69,7 @@ $nb-bar-pad-x:  21px;
 $nb-code-w:     90%;
 
 $nb-code-bg:    #f4f1e9;   // warm — "what you wrote"
+$nb-gutter-bg:  #eae5d9;   // the line-number margin, a shade deeper than the code
 $nb-out-bg:     #e9eef5;   // blue tint — "what R said back"
 
 // Code and output are separated by temperature, not lightness. The previous
@@ -183,8 +184,58 @@ div.cell-output.cell-output-stderr > pre > code { background-color: $nb-out-bg; 
   padding-left: 6px;
 }
 
-.lines-content.monaco-editor-background,
-div.overflow-guard div.margin { background-color: $nb-code-bg; }
+.lines-content.monaco-editor-background { background-color: $nb-code-bg; }
+
+// ---- the line-number margin ------------------------------------------------
+// It used to be indistinguishable from the code: the same warm ground, and
+// numbers in the same blue the syntax highlighting uses for a numeric literal.
+// On an empty cell that leaves a lone blue "1" sitting exactly where the first
+// character of the code would go, and it reads as code. So mark it the way a
+// printed page marks a margin — a quieter ground, a hairline edge, grey figures
+// — and mark it once, here, for every WebR editor in every deck.
+//
+// These beat Monaco's own `.monaco-editor .margin` and `.line-numbers` rules on
+// specificity, so no !important is needed; Monaco paints from CSS variables and
+// would otherwise win.
+.reveal .qwebr-interactive-area div.overflow-guard div.margin {
+  background-color: $nb-gutter-bg;
+  box-shadow: inset -1px 0 0 $nb-rule;
+}
+
+// Breathing room to the LEFT of the numbers. It cannot come from Monaco: its
+// number column is right-aligned and sized to the digits, so anything added
+// there appears between the number and the code, not before it. Padding the
+// editor's own container is safe — Monaco lays out against the content box, and
+// automaticLayout keeps up — and painting that strip in the gutter colour makes
+// it read as part of the margin rather than as a gap beside it.
+.reveal .qwebr-interactive-area .qwebr-editor {
+  padding-left: 7px;
+  background-color: $nb-gutter-bg;
+  // The extension draws its edges in #EEEEEE, a neutral grey, and against this
+  // warm code ground a neutral hairline reads as blue. Worse, it draws TWO of
+  // them in the seam under the "Run Code" bar — one on .qwebr-console-area,
+  // which wraps the editor, and one here — so the bar looks as though it is
+  // floating a couple of pixels above the code. Warm this edge and drop the
+  // other one (below), and the seam becomes a single hairline in the same
+  // colour as every other rule in the deck.
+  border-color: $nb-rule;
+}
+
+// Keep the editor's own top border rather than this one: .qwebr-console-area is
+// `display: contents` in the side-by-side layout, so its border is not painted
+// there at all, and removing the editor's instead would leave the two layouts
+// with different seams.
+.reveal .qwebr-interactive-area > .qwebr-console-area {
+  border-color: $nb-rule;
+  border-top: 0;
+}
+
+.reveal .qwebr-interactive-area div.margin .line-numbers {
+  color: $nb-muted;
+  // A line number is furniture, not text you would ever want to copy. Leaving it
+  // selectable means dragging across the code takes the numbers with it.
+  user-select: none;
+}
 
 // ------------------------------------------------------------------- tabs ---
 // Index cards. The active tab was white on #06a666 (2.71:1) while the inactive
@@ -402,7 +453,16 @@ div.overflow-guard div.margin { background-color: $nb-code-bg; }
 // many expressions the chunk holds.
 .reveal .side-out .cell {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  // The same two variables the WebR grid below reads, so ONE pair of numbers
+  // in the qmd sets the split whatever kind of cell is inside the wrapper:
+  //
+  //     ::: {.side-out style="--webr-code-track: 0.45fr; --webr-output-track: 0.55fr;"}
+  //
+  // Custom properties inherit, so writing them on the wrapper reaches the cell.
+  // Unset, the defaults below are the even split this rule always had.
+  grid-template-columns:
+    minmax(0, var(--webr-code-track, 1fr))
+    minmax(0, var(--webr-output-track, 1fr));
   column-gap: 1rem;
   row-gap: 0.4rem;
   align-items: start;
@@ -700,26 +760,34 @@ div.overflow-guard div.margin { background-color: $nb-code-bg; }
 
 // ---- figure height -----------------------------------------------------------
 // No figure may force a slide to scroll. The reveal slide is 700px; a title, a
-// tab bar and a callout leave roughly 380px, so a figure is capped there and
+// tab bar and a callout leave roughly 420px, so a figure is capped there and
 // shrinks proportionally (object-fit keeps the aspect ratio inside the
 // out-width box). A 10x6in knitr figure at out-width 75% is 472px tall and
 // would otherwise push its own bottom off the slide. Figures that already fit
 // are untouched, and a side-by-side layout is half width and never reaches the
 // cap.
 //
-// This cap is also what sets the default webr out-width of 55%: 55% of the
-// 1050px slide is 577px wide, which at the shared 7:4.5 canvas is 371px tall,
-// just inside the cap. Asking for a wider display does not produce a bigger
-// figure, it produces the same figure scaled back down to 380px tall.
+// This cap, not a percentage, is what sizes a webr figure. The webr out-width
+// is 100%, so the figure asks for the whole track and the cap gives back the
+// largest it can: on a full slide the 10:6 canvas lands at 700x420, and in a
+// half-width column, where the cap is never reached, it fills the column. The
+// percentage it used to carry (55%) was a guess at the cap's answer, and in a
+// column it guessed far too small.
 //
 // The webr canvas sits in an inline-block <figure>; its inline `width` must
 // resolve against the column, not against the figure's shrink-to-fit width,
 // which the cap below would otherwise set.
 .reveal figure.qwebr-canvas-image { display: block; width: 100%; }
 
+// 380 was the original figure, from a slide carrying a title, a tab bar and a
+// callout. It was tight: the density-plot example in the AE-MS variance deck
+// wants 406px at its declared width and was being scaled down to fit. 420 buys
+// that back on a slide of this shape — heading, a couple of lines of text, a
+// figure — while still leaving the fullest slides inside 700px. The tab labels
+// shrinking (0.85em to 0.74em) paid for part of it.
 .reveal .cell-output-display img,
 .reveal .qwebr-output-graph-area canvas {
-  max-height: 380px;
+  max-height: 420px;
   object-fit: contain;
 }
 

@@ -35,6 +35,23 @@ globalThis.qwebrCreateMonacoEditorInstance = function (cellData) {
       fontSize: qwebrScaledFontSize(editorDiv, qwebrOptions),         
       renderLineHighlight: "none",      // Disable current line highlighting
       hideCursorInOverviewRuler: true,  // Remove cursor indictor in right hand side scroll bar
+      // PATCHED, see RULES.md. Monaco's defaults reserve five characters of
+      // number column (`lineNumbersMinChars: 5`) and a 10px decorations strip
+      // beside it, which on a cell of at most a couple of dozen lines is a wide
+      // empty band between the number and the code. Two characters covers every
+      // cell in these decks (99 lines), and the decorations strip carries
+      // nothing here — no breakpoints, no folding.
+      lineNumbersMinChars: 1,
+      // The gap between the number and the first character. 4 put them in
+      // contact ("1#--- addition"); Monaco's default 10 sits beside a
+      // five-character number column, which is what made the band look empty.
+      // The gap between the number and the first character. The whole margin is
+      // this plus the digits: 6 read as too tight, 12 as too loose, so 9 —
+      // a 25px margin on a ten-plus-line cell, 17px on a short one, against the
+      // ~75px Monaco's defaults gave.
+      lineDecorationsWidth: 9,
+      folding: false,
+      glyphMargin: false,
       readOnly: qwebrOptions['read-only'] ?? false,
       quickSuggestions: qwebrOptions['editor-quick-suggestions'] ?? false,
       wordWrap: (qwebrOptions['editor-word-wrap'] == 'true' ? "on" : "off")

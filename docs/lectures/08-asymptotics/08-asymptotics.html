@@ -99,7 +99,7 @@
     code span.vs { color: #20794d; } /* VerbatimString */
     code span.wa { color: #5e5e5e; font-style: italic; } /* Warning */
   </style>
-  <link rel="stylesheet" href="../../site_libs/revealjs/dist/theme/quarto-bf1223c773699056cca1ada9baf1738b.css">
+  <link rel="stylesheet" href="../../site_libs/revealjs/dist/theme/quarto-5749ef3d543d853c9975bfcccaade8de.css">
   <script defer="" src="https://cdn.jsdelivr.net/npm/katex@0.18.4/dist/katex.min.js"></script>
   <script>document.addEventListener("DOMContentLoaded", function () {
  var mathElements = document.getElementsByClassName("math");
@@ -389,8 +389,13 @@
     "use strict";
 
     var MAX_CODE_LINES = 12;
-    // Monaco's line-number gutter (~75px) plus its vertical scrollbar (~15px).
-    var EDITOR_CHROME = 90;
+    // Everything in the editor that is not code: the line-number margin plus the
+    // vertical scrollbar. MEASURED on a rendered deck, remembering that a rect on
+    // a reveal slide carries the deck's scale: margin 25px, scrollbar 14px. It was
+    // 90 when Monaco still used its default five-character number column; the
+    // vendored qwebr-monaco-editor-element.js asks for one character now, so every
+    // code column was being sized ~50px wider than it needed.
+    var EDITOR_CHROME = 45;
     // A deliberate OVER-estimate of one character. Menlo at 15.36px measures
     // ~9.2px, and erring high is what keeps the editor from wrapping when the
     // real measurement below has not landed yet.
@@ -417,6 +422,11 @@
     // it and still wrapped.
     var MIN_CODE_PX = 320;
     var MIN_CODE_SHARE = 0.18;
+    // The narrowest column a figure may be drawn into. A plot cannot overflow, so
+    // the width test the printed-text branch uses never refuses one however small
+    // the column: this is the number that does. Measured against the stacked
+    // figure, which is drawn at 55% of the 1050px slide, i.e. 577px.
+    var MIN_PLOT_PX = 380;
     // Slack on the measured output width, same purpose as CODE_SLACK: a column
     // that fits only exactly is not a column that fits.
     var OUTPUT_SLACK = 1.08;
@@ -429,19 +439,26 @@
 
     // What every cell PRINTS, measured in R at render time by
     // measure-webr-output.R and shipped beside the deck as
-    // <deck>.webr-output.json. This is the whole point of that script: the output
+    // <deck>.webr-output.js. This is the whole point of that script: the output
     // gets a say in a decision taken before the cell has ever run.
     //
-    // Missing file, missing cell, failed fetch — all mean the same thing and are
+    // Loaded with a <script src>, not fetch(). A fetch of a sibling file is
+    // blocked on a file:// page — which is how a deck is previewed while it is
+    // being written — so every cell looked unmeasured and fell through to the
+    // "judge on the code alone" branch, i.e. side by side. The preview then
+    // disagreed with the published site about every layout on the deck. A script
+    // tag is exempt from that and loads under both.
+    //
+    // Missing file, missing cell, failed load — all mean the same thing and are
     // all safe: that cell falls back to judging on its code alone.
-    var outputSizes = (function () {
-      if (!/\.html$/.test(location.pathname) || typeof fetch !== "function") {
-        return Promise.resolve({});
-      }
-      return fetch(location.pathname.replace(/\.html$/, "") + ".webr-output.json")
-        .then(function (r) { return r.ok ? r.json() : {}; })
-        .catch(function () { return {}; });
-    })();
+    var outputSizes = new Promise(function (resolve) {
+      if (!/\.html$/.test(location.pathname)) return resolve({});
+      var tag = document.createElement("script");
+      tag.src = location.pathname.replace(/\.html$/, "") + ".webr-output.js";
+      tag.onload = function () { resolve(globalThis.webrOutputSizes || {}); };
+      tag.onerror = function () { resolve({}); };
+      document.head.appendChild(tag);
+    });
 
     function detailsFor(area) {
       var match = area.id && area.id.match(/qwebr-interactive-area-(\d+)/);
@@ -534,6 +551,11 @@
     }
 
     function setTracks(host, area, codeShare) {
+      // An author who wrote the tracks into the markup owns the split. Every
+      // measurement below leads here, so one guard in this function is the whole
+      // exemption: the estimate, the Monaco measurement and the no-wrap widening
+      // all stop writing, and nothing else in the file has to know.
+      if (host.dataset.webrCodeFixed === "true") return;
       var available = Math.max(1, (area && area.clientWidth ? area.clientWidth : 1005) - 16);
       codeShare = Math.max(codeShare, MIN_CODE_PX / available);
       codeShare = Math.max(MIN_CODE_SHARE, Math.min(MAX_CODE_SHARE, codeShare));
@@ -541,6 +563,30 @@
       host.style.setProperty("--webr-code-track", codeShare + "fr");
       host.style.setProperty("--webr-output-track", outputShare + "fr");
       host.style.setProperty("--webr-code-share", (codeShare * 100) + "%");
+    }
+
+    // THE PLOT FLOOR, RE-CHECKED AGAINST THE REAL COLUMN.
+    //
+    // sideBySideFits() applies MIN_PLOT_PX to an ESTIMATE: a canvas measurement
+    // of the longest source line in the output's font, taken before Monaco has
+    // rendered. The column a cell actually gets is set twice more after that —
+    // by measureRenderedCode() from Monaco's own metrics, and again by
+    // ensureNoWrap(), which widens the code column in 2% steps until the line
+    // stops wrapping. Both make the code column WIDER, and every pixel of it
+    // comes out of the figure. So a plot that cleared the floor on the estimate
+    // can still end up in a strip well under it — a density plot in ~330px is
+    // what prompted this. The floor has to be enforced where the real number is.
+    //
+    // This can only run during load, like every other route out of side by side.
+    // `::: {.side-out}` still wins: stack() exempts a manual wrapper.
+    function keepPlotReadable(area, host) {
+      if (host.dataset.webrCodeFixed === "true") return;
+      if (host.dataset.webrPlot !== "true") return;
+      if (host.dataset.webrLayout !== "side") return;
+      var available = Math.max(1, (area.clientWidth || 1005) - 16);
+      var share = parseFloat(host.style.getPropertyValue("--webr-code-share")) / 100;
+      if (!share) return;
+      if (available * (1 - share) < MIN_PLOT_PX) stack(host, false);
     }
 
     function measureRenderedCode(area, host, code, attempt) {
@@ -573,6 +619,8 @@
       // recomputed against the OUTPUT's measured width once the cell has run.
       host.dataset.webrCodePx = Math.ceil(widest + EDITOR_CHROME);
       setTracks(host, area, ((widest + EDITOR_CHROME) * CODE_SLACK) / available);
+      keepPlotReadable(area, host);
+      if (host.dataset.webrLayout !== "side") return;
 
       // The measured code column is now the real one, so check straight away that
       // Monaco is not wrapping in it. Before, this ran only after a cell had been
@@ -609,6 +657,10 @@
     // that cannot be wrong about wrapping, because it IS the wrapping.
     function ensureNoWrap(area, host, srcLines, attempt) {
       if (host.dataset.webrLayout !== "side") return;
+      // A hand-set split is not a prediction, so there is nothing here to correct:
+      // widening is a no-op and the stack() below would throw the author's layout
+      // away. Wrapping in a column the author chose is the author's business.
+      if (host.dataset.webrCodeFixed === "true") { markGutter(area, host); return; }
       var lines = area.querySelectorAll(".view-line");
       if (!lines.length) {
         if (attempt < 100) setTimeout(function () {
@@ -626,6 +678,10 @@
         return;
       }
       setTracks(host, area, share + 0.02);
+      // Widening the code column narrows the figure beside it, so the floor is
+      // re-checked on every step, not only on the first measurement.
+      keepPlotReadable(area, host);
+      if (host.dataset.webrLayout !== "side") return;
       // Monaco relayouts asynchronously off its own resize observer; give it a
       // frame or two before reading the line count again.
       setTimeout(function () {
@@ -670,17 +726,37 @@
       // measure-webr-output.R, or R could not evaluate it. Judge on the code alone
       // rather than refuse, so an unmeasured deck still behaves reasonably.
       if (!entry) return true;
-      // A plot is not text: it is drawn to whatever width its column has, so it
-      // always fits. (The height cap in notebook.scss keeps it in bounds.)
-      if (entry.plot) return true;
-      // Ran and printed nothing. There is no right-hand content to show, so the
-      // code keeps the full width rather than facing an empty Output banner.
-      if (!entry.rows || !entry.cols) return false;
+      // Ran and printed nothing, and drew nothing. There is no right-hand content
+      // to show, so the code keeps the full width rather than facing an empty
+      // Output banner. A figure counts as content even though it prints no text.
+      if (!entry.plot && (!entry.rows || !entry.cols)) return false;
 
       var available = Math.max(1, (area.clientWidth || 1005) - 16);
       var codePx = Math.max(MIN_CODE_PX,
         (textWidthPx(area, metrics.longest) + EDITOR_CHROME) * CODE_SLACK);
       codePx = Math.min(codePx, MAX_CODE_SHARE * available);
+
+      // A figure has no natural width, so it can never FAIL the width test below:
+      // it just shrinks into whatever strip the code left over. It gets a FLOOR
+      // instead. Above the floor, code beside its figure is a good layout and is
+      // kept; below it the axis labels stop being legible — which is what a
+      // histogram beside an 86-character line of code looks like — and the cell
+      // stacks, where the figure has the whole slide.
+      //
+      // `::: {.side-out}` overrides the floor. It is a judgement, not a fit, and
+      // an author who typed the wrapper has looked at the slide.
+      if (entry.plot) {
+        if (area.closest(".side-out")) return true;
+        // Measured against the OPENING split, not the font measurement above.
+        // layOut() opens every promoted cell on the FALLBACK_CHAR_PX estimate,
+        // and on a hidden slide or an inactive tab — where clientWidth is 0 —
+        // that estimate is the split the cell KEEPS until someone navigates to
+        // it. Judging the floor on the narrower font measurement passed cells
+        // that then opened with a 317px figure, which is the bug this fixes.
+        var openingCodePx = Math.min(MAX_CODE_SHARE * available,
+          Math.max(MIN_CODE_PX, metrics.maxChars * FALLBACK_CHAR_PX + EDITOR_CHROME));
+        return available - openingCodePx >= MIN_PLOT_PX;
+      }
       var outputPx = (textWidthPx(area, repeatChar("0", entry.cols)) + 24) * OUTPUT_SLACK;
       // Width is the FIT test: the output must live in what the code did not take.
       // The code column is never narrowed to make room for it.
@@ -730,12 +806,39 @@
       if (area.dataset.webrLayoutChecked === "true") return;
       area.dataset.webrLayoutChecked = "true";
 
+      // `::: {.stacked}` is the manual OPT-OUT, and the mirror of `.side-out`:
+      // this cell keeps the vertical stack whatever the measurements say. The two
+      // wrappers are the author's overrides in each direction, and an author who
+      // has looked at the slide outranks the arithmetic in both. It is checked
+      // FIRST, before any measuring, because there is nothing left to decide.
+      if (area.closest(".stacked")) {
+        var forcedHost = area.closest(".side-out") || area.closest(".cell") ||
+          area.parentElement;
+        if (forcedHost) {
+          forcedHost.classList.remove("side-out");
+          forcedHost.dataset.webrLayout = "stacked";
+        }
+        return;
+      }
+
       var details = detailsFor(area);
       if (!details || !details.options || details.options.context === "setup") return;
+
+      // `#| layout: stacked` is the wrapper above written as a cell option, and
+      // means the same thing. Checked here rather than with the wrapper only
+      // because the options have to be read first; nothing has been measured yet.
+      if (details.options["layout"] === "stacked") {
+        var optHost = area.closest(".side-out") || area.closest(".cell") ||
+          area.parentElement;
+        if (optHost) {
+          optHost.classList.remove("side-out");
+          optHost.dataset.webrLayout = "stacked";
+        }
+        return;
+      }
+
       var metrics = codeMetrics(details.code);
       if (!metrics.lines || metrics.lines > MAX_CODE_LINES || metrics.maxChars > 88) return;
-      // Nothing to put in the Output panel, so do not open one.
-      if (printsNothing(details.code)) return;
 
       var existingWrapper = area.closest(".side-out");
 
@@ -762,12 +865,52 @@
       // measurement noise from tearing the wrapper down.
       if (existingWrapper) host.dataset.webrLayoutManual = "true";
 
+      // `::: {.side-out style="--webr-code-track: 0.45fr; ..."}` — the author has
+      // set the split by hand. Read it BEFORE the first setTracks call, which is
+      // the moment it would otherwise be overwritten, and the cell then keeps
+      // exactly the columns the qmd asked for.
+      if (host.style.getPropertyValue("--webr-code-track")) {
+        host.dataset.webrCodeFixed = "true";
+        host.dataset.webrLayoutManual = "true";
+      }
+
+      // `#| layout: side` is `::: {.side-out}` written as a cell option, and
+      // `#| code-track: 0.6` is the split written on it — the two overrides
+      // without a div, which is what a decision about ONE cell wants. The number
+      // is the code's share; the output gets the rest, so it implies `side`.
+      // qwebr passes unknown `#|` options through untouched and
+      // measure-webr-output.R strips every `#|` line, so adding one does not
+      // change the key a cell is measured under. Adding `.side-out` here rather
+      // than only setting the flags is what makes the option identical to the
+      // wrapper: the fit tests below read the class, so the cell can override the
+      // figure floor, and code that will not fit one line still stacks.
+      var codeTrack = parseFloat(details.options["code-track"]);
+      if (codeTrack > 0 && codeTrack < 1) {
+        host.style.setProperty("--webr-code-track", codeTrack + "fr");
+        host.style.setProperty("--webr-output-track", (1 - codeTrack) + "fr");
+        host.style.setProperty("--webr-code-share", (codeTrack * 100) + "%");
+        host.dataset.webrCodeFixed = "true";
+      }
+      if ((codeTrack > 0 && codeTrack < 1) || details.options["layout"] === "side") {
+        host.classList.add("side-out");
+        host.dataset.webrLayoutManual = "true";
+      }
+
       // Wait for the measured output sizes — a fetch of a small JSON sitting
       // beside the deck, so this resolves in milliseconds, long before WebR is
       // interactive and before anyone can have clicked anything. THIS is the one
       // moment the layout is decided. Nothing later may revisit it.
       outputSizes.then(function (sizes) {
         var entry = sizes[String(details.code || "").trim()] || null;
+        // printsNothing() is a GUESS from the source, and it is only consulted
+        // when there is no measurement. It reads `if <- 3` as an assignment and
+        // therefore as silent, when what that cell actually prints is a four-line
+        // syntax error — which is the whole point of the slide it sits on.
+        // A measured cell is judged on what R really printed.
+        if (!entry && printsNothing(details.code)) {
+          host.dataset.webrLayout = "stacked";
+          return;
+        }
         if (!sideBySideFits(area, metrics, entry)) {
           // force: a `::: {.side-out}` wrapper is a request, and the class is in
           // the markup, so it must be REMOVED here or the stylesheet lays the cell
@@ -775,6 +918,7 @@
           stack(host, true);
           return;
         }
+        if (entry && entry.plot) host.dataset.webrPlot = "true";
         promote(host);
         layOut(area, host, details, metrics);
       });
@@ -1132,7 +1276,7 @@
   };
 
   // Store cell data
-  globalThis.qwebrCellDetails = [{"code":"# NOTE: a webr setup cell renders a loading widget wherever it sits, so keep it\n# inside a content slide rather than on a section divider (or, worse, above the\n# first heading, where it becomes an untitled slide of its own).\n# Mirror of lecture_theme() in lectures/_lecture-theme.R. WebR runs in the\n# browser, against a virtual filesystem that does not hold the repo, so it\n# cannot source that file. Edit the file first, then run\n#     Rscript lectures/check-lecture-theme.R\n# which fails if this copy has drifted from it.\nlecture_theme <- function(base_size = 16) {\n  ggplot2::theme_bw(base_size = base_size) +\n    ggplot2::theme(\n      axis.text = ggplot2::element_text(size = base_size * 0.9),\n      axis.title = ggplot2::element_text(size = base_size),\n      legend.text = ggplot2::element_text(size = base_size * 0.9),\n      legend.title = ggplot2::element_text(size = base_size * 0.9),\n      plot.background = ggplot2::element_rect(fill = \"transparent\", colour = NA),\n      panel.background = ggplot2::element_rect(fill = \"transparent\", colour = NA),\n      legend.background = ggplot2::element_rect(fill = \"transparent\", colour = NA),\n      legend.key = ggplot2::element_rect(fill = \"transparent\", colour = NA),\n      # theme_bw's grey92 grid was chosen against a white panel and all but\n      # disappears on the warm paper once the panel stops being opaque.\n      panel.grid = ggplot2::element_line(colour = \"grey87\")\n    )\n}\n\n# The WebR canvas is 7x4.5in at out-width 55% of its output track\n# (lectures/_metadata.yml) — a similar pixels-per-inch to the 10in knitr canvas,\n# but often narrower when the cell renders side by side, so it runs a little\n# larger than the 16pt default. 30pt did not fit this canvas at all: the panel\n# collapsed into the top third and the legend clipped.\n# webR draws its canvas at 72 dpi no matter what `dpi` says, so on a 216-dpi\n# canvas everything ggplot measures in points or mm comes out a third of its\n# size. Scale ggplot2's mm-to-point constants and the theme by the same\n# factor and the figure matches the knitr ones. Keep in step with `dpi` above.\nwebr_scale <- 216 / 72\nassignInNamespace(\".pt\", ggplot2::.pt * webr_scale, \"ggplot2\")\nassignInNamespace(\".stroke\", ggplot2::.stroke * webr_scale, \"ggplot2\")\ntheme_lecture <- lecture_theme(18 * webr_scale) +\n  # base_size also sets the theme line widths, which are in mm and already\n  # pass through the scaled .pt; pin them to what 18pt gives or they come\n  # out 9x thick.\n  ggplot2::theme(\n    line = ggplot2::element_line(linewidth = 18 / 22),\n    rect = ggplot2::element_rect(linewidth = 18 / 22)\n  )\nggplot2::theme_set(theme_lecture)","id":1,"options":{"autorun":"true","classes":"","comment":"","context":"setup","dpi":"216","editor-font-scale":"0.7","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"4.5","fig-width":"7","label":"unnamed-chunk-1","message":"true","out-height":"","out-width":"55%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"#--- Preparation ---#\nB <- 1000 # the number of iterations\nN_list <- c(100, 1000, 10000) # sample size\nN_len <- length(N_list)\nestimate_storage <- matrix(0, B, N_len) # estimates storage\n\nfor (j in 1:N_len) {\n  temp_N <- N_list[j]\n  for (i in 1:B) {\n    #--- generate data ---#\n    x <- rnorm(temp_N) # independent variable\n    u <- rnorm(temp_N) * 0.2 # error\n    y <- 1 + x + u # dependent variable 1\n    data <- data.frame(y = y, x = x)\n\n    #--- OLS ---#\n    reg <- lm(y ~ x, data = data) # OLS\n\n    #--- store coef estimates ---#\n    estimate_storage[i, j] <- reg$coef[2]\n  }\n}","id":2,"options":{"autorun":"false","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.7","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"4.5","fig-width":"7","label":"unnamed-chunk-2","message":"true","out-height":"","out-width":"55%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"plot_data <- melt(as.data.table(estimate_storage), measure.vars = 1:N_len)\n\n#--- create a figure ---#\ng_co_ex <-\n  ggplot(data = plot_data) +\n  geom_density(aes(x = value, fill = variable), alpha = 0.4) +\n  geom_vline(xintercept = 1) +\n  xlim(0.9, 1.1) +\n  scale_fill_discrete(\n    name = \"Sample Size\",\n    labels = c(\"N=100 \", \"N=1,000 \", \"N=10,000\")\n  ) +\n  theme_lecture +\n  theme(\n    legend.position = \"bottom\"\n  )\n\ng_co_ex","id":3,"options":{"autorun":"false","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.7","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"4.5","fig-width":"7","label":"unnamed-chunk-3","message":"true","out-height":"","out-width":"55%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"#--- Preparation ---#\nB <- 1000 # the number of iterations\nN_list <- c(100, 1000, 10000) # sample size\nN_len <- length(N_list)\nestimate_storage <- matrix(0, B, N_len) # estimates storage\n\nfor (j in 1:N_len) {\n  temp_N <- N_list[j]\n  for (i in 1:B) {\n    #--- generate data ---#\n    mu <- rnorm(temp_N) # shared term between x and u #<<\n    x <- rnorm(temp_N) + 0.5 * mu # <<\n    u <- rnorm(temp_N) + 0.5 * mu # <<\n    y <- 1 + x + u # dependent variable\n    data <- data.frame(y = y, x = x)\n\n    #--- OLS ---#\n    reg <- lm(y ~ x, data = data) # OLS\n\n    #--- store coef estimates ---#\n    estimate_storage[i, j] <- reg$coef[2]\n  }\n}","id":4,"options":{"autorun":"false","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.7","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"4.5","fig-width":"7","label":"unnamed-chunk-4","message":"true","out-height":"","out-width":"55%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"#--- wide to long format ---#\nplot_data <- melt(as.data.table(estimate_storage), measure.vars = 1:N_len)\n\n#--- create a figure ---#\ng_inco_ex <- ggplot(data = plot_data) +\n  geom_density(aes(x = value, fill = variable), alpha = 0.4) +\n  geom_vline(xintercept = 1, linetype = \"dashed\") +\n  geom_vline(xintercept = 1.2) +\n  scale_fill_discrete(\n    name = \"Sample Size\",\n    labels = c(\"N=100 \", \"N=1,000 \", \"N=10,000\")\n  ) +\n  theme_lecture +\n  theme(\n    legend.position = \"bottom\"\n  )\n\ng_inco_ex","id":5,"options":{"autorun":"false","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.7","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"4.5","fig-width":"7","label":"unnamed-chunk-5","message":"true","out-height":"","out-width":"55%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"(\nx <- rbinom(10, size = 1, prob = 0.3)\n)\n\nsqrt(10) * (mean(x) - 0.3)","id":6,"options":{"autorun":"true","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.7","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"4.5","fig-width":"7","label":"unnamed-chunk-6","message":"true","out-height":"","out-width":"55%","output":"true","read-only":"false","results":"markup","warning":"true"}}];
+  globalThis.qwebrCellDetails = [{"code":"# NOTE: a webr setup cell renders a loading widget wherever it sits, so keep it\n# inside a content slide rather than on a section divider (or, worse, above the\n# first heading, where it becomes an untitled slide of its own).\n# Mirror of lecture_theme() in lectures/_lecture-theme.R. WebR runs in the\n# browser, against a virtual filesystem that does not hold the repo, so it\n# cannot source that file. Edit the file first, then run\n#     Rscript lectures/check-lecture-theme.R\n# which fails if this copy has drifted from it.\nlecture_theme <- function(base_size = 16) {\n  ggplot2::theme_bw(base_size = base_size) +\n    ggplot2::theme(\n      axis.text = ggplot2::element_text(size = base_size * 0.9),\n      axis.title = ggplot2::element_text(size = base_size),\n      legend.text = ggplot2::element_text(size = base_size * 0.9),\n      legend.title = ggplot2::element_text(size = base_size * 0.9),\n      plot.background = ggplot2::element_rect(fill = \"transparent\", colour = NA),\n      panel.background = ggplot2::element_rect(fill = \"transparent\", colour = NA),\n      legend.background = ggplot2::element_rect(fill = \"transparent\", colour = NA),\n      legend.key = ggplot2::element_rect(fill = \"transparent\", colour = NA),\n      # theme_bw's grey92 grid was chosen against a white panel and all but\n      # disappears on the warm paper once the panel stops being opaque.\n      panel.grid = ggplot2::element_line(colour = \"grey87\")\n    )\n}\n\n# The WebR canvas is 10x6in at out-width 100% of its output track\n# (lectures/_metadata.yml), the same canvas the knitr figures use. It asks for\n# the whole track because the 420px height cap in notebook.scss is what really\n# sizes it. 18pt rather than the 16pt knitr default: on a full slide both land\n# at 700x420, where 18pt reads at 17.5px and 16pt at 15.5px, and these decks\n# put figures in half-width columns where the smaller size gets hard to read.\n# webR draws its canvas at 72 dpi no matter what `dpi` says, so on a 216-dpi\n# canvas everything ggplot measures in points or mm comes out a third of its\n# size. Scale ggplot2's mm-to-point constants and the theme by the same\n# factor and the figure matches the knitr ones. Keep in step with `dpi` above.\nwebr_scale <- 216 / 72\nassignInNamespace(\".pt\", ggplot2::.pt * webr_scale, \"ggplot2\")\nassignInNamespace(\".stroke\", ggplot2::.stroke * webr_scale, \"ggplot2\")\ntheme_lecture <- lecture_theme(18 * webr_scale) +\n  # base_size also sets the theme line widths, which are in mm and already\n  # pass through the scaled .pt; pin them to what 18pt gives or they come\n  # out 9x thick.\n  ggplot2::theme(\n    line = ggplot2::element_line(linewidth = 18 / 22),\n    rect = ggplot2::element_rect(linewidth = 18 / 22)\n  )\nggplot2::theme_set(theme_lecture)","id":1,"options":{"autorun":"true","classes":"","comment":"","context":"setup","dpi":"216","editor-font-scale":"0.7","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"6","fig-width":"10","label":"unnamed-chunk-1","message":"true","out-height":"","out-width":"100%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"#--- Preparation ---#\nB <- 1000 # the number of iterations\nN_list <- c(100, 1000, 10000) # sample size\nN_len <- length(N_list)\nestimate_storage <- matrix(0, B, N_len) # estimates storage\n\nfor (j in 1:N_len) {\n  temp_N <- N_list[j]\n  for (i in 1:B) {\n    #--- generate data ---#\n    x <- rnorm(temp_N) # independent variable\n    u <- rnorm(temp_N) * 0.2 # error\n    y <- 1 + x + u # dependent variable 1\n    data <- data.frame(y = y, x = x)\n\n    #--- OLS ---#\n    reg <- lm(y ~ x, data = data) # OLS\n\n    #--- store coef estimates ---#\n    estimate_storage[i, j] <- reg$coef[2]\n  }\n}","id":2,"options":{"autorun":"false","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.7","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"6","fig-width":"10","label":"unnamed-chunk-2","message":"true","out-height":"","out-width":"100%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"plot_data <- melt(as.data.table(estimate_storage), measure.vars = 1:N_len)\n\n#--- create a figure ---#\ng_co_ex <-\n  ggplot(data = plot_data) +\n  geom_density(aes(x = value, fill = variable), alpha = 0.4) +\n  geom_vline(xintercept = 1) +\n  xlim(0.9, 1.1) +\n  scale_fill_discrete(\n    name = \"Sample Size\",\n    labels = c(\"N=100 \", \"N=1,000 \", \"N=10,000\")\n  ) +\n  theme_lecture +\n  theme(\n    legend.position = \"bottom\"\n  )\n\ng_co_ex","id":3,"options":{"autorun":"false","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.7","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"6","fig-width":"10","label":"unnamed-chunk-3","message":"true","out-height":"","out-width":"100%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"#--- Preparation ---#\nB <- 1000 # the number of iterations\nN_list <- c(100, 1000, 10000) # sample size\nN_len <- length(N_list)\nestimate_storage <- matrix(0, B, N_len) # estimates storage\n\nfor (j in 1:N_len) {\n  temp_N <- N_list[j]\n  for (i in 1:B) {\n    #--- generate data ---#\n    mu <- rnorm(temp_N) # shared term between x and u #<<\n    x <- rnorm(temp_N) + 0.5 * mu # <<\n    u <- rnorm(temp_N) + 0.5 * mu # <<\n    y <- 1 + x + u # dependent variable\n    data <- data.frame(y = y, x = x)\n\n    #--- OLS ---#\n    reg <- lm(y ~ x, data = data) # OLS\n\n    #--- store coef estimates ---#\n    estimate_storage[i, j] <- reg$coef[2]\n  }\n}","id":4,"options":{"autorun":"false","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.7","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"6","fig-width":"10","label":"unnamed-chunk-4","message":"true","out-height":"","out-width":"100%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"#--- wide to long format ---#\nplot_data <- melt(as.data.table(estimate_storage), measure.vars = 1:N_len)\n\n#--- create a figure ---#\ng_inco_ex <- ggplot(data = plot_data) +\n  geom_density(aes(x = value, fill = variable), alpha = 0.4) +\n  geom_vline(xintercept = 1, linetype = \"dashed\") +\n  geom_vline(xintercept = 1.2) +\n  scale_fill_discrete(\n    name = \"Sample Size\",\n    labels = c(\"N=100 \", \"N=1,000 \", \"N=10,000\")\n  ) +\n  theme_lecture +\n  theme(\n    legend.position = \"bottom\"\n  )\n\ng_inco_ex","id":5,"options":{"autorun":"false","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.7","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"6","fig-width":"10","label":"unnamed-chunk-5","message":"true","out-height":"","out-width":"100%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"(\nx <- rbinom(10, size = 1, prob = 0.3)\n)\n\nsqrt(10) * (mean(x) - 0.3)","id":6,"options":{"autorun":"true","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.7","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"6","fig-width":"10","label":"unnamed-chunk-6","message":"true","out-height":"","out-width":"100%","output":"true","read-only":"false","results":"markup","warning":"true"}}];
 
   </script>
   <script type="module">
@@ -2139,11 +2283,23 @@
       // Store the code to run in history
       qwebrLogCodeToHistory(codeToRun, options);
 
+      // webR's canvas draws text at the `pointsize` set above but still reports
+      // its character metrics as if the font were 12pt. R sizes plot margins in
+      // "lines" from those metrics, so on a 216 dpi canvas the margins come out
+      // three times too small and base graphics draw the y-axis label off the
+      // left edge. `mex` is the factor R uses when turning margin lines into
+      // physical units, so setting it to the same dpi/72 restores them. It is
+      // prepended on the code's first line, not a line of its own, so a parse
+      // error still reports the line number the student sees in the editor.
+      const marginFix = captureOutputOptions.captureGraphics
+          ? `par(mex = ${options["dpi"] / 72}); `
+          : "";
+
       // Setup a webR canvas by making a namespace call into the {webr} package
       // Evaluate the R code
       // Remove the active canvas silently
       const result = await mainWebRCodeShelter.captureR(
-          `${codeToRun}`,
+          `${marginFix}${codeToRun}`,
           captureOutputOptions
       );
 
@@ -2431,6 +2587,23 @@ globalThis.qwebrCreateMonacoEditorInstance = function (cellData) {
       fontSize: qwebrScaledFontSize(editorDiv, qwebrOptions),         
       renderLineHighlight: "none",      // Disable current line highlighting
       hideCursorInOverviewRuler: true,  // Remove cursor indictor in right hand side scroll bar
+      // PATCHED, see RULES.md. Monaco's defaults reserve five characters of
+      // number column (`lineNumbersMinChars: 5`) and a 10px decorations strip
+      // beside it, which on a cell of at most a couple of dozen lines is a wide
+      // empty band between the number and the code. Two characters covers every
+      // cell in these decks (99 lines), and the decorations strip carries
+      // nothing here — no breakpoints, no folding.
+      lineNumbersMinChars: 1,
+      // The gap between the number and the first character. 4 put them in
+      // contact ("1#--- addition"); Monaco's default 10 sits beside a
+      // five-character number column, which is what made the band look empty.
+      // The gap between the number and the first character. The whole margin is
+      // this plus the digits: 6 read as too tight, 12 as too loose, so 9 —
+      // a 25px margin on a ten-plus-line cell, 17px on a short one, against the
+      // ~75px Monaco's defaults gave.
+      lineDecorationsWidth: 9,
+      folding: false,
+      glyphMargin: false,
       readOnly: qwebrOptions['read-only'] ?? false,
       quickSuggestions: qwebrOptions['editor-quick-suggestions'] ?? false,
       wordWrap: (qwebrOptions['editor-word-wrap'] == 'true' ? "on" : "off")

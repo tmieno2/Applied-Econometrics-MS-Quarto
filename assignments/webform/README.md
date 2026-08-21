@@ -1,18 +1,21 @@
 # The submission form
 
-An Apps Script web app that replaces the Dropbox file request now that the
-course lives in Google Drive. A student opens one URL, gives their name and
-email, picks the assignment from a dropdown and uploads their files. Each file
-is written into
+An Apps Script web app that replaces the old Dropbox file request. A student
+opens one URL, gives their name and email, picks the assignment from a dropdown
+and uploads their files. Each file is written into a Google Drive folder, which
+the repository reaches through a symlink at `assignments/submission` (the
+repository itself lives on local disk; see `CLAUDE.md` at the repository root).
+Each file lands in
 
 ```
 assignments/submission/<year>/<assignment>/
 ```
 
 which is exactly the tree `assignments/sort-submissions.R` produces, so grading
-is unchanged. The repository is inside Drive, so a file uploaded through the
-form syncs down and appears in that folder locally with no further step —
-the same property the Dropbox request had.
+is unchanged. The repository lives on local disk and `assignments/submission`
+is a symlink into that Drive folder, so a file uploaded through the form syncs
+down and appears there with no further step — the same property the Dropbox
+request had, without a sync client watching the rest of the course.
 
 | File | What it is |
 |---|---|

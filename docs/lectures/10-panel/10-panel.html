@@ -94,7 +94,7 @@
     code span.vs { color: #20794d; } /* VerbatimString */
     code span.wa { color: #5e5e5e; font-style: italic; } /* Warning */
   </style>
-  <link rel="stylesheet" href="../../site_libs/revealjs/dist/theme/quarto-bf1223c773699056cca1ada9baf1738b.css">
+  <link rel="stylesheet" href="../../site_libs/revealjs/dist/theme/quarto-5749ef3d543d853c9975bfcccaade8de.css">
   <script defer="" src="https://cdn.jsdelivr.net/npm/katex@0.18.4/dist/katex.min.js"></script>
   <script>document.addEventListener("DOMContentLoaded", function () {
  var mathElements = document.getElementsByClassName("math");
@@ -384,8 +384,13 @@
     "use strict";
 
     var MAX_CODE_LINES = 12;
-    // Monaco's line-number gutter (~75px) plus its vertical scrollbar (~15px).
-    var EDITOR_CHROME = 90;
+    // Everything in the editor that is not code: the line-number margin plus the
+    // vertical scrollbar. MEASURED on a rendered deck, remembering that a rect on
+    // a reveal slide carries the deck's scale: margin 25px, scrollbar 14px. It was
+    // 90 when Monaco still used its default five-character number column; the
+    // vendored qwebr-monaco-editor-element.js asks for one character now, so every
+    // code column was being sized ~50px wider than it needed.
+    var EDITOR_CHROME = 45;
     // A deliberate OVER-estimate of one character. Menlo at 15.36px measures
     // ~9.2px, and erring high is what keeps the editor from wrapping when the
     // real measurement below has not landed yet.
@@ -412,6 +417,11 @@
     // it and still wrapped.
     var MIN_CODE_PX = 320;
     var MIN_CODE_SHARE = 0.18;
+    // The narrowest column a figure may be drawn into. A plot cannot overflow, so
+    // the width test the printed-text branch uses never refuses one however small
+    // the column: this is the number that does. Measured against the stacked
+    // figure, which is drawn at 55% of the 1050px slide, i.e. 577px.
+    var MIN_PLOT_PX = 380;
     // Slack on the measured output width, same purpose as CODE_SLACK: a column
     // that fits only exactly is not a column that fits.
     var OUTPUT_SLACK = 1.08;
@@ -424,19 +434,26 @@
 
     // What every cell PRINTS, measured in R at render time by
     // measure-webr-output.R and shipped beside the deck as
-    // <deck>.webr-output.json. This is the whole point of that script: the output
+    // <deck>.webr-output.js. This is the whole point of that script: the output
     // gets a say in a decision taken before the cell has ever run.
     //
-    // Missing file, missing cell, failed fetch — all mean the same thing and are
+    // Loaded with a <script src>, not fetch(). A fetch of a sibling file is
+    // blocked on a file:// page — which is how a deck is previewed while it is
+    // being written — so every cell looked unmeasured and fell through to the
+    // "judge on the code alone" branch, i.e. side by side. The preview then
+    // disagreed with the published site about every layout on the deck. A script
+    // tag is exempt from that and loads under both.
+    //
+    // Missing file, missing cell, failed load — all mean the same thing and are
     // all safe: that cell falls back to judging on its code alone.
-    var outputSizes = (function () {
-      if (!/\.html$/.test(location.pathname) || typeof fetch !== "function") {
-        return Promise.resolve({});
-      }
-      return fetch(location.pathname.replace(/\.html$/, "") + ".webr-output.json")
-        .then(function (r) { return r.ok ? r.json() : {}; })
-        .catch(function () { return {}; });
-    })();
+    var outputSizes = new Promise(function (resolve) {
+      if (!/\.html$/.test(location.pathname)) return resolve({});
+      var tag = document.createElement("script");
+      tag.src = location.pathname.replace(/\.html$/, "") + ".webr-output.js";
+      tag.onload = function () { resolve(globalThis.webrOutputSizes || {}); };
+      tag.onerror = function () { resolve({}); };
+      document.head.appendChild(tag);
+    });
 
     function detailsFor(area) {
       var match = area.id && area.id.match(/qwebr-interactive-area-(\d+)/);
@@ -529,6 +546,11 @@
     }
 
     function setTracks(host, area, codeShare) {
+      // An author who wrote the tracks into the markup owns the split. Every
+      // measurement below leads here, so one guard in this function is the whole
+      // exemption: the estimate, the Monaco measurement and the no-wrap widening
+      // all stop writing, and nothing else in the file has to know.
+      if (host.dataset.webrCodeFixed === "true") return;
       var available = Math.max(1, (area && area.clientWidth ? area.clientWidth : 1005) - 16);
       codeShare = Math.max(codeShare, MIN_CODE_PX / available);
       codeShare = Math.max(MIN_CODE_SHARE, Math.min(MAX_CODE_SHARE, codeShare));
@@ -536,6 +558,30 @@
       host.style.setProperty("--webr-code-track", codeShare + "fr");
       host.style.setProperty("--webr-output-track", outputShare + "fr");
       host.style.setProperty("--webr-code-share", (codeShare * 100) + "%");
+    }
+
+    // THE PLOT FLOOR, RE-CHECKED AGAINST THE REAL COLUMN.
+    //
+    // sideBySideFits() applies MIN_PLOT_PX to an ESTIMATE: a canvas measurement
+    // of the longest source line in the output's font, taken before Monaco has
+    // rendered. The column a cell actually gets is set twice more after that —
+    // by measureRenderedCode() from Monaco's own metrics, and again by
+    // ensureNoWrap(), which widens the code column in 2% steps until the line
+    // stops wrapping. Both make the code column WIDER, and every pixel of it
+    // comes out of the figure. So a plot that cleared the floor on the estimate
+    // can still end up in a strip well under it — a density plot in ~330px is
+    // what prompted this. The floor has to be enforced where the real number is.
+    //
+    // This can only run during load, like every other route out of side by side.
+    // `::: {.side-out}` still wins: stack() exempts a manual wrapper.
+    function keepPlotReadable(area, host) {
+      if (host.dataset.webrCodeFixed === "true") return;
+      if (host.dataset.webrPlot !== "true") return;
+      if (host.dataset.webrLayout !== "side") return;
+      var available = Math.max(1, (area.clientWidth || 1005) - 16);
+      var share = parseFloat(host.style.getPropertyValue("--webr-code-share")) / 100;
+      if (!share) return;
+      if (available * (1 - share) < MIN_PLOT_PX) stack(host, false);
     }
 
     function measureRenderedCode(area, host, code, attempt) {
@@ -568,6 +614,8 @@
       // recomputed against the OUTPUT's measured width once the cell has run.
       host.dataset.webrCodePx = Math.ceil(widest + EDITOR_CHROME);
       setTracks(host, area, ((widest + EDITOR_CHROME) * CODE_SLACK) / available);
+      keepPlotReadable(area, host);
+      if (host.dataset.webrLayout !== "side") return;
 
       // The measured code column is now the real one, so check straight away that
       // Monaco is not wrapping in it. Before, this ran only after a cell had been
@@ -604,6 +652,10 @@
     // that cannot be wrong about wrapping, because it IS the wrapping.
     function ensureNoWrap(area, host, srcLines, attempt) {
       if (host.dataset.webrLayout !== "side") return;
+      // A hand-set split is not a prediction, so there is nothing here to correct:
+      // widening is a no-op and the stack() below would throw the author's layout
+      // away. Wrapping in a column the author chose is the author's business.
+      if (host.dataset.webrCodeFixed === "true") { markGutter(area, host); return; }
       var lines = area.querySelectorAll(".view-line");
       if (!lines.length) {
         if (attempt < 100) setTimeout(function () {
@@ -621,6 +673,10 @@
         return;
       }
       setTracks(host, area, share + 0.02);
+      // Widening the code column narrows the figure beside it, so the floor is
+      // re-checked on every step, not only on the first measurement.
+      keepPlotReadable(area, host);
+      if (host.dataset.webrLayout !== "side") return;
       // Monaco relayouts asynchronously off its own resize observer; give it a
       // frame or two before reading the line count again.
       setTimeout(function () {
@@ -665,17 +721,37 @@
       // measure-webr-output.R, or R could not evaluate it. Judge on the code alone
       // rather than refuse, so an unmeasured deck still behaves reasonably.
       if (!entry) return true;
-      // A plot is not text: it is drawn to whatever width its column has, so it
-      // always fits. (The height cap in notebook.scss keeps it in bounds.)
-      if (entry.plot) return true;
-      // Ran and printed nothing. There is no right-hand content to show, so the
-      // code keeps the full width rather than facing an empty Output banner.
-      if (!entry.rows || !entry.cols) return false;
+      // Ran and printed nothing, and drew nothing. There is no right-hand content
+      // to show, so the code keeps the full width rather than facing an empty
+      // Output banner. A figure counts as content even though it prints no text.
+      if (!entry.plot && (!entry.rows || !entry.cols)) return false;
 
       var available = Math.max(1, (area.clientWidth || 1005) - 16);
       var codePx = Math.max(MIN_CODE_PX,
         (textWidthPx(area, metrics.longest) + EDITOR_CHROME) * CODE_SLACK);
       codePx = Math.min(codePx, MAX_CODE_SHARE * available);
+
+      // A figure has no natural width, so it can never FAIL the width test below:
+      // it just shrinks into whatever strip the code left over. It gets a FLOOR
+      // instead. Above the floor, code beside its figure is a good layout and is
+      // kept; below it the axis labels stop being legible — which is what a
+      // histogram beside an 86-character line of code looks like — and the cell
+      // stacks, where the figure has the whole slide.
+      //
+      // `::: {.side-out}` overrides the floor. It is a judgement, not a fit, and
+      // an author who typed the wrapper has looked at the slide.
+      if (entry.plot) {
+        if (area.closest(".side-out")) return true;
+        // Measured against the OPENING split, not the font measurement above.
+        // layOut() opens every promoted cell on the FALLBACK_CHAR_PX estimate,
+        // and on a hidden slide or an inactive tab — where clientWidth is 0 —
+        // that estimate is the split the cell KEEPS until someone navigates to
+        // it. Judging the floor on the narrower font measurement passed cells
+        // that then opened with a 317px figure, which is the bug this fixes.
+        var openingCodePx = Math.min(MAX_CODE_SHARE * available,
+          Math.max(MIN_CODE_PX, metrics.maxChars * FALLBACK_CHAR_PX + EDITOR_CHROME));
+        return available - openingCodePx >= MIN_PLOT_PX;
+      }
       var outputPx = (textWidthPx(area, repeatChar("0", entry.cols)) + 24) * OUTPUT_SLACK;
       // Width is the FIT test: the output must live in what the code did not take.
       // The code column is never narrowed to make room for it.
@@ -725,12 +801,39 @@
       if (area.dataset.webrLayoutChecked === "true") return;
       area.dataset.webrLayoutChecked = "true";
 
+      // `::: {.stacked}` is the manual OPT-OUT, and the mirror of `.side-out`:
+      // this cell keeps the vertical stack whatever the measurements say. The two
+      // wrappers are the author's overrides in each direction, and an author who
+      // has looked at the slide outranks the arithmetic in both. It is checked
+      // FIRST, before any measuring, because there is nothing left to decide.
+      if (area.closest(".stacked")) {
+        var forcedHost = area.closest(".side-out") || area.closest(".cell") ||
+          area.parentElement;
+        if (forcedHost) {
+          forcedHost.classList.remove("side-out");
+          forcedHost.dataset.webrLayout = "stacked";
+        }
+        return;
+      }
+
       var details = detailsFor(area);
       if (!details || !details.options || details.options.context === "setup") return;
+
+      // `#| layout: stacked` is the wrapper above written as a cell option, and
+      // means the same thing. Checked here rather than with the wrapper only
+      // because the options have to be read first; nothing has been measured yet.
+      if (details.options["layout"] === "stacked") {
+        var optHost = area.closest(".side-out") || area.closest(".cell") ||
+          area.parentElement;
+        if (optHost) {
+          optHost.classList.remove("side-out");
+          optHost.dataset.webrLayout = "stacked";
+        }
+        return;
+      }
+
       var metrics = codeMetrics(details.code);
       if (!metrics.lines || metrics.lines > MAX_CODE_LINES || metrics.maxChars > 88) return;
-      // Nothing to put in the Output panel, so do not open one.
-      if (printsNothing(details.code)) return;
 
       var existingWrapper = area.closest(".side-out");
 
@@ -757,12 +860,52 @@
       // measurement noise from tearing the wrapper down.
       if (existingWrapper) host.dataset.webrLayoutManual = "true";
 
+      // `::: {.side-out style="--webr-code-track: 0.45fr; ..."}` — the author has
+      // set the split by hand. Read it BEFORE the first setTracks call, which is
+      // the moment it would otherwise be overwritten, and the cell then keeps
+      // exactly the columns the qmd asked for.
+      if (host.style.getPropertyValue("--webr-code-track")) {
+        host.dataset.webrCodeFixed = "true";
+        host.dataset.webrLayoutManual = "true";
+      }
+
+      // `#| layout: side` is `::: {.side-out}` written as a cell option, and
+      // `#| code-track: 0.6` is the split written on it — the two overrides
+      // without a div, which is what a decision about ONE cell wants. The number
+      // is the code's share; the output gets the rest, so it implies `side`.
+      // qwebr passes unknown `#|` options through untouched and
+      // measure-webr-output.R strips every `#|` line, so adding one does not
+      // change the key a cell is measured under. Adding `.side-out` here rather
+      // than only setting the flags is what makes the option identical to the
+      // wrapper: the fit tests below read the class, so the cell can override the
+      // figure floor, and code that will not fit one line still stacks.
+      var codeTrack = parseFloat(details.options["code-track"]);
+      if (codeTrack > 0 && codeTrack < 1) {
+        host.style.setProperty("--webr-code-track", codeTrack + "fr");
+        host.style.setProperty("--webr-output-track", (1 - codeTrack) + "fr");
+        host.style.setProperty("--webr-code-share", (codeTrack * 100) + "%");
+        host.dataset.webrCodeFixed = "true";
+      }
+      if ((codeTrack > 0 && codeTrack < 1) || details.options["layout"] === "side") {
+        host.classList.add("side-out");
+        host.dataset.webrLayoutManual = "true";
+      }
+
       // Wait for the measured output sizes — a fetch of a small JSON sitting
       // beside the deck, so this resolves in milliseconds, long before WebR is
       // interactive and before anyone can have clicked anything. THIS is the one
       // moment the layout is decided. Nothing later may revisit it.
       outputSizes.then(function (sizes) {
         var entry = sizes[String(details.code || "").trim()] || null;
+        // printsNothing() is a GUESS from the source, and it is only consulted
+        // when there is no measurement. It reads `if <- 3` as an assignment and
+        // therefore as silent, when what that cell actually prints is a four-line
+        // syntax error — which is the whole point of the slide it sits on.
+        // A measured cell is judged on what R really printed.
+        if (!entry && printsNothing(details.code)) {
+          host.dataset.webrLayout = "stacked";
+          return;
+        }
         if (!sideBySideFits(area, metrics, entry)) {
           // force: a `::: {.side-out}` wrapper is a request, and the class is in
           // the markup, so it must be REMOVED here or the stylesheet lays the cell
@@ -770,6 +913,7 @@
           stack(host, true);
           return;
         }
+        if (entry && entry.plot) host.dataset.webrPlot = "true";
         promote(host);
         layOut(area, host, details, metrics);
       });
@@ -1127,7 +1271,7 @@
   };
 
   // Store cell data
-  globalThis.qwebrCellDetails = [{"code":"data(jtrain, package = \"wooldridge\")\n\ndplyr::select(jtrain, year, fcode, employ, sales) %>%\n  head(9)","id":1,"options":{"autorun":"true","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.7","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"4.5","fig-width":"7","label":"unnamed-chunk-1","message":"true","out-height":"","out-width":"55%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"massage_data <- data.frame(\n  Location = c(\"Chicago\", \"Peoria\", \"Milwaukee\", \"Madison\"),\n  Year = rep(2003, 4),\n  P = c(75, 50, 60, 55),\n  Q = c(2, 1.0, 1.5, 0.8)\n)","id":2,"options":{"autorun":"true","classes":"","comment":"","context":"setup","dpi":"216","editor-font-scale":"0.7","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"4.5","fig-width":"7","label":"unnamed-chunk-2","message":"true","out-height":"","out-width":"55%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"massage_data <- \n  massage_data %>%\n  mutate(Ql = c(10, 5, 7, 6))\n\ngt(massage_data)","id":3,"options":{"autorun":"true","classes":"","comment":"","context":"setup","dpi":"216","editor-font-scale":"0.7","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"4.5","fig-width":"7","label":"unnamed-chunk-3","message":"true","out-height":"","out-width":"55%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"massage_data_2p <- \n  data.frame(\n    Location = rep(c(\"Chicago\", \"Peoria\", \"Milwaukee\", \"Madison\"), each = 2),\n    Year = rep(c(2003, 2004), 4),\n    P = c(75, 85, 50, 48, 60, 65, 55, 60),\n    Q = c(2, 1.8, 1.0, 1.1, 1.5, 1.4, 0.8, 0.7),\n    Ql = rep(c(10, 5, 7, 6), each = 2)\n  )","id":4,"options":{"autorun":"true","classes":"","comment":"","context":"setup","dpi":"216","editor-font-scale":"0.7","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"4.5","fig-width":"7","label":"unnamed-chunk-4","message":"true","out-height":"","out-width":"55%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"massage_data_fd <- \n  massage_data_2p %>%\n  group_by(Location) %>%\n  mutate(\n    P_dif = P - lag(P),\n    Q_dif = Q - lag(Q),\n    Ql_dif = Ql - lag(Ql)\n  ) %>%\n  ungroup()","id":5,"options":{"autorun":"true","classes":"","comment":"","context":"setup","dpi":"216","editor-font-scale":"0.7","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"4.5","fig-width":"7","label":"unnamed-chunk-5","message":"true","out-height":"","out-width":"55%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"massage_data_fd %>% head(5)","id":6,"options":{"autorun":"true","classes":"","comment":"","context":"output","dpi":"216","editor-font-scale":"0.7","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"4.5","fig-width":"7","label":"unnamed-chunk-6","message":"true","out-height":"","out-width":"55%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"fixest::feols(Q ~ P, data = massage_data_fd) %>% \n  broom::tidy()","id":7,"options":{"autorun":"true","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.7","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"4.5","fig-width":"7","label":"unnamed-chunk-7","message":"true","out-height":"","out-width":"55%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"fixest::feols(Q_dif ~ P_dif, data = massage_data_fd) %>% \n  broom::tidy()","id":8,"options":{"autorun":"true","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.7","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"4.5","fig-width":"7","label":"unnamed-chunk-8","message":"true","out-height":"","out-width":"55%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"massage_data_wth <- \n  massage_data_2p %>%\n  dplyr::select(Location, Year, P, Q, Ql) %>%\n  group_by(Location) %>%\n  mutate(\n    P_mean = mean(P),\n    P_dev = P - P_mean,\n    Q_mean = mean(Q),\n    Q_dev = Q - Q_mean,\n    Ql_mean = mean(Ql),\n    Ql_dev = Ql - Ql_mean\n  ) %>%\n  ungroup() %>%\n  dplyr::select(Location, Year, P, P_mean, P_dev, Q, Q_mean, Q_dev, Ql, Ql_mean, Ql_dev)","id":9,"options":{"autorun":"true","classes":"","comment":"","context":"setup","dpi":"216","editor-font-scale":"0.7","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"4.5","fig-width":"7","label":"unnamed-chunk-9","message":"true","out-height":"","out-width":"55%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"fixest::feols(Q_dev ~ P_dev, data = massage_data_wth)","id":10,"options":{"autorun":"true","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.7","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"4.5","fig-width":"7","label":"unnamed-chunk-10","message":"true","out-height":"","out-width":"55%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"(\n  massage_data_d <- massage_data_2p %>%\n    mutate(\n      Peoria_D = ifelse(Location == \"Peoria\", 1, 0),\n      Milwaukee_D = ifelse(Location == \"Milwaukee\", 1, 0),\n      Madison_D = ifelse(Location == \"Madison\", 1, 0)\n    )\n)","id":11,"options":{"autorun":"true","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.7","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"4.5","fig-width":"7","label":"unnamed-chunk-11","message":"true","out-height":"","out-width":"55%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"fixest::feols(Q ~ P + Peoria_D + Milwaukee_D + Madison_D, data = massage_data_d)","id":12,"options":{"autorun":"true","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.7","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"4.5","fig-width":"7","label":"unnamed-chunk-12","message":"true","out-height":"","out-width":"55%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"massage_data_2p","id":13,"options":{"autorun":"true","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.7","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"4.5","fig-width":"7","label":"unnamed-chunk-13","message":"true","out-height":"","out-width":"55%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"fixest::feols(Q ~ P | Location, data = massage_data_2p)","id":14,"options":{"autorun":"true","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.7","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"4.5","fig-width":"7","label":"unnamed-chunk-14","message":"true","out-height":"","out-width":"55%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"year_fe <- data.frame(\n  id = rep(1:4, each = 3),\n  year = rep(2015:2017, times = 4),\n  income = c(77, 82, 84, 110, 120, 131, 56, 60, 61, 70, 71, 74),\n  educ = c(12:14, 18:20, 10:12, 13:15),\n  FE_2015 = rep(c(1, 0, 0), times = 4),\n  FE_2016 = rep(c(0, 1, 0), times = 4),\n  FE_2017 = rep(c(0, 0, 1), times = 4)\n)\nyear_fe","id":15,"options":{"autorun":"true","classes":"","comment":"","context":"output","dpi":"216","editor-font-scale":"0.7","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"4.5","fig-width":"7","label":"unnamed-chunk-15","message":"true","out-height":"","out-width":"55%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"fixest::feols(I(log(income)) ~ educ | id + year, data = year_fe) %>%\n  tidy()","id":16,"options":{"autorun":"true","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.7","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"4.5","fig-width":"7","label":"unnamed-chunk-16","message":"true","out-height":"","out-width":"55%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"fixest::feols(I(log(income)) ~ educ | id + year, cluster = ~id, data = year_fe) %>% tidy()","id":17,"options":{"autorun":"true","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.7","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"4.5","fig-width":"7","label":"unnamed-chunk-17","message":"true","out-height":"","out-width":"55%","output":"true","read-only":"false","results":"markup","warning":"true"}}];
+  globalThis.qwebrCellDetails = [{"code":"data(jtrain, package = \"wooldridge\")\n\ndplyr::select(jtrain, year, fcode, employ, sales) %>%\n  head(9)","id":1,"options":{"autorun":"true","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.7","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"6","fig-width":"10","label":"unnamed-chunk-1","message":"true","out-height":"","out-width":"100%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"massage_data <- data.frame(\n  Location = c(\"Chicago\", \"Peoria\", \"Milwaukee\", \"Madison\"),\n  Year = rep(2003, 4),\n  P = c(75, 50, 60, 55),\n  Q = c(2, 1.0, 1.5, 0.8)\n)","id":2,"options":{"autorun":"true","classes":"","comment":"","context":"setup","dpi":"216","editor-font-scale":"0.7","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"6","fig-width":"10","label":"unnamed-chunk-2","message":"true","out-height":"","out-width":"100%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"massage_data <- \n  massage_data %>%\n  mutate(Ql = c(10, 5, 7, 6))\n\ngt(massage_data)","id":3,"options":{"autorun":"true","classes":"","comment":"","context":"setup","dpi":"216","editor-font-scale":"0.7","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"6","fig-width":"10","label":"unnamed-chunk-3","message":"true","out-height":"","out-width":"100%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"massage_data_2p <- \n  data.frame(\n    Location = rep(c(\"Chicago\", \"Peoria\", \"Milwaukee\", \"Madison\"), each = 2),\n    Year = rep(c(2003, 2004), 4),\n    P = c(75, 85, 50, 48, 60, 65, 55, 60),\n    Q = c(2, 1.8, 1.0, 1.1, 1.5, 1.4, 0.8, 0.7),\n    Ql = rep(c(10, 5, 7, 6), each = 2)\n  )","id":4,"options":{"autorun":"true","classes":"","comment":"","context":"setup","dpi":"216","editor-font-scale":"0.7","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"6","fig-width":"10","label":"unnamed-chunk-4","message":"true","out-height":"","out-width":"100%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"massage_data_fd <- \n  massage_data_2p %>%\n  group_by(Location) %>%\n  mutate(\n    P_dif = P - lag(P),\n    Q_dif = Q - lag(Q),\n    Ql_dif = Ql - lag(Ql)\n  ) %>%\n  ungroup()","id":5,"options":{"autorun":"true","classes":"","comment":"","context":"setup","dpi":"216","editor-font-scale":"0.7","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"6","fig-width":"10","label":"unnamed-chunk-5","message":"true","out-height":"","out-width":"100%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"massage_data_fd %>% head(5)","id":6,"options":{"autorun":"true","classes":"","comment":"","context":"output","dpi":"216","editor-font-scale":"0.7","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"6","fig-width":"10","label":"unnamed-chunk-6","message":"true","out-height":"","out-width":"100%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"fixest::feols(Q ~ P, data = massage_data_fd) %>% \n  broom::tidy()","id":7,"options":{"autorun":"true","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.7","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"6","fig-width":"10","label":"unnamed-chunk-7","message":"true","out-height":"","out-width":"100%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"fixest::feols(Q_dif ~ P_dif, data = massage_data_fd) %>% \n  broom::tidy()","id":8,"options":{"autorun":"true","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.7","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"6","fig-width":"10","label":"unnamed-chunk-8","message":"true","out-height":"","out-width":"100%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"massage_data_wth <- \n  massage_data_2p %>%\n  dplyr::select(Location, Year, P, Q, Ql) %>%\n  group_by(Location) %>%\n  mutate(\n    P_mean = mean(P),\n    P_dev = P - P_mean,\n    Q_mean = mean(Q),\n    Q_dev = Q - Q_mean,\n    Ql_mean = mean(Ql),\n    Ql_dev = Ql - Ql_mean\n  ) %>%\n  ungroup() %>%\n  dplyr::select(Location, Year, P, P_mean, P_dev, Q, Q_mean, Q_dev, Ql, Ql_mean, Ql_dev)","id":9,"options":{"autorun":"true","classes":"","comment":"","context":"setup","dpi":"216","editor-font-scale":"0.7","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"6","fig-width":"10","label":"unnamed-chunk-9","message":"true","out-height":"","out-width":"100%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"fixest::feols(Q_dev ~ P_dev, data = massage_data_wth)","id":10,"options":{"autorun":"true","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.7","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"6","fig-width":"10","label":"unnamed-chunk-10","message":"true","out-height":"","out-width":"100%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"(\n  massage_data_d <- massage_data_2p %>%\n    mutate(\n      Peoria_D = ifelse(Location == \"Peoria\", 1, 0),\n      Milwaukee_D = ifelse(Location == \"Milwaukee\", 1, 0),\n      Madison_D = ifelse(Location == \"Madison\", 1, 0)\n    )\n)","id":11,"options":{"autorun":"true","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.7","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"6","fig-width":"10","label":"unnamed-chunk-11","message":"true","out-height":"","out-width":"100%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"fixest::feols(Q ~ P + Peoria_D + Milwaukee_D + Madison_D, data = massage_data_d)","id":12,"options":{"autorun":"true","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.7","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"6","fig-width":"10","label":"unnamed-chunk-12","message":"true","out-height":"","out-width":"100%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"massage_data_2p","id":13,"options":{"autorun":"true","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.7","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"6","fig-width":"10","label":"unnamed-chunk-13","message":"true","out-height":"","out-width":"100%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"fixest::feols(Q ~ P | Location, data = massage_data_2p)","id":14,"options":{"autorun":"true","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.7","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"6","fig-width":"10","label":"unnamed-chunk-14","message":"true","out-height":"","out-width":"100%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"year_fe <- data.frame(\n  id = rep(1:4, each = 3),\n  year = rep(2015:2017, times = 4),\n  income = c(77, 82, 84, 110, 120, 131, 56, 60, 61, 70, 71, 74),\n  educ = c(12:14, 18:20, 10:12, 13:15),\n  FE_2015 = rep(c(1, 0, 0), times = 4),\n  FE_2016 = rep(c(0, 1, 0), times = 4),\n  FE_2017 = rep(c(0, 0, 1), times = 4)\n)\nyear_fe","id":15,"options":{"autorun":"true","classes":"","comment":"","context":"output","dpi":"216","editor-font-scale":"0.7","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"6","fig-width":"10","label":"unnamed-chunk-15","message":"true","out-height":"","out-width":"100%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"fixest::feols(I(log(income)) ~ educ | id + year, data = year_fe) %>%\n  tidy()","id":16,"options":{"autorun":"true","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.7","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"6","fig-width":"10","label":"unnamed-chunk-16","message":"true","out-height":"","out-width":"100%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"fixest::feols(I(log(income)) ~ educ | id + year, cluster = ~id, data = year_fe) %>% tidy()","id":17,"options":{"autorun":"true","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.7","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"6","fig-width":"10","label":"unnamed-chunk-17","message":"true","out-height":"","out-width":"100%","output":"true","read-only":"false","results":"markup","warning":"true"}}];
 
   </script>
   <script type="module">
@@ -2134,11 +2278,23 @@
       // Store the code to run in history
       qwebrLogCodeToHistory(codeToRun, options);
 
+      // webR's canvas draws text at the `pointsize` set above but still reports
+      // its character metrics as if the font were 12pt. R sizes plot margins in
+      // "lines" from those metrics, so on a 216 dpi canvas the margins come out
+      // three times too small and base graphics draw the y-axis label off the
+      // left edge. `mex` is the factor R uses when turning margin lines into
+      // physical units, so setting it to the same dpi/72 restores them. It is
+      // prepended on the code's first line, not a line of its own, so a parse
+      // error still reports the line number the student sees in the editor.
+      const marginFix = captureOutputOptions.captureGraphics
+          ? `par(mex = ${options["dpi"] / 72}); `
+          : "";
+
       // Setup a webR canvas by making a namespace call into the {webr} package
       // Evaluate the R code
       // Remove the active canvas silently
       const result = await mainWebRCodeShelter.captureR(
-          `${codeToRun}`,
+          `${marginFix}${codeToRun}`,
           captureOutputOptions
       );
 
@@ -2426,6 +2582,23 @@ globalThis.qwebrCreateMonacoEditorInstance = function (cellData) {
       fontSize: qwebrScaledFontSize(editorDiv, qwebrOptions),         
       renderLineHighlight: "none",      // Disable current line highlighting
       hideCursorInOverviewRuler: true,  // Remove cursor indictor in right hand side scroll bar
+      // PATCHED, see RULES.md. Monaco's defaults reserve five characters of
+      // number column (`lineNumbersMinChars: 5`) and a 10px decorations strip
+      // beside it, which on a cell of at most a couple of dozen lines is a wide
+      // empty band between the number and the code. Two characters covers every
+      // cell in these decks (99 lines), and the decorations strip carries
+      // nothing here — no breakpoints, no folding.
+      lineNumbersMinChars: 1,
+      // The gap between the number and the first character. 4 put them in
+      // contact ("1#--- addition"); Monaco's default 10 sits beside a
+      // five-character number column, which is what made the band look empty.
+      // The gap between the number and the first character. The whole margin is
+      // this plus the digits: 6 read as too tight, 12 as too loose, so 9 —
+      // a 25px margin on a ten-plus-line cell, 17px on a short one, against the
+      // ~75px Monaco's defaults gave.
+      lineDecorationsWidth: 9,
+      folding: false,
+      glyphMargin: false,
       readOnly: qwebrOptions['read-only'] ?? false,
       quickSuggestions: qwebrOptions['editor-quick-suggestions'] ?? false,
       wordWrap: (qwebrOptions['editor-word-wrap'] == 'true' ? "on" : "off")
@@ -2691,23 +2864,23 @@ Transcript
 <noscript>Please enable JavaScript to experience the dynamic code cell content on this page.</noscript>
 <div class="cell">
 <div class="cell-output-display">
-<div id="cvujjvghqs" style="padding-left:0px;padding-right:0px;padding-top:10px;padding-bottom:10px;overflow-x:auto;overflow-y:auto;width:auto;height:auto;">
-<style>#cvujjvghqs table {
+<div id="nwmvvgbtyk" style="padding-left:0px;padding-right:0px;padding-top:10px;padding-bottom:10px;overflow-x:auto;overflow-y:auto;width:auto;height:auto;">
+<style>#nwmvvgbtyk table {
   font-family: system-ui, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol', 'Noto Color Emoji';
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
 
-#cvujjvghqs thead, #cvujjvghqs tbody, #cvujjvghqs tfoot, #cvujjvghqs tr, #cvujjvghqs td, #cvujjvghqs th {
+#nwmvvgbtyk thead, #nwmvvgbtyk tbody, #nwmvvgbtyk tfoot, #nwmvvgbtyk tr, #nwmvvgbtyk td, #nwmvvgbtyk th {
   border-style: none;
 }
 
-#cvujjvghqs p {
+#nwmvvgbtyk p {
   margin: 0;
   padding: 0;
 }
 
-#cvujjvghqs .gt_table {
+#nwmvvgbtyk .gt_table {
   display: table;
   border-collapse: collapse;
   line-height: normal;
@@ -2733,12 +2906,12 @@ Transcript
   border-left-color: #D3D3D3;
 }
 
-#cvujjvghqs .gt_caption {
+#nwmvvgbtyk .gt_caption {
   padding-top: 4px;
   padding-bottom: 4px;
 }
 
-#cvujjvghqs .gt_title {
+#nwmvvgbtyk .gt_title {
   color: #333333;
   font-size: 125%;
   font-weight: initial;
@@ -2750,7 +2923,7 @@ Transcript
   border-bottom-width: 0;
 }
 
-#cvujjvghqs .gt_subtitle {
+#nwmvvgbtyk .gt_subtitle {
   color: #333333;
   font-size: 85%;
   font-weight: initial;
@@ -2762,7 +2935,7 @@ Transcript
   border-top-width: 0;
 }
 
-#cvujjvghqs .gt_heading {
+#nwmvvgbtyk .gt_heading {
   background-color: #FFFFFF;
   text-align: center;
   border-bottom-color: #FFFFFF;
@@ -2774,13 +2947,13 @@ Transcript
   border-right-color: #D3D3D3;
 }
 
-#cvujjvghqs .gt_bottom_border {
+#nwmvvgbtyk .gt_bottom_border {
   border-bottom-style: solid;
   border-bottom-width: 2px;
   border-bottom-color: #D3D3D3;
 }
 
-#cvujjvghqs .gt_col_headings {
+#nwmvvgbtyk .gt_col_headings {
   border-top-style: solid;
   border-top-width: 2px;
   border-top-color: #D3D3D3;
@@ -2795,7 +2968,7 @@ Transcript
   border-right-color: #D3D3D3;
 }
 
-#cvujjvghqs .gt_col_heading {
+#nwmvvgbtyk .gt_col_heading {
   color: #333333;
   background-color: #FFFFFF;
   font-size: 100%;
@@ -2815,7 +2988,7 @@ Transcript
   overflow-x: hidden;
 }
 
-#cvujjvghqs .gt_column_spanner_outer {
+#nwmvvgbtyk .gt_column_spanner_outer {
   color: #333333;
   background-color: #FFFFFF;
   font-size: 100%;
@@ -2827,15 +3000,15 @@ Transcript
   padding-right: 4px;
 }
 
-#cvujjvghqs .gt_column_spanner_outer:first-child {
+#nwmvvgbtyk .gt_column_spanner_outer:first-child {
   padding-left: 0;
 }
 
-#cvujjvghqs .gt_column_spanner_outer:last-child {
+#nwmvvgbtyk .gt_column_spanner_outer:last-child {
   padding-right: 0;
 }
 
-#cvujjvghqs .gt_column_spanner {
+#nwmvvgbtyk .gt_column_spanner {
   border-bottom-style: solid;
   border-bottom-width: 2px;
   border-bottom-color: #D3D3D3;
@@ -2847,11 +3020,11 @@ Transcript
   width: 100%;
 }
 
-#cvujjvghqs .gt_spanner_row {
+#nwmvvgbtyk .gt_spanner_row {
   border-bottom-style: hidden;
 }
 
-#cvujjvghqs .gt_group_heading {
+#nwmvvgbtyk .gt_group_heading {
   padding-top: 8px;
   padding-bottom: 8px;
   padding-left: 5px;
@@ -2877,7 +3050,7 @@ Transcript
   text-align: left;
 }
 
-#cvujjvghqs .gt_empty_group_heading {
+#nwmvvgbtyk .gt_empty_group_heading {
   padding: 0.5px;
   color: #333333;
   background-color: #FFFFFF;
@@ -2892,15 +3065,15 @@ Transcript
   vertical-align: middle;
 }
 
-#cvujjvghqs .gt_from_md > :first-child {
+#nwmvvgbtyk .gt_from_md > :first-child {
   margin-top: 0;
 }
 
-#cvujjvghqs .gt_from_md > :last-child {
+#nwmvvgbtyk .gt_from_md > :last-child {
   margin-bottom: 0;
 }
 
-#cvujjvghqs .gt_row {
+#nwmvvgbtyk .gt_row {
   padding-top: 8px;
   padding-bottom: 8px;
   padding-left: 5px;
@@ -2919,7 +3092,7 @@ Transcript
   overflow-x: hidden;
 }
 
-#cvujjvghqs .gt_stub {
+#nwmvvgbtyk .gt_stub {
   color: #333333;
   background-color: #FFFFFF;
   font-size: 100%;
@@ -2932,7 +3105,7 @@ Transcript
   padding-right: 5px;
 }
 
-#cvujjvghqs .gt_stub_row_group {
+#nwmvvgbtyk .gt_stub_row_group {
   color: #333333;
   background-color: #FFFFFF;
   font-size: 100%;
@@ -2946,15 +3119,15 @@ Transcript
   vertical-align: top;
 }
 
-#cvujjvghqs .gt_row_group_first td {
+#nwmvvgbtyk .gt_row_group_first td {
   border-top-width: 2px;
 }
 
-#cvujjvghqs .gt_row_group_first th {
+#nwmvvgbtyk .gt_row_group_first th {
   border-top-width: 2px;
 }
 
-#cvujjvghqs .gt_summary_row {
+#nwmvvgbtyk .gt_summary_row {
   color: #333333;
   background-color: #FFFFFF;
   text-transform: inherit;
@@ -2964,16 +3137,16 @@ Transcript
   padding-right: 5px;
 }
 
-#cvujjvghqs .gt_first_summary_row {
+#nwmvvgbtyk .gt_first_summary_row {
   border-top-style: solid;
   border-top-color: #D3D3D3;
 }
 
-#cvujjvghqs .gt_first_summary_row.thick {
+#nwmvvgbtyk .gt_first_summary_row.thick {
   border-top-width: 2px;
 }
 
-#cvujjvghqs .gt_last_summary_row {
+#nwmvvgbtyk .gt_last_summary_row {
   padding-top: 8px;
   padding-bottom: 8px;
   padding-left: 5px;
@@ -2983,7 +3156,7 @@ Transcript
   border-bottom-color: #D3D3D3;
 }
 
-#cvujjvghqs .gt_grand_summary_row {
+#nwmvvgbtyk .gt_grand_summary_row {
   color: #333333;
   background-color: #FFFFFF;
   text-transform: inherit;
@@ -2993,7 +3166,7 @@ Transcript
   padding-right: 5px;
 }
 
-#cvujjvghqs .gt_first_grand_summary_row {
+#nwmvvgbtyk .gt_first_grand_summary_row {
   padding-top: 8px;
   padding-bottom: 8px;
   padding-left: 5px;
@@ -3003,7 +3176,7 @@ Transcript
   border-top-color: #D3D3D3;
 }
 
-#cvujjvghqs .gt_last_grand_summary_row_top {
+#nwmvvgbtyk .gt_last_grand_summary_row_top {
   padding-top: 8px;
   padding-bottom: 8px;
   padding-left: 5px;
@@ -3013,11 +3186,11 @@ Transcript
   border-bottom-color: #D3D3D3;
 }
 
-#cvujjvghqs .gt_striped {
+#nwmvvgbtyk .gt_striped {
   background-color: rgba(128, 128, 128, 0.05);
 }
 
-#cvujjvghqs .gt_table_body {
+#nwmvvgbtyk .gt_table_body {
   border-top-style: solid;
   border-top-width: 2px;
   border-top-color: #D3D3D3;
@@ -3026,7 +3199,7 @@ Transcript
   border-bottom-color: #D3D3D3;
 }
 
-#cvujjvghqs .gt_footnotes {
+#nwmvvgbtyk .gt_footnotes {
   color: #333333;
   background-color: #FFFFFF;
   border-bottom-style: none;
@@ -3040,7 +3213,7 @@ Transcript
   border-right-color: #D3D3D3;
 }
 
-#cvujjvghqs .gt_footnote {
+#nwmvvgbtyk .gt_footnote {
   margin: 0px;
   font-size: 90%;
   padding-top: 4px;
@@ -3049,7 +3222,7 @@ Transcript
   padding-right: 5px;
 }
 
-#cvujjvghqs .gt_sourcenotes {
+#nwmvvgbtyk .gt_sourcenotes {
   color: #333333;
   background-color: #FFFFFF;
   border-bottom-style: none;
@@ -3063,7 +3236,7 @@ Transcript
   border-right-color: #D3D3D3;
 }
 
-#cvujjvghqs .gt_sourcenote {
+#nwmvvgbtyk .gt_sourcenote {
   font-size: 90%;
   padding-top: 4px;
   padding-bottom: 4px;
@@ -3071,72 +3244,72 @@ Transcript
   padding-right: 5px;
 }
 
-#cvujjvghqs .gt_left {
+#nwmvvgbtyk .gt_left {
   text-align: left;
 }
 
-#cvujjvghqs .gt_center {
+#nwmvvgbtyk .gt_center {
   text-align: center;
 }
 
-#cvujjvghqs .gt_right {
+#nwmvvgbtyk .gt_right {
   text-align: right;
   font-variant-numeric: tabular-nums;
 }
 
-#cvujjvghqs .gt_font_normal {
+#nwmvvgbtyk .gt_font_normal {
   font-weight: normal;
 }
 
-#cvujjvghqs .gt_font_bold {
+#nwmvvgbtyk .gt_font_bold {
   font-weight: bold;
 }
 
-#cvujjvghqs .gt_font_italic {
+#nwmvvgbtyk .gt_font_italic {
   font-style: italic;
 }
 
-#cvujjvghqs .gt_super {
+#nwmvvgbtyk .gt_super {
   font-size: 65%;
 }
 
-#cvujjvghqs .gt_footnote_marks {
+#nwmvvgbtyk .gt_footnote_marks {
   font-size: 75%;
   vertical-align: 0.4em;
   position: initial;
 }
 
-#cvujjvghqs .gt_asterisk {
+#nwmvvgbtyk .gt_asterisk {
   font-size: 100%;
   vertical-align: 0;
 }
 
-#cvujjvghqs .gt_indent_1 {
+#nwmvvgbtyk .gt_indent_1 {
   text-indent: 5px;
 }
 
-#cvujjvghqs .gt_indent_2 {
+#nwmvvgbtyk .gt_indent_2 {
   text-indent: 10px;
 }
 
-#cvujjvghqs .gt_indent_3 {
+#nwmvvgbtyk .gt_indent_3 {
   text-indent: 15px;
 }
 
-#cvujjvghqs .gt_indent_4 {
+#nwmvvgbtyk .gt_indent_4 {
   text-indent: 20px;
 }
 
-#cvujjvghqs .gt_indent_5 {
+#nwmvvgbtyk .gt_indent_5 {
   text-indent: 25px;
 }
 
-#cvujjvghqs .katex-display {
+#nwmvvgbtyk .katex-display {
   display: inline-flex !important;
   margin-bottom: 0.75em !important;
 }
 
-#cvujjvghqs div.Reactable > div.rt-table > div.rt-thead > div.rt-tr.rt-tr-group-header > div.rt-th-group:after {
+#nwmvvgbtyk div.Reactable > div.rt-table > div.rt-thead > div.rt-tr.rt-tr-group-header > div.rt-th-group:after {
   height: 0px !important;
 }
 </style>
@@ -3240,23 +3413,23 @@ Transcript
 <noscript>Please enable JavaScript to experience the dynamic code cell content on this page.</noscript>
 <div class="cell">
 <div class="cell-output-display">
-<div id="cvtfzflbto" style="padding-left:0px;padding-right:0px;padding-top:10px;padding-bottom:10px;overflow-x:auto;overflow-y:auto;width:auto;height:auto;">
-<style>#cvtfzflbto table {
+<div id="wlotcvuldz" style="padding-left:0px;padding-right:0px;padding-top:10px;padding-bottom:10px;overflow-x:auto;overflow-y:auto;width:auto;height:auto;">
+<style>#wlotcvuldz table {
   font-family: system-ui, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol', 'Noto Color Emoji';
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
 
-#cvtfzflbto thead, #cvtfzflbto tbody, #cvtfzflbto tfoot, #cvtfzflbto tr, #cvtfzflbto td, #cvtfzflbto th {
+#wlotcvuldz thead, #wlotcvuldz tbody, #wlotcvuldz tfoot, #wlotcvuldz tr, #wlotcvuldz td, #wlotcvuldz th {
   border-style: none;
 }
 
-#cvtfzflbto p {
+#wlotcvuldz p {
   margin: 0;
   padding: 0;
 }
 
-#cvtfzflbto .gt_table {
+#wlotcvuldz .gt_table {
   display: table;
   border-collapse: collapse;
   line-height: normal;
@@ -3282,12 +3455,12 @@ Transcript
   border-left-color: #D3D3D3;
 }
 
-#cvtfzflbto .gt_caption {
+#wlotcvuldz .gt_caption {
   padding-top: 4px;
   padding-bottom: 4px;
 }
 
-#cvtfzflbto .gt_title {
+#wlotcvuldz .gt_title {
   color: #333333;
   font-size: 125%;
   font-weight: initial;
@@ -3299,7 +3472,7 @@ Transcript
   border-bottom-width: 0;
 }
 
-#cvtfzflbto .gt_subtitle {
+#wlotcvuldz .gt_subtitle {
   color: #333333;
   font-size: 85%;
   font-weight: initial;
@@ -3311,7 +3484,7 @@ Transcript
   border-top-width: 0;
 }
 
-#cvtfzflbto .gt_heading {
+#wlotcvuldz .gt_heading {
   background-color: #FFFFFF;
   text-align: center;
   border-bottom-color: #FFFFFF;
@@ -3323,13 +3496,13 @@ Transcript
   border-right-color: #D3D3D3;
 }
 
-#cvtfzflbto .gt_bottom_border {
+#wlotcvuldz .gt_bottom_border {
   border-bottom-style: solid;
   border-bottom-width: 2px;
   border-bottom-color: #D3D3D3;
 }
 
-#cvtfzflbto .gt_col_headings {
+#wlotcvuldz .gt_col_headings {
   border-top-style: solid;
   border-top-width: 2px;
   border-top-color: #D3D3D3;
@@ -3344,7 +3517,7 @@ Transcript
   border-right-color: #D3D3D3;
 }
 
-#cvtfzflbto .gt_col_heading {
+#wlotcvuldz .gt_col_heading {
   color: #333333;
   background-color: #FFFFFF;
   font-size: 100%;
@@ -3364,7 +3537,7 @@ Transcript
   overflow-x: hidden;
 }
 
-#cvtfzflbto .gt_column_spanner_outer {
+#wlotcvuldz .gt_column_spanner_outer {
   color: #333333;
   background-color: #FFFFFF;
   font-size: 100%;
@@ -3376,15 +3549,15 @@ Transcript
   padding-right: 4px;
 }
 
-#cvtfzflbto .gt_column_spanner_outer:first-child {
+#wlotcvuldz .gt_column_spanner_outer:first-child {
   padding-left: 0;
 }
 
-#cvtfzflbto .gt_column_spanner_outer:last-child {
+#wlotcvuldz .gt_column_spanner_outer:last-child {
   padding-right: 0;
 }
 
-#cvtfzflbto .gt_column_spanner {
+#wlotcvuldz .gt_column_spanner {
   border-bottom-style: solid;
   border-bottom-width: 2px;
   border-bottom-color: #D3D3D3;
@@ -3396,11 +3569,11 @@ Transcript
   width: 100%;
 }
 
-#cvtfzflbto .gt_spanner_row {
+#wlotcvuldz .gt_spanner_row {
   border-bottom-style: hidden;
 }
 
-#cvtfzflbto .gt_group_heading {
+#wlotcvuldz .gt_group_heading {
   padding-top: 8px;
   padding-bottom: 8px;
   padding-left: 5px;
@@ -3426,7 +3599,7 @@ Transcript
   text-align: left;
 }
 
-#cvtfzflbto .gt_empty_group_heading {
+#wlotcvuldz .gt_empty_group_heading {
   padding: 0.5px;
   color: #333333;
   background-color: #FFFFFF;
@@ -3441,15 +3614,15 @@ Transcript
   vertical-align: middle;
 }
 
-#cvtfzflbto .gt_from_md > :first-child {
+#wlotcvuldz .gt_from_md > :first-child {
   margin-top: 0;
 }
 
-#cvtfzflbto .gt_from_md > :last-child {
+#wlotcvuldz .gt_from_md > :last-child {
   margin-bottom: 0;
 }
 
-#cvtfzflbto .gt_row {
+#wlotcvuldz .gt_row {
   padding-top: 8px;
   padding-bottom: 8px;
   padding-left: 5px;
@@ -3468,7 +3641,7 @@ Transcript
   overflow-x: hidden;
 }
 
-#cvtfzflbto .gt_stub {
+#wlotcvuldz .gt_stub {
   color: #333333;
   background-color: #FFFFFF;
   font-size: 100%;
@@ -3481,7 +3654,7 @@ Transcript
   padding-right: 5px;
 }
 
-#cvtfzflbto .gt_stub_row_group {
+#wlotcvuldz .gt_stub_row_group {
   color: #333333;
   background-color: #FFFFFF;
   font-size: 100%;
@@ -3495,15 +3668,15 @@ Transcript
   vertical-align: top;
 }
 
-#cvtfzflbto .gt_row_group_first td {
+#wlotcvuldz .gt_row_group_first td {
   border-top-width: 2px;
 }
 
-#cvtfzflbto .gt_row_group_first th {
+#wlotcvuldz .gt_row_group_first th {
   border-top-width: 2px;
 }
 
-#cvtfzflbto .gt_summary_row {
+#wlotcvuldz .gt_summary_row {
   color: #333333;
   background-color: #FFFFFF;
   text-transform: inherit;
@@ -3513,16 +3686,16 @@ Transcript
   padding-right: 5px;
 }
 
-#cvtfzflbto .gt_first_summary_row {
+#wlotcvuldz .gt_first_summary_row {
   border-top-style: solid;
   border-top-color: #D3D3D3;
 }
 
-#cvtfzflbto .gt_first_summary_row.thick {
+#wlotcvuldz .gt_first_summary_row.thick {
   border-top-width: 2px;
 }
 
-#cvtfzflbto .gt_last_summary_row {
+#wlotcvuldz .gt_last_summary_row {
   padding-top: 8px;
   padding-bottom: 8px;
   padding-left: 5px;
@@ -3532,7 +3705,7 @@ Transcript
   border-bottom-color: #D3D3D3;
 }
 
-#cvtfzflbto .gt_grand_summary_row {
+#wlotcvuldz .gt_grand_summary_row {
   color: #333333;
   background-color: #FFFFFF;
   text-transform: inherit;
@@ -3542,7 +3715,7 @@ Transcript
   padding-right: 5px;
 }
 
-#cvtfzflbto .gt_first_grand_summary_row {
+#wlotcvuldz .gt_first_grand_summary_row {
   padding-top: 8px;
   padding-bottom: 8px;
   padding-left: 5px;
@@ -3552,7 +3725,7 @@ Transcript
   border-top-color: #D3D3D3;
 }
 
-#cvtfzflbto .gt_last_grand_summary_row_top {
+#wlotcvuldz .gt_last_grand_summary_row_top {
   padding-top: 8px;
   padding-bottom: 8px;
   padding-left: 5px;
@@ -3562,11 +3735,11 @@ Transcript
   border-bottom-color: #D3D3D3;
 }
 
-#cvtfzflbto .gt_striped {
+#wlotcvuldz .gt_striped {
   background-color: rgba(128, 128, 128, 0.05);
 }
 
-#cvtfzflbto .gt_table_body {
+#wlotcvuldz .gt_table_body {
   border-top-style: solid;
   border-top-width: 2px;
   border-top-color: #D3D3D3;
@@ -3575,7 +3748,7 @@ Transcript
   border-bottom-color: #D3D3D3;
 }
 
-#cvtfzflbto .gt_footnotes {
+#wlotcvuldz .gt_footnotes {
   color: #333333;
   background-color: #FFFFFF;
   border-bottom-style: none;
@@ -3589,7 +3762,7 @@ Transcript
   border-right-color: #D3D3D3;
 }
 
-#cvtfzflbto .gt_footnote {
+#wlotcvuldz .gt_footnote {
   margin: 0px;
   font-size: 90%;
   padding-top: 4px;
@@ -3598,7 +3771,7 @@ Transcript
   padding-right: 5px;
 }
 
-#cvtfzflbto .gt_sourcenotes {
+#wlotcvuldz .gt_sourcenotes {
   color: #333333;
   background-color: #FFFFFF;
   border-bottom-style: none;
@@ -3612,7 +3785,7 @@ Transcript
   border-right-color: #D3D3D3;
 }
 
-#cvtfzflbto .gt_sourcenote {
+#wlotcvuldz .gt_sourcenote {
   font-size: 90%;
   padding-top: 4px;
   padding-bottom: 4px;
@@ -3620,72 +3793,72 @@ Transcript
   padding-right: 5px;
 }
 
-#cvtfzflbto .gt_left {
+#wlotcvuldz .gt_left {
   text-align: left;
 }
 
-#cvtfzflbto .gt_center {
+#wlotcvuldz .gt_center {
   text-align: center;
 }
 
-#cvtfzflbto .gt_right {
+#wlotcvuldz .gt_right {
   text-align: right;
   font-variant-numeric: tabular-nums;
 }
 
-#cvtfzflbto .gt_font_normal {
+#wlotcvuldz .gt_font_normal {
   font-weight: normal;
 }
 
-#cvtfzflbto .gt_font_bold {
+#wlotcvuldz .gt_font_bold {
   font-weight: bold;
 }
 
-#cvtfzflbto .gt_font_italic {
+#wlotcvuldz .gt_font_italic {
   font-style: italic;
 }
 
-#cvtfzflbto .gt_super {
+#wlotcvuldz .gt_super {
   font-size: 65%;
 }
 
-#cvtfzflbto .gt_footnote_marks {
+#wlotcvuldz .gt_footnote_marks {
   font-size: 75%;
   vertical-align: 0.4em;
   position: initial;
 }
 
-#cvtfzflbto .gt_asterisk {
+#wlotcvuldz .gt_asterisk {
   font-size: 100%;
   vertical-align: 0;
 }
 
-#cvtfzflbto .gt_indent_1 {
+#wlotcvuldz .gt_indent_1 {
   text-indent: 5px;
 }
 
-#cvtfzflbto .gt_indent_2 {
+#wlotcvuldz .gt_indent_2 {
   text-indent: 10px;
 }
 
-#cvtfzflbto .gt_indent_3 {
+#wlotcvuldz .gt_indent_3 {
   text-indent: 15px;
 }
 
-#cvtfzflbto .gt_indent_4 {
+#wlotcvuldz .gt_indent_4 {
   text-indent: 20px;
 }
 
-#cvtfzflbto .gt_indent_5 {
+#wlotcvuldz .gt_indent_5 {
   text-indent: 25px;
 }
 
-#cvtfzflbto .katex-display {
+#wlotcvuldz .katex-display {
   display: inline-flex !important;
   margin-bottom: 0.75em !important;
 }
 
-#cvtfzflbto div.Reactable > div.rt-table > div.rt-thead > div.rt-tr.rt-tr-group-header > div.rt-th-group:after {
+#wlotcvuldz div.Reactable > div.rt-table > div.rt-thead > div.rt-tr.rt-tr-group-header > div.rt-th-group:after {
   height: 0px !important;
 }
 </style>
@@ -3767,23 +3940,23 @@ Transcript
 <noscript>Please enable JavaScript to experience the dynamic code cell content on this page.</noscript>
 <div class="cell">
 <div class="cell-output-display">
-<div id="yrssacqyby" style="padding-left:0px;padding-right:0px;padding-top:10px;padding-bottom:10px;overflow-x:auto;overflow-y:auto;width:auto;height:auto;">
-<style>#yrssacqyby table {
+<div id="szwpuumrfa" style="padding-left:0px;padding-right:0px;padding-top:10px;padding-bottom:10px;overflow-x:auto;overflow-y:auto;width:auto;height:auto;">
+<style>#szwpuumrfa table {
   font-family: system-ui, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol', 'Noto Color Emoji';
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
 
-#yrssacqyby thead, #yrssacqyby tbody, #yrssacqyby tfoot, #yrssacqyby tr, #yrssacqyby td, #yrssacqyby th {
+#szwpuumrfa thead, #szwpuumrfa tbody, #szwpuumrfa tfoot, #szwpuumrfa tr, #szwpuumrfa td, #szwpuumrfa th {
   border-style: none;
 }
 
-#yrssacqyby p {
+#szwpuumrfa p {
   margin: 0;
   padding: 0;
 }
 
-#yrssacqyby .gt_table {
+#szwpuumrfa .gt_table {
   display: table;
   border-collapse: collapse;
   line-height: normal;
@@ -3809,12 +3982,12 @@ Transcript
   border-left-color: #D3D3D3;
 }
 
-#yrssacqyby .gt_caption {
+#szwpuumrfa .gt_caption {
   padding-top: 4px;
   padding-bottom: 4px;
 }
 
-#yrssacqyby .gt_title {
+#szwpuumrfa .gt_title {
   color: #333333;
   font-size: 125%;
   font-weight: initial;
@@ -3826,7 +3999,7 @@ Transcript
   border-bottom-width: 0;
 }
 
-#yrssacqyby .gt_subtitle {
+#szwpuumrfa .gt_subtitle {
   color: #333333;
   font-size: 85%;
   font-weight: initial;
@@ -3838,7 +4011,7 @@ Transcript
   border-top-width: 0;
 }
 
-#yrssacqyby .gt_heading {
+#szwpuumrfa .gt_heading {
   background-color: #FFFFFF;
   text-align: center;
   border-bottom-color: #FFFFFF;
@@ -3850,13 +4023,13 @@ Transcript
   border-right-color: #D3D3D3;
 }
 
-#yrssacqyby .gt_bottom_border {
+#szwpuumrfa .gt_bottom_border {
   border-bottom-style: solid;
   border-bottom-width: 2px;
   border-bottom-color: #D3D3D3;
 }
 
-#yrssacqyby .gt_col_headings {
+#szwpuumrfa .gt_col_headings {
   border-top-style: solid;
   border-top-width: 2px;
   border-top-color: #D3D3D3;
@@ -3871,7 +4044,7 @@ Transcript
   border-right-color: #D3D3D3;
 }
 
-#yrssacqyby .gt_col_heading {
+#szwpuumrfa .gt_col_heading {
   color: #333333;
   background-color: #FFFFFF;
   font-size: 100%;
@@ -3891,7 +4064,7 @@ Transcript
   overflow-x: hidden;
 }
 
-#yrssacqyby .gt_column_spanner_outer {
+#szwpuumrfa .gt_column_spanner_outer {
   color: #333333;
   background-color: #FFFFFF;
   font-size: 100%;
@@ -3903,15 +4076,15 @@ Transcript
   padding-right: 4px;
 }
 
-#yrssacqyby .gt_column_spanner_outer:first-child {
+#szwpuumrfa .gt_column_spanner_outer:first-child {
   padding-left: 0;
 }
 
-#yrssacqyby .gt_column_spanner_outer:last-child {
+#szwpuumrfa .gt_column_spanner_outer:last-child {
   padding-right: 0;
 }
 
-#yrssacqyby .gt_column_spanner {
+#szwpuumrfa .gt_column_spanner {
   border-bottom-style: solid;
   border-bottom-width: 2px;
   border-bottom-color: #D3D3D3;
@@ -3923,11 +4096,11 @@ Transcript
   width: 100%;
 }
 
-#yrssacqyby .gt_spanner_row {
+#szwpuumrfa .gt_spanner_row {
   border-bottom-style: hidden;
 }
 
-#yrssacqyby .gt_group_heading {
+#szwpuumrfa .gt_group_heading {
   padding-top: 8px;
   padding-bottom: 8px;
   padding-left: 5px;
@@ -3953,7 +4126,7 @@ Transcript
   text-align: left;
 }
 
-#yrssacqyby .gt_empty_group_heading {
+#szwpuumrfa .gt_empty_group_heading {
   padding: 0.5px;
   color: #333333;
   background-color: #FFFFFF;
@@ -3968,15 +4141,15 @@ Transcript
   vertical-align: middle;
 }
 
-#yrssacqyby .gt_from_md > :first-child {
+#szwpuumrfa .gt_from_md > :first-child {
   margin-top: 0;
 }
 
-#yrssacqyby .gt_from_md > :last-child {
+#szwpuumrfa .gt_from_md > :last-child {
   margin-bottom: 0;
 }
 
-#yrssacqyby .gt_row {
+#szwpuumrfa .gt_row {
   padding-top: 8px;
   padding-bottom: 8px;
   padding-left: 5px;
@@ -3995,7 +4168,7 @@ Transcript
   overflow-x: hidden;
 }
 
-#yrssacqyby .gt_stub {
+#szwpuumrfa .gt_stub {
   color: #333333;
   background-color: #FFFFFF;
   font-size: 100%;
@@ -4008,7 +4181,7 @@ Transcript
   padding-right: 5px;
 }
 
-#yrssacqyby .gt_stub_row_group {
+#szwpuumrfa .gt_stub_row_group {
   color: #333333;
   background-color: #FFFFFF;
   font-size: 100%;
@@ -4022,15 +4195,15 @@ Transcript
   vertical-align: top;
 }
 
-#yrssacqyby .gt_row_group_first td {
+#szwpuumrfa .gt_row_group_first td {
   border-top-width: 2px;
 }
 
-#yrssacqyby .gt_row_group_first th {
+#szwpuumrfa .gt_row_group_first th {
   border-top-width: 2px;
 }
 
-#yrssacqyby .gt_summary_row {
+#szwpuumrfa .gt_summary_row {
   color: #333333;
   background-color: #FFFFFF;
   text-transform: inherit;
@@ -4040,16 +4213,16 @@ Transcript
   padding-right: 5px;
 }
 
-#yrssacqyby .gt_first_summary_row {
+#szwpuumrfa .gt_first_summary_row {
   border-top-style: solid;
   border-top-color: #D3D3D3;
 }
 
-#yrssacqyby .gt_first_summary_row.thick {
+#szwpuumrfa .gt_first_summary_row.thick {
   border-top-width: 2px;
 }
 
-#yrssacqyby .gt_last_summary_row {
+#szwpuumrfa .gt_last_summary_row {
   padding-top: 8px;
   padding-bottom: 8px;
   padding-left: 5px;
@@ -4059,7 +4232,7 @@ Transcript
   border-bottom-color: #D3D3D3;
 }
 
-#yrssacqyby .gt_grand_summary_row {
+#szwpuumrfa .gt_grand_summary_row {
   color: #333333;
   background-color: #FFFFFF;
   text-transform: inherit;
@@ -4069,7 +4242,7 @@ Transcript
   padding-right: 5px;
 }
 
-#yrssacqyby .gt_first_grand_summary_row {
+#szwpuumrfa .gt_first_grand_summary_row {
   padding-top: 8px;
   padding-bottom: 8px;
   padding-left: 5px;
@@ -4079,7 +4252,7 @@ Transcript
   border-top-color: #D3D3D3;
 }
 
-#yrssacqyby .gt_last_grand_summary_row_top {
+#szwpuumrfa .gt_last_grand_summary_row_top {
   padding-top: 8px;
   padding-bottom: 8px;
   padding-left: 5px;
@@ -4089,11 +4262,11 @@ Transcript
   border-bottom-color: #D3D3D3;
 }
 
-#yrssacqyby .gt_striped {
+#szwpuumrfa .gt_striped {
   background-color: rgba(128, 128, 128, 0.05);
 }
 
-#yrssacqyby .gt_table_body {
+#szwpuumrfa .gt_table_body {
   border-top-style: solid;
   border-top-width: 2px;
   border-top-color: #D3D3D3;
@@ -4102,7 +4275,7 @@ Transcript
   border-bottom-color: #D3D3D3;
 }
 
-#yrssacqyby .gt_footnotes {
+#szwpuumrfa .gt_footnotes {
   color: #333333;
   background-color: #FFFFFF;
   border-bottom-style: none;
@@ -4116,7 +4289,7 @@ Transcript
   border-right-color: #D3D3D3;
 }
 
-#yrssacqyby .gt_footnote {
+#szwpuumrfa .gt_footnote {
   margin: 0px;
   font-size: 90%;
   padding-top: 4px;
@@ -4125,7 +4298,7 @@ Transcript
   padding-right: 5px;
 }
 
-#yrssacqyby .gt_sourcenotes {
+#szwpuumrfa .gt_sourcenotes {
   color: #333333;
   background-color: #FFFFFF;
   border-bottom-style: none;
@@ -4139,7 +4312,7 @@ Transcript
   border-right-color: #D3D3D3;
 }
 
-#yrssacqyby .gt_sourcenote {
+#szwpuumrfa .gt_sourcenote {
   font-size: 90%;
   padding-top: 4px;
   padding-bottom: 4px;
@@ -4147,72 +4320,72 @@ Transcript
   padding-right: 5px;
 }
 
-#yrssacqyby .gt_left {
+#szwpuumrfa .gt_left {
   text-align: left;
 }
 
-#yrssacqyby .gt_center {
+#szwpuumrfa .gt_center {
   text-align: center;
 }
 
-#yrssacqyby .gt_right {
+#szwpuumrfa .gt_right {
   text-align: right;
   font-variant-numeric: tabular-nums;
 }
 
-#yrssacqyby .gt_font_normal {
+#szwpuumrfa .gt_font_normal {
   font-weight: normal;
 }
 
-#yrssacqyby .gt_font_bold {
+#szwpuumrfa .gt_font_bold {
   font-weight: bold;
 }
 
-#yrssacqyby .gt_font_italic {
+#szwpuumrfa .gt_font_italic {
   font-style: italic;
 }
 
-#yrssacqyby .gt_super {
+#szwpuumrfa .gt_super {
   font-size: 65%;
 }
 
-#yrssacqyby .gt_footnote_marks {
+#szwpuumrfa .gt_footnote_marks {
   font-size: 75%;
   vertical-align: 0.4em;
   position: initial;
 }
 
-#yrssacqyby .gt_asterisk {
+#szwpuumrfa .gt_asterisk {
   font-size: 100%;
   vertical-align: 0;
 }
 
-#yrssacqyby .gt_indent_1 {
+#szwpuumrfa .gt_indent_1 {
   text-indent: 5px;
 }
 
-#yrssacqyby .gt_indent_2 {
+#szwpuumrfa .gt_indent_2 {
   text-indent: 10px;
 }
 
-#yrssacqyby .gt_indent_3 {
+#szwpuumrfa .gt_indent_3 {
   text-indent: 15px;
 }
 
-#yrssacqyby .gt_indent_4 {
+#szwpuumrfa .gt_indent_4 {
   text-indent: 20px;
 }
 
-#yrssacqyby .gt_indent_5 {
+#szwpuumrfa .gt_indent_5 {
   text-indent: 25px;
 }
 
-#yrssacqyby .katex-display {
+#szwpuumrfa .katex-display {
   display: inline-flex !important;
   margin-bottom: 0.75em !important;
 }
 
-#yrssacqyby div.Reactable > div.rt-table > div.rt-thead > div.rt-tr.rt-tr-group-header > div.rt-th-group:after {
+#szwpuumrfa div.Reactable > div.rt-table > div.rt-thead > div.rt-tr.rt-tr-group-header > div.rt-th-group:after {
   height: 0px !important;
 }
 </style>
@@ -4372,23 +4545,23 @@ Transcript
 <noscript>Please enable JavaScript to experience the dynamic code cell content on this page.</noscript>
 <div class="cell">
 <div class="cell-output-display">
-<div id="ecymxomfiy" style="padding-left:0px;padding-right:0px;padding-top:10px;padding-bottom:10px;overflow-x:auto;overflow-y:auto;width:auto;height:auto;">
-<style>#ecymxomfiy table {
+<div id="bsiegwtzrs" style="padding-left:0px;padding-right:0px;padding-top:10px;padding-bottom:10px;overflow-x:auto;overflow-y:auto;width:auto;height:auto;">
+<style>#bsiegwtzrs table {
   font-family: system-ui, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol', 'Noto Color Emoji';
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
 
-#ecymxomfiy thead, #ecymxomfiy tbody, #ecymxomfiy tfoot, #ecymxomfiy tr, #ecymxomfiy td, #ecymxomfiy th {
+#bsiegwtzrs thead, #bsiegwtzrs tbody, #bsiegwtzrs tfoot, #bsiegwtzrs tr, #bsiegwtzrs td, #bsiegwtzrs th {
   border-style: none;
 }
 
-#ecymxomfiy p {
+#bsiegwtzrs p {
   margin: 0;
   padding: 0;
 }
 
-#ecymxomfiy .gt_table {
+#bsiegwtzrs .gt_table {
   display: table;
   border-collapse: collapse;
   line-height: normal;
@@ -4414,12 +4587,12 @@ Transcript
   border-left-color: #D3D3D3;
 }
 
-#ecymxomfiy .gt_caption {
+#bsiegwtzrs .gt_caption {
   padding-top: 4px;
   padding-bottom: 4px;
 }
 
-#ecymxomfiy .gt_title {
+#bsiegwtzrs .gt_title {
   color: #333333;
   font-size: 125%;
   font-weight: initial;
@@ -4431,7 +4604,7 @@ Transcript
   border-bottom-width: 0;
 }
 
-#ecymxomfiy .gt_subtitle {
+#bsiegwtzrs .gt_subtitle {
   color: #333333;
   font-size: 85%;
   font-weight: initial;
@@ -4443,7 +4616,7 @@ Transcript
   border-top-width: 0;
 }
 
-#ecymxomfiy .gt_heading {
+#bsiegwtzrs .gt_heading {
   background-color: #FFFFFF;
   text-align: center;
   border-bottom-color: #FFFFFF;
@@ -4455,13 +4628,13 @@ Transcript
   border-right-color: #D3D3D3;
 }
 
-#ecymxomfiy .gt_bottom_border {
+#bsiegwtzrs .gt_bottom_border {
   border-bottom-style: solid;
   border-bottom-width: 2px;
   border-bottom-color: #D3D3D3;
 }
 
-#ecymxomfiy .gt_col_headings {
+#bsiegwtzrs .gt_col_headings {
   border-top-style: solid;
   border-top-width: 2px;
   border-top-color: #D3D3D3;
@@ -4476,7 +4649,7 @@ Transcript
   border-right-color: #D3D3D3;
 }
 
-#ecymxomfiy .gt_col_heading {
+#bsiegwtzrs .gt_col_heading {
   color: #333333;
   background-color: #FFFFFF;
   font-size: 100%;
@@ -4496,7 +4669,7 @@ Transcript
   overflow-x: hidden;
 }
 
-#ecymxomfiy .gt_column_spanner_outer {
+#bsiegwtzrs .gt_column_spanner_outer {
   color: #333333;
   background-color: #FFFFFF;
   font-size: 100%;
@@ -4508,15 +4681,15 @@ Transcript
   padding-right: 4px;
 }
 
-#ecymxomfiy .gt_column_spanner_outer:first-child {
+#bsiegwtzrs .gt_column_spanner_outer:first-child {
   padding-left: 0;
 }
 
-#ecymxomfiy .gt_column_spanner_outer:last-child {
+#bsiegwtzrs .gt_column_spanner_outer:last-child {
   padding-right: 0;
 }
 
-#ecymxomfiy .gt_column_spanner {
+#bsiegwtzrs .gt_column_spanner {
   border-bottom-style: solid;
   border-bottom-width: 2px;
   border-bottom-color: #D3D3D3;
@@ -4528,11 +4701,11 @@ Transcript
   width: 100%;
 }
 
-#ecymxomfiy .gt_spanner_row {
+#bsiegwtzrs .gt_spanner_row {
   border-bottom-style: hidden;
 }
 
-#ecymxomfiy .gt_group_heading {
+#bsiegwtzrs .gt_group_heading {
   padding-top: 8px;
   padding-bottom: 8px;
   padding-left: 5px;
@@ -4558,7 +4731,7 @@ Transcript
   text-align: left;
 }
 
-#ecymxomfiy .gt_empty_group_heading {
+#bsiegwtzrs .gt_empty_group_heading {
   padding: 0.5px;
   color: #333333;
   background-color: #FFFFFF;
@@ -4573,15 +4746,15 @@ Transcript
   vertical-align: middle;
 }
 
-#ecymxomfiy .gt_from_md > :first-child {
+#bsiegwtzrs .gt_from_md > :first-child {
   margin-top: 0;
 }
 
-#ecymxomfiy .gt_from_md > :last-child {
+#bsiegwtzrs .gt_from_md > :last-child {
   margin-bottom: 0;
 }
 
-#ecymxomfiy .gt_row {
+#bsiegwtzrs .gt_row {
   padding-top: 8px;
   padding-bottom: 8px;
   padding-left: 5px;
@@ -4600,7 +4773,7 @@ Transcript
   overflow-x: hidden;
 }
 
-#ecymxomfiy .gt_stub {
+#bsiegwtzrs .gt_stub {
   color: #333333;
   background-color: #FFFFFF;
   font-size: 100%;
@@ -4613,7 +4786,7 @@ Transcript
   padding-right: 5px;
 }
 
-#ecymxomfiy .gt_stub_row_group {
+#bsiegwtzrs .gt_stub_row_group {
   color: #333333;
   background-color: #FFFFFF;
   font-size: 100%;
@@ -4627,15 +4800,15 @@ Transcript
   vertical-align: top;
 }
 
-#ecymxomfiy .gt_row_group_first td {
+#bsiegwtzrs .gt_row_group_first td {
   border-top-width: 2px;
 }
 
-#ecymxomfiy .gt_row_group_first th {
+#bsiegwtzrs .gt_row_group_first th {
   border-top-width: 2px;
 }
 
-#ecymxomfiy .gt_summary_row {
+#bsiegwtzrs .gt_summary_row {
   color: #333333;
   background-color: #FFFFFF;
   text-transform: inherit;
@@ -4645,16 +4818,16 @@ Transcript
   padding-right: 5px;
 }
 
-#ecymxomfiy .gt_first_summary_row {
+#bsiegwtzrs .gt_first_summary_row {
   border-top-style: solid;
   border-top-color: #D3D3D3;
 }
 
-#ecymxomfiy .gt_first_summary_row.thick {
+#bsiegwtzrs .gt_first_summary_row.thick {
   border-top-width: 2px;
 }
 
-#ecymxomfiy .gt_last_summary_row {
+#bsiegwtzrs .gt_last_summary_row {
   padding-top: 8px;
   padding-bottom: 8px;
   padding-left: 5px;
@@ -4664,7 +4837,7 @@ Transcript
   border-bottom-color: #D3D3D3;
 }
 
-#ecymxomfiy .gt_grand_summary_row {
+#bsiegwtzrs .gt_grand_summary_row {
   color: #333333;
   background-color: #FFFFFF;
   text-transform: inherit;
@@ -4674,7 +4847,7 @@ Transcript
   padding-right: 5px;
 }
 
-#ecymxomfiy .gt_first_grand_summary_row {
+#bsiegwtzrs .gt_first_grand_summary_row {
   padding-top: 8px;
   padding-bottom: 8px;
   padding-left: 5px;
@@ -4684,7 +4857,7 @@ Transcript
   border-top-color: #D3D3D3;
 }
 
-#ecymxomfiy .gt_last_grand_summary_row_top {
+#bsiegwtzrs .gt_last_grand_summary_row_top {
   padding-top: 8px;
   padding-bottom: 8px;
   padding-left: 5px;
@@ -4694,11 +4867,11 @@ Transcript
   border-bottom-color: #D3D3D3;
 }
 
-#ecymxomfiy .gt_striped {
+#bsiegwtzrs .gt_striped {
   background-color: rgba(128, 128, 128, 0.05);
 }
 
-#ecymxomfiy .gt_table_body {
+#bsiegwtzrs .gt_table_body {
   border-top-style: solid;
   border-top-width: 2px;
   border-top-color: #D3D3D3;
@@ -4707,7 +4880,7 @@ Transcript
   border-bottom-color: #D3D3D3;
 }
 
-#ecymxomfiy .gt_footnotes {
+#bsiegwtzrs .gt_footnotes {
   color: #333333;
   background-color: #FFFFFF;
   border-bottom-style: none;
@@ -4721,7 +4894,7 @@ Transcript
   border-right-color: #D3D3D3;
 }
 
-#ecymxomfiy .gt_footnote {
+#bsiegwtzrs .gt_footnote {
   margin: 0px;
   font-size: 90%;
   padding-top: 4px;
@@ -4730,7 +4903,7 @@ Transcript
   padding-right: 5px;
 }
 
-#ecymxomfiy .gt_sourcenotes {
+#bsiegwtzrs .gt_sourcenotes {
   color: #333333;
   background-color: #FFFFFF;
   border-bottom-style: none;
@@ -4744,7 +4917,7 @@ Transcript
   border-right-color: #D3D3D3;
 }
 
-#ecymxomfiy .gt_sourcenote {
+#bsiegwtzrs .gt_sourcenote {
   font-size: 90%;
   padding-top: 4px;
   padding-bottom: 4px;
@@ -4752,72 +4925,72 @@ Transcript
   padding-right: 5px;
 }
 
-#ecymxomfiy .gt_left {
+#bsiegwtzrs .gt_left {
   text-align: left;
 }
 
-#ecymxomfiy .gt_center {
+#bsiegwtzrs .gt_center {
   text-align: center;
 }
 
-#ecymxomfiy .gt_right {
+#bsiegwtzrs .gt_right {
   text-align: right;
   font-variant-numeric: tabular-nums;
 }
 
-#ecymxomfiy .gt_font_normal {
+#bsiegwtzrs .gt_font_normal {
   font-weight: normal;
 }
 
-#ecymxomfiy .gt_font_bold {
+#bsiegwtzrs .gt_font_bold {
   font-weight: bold;
 }
 
-#ecymxomfiy .gt_font_italic {
+#bsiegwtzrs .gt_font_italic {
   font-style: italic;
 }
 
-#ecymxomfiy .gt_super {
+#bsiegwtzrs .gt_super {
   font-size: 65%;
 }
 
-#ecymxomfiy .gt_footnote_marks {
+#bsiegwtzrs .gt_footnote_marks {
   font-size: 75%;
   vertical-align: 0.4em;
   position: initial;
 }
 
-#ecymxomfiy .gt_asterisk {
+#bsiegwtzrs .gt_asterisk {
   font-size: 100%;
   vertical-align: 0;
 }
 
-#ecymxomfiy .gt_indent_1 {
+#bsiegwtzrs .gt_indent_1 {
   text-indent: 5px;
 }
 
-#ecymxomfiy .gt_indent_2 {
+#bsiegwtzrs .gt_indent_2 {
   text-indent: 10px;
 }
 
-#ecymxomfiy .gt_indent_3 {
+#bsiegwtzrs .gt_indent_3 {
   text-indent: 15px;
 }
 
-#ecymxomfiy .gt_indent_4 {
+#bsiegwtzrs .gt_indent_4 {
   text-indent: 20px;
 }
 
-#ecymxomfiy .gt_indent_5 {
+#bsiegwtzrs .gt_indent_5 {
   text-indent: 25px;
 }
 
-#ecymxomfiy .katex-display {
+#bsiegwtzrs .katex-display {
   display: inline-flex !important;
   margin-bottom: 0.75em !important;
 }
 
-#ecymxomfiy div.Reactable > div.rt-table > div.rt-thead > div.rt-tr.rt-tr-group-header > div.rt-th-group:after {
+#bsiegwtzrs div.Reactable > div.rt-table > div.rt-thead > div.rt-tr.rt-tr-group-header > div.rt-th-group:after {
   height: 0px !important;
 }
 </style>
@@ -5017,23 +5190,23 @@ Transcript
 <noscript>Please enable JavaScript to experience the dynamic code cell content on this page.</noscript>
 <div class="cell">
 <div class="cell-output-display">
-<div id="bferhccvmp" style="padding-left:0px;padding-right:0px;padding-top:10px;padding-bottom:10px;overflow-x:auto;overflow-y:auto;width:auto;height:auto;">
-<style>#bferhccvmp table {
+<div id="tnyclqeeat" style="padding-left:0px;padding-right:0px;padding-top:10px;padding-bottom:10px;overflow-x:auto;overflow-y:auto;width:auto;height:auto;">
+<style>#tnyclqeeat table {
   font-family: system-ui, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol', 'Noto Color Emoji';
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
 
-#bferhccvmp thead, #bferhccvmp tbody, #bferhccvmp tfoot, #bferhccvmp tr, #bferhccvmp td, #bferhccvmp th {
+#tnyclqeeat thead, #tnyclqeeat tbody, #tnyclqeeat tfoot, #tnyclqeeat tr, #tnyclqeeat td, #tnyclqeeat th {
   border-style: none;
 }
 
-#bferhccvmp p {
+#tnyclqeeat p {
   margin: 0;
   padding: 0;
 }
 
-#bferhccvmp .gt_table {
+#tnyclqeeat .gt_table {
   display: table;
   border-collapse: collapse;
   line-height: normal;
@@ -5059,12 +5232,12 @@ Transcript
   border-left-color: #D3D3D3;
 }
 
-#bferhccvmp .gt_caption {
+#tnyclqeeat .gt_caption {
   padding-top: 4px;
   padding-bottom: 4px;
 }
 
-#bferhccvmp .gt_title {
+#tnyclqeeat .gt_title {
   color: #333333;
   font-size: 125%;
   font-weight: initial;
@@ -5076,7 +5249,7 @@ Transcript
   border-bottom-width: 0;
 }
 
-#bferhccvmp .gt_subtitle {
+#tnyclqeeat .gt_subtitle {
   color: #333333;
   font-size: 85%;
   font-weight: initial;
@@ -5088,7 +5261,7 @@ Transcript
   border-top-width: 0;
 }
 
-#bferhccvmp .gt_heading {
+#tnyclqeeat .gt_heading {
   background-color: #FFFFFF;
   text-align: center;
   border-bottom-color: #FFFFFF;
@@ -5100,13 +5273,13 @@ Transcript
   border-right-color: #D3D3D3;
 }
 
-#bferhccvmp .gt_bottom_border {
+#tnyclqeeat .gt_bottom_border {
   border-bottom-style: solid;
   border-bottom-width: 2px;
   border-bottom-color: #D3D3D3;
 }
 
-#bferhccvmp .gt_col_headings {
+#tnyclqeeat .gt_col_headings {
   border-top-style: solid;
   border-top-width: 2px;
   border-top-color: #D3D3D3;
@@ -5121,7 +5294,7 @@ Transcript
   border-right-color: #D3D3D3;
 }
 
-#bferhccvmp .gt_col_heading {
+#tnyclqeeat .gt_col_heading {
   color: #333333;
   background-color: #FFFFFF;
   font-size: 100%;
@@ -5141,7 +5314,7 @@ Transcript
   overflow-x: hidden;
 }
 
-#bferhccvmp .gt_column_spanner_outer {
+#tnyclqeeat .gt_column_spanner_outer {
   color: #333333;
   background-color: #FFFFFF;
   font-size: 100%;
@@ -5153,15 +5326,15 @@ Transcript
   padding-right: 4px;
 }
 
-#bferhccvmp .gt_column_spanner_outer:first-child {
+#tnyclqeeat .gt_column_spanner_outer:first-child {
   padding-left: 0;
 }
 
-#bferhccvmp .gt_column_spanner_outer:last-child {
+#tnyclqeeat .gt_column_spanner_outer:last-child {
   padding-right: 0;
 }
 
-#bferhccvmp .gt_column_spanner {
+#tnyclqeeat .gt_column_spanner {
   border-bottom-style: solid;
   border-bottom-width: 2px;
   border-bottom-color: #D3D3D3;
@@ -5173,11 +5346,11 @@ Transcript
   width: 100%;
 }
 
-#bferhccvmp .gt_spanner_row {
+#tnyclqeeat .gt_spanner_row {
   border-bottom-style: hidden;
 }
 
-#bferhccvmp .gt_group_heading {
+#tnyclqeeat .gt_group_heading {
   padding-top: 8px;
   padding-bottom: 8px;
   padding-left: 5px;
@@ -5203,7 +5376,7 @@ Transcript
   text-align: left;
 }
 
-#bferhccvmp .gt_empty_group_heading {
+#tnyclqeeat .gt_empty_group_heading {
   padding: 0.5px;
   color: #333333;
   background-color: #FFFFFF;
@@ -5218,15 +5391,15 @@ Transcript
   vertical-align: middle;
 }
 
-#bferhccvmp .gt_from_md > :first-child {
+#tnyclqeeat .gt_from_md > :first-child {
   margin-top: 0;
 }
 
-#bferhccvmp .gt_from_md > :last-child {
+#tnyclqeeat .gt_from_md > :last-child {
   margin-bottom: 0;
 }
 
-#bferhccvmp .gt_row {
+#tnyclqeeat .gt_row {
   padding-top: 8px;
   padding-bottom: 8px;
   padding-left: 5px;
@@ -5245,7 +5418,7 @@ Transcript
   overflow-x: hidden;
 }
 
-#bferhccvmp .gt_stub {
+#tnyclqeeat .gt_stub {
   color: #333333;
   background-color: #FFFFFF;
   font-size: 100%;
@@ -5258,7 +5431,7 @@ Transcript
   padding-right: 5px;
 }
 
-#bferhccvmp .gt_stub_row_group {
+#tnyclqeeat .gt_stub_row_group {
   color: #333333;
   background-color: #FFFFFF;
   font-size: 100%;
@@ -5272,15 +5445,15 @@ Transcript
   vertical-align: top;
 }
 
-#bferhccvmp .gt_row_group_first td {
+#tnyclqeeat .gt_row_group_first td {
   border-top-width: 2px;
 }
 
-#bferhccvmp .gt_row_group_first th {
+#tnyclqeeat .gt_row_group_first th {
   border-top-width: 2px;
 }
 
-#bferhccvmp .gt_summary_row {
+#tnyclqeeat .gt_summary_row {
   color: #333333;
   background-color: #FFFFFF;
   text-transform: inherit;
@@ -5290,16 +5463,16 @@ Transcript
   padding-right: 5px;
 }
 
-#bferhccvmp .gt_first_summary_row {
+#tnyclqeeat .gt_first_summary_row {
   border-top-style: solid;
   border-top-color: #D3D3D3;
 }
 
-#bferhccvmp .gt_first_summary_row.thick {
+#tnyclqeeat .gt_first_summary_row.thick {
   border-top-width: 2px;
 }
 
-#bferhccvmp .gt_last_summary_row {
+#tnyclqeeat .gt_last_summary_row {
   padding-top: 8px;
   padding-bottom: 8px;
   padding-left: 5px;
@@ -5309,7 +5482,7 @@ Transcript
   border-bottom-color: #D3D3D3;
 }
 
-#bferhccvmp .gt_grand_summary_row {
+#tnyclqeeat .gt_grand_summary_row {
   color: #333333;
   background-color: #FFFFFF;
   text-transform: inherit;
@@ -5319,7 +5492,7 @@ Transcript
   padding-right: 5px;
 }
 
-#bferhccvmp .gt_first_grand_summary_row {
+#tnyclqeeat .gt_first_grand_summary_row {
   padding-top: 8px;
   padding-bottom: 8px;
   padding-left: 5px;
@@ -5329,7 +5502,7 @@ Transcript
   border-top-color: #D3D3D3;
 }
 
-#bferhccvmp .gt_last_grand_summary_row_top {
+#tnyclqeeat .gt_last_grand_summary_row_top {
   padding-top: 8px;
   padding-bottom: 8px;
   padding-left: 5px;
@@ -5339,11 +5512,11 @@ Transcript
   border-bottom-color: #D3D3D3;
 }
 
-#bferhccvmp .gt_striped {
+#tnyclqeeat .gt_striped {
   background-color: rgba(128, 128, 128, 0.05);
 }
 
-#bferhccvmp .gt_table_body {
+#tnyclqeeat .gt_table_body {
   border-top-style: solid;
   border-top-width: 2px;
   border-top-color: #D3D3D3;
@@ -5352,7 +5525,7 @@ Transcript
   border-bottom-color: #D3D3D3;
 }
 
-#bferhccvmp .gt_footnotes {
+#tnyclqeeat .gt_footnotes {
   color: #333333;
   background-color: #FFFFFF;
   border-bottom-style: none;
@@ -5366,7 +5539,7 @@ Transcript
   border-right-color: #D3D3D3;
 }
 
-#bferhccvmp .gt_footnote {
+#tnyclqeeat .gt_footnote {
   margin: 0px;
   font-size: 90%;
   padding-top: 4px;
@@ -5375,7 +5548,7 @@ Transcript
   padding-right: 5px;
 }
 
-#bferhccvmp .gt_sourcenotes {
+#tnyclqeeat .gt_sourcenotes {
   color: #333333;
   background-color: #FFFFFF;
   border-bottom-style: none;
@@ -5389,7 +5562,7 @@ Transcript
   border-right-color: #D3D3D3;
 }
 
-#bferhccvmp .gt_sourcenote {
+#tnyclqeeat .gt_sourcenote {
   font-size: 90%;
   padding-top: 4px;
   padding-bottom: 4px;
@@ -5397,72 +5570,72 @@ Transcript
   padding-right: 5px;
 }
 
-#bferhccvmp .gt_left {
+#tnyclqeeat .gt_left {
   text-align: left;
 }
 
-#bferhccvmp .gt_center {
+#tnyclqeeat .gt_center {
   text-align: center;
 }
 
-#bferhccvmp .gt_right {
+#tnyclqeeat .gt_right {
   text-align: right;
   font-variant-numeric: tabular-nums;
 }
 
-#bferhccvmp .gt_font_normal {
+#tnyclqeeat .gt_font_normal {
   font-weight: normal;
 }
 
-#bferhccvmp .gt_font_bold {
+#tnyclqeeat .gt_font_bold {
   font-weight: bold;
 }
 
-#bferhccvmp .gt_font_italic {
+#tnyclqeeat .gt_font_italic {
   font-style: italic;
 }
 
-#bferhccvmp .gt_super {
+#tnyclqeeat .gt_super {
   font-size: 65%;
 }
 
-#bferhccvmp .gt_footnote_marks {
+#tnyclqeeat .gt_footnote_marks {
   font-size: 75%;
   vertical-align: 0.4em;
   position: initial;
 }
 
-#bferhccvmp .gt_asterisk {
+#tnyclqeeat .gt_asterisk {
   font-size: 100%;
   vertical-align: 0;
 }
 
-#bferhccvmp .gt_indent_1 {
+#tnyclqeeat .gt_indent_1 {
   text-indent: 5px;
 }
 
-#bferhccvmp .gt_indent_2 {
+#tnyclqeeat .gt_indent_2 {
   text-indent: 10px;
 }
 
-#bferhccvmp .gt_indent_3 {
+#tnyclqeeat .gt_indent_3 {
   text-indent: 15px;
 }
 
-#bferhccvmp .gt_indent_4 {
+#tnyclqeeat .gt_indent_4 {
   text-indent: 20px;
 }
 
-#bferhccvmp .gt_indent_5 {
+#tnyclqeeat .gt_indent_5 {
   text-indent: 25px;
 }
 
-#bferhccvmp .katex-display {
+#tnyclqeeat .katex-display {
   display: inline-flex !important;
   margin-bottom: 0.75em !important;
 }
 
-#bferhccvmp div.Reactable > div.rt-table > div.rt-thead > div.rt-tr.rt-tr-group-header > div.rt-th-group:after {
+#tnyclqeeat div.Reactable > div.rt-table > div.rt-thead > div.rt-tr.rt-tr-group-header > div.rt-th-group:after {
   height: 0px !important;
 }
 </style>

@@ -21,9 +21,9 @@ webr:
   cell-options:
     editor-font-scale: 0.7
     dpi: 216
-    fig-width: 7
-    fig-height: 4.5
-    out-width: 55%
+    fig-width: 10
+    fig-height: 6
+    out-width: 100%
 filters:
   - webr
 ---
@@ -76,11 +76,12 @@ lecture_theme <- function(base_size = 16) {
       panel.grid = ggplot2::element_line(colour = "grey87")
     )
 }
-# The WebR canvas is 7x4.5in at out-width 55% of its output track
-# (lectures/_metadata.yml) — a similar pixels-per-inch to the 10in knitr canvas,
-# but often narrower when the cell renders side by side, so it runs a little
-# larger than the 16pt default. 30pt did not fit this canvas at all: the panel
-# collapsed into the top third and the legend clipped.
+# The WebR canvas is 10x6in at out-width 100% of its output track
+# (lectures/_metadata.yml), the same canvas the knitr figures use. It asks for
+# the whole track because the 420px height cap in notebook.scss is what really
+# sizes it. 18pt rather than the 16pt knitr default: on a full slide both land
+# at 700x420, where 18pt reads at 17.5px and 16pt at 15.5px, and these decks
+# put figures in half-width columns where the smaller size gets hard to read.
 # webR draws its canvas at 72 dpi no matter what `dpi` says, so on a 216-dpi
 # canvas everything ggplot measures in points or mm comes out a third of its
 # size. Scale ggplot2's mm-to-point constants and the theme by the same
@@ -95,8 +96,7 @@ theme_lecture <- lecture_theme(18 * webr_scale) +
   ggplot2::theme(
     line = ggplot2::element_line(linewidth = 18 / 22),
     rect = ggplot2::element_rect(linewidth = 18 / 22)
-  ) +
-  ggplot2::theme(strip.text = ggplot2::element_text(size = 18 * webr_scale))
+  )
 ggplot2::theme_set(theme_lecture)
 ```
 
@@ -134,10 +134,10 @@ Here is the move written out. On top, the univariate model, where the error term
 **Uni-variate vs. bi-variate**
 
 ```{=tex}
-\begin{align}
+\begin{align*}
   \text{Uni-variate}\;\; wage = & \beta_0 + \beta_1 educ + u_1 (=u_2+\beta_2 exper)\\
   \text{Bi-variate}\;\; wage = & \beta_0 + \beta_1 educ + \beta_2 exper + u_2
-\end{align}
+\end{align*}
 ```
 
 <br>
@@ -161,10 +161,10 @@ Same structure, a different question, and this one is worth carrying around beca
 The impact of per student spending (`expend`) on standardized test score (`avgscore`) at the high school level
 
 ```{=tex}
-\begin{align}
+\begin{align*}
 avgscore= & \beta_0+\beta_1 expend + u_1 (=u_2+\beta_2 avginc) \notag \\
 avgscore= & \beta_0+\beta_1 expend +\beta_2 avginc + u_2 \notag
-\end{align}
+\end{align*}
 ```
 
 ### Model (general)
@@ -179,9 +179,9 @@ Now the general version, and I mostly want you to read the two bullets defining 
 More generally,
 
 ```{=tex}
-\begin{align}
+\begin{align*}
   y=\beta_0+\beta_1 x_1 + \beta_2 x_2 + u
-\end{align}
+\end{align*}
 ```
 
 + $\beta_0$: intercept
@@ -239,9 +239,9 @@ wage = & \beta_0 + \beta_1 educ + \beta_2 exper + u
 Mean independence condition is
 
 ```{=tex}
-\begin{align}
+\begin{align*}
   E[u|educ,exper]=0
-\end{align}
+\end{align*}
 ```
 
 **Verbally**:
@@ -271,9 +271,9 @@ The extension to k variables involves no new ideas, only longer expressions. The
 **Model**
 
 ```{=tex}
-\begin{align}
+\begin{align*}
   y=\beta_0 + \beta_1 x_1 + \beta_2 x_2 + \dots + \beta_k x_k + u
-\end{align}
+\end{align*}
 ```
 
 <br>
@@ -283,9 +283,9 @@ The extension to k variables involves no new ideas, only longer expressions. The
 $\beta_{OLS}$ (OLS estimators of $\beta$s) is unbiased if,
 
 ```{=tex}
-\begin{align}
+\begin{align*}
     E[u|x_1,x_2,\dots,x_k]=0
-\end{align}
+\end{align*}
 ```
 
 **Verbally**: this condition would be satisfied if the error term is uncorrelated with any of the independent variables, $x_1,x_2,\dots,x_k$. 
@@ -396,9 +396,9 @@ Find the combination of $\beta$s that minimizes the sum of squared residuals
 Denoting the collection of $\widehat{\beta}$s as $\widehat{\theta} (=\{\widehat{\beta}_0,\widehat{\beta}_1,\dots,\widehat{\beta}_k\})$,
 
 ```{=tex}
-\begin{align}
+\begin{align*}
     Min_{\widehat{\theta}} \sum_{i=1}^n \Big[ y_i-(\widehat{\beta}_0+\widehat{\beta}_1 x_{1,i} + \widehat{\beta}_2 x_{2,i} + \dots + \widehat{\beta}_k x_{k,i}) \Big]^2
-\end{align}
+\end{align*}
 ```
 
 Exactly the univariate problem from lecture 01-2, with $k+1$ unknowns instead of two: an intercept and $k$ slope coefficients.
@@ -415,13 +415,13 @@ Turn the handle: differentiate with respect to each of the k plus one unknowns, 
 Partially differentiate the objective function (sum of squared residuals) with respect to each of $\widehat{\theta} (=\{\widehat{\beta}_0,\widehat{\beta}_1,\dots,\widehat{\beta}_k\})$ and set each to zero. Dividing each by $-2$ leaves $k+1$ equations:
 
 ```{=tex}
-\begin{align}
+\begin{align*}
   \sum_{i=1}^n \Big[ y_i-(\widehat{\beta}_0+\widehat{\beta}_1 x_{1,i} + \widehat{\beta}_2 x_{2,i} + \dots + \widehat{\beta}_k x_{k,i}) \Big] = & 0 \;\; (\widehat{\beta}_0) \\
   \sum_{i=1}^n x_{i,1}\Big[ y_i-(\widehat{\beta}_0+\widehat{\beta}_1 x_{1,i} + \widehat{\beta}_2 x_{2,i} + \dots + \widehat{\beta}_k x_{k,i}) \Big]= & 0  \;\; (\widehat{\beta}_1) \\
   \sum_{i=1}^n x_{i,2}\Big[ y_i-(\widehat{\beta}_0+\widehat{\beta}_1 x_{1,i} + \widehat{\beta}_2 x_{2,i} + \dots + \widehat{\beta}_k x_{k,i}) \Big]= & 0  \;\; (\widehat{\beta}_2) \\
   \vdots \\
   \sum_{i=1}^n x_{i,k}\Big[ y_i-(\widehat{\beta}_0+\widehat{\beta}_1 x_{1,i} + \widehat{\beta}_2 x_{2,i} + \dots + \widehat{\beta}_k x_{k,i}) \Big]= & 0  \;\; (\widehat{\beta}_k)
-\end{align}
+\end{align*}
 ```
 
 #### More succinctly
@@ -436,13 +436,13 @@ And here is the compact form, which is worth committing to memory because it rec
 Every bracket above is just the residual $\widehat{u}_i$, so the whole system is:
 
 ```{=tex}
-\begin{align}
+\begin{align*}
   \sum_{i=1}^n \widehat{u}_i = & 0 \;\; (\widehat{\beta}_0) \\
   \sum_{i=1}^n x_{i,1}\widehat{u}_i = & 0  \;\; (\widehat{\beta}_1) \\
   \sum_{i=1}^n x_{i,2}\widehat{u}_i = & 0  \;\; (\widehat{\beta}_2) \\
   \vdots \\
   \sum_{i=1}^n x_{i,k}\widehat{u}_i = & 0  \;\; (\widehat{\beta}_k)
-\end{align}
+\end{align*}
 ```
 
 $k+1$ equations in $k+1$ unknowns. That count is what costs you $k+1$ degrees of freedom later.
@@ -530,9 +530,9 @@ Any variable cannot be a linear function of the other variables
 **Example (silly)**
 
 ```{=tex}
-\begin{align}
+\begin{align*}
   wage = \beta_0 + \beta_1 educ + \beta_2 (3\times educ) + u
-\end{align}
+\end{align*}
 ```
 
 (<span style = "color: blue;"> More on this later when we talk about dummy variables</span>)
@@ -558,10 +558,10 @@ $$
 
 + functional form misspecification
 ```{=tex}
-\begin{align}
+\begin{align*}
   wage = & \beta_0 + \beta_1 log(x_1) + \beta_2 x_2 + u_1 \;\;\text{(true)}\\
   wage = & \beta_0 + \beta_1 x_1 + \beta_2 x_2 + u_2 \;\; \text{(yours)},\;\; \text{where } u_2 = u_1 + \beta_1[log(x_1)-x_1]
-\end{align}
+\end{align*}
 ```
 + omission of variables that are correlated with any of $x_1,x_2,\dots,x_k$ (<span style = "color: blue;"> more on this soon </span>)
 + <span style = "color: blue;"> other sources of endogeneity later </span>
@@ -587,9 +587,9 @@ Condition five, homoskedasticity, and the variance formula it buys us. Compare t
 Error term is homoskedastic (Assumption $MLR.5$)
 
 ```{=tex}
-\begin{align}
+\begin{align*}
 Var(u|x_1,\dots,x_k)=\sigma^2
-\end{align}
+\end{align*}
 ```
 
 <br>
@@ -598,9 +598,9 @@ Under conditions $MLR.1$ through $MLR.5$, conditional on the sample values of th
 
 :::{.callout-important title="Variance of $\widehat{\beta}_{OLS}$"}
 ```{=tex}
-\begin{align}
+\begin{align*}
     Var(\widehat{\beta}_j)= \frac{\sigma^2}{SST_j(1-R^2_j)},
-\end{align}
+\end{align*}
 ```
 :::
 
@@ -627,9 +627,9 @@ Just like uni-variate regression, you need to estimate $\sigma^2$ if you want to
 **uni-variate regression**
 
 ```{=tex}
-\begin{align}
+\begin{align*}
   \widehat{\sigma}^2=\sum_{i=1}^n \frac{\widehat{u}_i^2}{n-2}
-\end{align}
+\end{align*}
 ```
 
 **multi-variate regression**
@@ -637,9 +637,9 @@ Just like uni-variate regression, you need to estimate $\sigma^2$ if you want to
 A model with $k$ independent variables with intercept.
 
 ```{=tex}
-\begin{align}
+\begin{align*}
   \widehat{\sigma}^2=\sum_{i=1}^n \frac{\widehat{u}_i^2}{n-(k+1)}
-\end{align}
+\end{align*}
 ```
 
 You solved $k+1$ simultaneous equations to get $\widehat{\beta}_j$ $(j=0,\dots,k)$. So, once you know the value of $n-k-1$ of the residuals, you know the rest.
@@ -657,9 +657,9 @@ Using the estimator of $\sigma^2$ in place of $\sigma^2$, we have the <span styl
 
 :::{.callout-important title="Estimator of the variance of the OLS estimator"}
 ```{=tex}
-\begin{align}
+\begin{align*}
 \widehat{Var(\widehat{\beta}_j)} = \frac{\widehat{\sigma}^2}{SST_j(1-R^2_j)} = \left(\sum_{i=1}^n \frac{\widehat{u}_i^2}{n-k-1}\right) \cdot \frac{1}{SST_j(1-R^2_j)}
-\end{align}
+\end{align*}
 ```
 :::
 
@@ -682,9 +682,9 @@ This section is optional, but I would encourage you to follow it, because it exp
 Consider the following simple model,
 
 ```{=tex}
-\begin{align}
+\begin{align*}
   y_i = \beta_0 + \beta_1 x_{1,i} + \beta_2 x_{2,i} + \beta_3 x_{3,i} + u_i
-\end{align}
+\end{align*}
 ```
 
 Suppose you are interested in estimating only $\beta_1$.
@@ -716,18 +716,19 @@ $$\widehat{\beta}_1 = \widehat{\alpha_1}$$
 <details class="transcript">
 <summary>Transcript</summary>
 
-Rather than assert it, run it. This cell simulates data where x-one is deliberately correlated with x-two and x-three, so that the partialling out has real work to do. Then it runs both methods and prints the two coefficients side by side. Look at them. They agree to every digit shown, and the actual difference is about four times ten to the minus sixteen, which is the smallest gap the computer can represent. These are not two procedures that happen to give similar answers. It is one procedure written two different ways.
+Rather than assert it, run it. The first cell simulates data where x-one is deliberately correlated with x-two and x-three, so that the partialling out has real work to do. The next two run each method in turn, and the last one prints the two coefficients side by side. Look at them. They agree to every digit shown, and the actual difference is about four times ten to the minus sixteen, which is the smallest gap the computer can represent. These are not two procedures that happen to give similar answers. It is one procedure written two different ways.
 
 </details>
 
 Do not take it on faith. Run both methods on the same simulated data and compare.
+
+**Step 1: generate the data.** `x1` is built from `x2` and `x3`, so they really do share variation.
 
 ```{webr-r}
 #| autorun: true
 
 library(fixest)
 
-#--- simulate data where x1 is correlated with x2 and x3 ---#
 set.seed(4891)
 N <- 200
 x2 <- rnorm(N)
@@ -735,16 +736,36 @@ x3 <- rnorm(N)
 x1 <- 0.5 * x2 - 0.3 * x3 + rnorm(N)
 y <- 1 + 2 * x1 + 3 * x2 - x3 + rnorm(N)
 d <- data.frame(y, x1, x2, x3)
+```
 
-#--- Method 1: regress y on everything at once ---#
+**Step 2: Method 1.** Regress $y$ on everything at once.
+
+```{webr-r}
+#| autorun: true
+#| code-track: 0.6
+
 m1 <- feols(y ~ x1 + x2 + x3, data = d)
+coef(m1)["x1"]
+```
 
-#--- Method 2: partial x2 and x3 out of both y and x1, then regress ---#
+**Step 3: Method 2.** Partial $x_2$ and $x_3$ out of both $y$ and $x_1$, then regress one set of residuals on the other.
+
+```{webr-r}
+#| autorun: true
+#| code-track: 0.6
+ 
 d$u_y <- resid(feols(y ~ x2 + x3, data = d))
 d$u_x1 <- resid(feols(x1 ~ x2 + x3, data = d))
 m2 <- feols(u_y ~ u_x1, data = d)
+coef(m2)["u_x1"]
+```
 
-#--- compare ---#
+**Step 4: compare.**
+
+```{webr-r}
+#| autorun: true
+#| code-track: 0.6
+
 c(method_1 = coef(m1)["x1"], method_2 = coef(m2)["u_x1"])
 ```
 
