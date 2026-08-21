@@ -129,3 +129,12 @@ stream and drops them with the rest, so a line like `grt` printed nothing.
 Our vendored `qwebr-compute-engine.js` keeps any stderr line starting with
 `Error` regardless of those options. A student must never see a failing line
 look as though it ran. Re-apply if the extension is updated.
+
+**WebR `out-width` and `fig-width` move together.** The canvas is drawn at
+`fig-width * 216` pixels and then displayed at `out-width` of the column, so
+the on-screen type size is `base_size * webr_scale * (out_width * 1050px /
+(fig_width * 216))`. The defaults (7in at 55%) give the same size as the knitr
+figures. Change `out-width` on a cell and you must change `fig-width` in
+proportion, `fig-width = 7 * out_width / 0.55` (70% -> 9, 80% -> 10.2), and
+`fig-height` to keep the 7:4.5 aspect. Widening the display alone stretches
+the same pixels and makes the type too large, as happened in deck 01-3.
