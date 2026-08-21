@@ -19,10 +19,16 @@ Every lecture deck containing a `{webr-r}` block must include
 `transcript-support.html`, use a YAML list containing both files.
 
 Do not assign a fixed 50/50 code/output split. The adaptive script measures the
-code using its actual rendered font, reserves the remaining width for output,
-and remeasures console output after execution. The output column may receive up
-to 70% of the available width. Its `Output` banner and output body must fill the
-same grid track and therefore have exactly the same width.
+code using its actual rendered font and reserves the remaining width for output.
+The output column may receive up to 70% of the available width. Its `Output`
+banner and output body must fill the same grid track and therefore have exactly
+the same width.
+
+**The code column never changes width after a run.** The split is set once,
+from the code, before anything executes. Running a cell may only keep the
+layout or fall back to the vertical stack; it must never re-divide the two
+columns, because a code block that shrinks the moment Run is pressed is
+distracting and makes the code harder to follow while the output is read.
 
 Keep the original vertical WebR stack when a cell is unsuitable for a compact
 side-by-side presentation. The current automatic eligibility limits are:
