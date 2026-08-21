@@ -94,7 +94,7 @@
     code span.vs { color: #20794d; } /* VerbatimString */
     code span.wa { color: #5e5e5e; font-style: italic; } /* Warning */
   </style>
-  <link rel="stylesheet" href="../../site_libs/revealjs/dist/theme/quarto-73cf537ef824f635b0dbb76f600edef7.css">
+  <link rel="stylesheet" href="../../site_libs/revealjs/dist/theme/quarto-ae2d755d4d34da603f33a3001b8a52fa.css">
   <script>window.backupDefine = window.define; window.define = undefined;</script><script src="https://cdn.jsdelivr.net/npm/katex@latest/dist/katex.min.js"></script>
   <script>document.addEventListener("DOMContentLoaded", function () {
  var mathElements = document.getElementsByClassName("math");
@@ -386,7 +386,6 @@
     var MAX_CODE_LINES = 12;
     var MAX_CODE_SHARE = 0.58;
     var MIN_CODE_SHARE = 0.30;
-    var MAX_OUTPUT_SHARE = 0.70;
 
     function detailsFor(area) {
       var match = area.id && area.id.match(/qwebr-interactive-area-(\d+)/);
@@ -438,43 +437,6 @@
       setTracks(host, (widest + 76) / available);
     }
 
-    function stack(host) {
-      if (host.dataset.webrLayoutManual === "true") return;
-      host.classList.remove("side-out");
-      host.dataset.webrLayout = "stacked";
-    }
-
-    function assessOutput(area, host, metrics) {
-      if (host.dataset.webrLayout !== "side") return;
-      var graph = area.querySelector(".qwebr-output-graph-area canvas, .qwebr-output-graph-area img");
-      if (graph) return; // plots scale cleanly within their grid track
-
-      var pre = area.querySelector(".qwebr-output-code-area pre");
-      if (!pre || getComputedStyle(pre).visibility === "hidden") return;
-
-      var codeNeed = Math.max(MIN_CODE_SHARE,
-        Math.min(MAX_CODE_SHARE, (metrics.maxChars + 8) / 150));
-      var available = Math.max(1, area.clientWidth - 16);
-      var outputNeed = Math.min(MAX_OUTPUT_SHARE,
-        Math.max(0.42, (pre.scrollWidth + 24) / available));
-      var outputLines = (pre.innerText || "").split("\n").length;
-
-      // If both measured widths cannot coexist, or the console result is too
-      // tall to read as a right-hand panel, retain WebR's original vertical stack.
-      if (codeNeed + outputNeed > 1 || outputLines > 16 ||
-          pre.scrollHeight > area.ownerDocument.documentElement.clientHeight * 0.62) {
-        stack(host);
-        return;
-      }
-
-      // The split is fixed by the code once it is measured; it must not move when
-      // the output arrives, or the code block visibly shrinks on Run. If the
-      // output does not fit in the share it has, stack instead.
-      requestAnimationFrame(function () {
-        if (pre.scrollWidth > pre.clientWidth * 1.08) stack(host);
-      });
-    }
-
     function configure(area) {
       if (area.dataset.webrLayoutChecked === "true") return;
       area.dataset.webrLayoutChecked = "true";
@@ -496,17 +458,15 @@
       host.dataset.webrLayout = "side";
 
       // Estimate an initial split from the longest source line. This split is
-      // final; a run can only fall back to stacking, never re-split.
+      // final; a run never changes it.
       var initialCodeShare = (metrics.maxChars + 10) / 145;
       setTracks(host, initialCodeShare);
       measureRenderedCode(area, host, details.code, 0);
 
-      var observer = new MutationObserver(function () {
-        requestAnimationFrame(function () { assessOutput(area, host, metrics); });
-      });
-      observer.observe(area, { childList: true, subtree: true, characterData: true,
-        attributes: true, attributeFilter: ["style", "class"] });
-      requestAnimationFrame(function () { assessOutput(area, host, metrics); });
+      // Once side by side, always side by side. Output that is too wide or too
+      // long scrolls inside its column (notebook.scss); it never stacks the
+      // cell, because a layout that jumps when Run is pressed is worse than a
+      // scrollbar.
     }
 
     function scan() {

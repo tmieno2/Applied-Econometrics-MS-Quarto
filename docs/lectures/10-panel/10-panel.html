@@ -94,7 +94,7 @@
     code span.vs { color: #20794d; } /* VerbatimString */
     code span.wa { color: #5e5e5e; font-style: italic; } /* Warning */
   </style>
-  <link rel="stylesheet" href="../../site_libs/revealjs/dist/theme/quarto-73cf537ef824f635b0dbb76f600edef7.css">
+  <link rel="stylesheet" href="../../site_libs/revealjs/dist/theme/quarto-ae2d755d4d34da603f33a3001b8a52fa.css">
   <script>window.backupDefine = window.define; window.define = undefined;</script><script src="https://cdn.jsdelivr.net/npm/katex@latest/dist/katex.min.js"></script>
   <script>document.addEventListener("DOMContentLoaded", function () {
  var mathElements = document.getElementsByClassName("math");
@@ -386,7 +386,6 @@
     var MAX_CODE_LINES = 12;
     var MAX_CODE_SHARE = 0.58;
     var MIN_CODE_SHARE = 0.30;
-    var MAX_OUTPUT_SHARE = 0.70;
 
     function detailsFor(area) {
       var match = area.id && area.id.match(/qwebr-interactive-area-(\d+)/);
@@ -438,43 +437,6 @@
       setTracks(host, (widest + 76) / available);
     }
 
-    function stack(host) {
-      if (host.dataset.webrLayoutManual === "true") return;
-      host.classList.remove("side-out");
-      host.dataset.webrLayout = "stacked";
-    }
-
-    function assessOutput(area, host, metrics) {
-      if (host.dataset.webrLayout !== "side") return;
-      var graph = area.querySelector(".qwebr-output-graph-area canvas, .qwebr-output-graph-area img");
-      if (graph) return; // plots scale cleanly within their grid track
-
-      var pre = area.querySelector(".qwebr-output-code-area pre");
-      if (!pre || getComputedStyle(pre).visibility === "hidden") return;
-
-      var codeNeed = Math.max(MIN_CODE_SHARE,
-        Math.min(MAX_CODE_SHARE, (metrics.maxChars + 8) / 150));
-      var available = Math.max(1, area.clientWidth - 16);
-      var outputNeed = Math.min(MAX_OUTPUT_SHARE,
-        Math.max(0.42, (pre.scrollWidth + 24) / available));
-      var outputLines = (pre.innerText || "").split("\n").length;
-
-      // If both measured widths cannot coexist, or the console result is too
-      // tall to read as a right-hand panel, retain WebR's original vertical stack.
-      if (codeNeed + outputNeed > 1 || outputLines > 16 ||
-          pre.scrollHeight > area.ownerDocument.documentElement.clientHeight * 0.62) {
-        stack(host);
-        return;
-      }
-
-      // The split is fixed by the code once it is measured; it must not move when
-      // the output arrives, or the code block visibly shrinks on Run. If the
-      // output does not fit in the share it has, stack instead.
-      requestAnimationFrame(function () {
-        if (pre.scrollWidth > pre.clientWidth * 1.08) stack(host);
-      });
-    }
-
     function configure(area) {
       if (area.dataset.webrLayoutChecked === "true") return;
       area.dataset.webrLayoutChecked = "true";
@@ -496,17 +458,15 @@
       host.dataset.webrLayout = "side";
 
       // Estimate an initial split from the longest source line. This split is
-      // final; a run can only fall back to stacking, never re-split.
+      // final; a run never changes it.
       var initialCodeShare = (metrics.maxChars + 10) / 145;
       setTracks(host, initialCodeShare);
       measureRenderedCode(area, host, details.code, 0);
 
-      var observer = new MutationObserver(function () {
-        requestAnimationFrame(function () { assessOutput(area, host, metrics); });
-      });
-      observer.observe(area, { childList: true, subtree: true, characterData: true,
-        attributes: true, attributeFilter: ["style", "class"] });
-      requestAnimationFrame(function () { assessOutput(area, host, metrics); });
+      // Once side by side, always side by side. Output that is too wide or too
+      // long scrolls inside its column (notebook.scss); it never stacks the
+      // cell, because a layout that jumps when Run is pressed is worse than a
+      // scrollbar.
     }
 
     function scan() {
@@ -2379,23 +2339,23 @@ Lecturer transcript
 <noscript>Please enable JavaScript to experience the dynamic code cell content on this page.</noscript>
 <div class="cell">
 <div class="cell-output-display">
-<div id="fobkgvebfk" style="padding-left:0px;padding-right:0px;padding-top:10px;padding-bottom:10px;overflow-x:auto;overflow-y:auto;width:auto;height:auto;">
-<style>#fobkgvebfk table {
+<div id="ectcwjqobc" style="padding-left:0px;padding-right:0px;padding-top:10px;padding-bottom:10px;overflow-x:auto;overflow-y:auto;width:auto;height:auto;">
+<style>#ectcwjqobc table {
   font-family: system-ui, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol', 'Noto Color Emoji';
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
 
-#fobkgvebfk thead, #fobkgvebfk tbody, #fobkgvebfk tfoot, #fobkgvebfk tr, #fobkgvebfk td, #fobkgvebfk th {
+#ectcwjqobc thead, #ectcwjqobc tbody, #ectcwjqobc tfoot, #ectcwjqobc tr, #ectcwjqobc td, #ectcwjqobc th {
   border-style: none;
 }
 
-#fobkgvebfk p {
+#ectcwjqobc p {
   margin: 0;
   padding: 0;
 }
 
-#fobkgvebfk .gt_table {
+#ectcwjqobc .gt_table {
   display: table;
   border-collapse: collapse;
   line-height: normal;
@@ -2421,12 +2381,12 @@ Lecturer transcript
   border-left-color: #D3D3D3;
 }
 
-#fobkgvebfk .gt_caption {
+#ectcwjqobc .gt_caption {
   padding-top: 4px;
   padding-bottom: 4px;
 }
 
-#fobkgvebfk .gt_title {
+#ectcwjqobc .gt_title {
   color: #333333;
   font-size: 125%;
   font-weight: initial;
@@ -2438,7 +2398,7 @@ Lecturer transcript
   border-bottom-width: 0;
 }
 
-#fobkgvebfk .gt_subtitle {
+#ectcwjqobc .gt_subtitle {
   color: #333333;
   font-size: 85%;
   font-weight: initial;
@@ -2450,7 +2410,7 @@ Lecturer transcript
   border-top-width: 0;
 }
 
-#fobkgvebfk .gt_heading {
+#ectcwjqobc .gt_heading {
   background-color: #FFFFFF;
   text-align: center;
   border-bottom-color: #FFFFFF;
@@ -2462,13 +2422,13 @@ Lecturer transcript
   border-right-color: #D3D3D3;
 }
 
-#fobkgvebfk .gt_bottom_border {
+#ectcwjqobc .gt_bottom_border {
   border-bottom-style: solid;
   border-bottom-width: 2px;
   border-bottom-color: #D3D3D3;
 }
 
-#fobkgvebfk .gt_col_headings {
+#ectcwjqobc .gt_col_headings {
   border-top-style: solid;
   border-top-width: 2px;
   border-top-color: #D3D3D3;
@@ -2483,7 +2443,7 @@ Lecturer transcript
   border-right-color: #D3D3D3;
 }
 
-#fobkgvebfk .gt_col_heading {
+#ectcwjqobc .gt_col_heading {
   color: #333333;
   background-color: #FFFFFF;
   font-size: 100%;
@@ -2503,7 +2463,7 @@ Lecturer transcript
   overflow-x: hidden;
 }
 
-#fobkgvebfk .gt_column_spanner_outer {
+#ectcwjqobc .gt_column_spanner_outer {
   color: #333333;
   background-color: #FFFFFF;
   font-size: 100%;
@@ -2515,15 +2475,15 @@ Lecturer transcript
   padding-right: 4px;
 }
 
-#fobkgvebfk .gt_column_spanner_outer:first-child {
+#ectcwjqobc .gt_column_spanner_outer:first-child {
   padding-left: 0;
 }
 
-#fobkgvebfk .gt_column_spanner_outer:last-child {
+#ectcwjqobc .gt_column_spanner_outer:last-child {
   padding-right: 0;
 }
 
-#fobkgvebfk .gt_column_spanner {
+#ectcwjqobc .gt_column_spanner {
   border-bottom-style: solid;
   border-bottom-width: 2px;
   border-bottom-color: #D3D3D3;
@@ -2535,11 +2495,11 @@ Lecturer transcript
   width: 100%;
 }
 
-#fobkgvebfk .gt_spanner_row {
+#ectcwjqobc .gt_spanner_row {
   border-bottom-style: hidden;
 }
 
-#fobkgvebfk .gt_group_heading {
+#ectcwjqobc .gt_group_heading {
   padding-top: 8px;
   padding-bottom: 8px;
   padding-left: 5px;
@@ -2565,7 +2525,7 @@ Lecturer transcript
   text-align: left;
 }
 
-#fobkgvebfk .gt_empty_group_heading {
+#ectcwjqobc .gt_empty_group_heading {
   padding: 0.5px;
   color: #333333;
   background-color: #FFFFFF;
@@ -2580,15 +2540,15 @@ Lecturer transcript
   vertical-align: middle;
 }
 
-#fobkgvebfk .gt_from_md > :first-child {
+#ectcwjqobc .gt_from_md > :first-child {
   margin-top: 0;
 }
 
-#fobkgvebfk .gt_from_md > :last-child {
+#ectcwjqobc .gt_from_md > :last-child {
   margin-bottom: 0;
 }
 
-#fobkgvebfk .gt_row {
+#ectcwjqobc .gt_row {
   padding-top: 8px;
   padding-bottom: 8px;
   padding-left: 5px;
@@ -2607,7 +2567,7 @@ Lecturer transcript
   overflow-x: hidden;
 }
 
-#fobkgvebfk .gt_stub {
+#ectcwjqobc .gt_stub {
   color: #333333;
   background-color: #FFFFFF;
   font-size: 100%;
@@ -2620,7 +2580,7 @@ Lecturer transcript
   padding-right: 5px;
 }
 
-#fobkgvebfk .gt_stub_row_group {
+#ectcwjqobc .gt_stub_row_group {
   color: #333333;
   background-color: #FFFFFF;
   font-size: 100%;
@@ -2634,15 +2594,15 @@ Lecturer transcript
   vertical-align: top;
 }
 
-#fobkgvebfk .gt_row_group_first td {
+#ectcwjqobc .gt_row_group_first td {
   border-top-width: 2px;
 }
 
-#fobkgvebfk .gt_row_group_first th {
+#ectcwjqobc .gt_row_group_first th {
   border-top-width: 2px;
 }
 
-#fobkgvebfk .gt_summary_row {
+#ectcwjqobc .gt_summary_row {
   color: #333333;
   background-color: #FFFFFF;
   text-transform: inherit;
@@ -2652,16 +2612,16 @@ Lecturer transcript
   padding-right: 5px;
 }
 
-#fobkgvebfk .gt_first_summary_row {
+#ectcwjqobc .gt_first_summary_row {
   border-top-style: solid;
   border-top-color: #D3D3D3;
 }
 
-#fobkgvebfk .gt_first_summary_row.thick {
+#ectcwjqobc .gt_first_summary_row.thick {
   border-top-width: 2px;
 }
 
-#fobkgvebfk .gt_last_summary_row {
+#ectcwjqobc .gt_last_summary_row {
   padding-top: 8px;
   padding-bottom: 8px;
   padding-left: 5px;
@@ -2671,7 +2631,7 @@ Lecturer transcript
   border-bottom-color: #D3D3D3;
 }
 
-#fobkgvebfk .gt_grand_summary_row {
+#ectcwjqobc .gt_grand_summary_row {
   color: #333333;
   background-color: #FFFFFF;
   text-transform: inherit;
@@ -2681,7 +2641,7 @@ Lecturer transcript
   padding-right: 5px;
 }
 
-#fobkgvebfk .gt_first_grand_summary_row {
+#ectcwjqobc .gt_first_grand_summary_row {
   padding-top: 8px;
   padding-bottom: 8px;
   padding-left: 5px;
@@ -2691,7 +2651,7 @@ Lecturer transcript
   border-top-color: #D3D3D3;
 }
 
-#fobkgvebfk .gt_last_grand_summary_row_top {
+#ectcwjqobc .gt_last_grand_summary_row_top {
   padding-top: 8px;
   padding-bottom: 8px;
   padding-left: 5px;
@@ -2701,11 +2661,11 @@ Lecturer transcript
   border-bottom-color: #D3D3D3;
 }
 
-#fobkgvebfk .gt_striped {
+#ectcwjqobc .gt_striped {
   background-color: rgba(128, 128, 128, 0.05);
 }
 
-#fobkgvebfk .gt_table_body {
+#ectcwjqobc .gt_table_body {
   border-top-style: solid;
   border-top-width: 2px;
   border-top-color: #D3D3D3;
@@ -2714,7 +2674,7 @@ Lecturer transcript
   border-bottom-color: #D3D3D3;
 }
 
-#fobkgvebfk .gt_footnotes {
+#ectcwjqobc .gt_footnotes {
   color: #333333;
   background-color: #FFFFFF;
   border-bottom-style: none;
@@ -2728,7 +2688,7 @@ Lecturer transcript
   border-right-color: #D3D3D3;
 }
 
-#fobkgvebfk .gt_footnote {
+#ectcwjqobc .gt_footnote {
   margin: 0px;
   font-size: 90%;
   padding-top: 4px;
@@ -2737,7 +2697,7 @@ Lecturer transcript
   padding-right: 5px;
 }
 
-#fobkgvebfk .gt_sourcenotes {
+#ectcwjqobc .gt_sourcenotes {
   color: #333333;
   background-color: #FFFFFF;
   border-bottom-style: none;
@@ -2751,7 +2711,7 @@ Lecturer transcript
   border-right-color: #D3D3D3;
 }
 
-#fobkgvebfk .gt_sourcenote {
+#ectcwjqobc .gt_sourcenote {
   font-size: 90%;
   padding-top: 4px;
   padding-bottom: 4px;
@@ -2759,72 +2719,72 @@ Lecturer transcript
   padding-right: 5px;
 }
 
-#fobkgvebfk .gt_left {
+#ectcwjqobc .gt_left {
   text-align: left;
 }
 
-#fobkgvebfk .gt_center {
+#ectcwjqobc .gt_center {
   text-align: center;
 }
 
-#fobkgvebfk .gt_right {
+#ectcwjqobc .gt_right {
   text-align: right;
   font-variant-numeric: tabular-nums;
 }
 
-#fobkgvebfk .gt_font_normal {
+#ectcwjqobc .gt_font_normal {
   font-weight: normal;
 }
 
-#fobkgvebfk .gt_font_bold {
+#ectcwjqobc .gt_font_bold {
   font-weight: bold;
 }
 
-#fobkgvebfk .gt_font_italic {
+#ectcwjqobc .gt_font_italic {
   font-style: italic;
 }
 
-#fobkgvebfk .gt_super {
+#ectcwjqobc .gt_super {
   font-size: 65%;
 }
 
-#fobkgvebfk .gt_footnote_marks {
+#ectcwjqobc .gt_footnote_marks {
   font-size: 75%;
   vertical-align: 0.4em;
   position: initial;
 }
 
-#fobkgvebfk .gt_asterisk {
+#ectcwjqobc .gt_asterisk {
   font-size: 100%;
   vertical-align: 0;
 }
 
-#fobkgvebfk .gt_indent_1 {
+#ectcwjqobc .gt_indent_1 {
   text-indent: 5px;
 }
 
-#fobkgvebfk .gt_indent_2 {
+#ectcwjqobc .gt_indent_2 {
   text-indent: 10px;
 }
 
-#fobkgvebfk .gt_indent_3 {
+#ectcwjqobc .gt_indent_3 {
   text-indent: 15px;
 }
 
-#fobkgvebfk .gt_indent_4 {
+#ectcwjqobc .gt_indent_4 {
   text-indent: 20px;
 }
 
-#fobkgvebfk .gt_indent_5 {
+#ectcwjqobc .gt_indent_5 {
   text-indent: 25px;
 }
 
-#fobkgvebfk .katex-display {
+#ectcwjqobc .katex-display {
   display: inline-flex !important;
   margin-bottom: 0.75em !important;
 }
 
-#fobkgvebfk div.Reactable > div.rt-table > div.rt-thead > div.rt-tr.rt-tr-group-header > div.rt-th-group:after {
+#ectcwjqobc div.Reactable > div.rt-table > div.rt-thead > div.rt-tr.rt-tr-group-header > div.rt-th-group:after {
   height: 0px !important;
 }
 </style>
@@ -2928,23 +2888,23 @@ Lecturer transcript
 <noscript>Please enable JavaScript to experience the dynamic code cell content on this page.</noscript>
 <div class="cell">
 <div class="cell-output-display">
-<div id="ssdsjbaasp" style="padding-left:0px;padding-right:0px;padding-top:10px;padding-bottom:10px;overflow-x:auto;overflow-y:auto;width:auto;height:auto;">
-<style>#ssdsjbaasp table {
+<div id="shahtwbcxk" style="padding-left:0px;padding-right:0px;padding-top:10px;padding-bottom:10px;overflow-x:auto;overflow-y:auto;width:auto;height:auto;">
+<style>#shahtwbcxk table {
   font-family: system-ui, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol', 'Noto Color Emoji';
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
 
-#ssdsjbaasp thead, #ssdsjbaasp tbody, #ssdsjbaasp tfoot, #ssdsjbaasp tr, #ssdsjbaasp td, #ssdsjbaasp th {
+#shahtwbcxk thead, #shahtwbcxk tbody, #shahtwbcxk tfoot, #shahtwbcxk tr, #shahtwbcxk td, #shahtwbcxk th {
   border-style: none;
 }
 
-#ssdsjbaasp p {
+#shahtwbcxk p {
   margin: 0;
   padding: 0;
 }
 
-#ssdsjbaasp .gt_table {
+#shahtwbcxk .gt_table {
   display: table;
   border-collapse: collapse;
   line-height: normal;
@@ -2970,12 +2930,12 @@ Lecturer transcript
   border-left-color: #D3D3D3;
 }
 
-#ssdsjbaasp .gt_caption {
+#shahtwbcxk .gt_caption {
   padding-top: 4px;
   padding-bottom: 4px;
 }
 
-#ssdsjbaasp .gt_title {
+#shahtwbcxk .gt_title {
   color: #333333;
   font-size: 125%;
   font-weight: initial;
@@ -2987,7 +2947,7 @@ Lecturer transcript
   border-bottom-width: 0;
 }
 
-#ssdsjbaasp .gt_subtitle {
+#shahtwbcxk .gt_subtitle {
   color: #333333;
   font-size: 85%;
   font-weight: initial;
@@ -2999,7 +2959,7 @@ Lecturer transcript
   border-top-width: 0;
 }
 
-#ssdsjbaasp .gt_heading {
+#shahtwbcxk .gt_heading {
   background-color: #FFFFFF;
   text-align: center;
   border-bottom-color: #FFFFFF;
@@ -3011,13 +2971,13 @@ Lecturer transcript
   border-right-color: #D3D3D3;
 }
 
-#ssdsjbaasp .gt_bottom_border {
+#shahtwbcxk .gt_bottom_border {
   border-bottom-style: solid;
   border-bottom-width: 2px;
   border-bottom-color: #D3D3D3;
 }
 
-#ssdsjbaasp .gt_col_headings {
+#shahtwbcxk .gt_col_headings {
   border-top-style: solid;
   border-top-width: 2px;
   border-top-color: #D3D3D3;
@@ -3032,7 +2992,7 @@ Lecturer transcript
   border-right-color: #D3D3D3;
 }
 
-#ssdsjbaasp .gt_col_heading {
+#shahtwbcxk .gt_col_heading {
   color: #333333;
   background-color: #FFFFFF;
   font-size: 100%;
@@ -3052,7 +3012,7 @@ Lecturer transcript
   overflow-x: hidden;
 }
 
-#ssdsjbaasp .gt_column_spanner_outer {
+#shahtwbcxk .gt_column_spanner_outer {
   color: #333333;
   background-color: #FFFFFF;
   font-size: 100%;
@@ -3064,15 +3024,15 @@ Lecturer transcript
   padding-right: 4px;
 }
 
-#ssdsjbaasp .gt_column_spanner_outer:first-child {
+#shahtwbcxk .gt_column_spanner_outer:first-child {
   padding-left: 0;
 }
 
-#ssdsjbaasp .gt_column_spanner_outer:last-child {
+#shahtwbcxk .gt_column_spanner_outer:last-child {
   padding-right: 0;
 }
 
-#ssdsjbaasp .gt_column_spanner {
+#shahtwbcxk .gt_column_spanner {
   border-bottom-style: solid;
   border-bottom-width: 2px;
   border-bottom-color: #D3D3D3;
@@ -3084,11 +3044,11 @@ Lecturer transcript
   width: 100%;
 }
 
-#ssdsjbaasp .gt_spanner_row {
+#shahtwbcxk .gt_spanner_row {
   border-bottom-style: hidden;
 }
 
-#ssdsjbaasp .gt_group_heading {
+#shahtwbcxk .gt_group_heading {
   padding-top: 8px;
   padding-bottom: 8px;
   padding-left: 5px;
@@ -3114,7 +3074,7 @@ Lecturer transcript
   text-align: left;
 }
 
-#ssdsjbaasp .gt_empty_group_heading {
+#shahtwbcxk .gt_empty_group_heading {
   padding: 0.5px;
   color: #333333;
   background-color: #FFFFFF;
@@ -3129,15 +3089,15 @@ Lecturer transcript
   vertical-align: middle;
 }
 
-#ssdsjbaasp .gt_from_md > :first-child {
+#shahtwbcxk .gt_from_md > :first-child {
   margin-top: 0;
 }
 
-#ssdsjbaasp .gt_from_md > :last-child {
+#shahtwbcxk .gt_from_md > :last-child {
   margin-bottom: 0;
 }
 
-#ssdsjbaasp .gt_row {
+#shahtwbcxk .gt_row {
   padding-top: 8px;
   padding-bottom: 8px;
   padding-left: 5px;
@@ -3156,7 +3116,7 @@ Lecturer transcript
   overflow-x: hidden;
 }
 
-#ssdsjbaasp .gt_stub {
+#shahtwbcxk .gt_stub {
   color: #333333;
   background-color: #FFFFFF;
   font-size: 100%;
@@ -3169,7 +3129,7 @@ Lecturer transcript
   padding-right: 5px;
 }
 
-#ssdsjbaasp .gt_stub_row_group {
+#shahtwbcxk .gt_stub_row_group {
   color: #333333;
   background-color: #FFFFFF;
   font-size: 100%;
@@ -3183,15 +3143,15 @@ Lecturer transcript
   vertical-align: top;
 }
 
-#ssdsjbaasp .gt_row_group_first td {
+#shahtwbcxk .gt_row_group_first td {
   border-top-width: 2px;
 }
 
-#ssdsjbaasp .gt_row_group_first th {
+#shahtwbcxk .gt_row_group_first th {
   border-top-width: 2px;
 }
 
-#ssdsjbaasp .gt_summary_row {
+#shahtwbcxk .gt_summary_row {
   color: #333333;
   background-color: #FFFFFF;
   text-transform: inherit;
@@ -3201,16 +3161,16 @@ Lecturer transcript
   padding-right: 5px;
 }
 
-#ssdsjbaasp .gt_first_summary_row {
+#shahtwbcxk .gt_first_summary_row {
   border-top-style: solid;
   border-top-color: #D3D3D3;
 }
 
-#ssdsjbaasp .gt_first_summary_row.thick {
+#shahtwbcxk .gt_first_summary_row.thick {
   border-top-width: 2px;
 }
 
-#ssdsjbaasp .gt_last_summary_row {
+#shahtwbcxk .gt_last_summary_row {
   padding-top: 8px;
   padding-bottom: 8px;
   padding-left: 5px;
@@ -3220,7 +3180,7 @@ Lecturer transcript
   border-bottom-color: #D3D3D3;
 }
 
-#ssdsjbaasp .gt_grand_summary_row {
+#shahtwbcxk .gt_grand_summary_row {
   color: #333333;
   background-color: #FFFFFF;
   text-transform: inherit;
@@ -3230,7 +3190,7 @@ Lecturer transcript
   padding-right: 5px;
 }
 
-#ssdsjbaasp .gt_first_grand_summary_row {
+#shahtwbcxk .gt_first_grand_summary_row {
   padding-top: 8px;
   padding-bottom: 8px;
   padding-left: 5px;
@@ -3240,7 +3200,7 @@ Lecturer transcript
   border-top-color: #D3D3D3;
 }
 
-#ssdsjbaasp .gt_last_grand_summary_row_top {
+#shahtwbcxk .gt_last_grand_summary_row_top {
   padding-top: 8px;
   padding-bottom: 8px;
   padding-left: 5px;
@@ -3250,11 +3210,11 @@ Lecturer transcript
   border-bottom-color: #D3D3D3;
 }
 
-#ssdsjbaasp .gt_striped {
+#shahtwbcxk .gt_striped {
   background-color: rgba(128, 128, 128, 0.05);
 }
 
-#ssdsjbaasp .gt_table_body {
+#shahtwbcxk .gt_table_body {
   border-top-style: solid;
   border-top-width: 2px;
   border-top-color: #D3D3D3;
@@ -3263,7 +3223,7 @@ Lecturer transcript
   border-bottom-color: #D3D3D3;
 }
 
-#ssdsjbaasp .gt_footnotes {
+#shahtwbcxk .gt_footnotes {
   color: #333333;
   background-color: #FFFFFF;
   border-bottom-style: none;
@@ -3277,7 +3237,7 @@ Lecturer transcript
   border-right-color: #D3D3D3;
 }
 
-#ssdsjbaasp .gt_footnote {
+#shahtwbcxk .gt_footnote {
   margin: 0px;
   font-size: 90%;
   padding-top: 4px;
@@ -3286,7 +3246,7 @@ Lecturer transcript
   padding-right: 5px;
 }
 
-#ssdsjbaasp .gt_sourcenotes {
+#shahtwbcxk .gt_sourcenotes {
   color: #333333;
   background-color: #FFFFFF;
   border-bottom-style: none;
@@ -3300,7 +3260,7 @@ Lecturer transcript
   border-right-color: #D3D3D3;
 }
 
-#ssdsjbaasp .gt_sourcenote {
+#shahtwbcxk .gt_sourcenote {
   font-size: 90%;
   padding-top: 4px;
   padding-bottom: 4px;
@@ -3308,72 +3268,72 @@ Lecturer transcript
   padding-right: 5px;
 }
 
-#ssdsjbaasp .gt_left {
+#shahtwbcxk .gt_left {
   text-align: left;
 }
 
-#ssdsjbaasp .gt_center {
+#shahtwbcxk .gt_center {
   text-align: center;
 }
 
-#ssdsjbaasp .gt_right {
+#shahtwbcxk .gt_right {
   text-align: right;
   font-variant-numeric: tabular-nums;
 }
 
-#ssdsjbaasp .gt_font_normal {
+#shahtwbcxk .gt_font_normal {
   font-weight: normal;
 }
 
-#ssdsjbaasp .gt_font_bold {
+#shahtwbcxk .gt_font_bold {
   font-weight: bold;
 }
 
-#ssdsjbaasp .gt_font_italic {
+#shahtwbcxk .gt_font_italic {
   font-style: italic;
 }
 
-#ssdsjbaasp .gt_super {
+#shahtwbcxk .gt_super {
   font-size: 65%;
 }
 
-#ssdsjbaasp .gt_footnote_marks {
+#shahtwbcxk .gt_footnote_marks {
   font-size: 75%;
   vertical-align: 0.4em;
   position: initial;
 }
 
-#ssdsjbaasp .gt_asterisk {
+#shahtwbcxk .gt_asterisk {
   font-size: 100%;
   vertical-align: 0;
 }
 
-#ssdsjbaasp .gt_indent_1 {
+#shahtwbcxk .gt_indent_1 {
   text-indent: 5px;
 }
 
-#ssdsjbaasp .gt_indent_2 {
+#shahtwbcxk .gt_indent_2 {
   text-indent: 10px;
 }
 
-#ssdsjbaasp .gt_indent_3 {
+#shahtwbcxk .gt_indent_3 {
   text-indent: 15px;
 }
 
-#ssdsjbaasp .gt_indent_4 {
+#shahtwbcxk .gt_indent_4 {
   text-indent: 20px;
 }
 
-#ssdsjbaasp .gt_indent_5 {
+#shahtwbcxk .gt_indent_5 {
   text-indent: 25px;
 }
 
-#ssdsjbaasp .katex-display {
+#shahtwbcxk .katex-display {
   display: inline-flex !important;
   margin-bottom: 0.75em !important;
 }
 
-#ssdsjbaasp div.Reactable > div.rt-table > div.rt-thead > div.rt-tr.rt-tr-group-header > div.rt-th-group:after {
+#shahtwbcxk div.Reactable > div.rt-table > div.rt-thead > div.rt-tr.rt-tr-group-header > div.rt-th-group:after {
   height: 0px !important;
 }
 </style>
@@ -3455,23 +3415,23 @@ Lecturer transcript
 <noscript>Please enable JavaScript to experience the dynamic code cell content on this page.</noscript>
 <div class="cell">
 <div class="cell-output-display">
-<div id="wckhlhwwby" style="padding-left:0px;padding-right:0px;padding-top:10px;padding-bottom:10px;overflow-x:auto;overflow-y:auto;width:auto;height:auto;">
-<style>#wckhlhwwby table {
+<div id="wslvomywbo" style="padding-left:0px;padding-right:0px;padding-top:10px;padding-bottom:10px;overflow-x:auto;overflow-y:auto;width:auto;height:auto;">
+<style>#wslvomywbo table {
   font-family: system-ui, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol', 'Noto Color Emoji';
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
 
-#wckhlhwwby thead, #wckhlhwwby tbody, #wckhlhwwby tfoot, #wckhlhwwby tr, #wckhlhwwby td, #wckhlhwwby th {
+#wslvomywbo thead, #wslvomywbo tbody, #wslvomywbo tfoot, #wslvomywbo tr, #wslvomywbo td, #wslvomywbo th {
   border-style: none;
 }
 
-#wckhlhwwby p {
+#wslvomywbo p {
   margin: 0;
   padding: 0;
 }
 
-#wckhlhwwby .gt_table {
+#wslvomywbo .gt_table {
   display: table;
   border-collapse: collapse;
   line-height: normal;
@@ -3497,12 +3457,12 @@ Lecturer transcript
   border-left-color: #D3D3D3;
 }
 
-#wckhlhwwby .gt_caption {
+#wslvomywbo .gt_caption {
   padding-top: 4px;
   padding-bottom: 4px;
 }
 
-#wckhlhwwby .gt_title {
+#wslvomywbo .gt_title {
   color: #333333;
   font-size: 125%;
   font-weight: initial;
@@ -3514,7 +3474,7 @@ Lecturer transcript
   border-bottom-width: 0;
 }
 
-#wckhlhwwby .gt_subtitle {
+#wslvomywbo .gt_subtitle {
   color: #333333;
   font-size: 85%;
   font-weight: initial;
@@ -3526,7 +3486,7 @@ Lecturer transcript
   border-top-width: 0;
 }
 
-#wckhlhwwby .gt_heading {
+#wslvomywbo .gt_heading {
   background-color: #FFFFFF;
   text-align: center;
   border-bottom-color: #FFFFFF;
@@ -3538,13 +3498,13 @@ Lecturer transcript
   border-right-color: #D3D3D3;
 }
 
-#wckhlhwwby .gt_bottom_border {
+#wslvomywbo .gt_bottom_border {
   border-bottom-style: solid;
   border-bottom-width: 2px;
   border-bottom-color: #D3D3D3;
 }
 
-#wckhlhwwby .gt_col_headings {
+#wslvomywbo .gt_col_headings {
   border-top-style: solid;
   border-top-width: 2px;
   border-top-color: #D3D3D3;
@@ -3559,7 +3519,7 @@ Lecturer transcript
   border-right-color: #D3D3D3;
 }
 
-#wckhlhwwby .gt_col_heading {
+#wslvomywbo .gt_col_heading {
   color: #333333;
   background-color: #FFFFFF;
   font-size: 100%;
@@ -3579,7 +3539,7 @@ Lecturer transcript
   overflow-x: hidden;
 }
 
-#wckhlhwwby .gt_column_spanner_outer {
+#wslvomywbo .gt_column_spanner_outer {
   color: #333333;
   background-color: #FFFFFF;
   font-size: 100%;
@@ -3591,15 +3551,15 @@ Lecturer transcript
   padding-right: 4px;
 }
 
-#wckhlhwwby .gt_column_spanner_outer:first-child {
+#wslvomywbo .gt_column_spanner_outer:first-child {
   padding-left: 0;
 }
 
-#wckhlhwwby .gt_column_spanner_outer:last-child {
+#wslvomywbo .gt_column_spanner_outer:last-child {
   padding-right: 0;
 }
 
-#wckhlhwwby .gt_column_spanner {
+#wslvomywbo .gt_column_spanner {
   border-bottom-style: solid;
   border-bottom-width: 2px;
   border-bottom-color: #D3D3D3;
@@ -3611,11 +3571,11 @@ Lecturer transcript
   width: 100%;
 }
 
-#wckhlhwwby .gt_spanner_row {
+#wslvomywbo .gt_spanner_row {
   border-bottom-style: hidden;
 }
 
-#wckhlhwwby .gt_group_heading {
+#wslvomywbo .gt_group_heading {
   padding-top: 8px;
   padding-bottom: 8px;
   padding-left: 5px;
@@ -3641,7 +3601,7 @@ Lecturer transcript
   text-align: left;
 }
 
-#wckhlhwwby .gt_empty_group_heading {
+#wslvomywbo .gt_empty_group_heading {
   padding: 0.5px;
   color: #333333;
   background-color: #FFFFFF;
@@ -3656,15 +3616,15 @@ Lecturer transcript
   vertical-align: middle;
 }
 
-#wckhlhwwby .gt_from_md > :first-child {
+#wslvomywbo .gt_from_md > :first-child {
   margin-top: 0;
 }
 
-#wckhlhwwby .gt_from_md > :last-child {
+#wslvomywbo .gt_from_md > :last-child {
   margin-bottom: 0;
 }
 
-#wckhlhwwby .gt_row {
+#wslvomywbo .gt_row {
   padding-top: 8px;
   padding-bottom: 8px;
   padding-left: 5px;
@@ -3683,7 +3643,7 @@ Lecturer transcript
   overflow-x: hidden;
 }
 
-#wckhlhwwby .gt_stub {
+#wslvomywbo .gt_stub {
   color: #333333;
   background-color: #FFFFFF;
   font-size: 100%;
@@ -3696,7 +3656,7 @@ Lecturer transcript
   padding-right: 5px;
 }
 
-#wckhlhwwby .gt_stub_row_group {
+#wslvomywbo .gt_stub_row_group {
   color: #333333;
   background-color: #FFFFFF;
   font-size: 100%;
@@ -3710,15 +3670,15 @@ Lecturer transcript
   vertical-align: top;
 }
 
-#wckhlhwwby .gt_row_group_first td {
+#wslvomywbo .gt_row_group_first td {
   border-top-width: 2px;
 }
 
-#wckhlhwwby .gt_row_group_first th {
+#wslvomywbo .gt_row_group_first th {
   border-top-width: 2px;
 }
 
-#wckhlhwwby .gt_summary_row {
+#wslvomywbo .gt_summary_row {
   color: #333333;
   background-color: #FFFFFF;
   text-transform: inherit;
@@ -3728,16 +3688,16 @@ Lecturer transcript
   padding-right: 5px;
 }
 
-#wckhlhwwby .gt_first_summary_row {
+#wslvomywbo .gt_first_summary_row {
   border-top-style: solid;
   border-top-color: #D3D3D3;
 }
 
-#wckhlhwwby .gt_first_summary_row.thick {
+#wslvomywbo .gt_first_summary_row.thick {
   border-top-width: 2px;
 }
 
-#wckhlhwwby .gt_last_summary_row {
+#wslvomywbo .gt_last_summary_row {
   padding-top: 8px;
   padding-bottom: 8px;
   padding-left: 5px;
@@ -3747,7 +3707,7 @@ Lecturer transcript
   border-bottom-color: #D3D3D3;
 }
 
-#wckhlhwwby .gt_grand_summary_row {
+#wslvomywbo .gt_grand_summary_row {
   color: #333333;
   background-color: #FFFFFF;
   text-transform: inherit;
@@ -3757,7 +3717,7 @@ Lecturer transcript
   padding-right: 5px;
 }
 
-#wckhlhwwby .gt_first_grand_summary_row {
+#wslvomywbo .gt_first_grand_summary_row {
   padding-top: 8px;
   padding-bottom: 8px;
   padding-left: 5px;
@@ -3767,7 +3727,7 @@ Lecturer transcript
   border-top-color: #D3D3D3;
 }
 
-#wckhlhwwby .gt_last_grand_summary_row_top {
+#wslvomywbo .gt_last_grand_summary_row_top {
   padding-top: 8px;
   padding-bottom: 8px;
   padding-left: 5px;
@@ -3777,11 +3737,11 @@ Lecturer transcript
   border-bottom-color: #D3D3D3;
 }
 
-#wckhlhwwby .gt_striped {
+#wslvomywbo .gt_striped {
   background-color: rgba(128, 128, 128, 0.05);
 }
 
-#wckhlhwwby .gt_table_body {
+#wslvomywbo .gt_table_body {
   border-top-style: solid;
   border-top-width: 2px;
   border-top-color: #D3D3D3;
@@ -3790,7 +3750,7 @@ Lecturer transcript
   border-bottom-color: #D3D3D3;
 }
 
-#wckhlhwwby .gt_footnotes {
+#wslvomywbo .gt_footnotes {
   color: #333333;
   background-color: #FFFFFF;
   border-bottom-style: none;
@@ -3804,7 +3764,7 @@ Lecturer transcript
   border-right-color: #D3D3D3;
 }
 
-#wckhlhwwby .gt_footnote {
+#wslvomywbo .gt_footnote {
   margin: 0px;
   font-size: 90%;
   padding-top: 4px;
@@ -3813,7 +3773,7 @@ Lecturer transcript
   padding-right: 5px;
 }
 
-#wckhlhwwby .gt_sourcenotes {
+#wslvomywbo .gt_sourcenotes {
   color: #333333;
   background-color: #FFFFFF;
   border-bottom-style: none;
@@ -3827,7 +3787,7 @@ Lecturer transcript
   border-right-color: #D3D3D3;
 }
 
-#wckhlhwwby .gt_sourcenote {
+#wslvomywbo .gt_sourcenote {
   font-size: 90%;
   padding-top: 4px;
   padding-bottom: 4px;
@@ -3835,72 +3795,72 @@ Lecturer transcript
   padding-right: 5px;
 }
 
-#wckhlhwwby .gt_left {
+#wslvomywbo .gt_left {
   text-align: left;
 }
 
-#wckhlhwwby .gt_center {
+#wslvomywbo .gt_center {
   text-align: center;
 }
 
-#wckhlhwwby .gt_right {
+#wslvomywbo .gt_right {
   text-align: right;
   font-variant-numeric: tabular-nums;
 }
 
-#wckhlhwwby .gt_font_normal {
+#wslvomywbo .gt_font_normal {
   font-weight: normal;
 }
 
-#wckhlhwwby .gt_font_bold {
+#wslvomywbo .gt_font_bold {
   font-weight: bold;
 }
 
-#wckhlhwwby .gt_font_italic {
+#wslvomywbo .gt_font_italic {
   font-style: italic;
 }
 
-#wckhlhwwby .gt_super {
+#wslvomywbo .gt_super {
   font-size: 65%;
 }
 
-#wckhlhwwby .gt_footnote_marks {
+#wslvomywbo .gt_footnote_marks {
   font-size: 75%;
   vertical-align: 0.4em;
   position: initial;
 }
 
-#wckhlhwwby .gt_asterisk {
+#wslvomywbo .gt_asterisk {
   font-size: 100%;
   vertical-align: 0;
 }
 
-#wckhlhwwby .gt_indent_1 {
+#wslvomywbo .gt_indent_1 {
   text-indent: 5px;
 }
 
-#wckhlhwwby .gt_indent_2 {
+#wslvomywbo .gt_indent_2 {
   text-indent: 10px;
 }
 
-#wckhlhwwby .gt_indent_3 {
+#wslvomywbo .gt_indent_3 {
   text-indent: 15px;
 }
 
-#wckhlhwwby .gt_indent_4 {
+#wslvomywbo .gt_indent_4 {
   text-indent: 20px;
 }
 
-#wckhlhwwby .gt_indent_5 {
+#wslvomywbo .gt_indent_5 {
   text-indent: 25px;
 }
 
-#wckhlhwwby .katex-display {
+#wslvomywbo .katex-display {
   display: inline-flex !important;
   margin-bottom: 0.75em !important;
 }
 
-#wckhlhwwby div.Reactable > div.rt-table > div.rt-thead > div.rt-tr.rt-tr-group-header > div.rt-th-group:after {
+#wslvomywbo div.Reactable > div.rt-table > div.rt-thead > div.rt-tr.rt-tr-group-header > div.rt-th-group:after {
   height: 0px !important;
 }
 </style>
@@ -4060,23 +4020,23 @@ Lecturer transcript
 <noscript>Please enable JavaScript to experience the dynamic code cell content on this page.</noscript>
 <div class="cell">
 <div class="cell-output-display">
-<div id="yzxqpujoke" style="padding-left:0px;padding-right:0px;padding-top:10px;padding-bottom:10px;overflow-x:auto;overflow-y:auto;width:auto;height:auto;">
-<style>#yzxqpujoke table {
+<div id="nafedvfbbu" style="padding-left:0px;padding-right:0px;padding-top:10px;padding-bottom:10px;overflow-x:auto;overflow-y:auto;width:auto;height:auto;">
+<style>#nafedvfbbu table {
   font-family: system-ui, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol', 'Noto Color Emoji';
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
 
-#yzxqpujoke thead, #yzxqpujoke tbody, #yzxqpujoke tfoot, #yzxqpujoke tr, #yzxqpujoke td, #yzxqpujoke th {
+#nafedvfbbu thead, #nafedvfbbu tbody, #nafedvfbbu tfoot, #nafedvfbbu tr, #nafedvfbbu td, #nafedvfbbu th {
   border-style: none;
 }
 
-#yzxqpujoke p {
+#nafedvfbbu p {
   margin: 0;
   padding: 0;
 }
 
-#yzxqpujoke .gt_table {
+#nafedvfbbu .gt_table {
   display: table;
   border-collapse: collapse;
   line-height: normal;
@@ -4102,12 +4062,12 @@ Lecturer transcript
   border-left-color: #D3D3D3;
 }
 
-#yzxqpujoke .gt_caption {
+#nafedvfbbu .gt_caption {
   padding-top: 4px;
   padding-bottom: 4px;
 }
 
-#yzxqpujoke .gt_title {
+#nafedvfbbu .gt_title {
   color: #333333;
   font-size: 125%;
   font-weight: initial;
@@ -4119,7 +4079,7 @@ Lecturer transcript
   border-bottom-width: 0;
 }
 
-#yzxqpujoke .gt_subtitle {
+#nafedvfbbu .gt_subtitle {
   color: #333333;
   font-size: 85%;
   font-weight: initial;
@@ -4131,7 +4091,7 @@ Lecturer transcript
   border-top-width: 0;
 }
 
-#yzxqpujoke .gt_heading {
+#nafedvfbbu .gt_heading {
   background-color: #FFFFFF;
   text-align: center;
   border-bottom-color: #FFFFFF;
@@ -4143,13 +4103,13 @@ Lecturer transcript
   border-right-color: #D3D3D3;
 }
 
-#yzxqpujoke .gt_bottom_border {
+#nafedvfbbu .gt_bottom_border {
   border-bottom-style: solid;
   border-bottom-width: 2px;
   border-bottom-color: #D3D3D3;
 }
 
-#yzxqpujoke .gt_col_headings {
+#nafedvfbbu .gt_col_headings {
   border-top-style: solid;
   border-top-width: 2px;
   border-top-color: #D3D3D3;
@@ -4164,7 +4124,7 @@ Lecturer transcript
   border-right-color: #D3D3D3;
 }
 
-#yzxqpujoke .gt_col_heading {
+#nafedvfbbu .gt_col_heading {
   color: #333333;
   background-color: #FFFFFF;
   font-size: 100%;
@@ -4184,7 +4144,7 @@ Lecturer transcript
   overflow-x: hidden;
 }
 
-#yzxqpujoke .gt_column_spanner_outer {
+#nafedvfbbu .gt_column_spanner_outer {
   color: #333333;
   background-color: #FFFFFF;
   font-size: 100%;
@@ -4196,15 +4156,15 @@ Lecturer transcript
   padding-right: 4px;
 }
 
-#yzxqpujoke .gt_column_spanner_outer:first-child {
+#nafedvfbbu .gt_column_spanner_outer:first-child {
   padding-left: 0;
 }
 
-#yzxqpujoke .gt_column_spanner_outer:last-child {
+#nafedvfbbu .gt_column_spanner_outer:last-child {
   padding-right: 0;
 }
 
-#yzxqpujoke .gt_column_spanner {
+#nafedvfbbu .gt_column_spanner {
   border-bottom-style: solid;
   border-bottom-width: 2px;
   border-bottom-color: #D3D3D3;
@@ -4216,11 +4176,11 @@ Lecturer transcript
   width: 100%;
 }
 
-#yzxqpujoke .gt_spanner_row {
+#nafedvfbbu .gt_spanner_row {
   border-bottom-style: hidden;
 }
 
-#yzxqpujoke .gt_group_heading {
+#nafedvfbbu .gt_group_heading {
   padding-top: 8px;
   padding-bottom: 8px;
   padding-left: 5px;
@@ -4246,7 +4206,7 @@ Lecturer transcript
   text-align: left;
 }
 
-#yzxqpujoke .gt_empty_group_heading {
+#nafedvfbbu .gt_empty_group_heading {
   padding: 0.5px;
   color: #333333;
   background-color: #FFFFFF;
@@ -4261,15 +4221,15 @@ Lecturer transcript
   vertical-align: middle;
 }
 
-#yzxqpujoke .gt_from_md > :first-child {
+#nafedvfbbu .gt_from_md > :first-child {
   margin-top: 0;
 }
 
-#yzxqpujoke .gt_from_md > :last-child {
+#nafedvfbbu .gt_from_md > :last-child {
   margin-bottom: 0;
 }
 
-#yzxqpujoke .gt_row {
+#nafedvfbbu .gt_row {
   padding-top: 8px;
   padding-bottom: 8px;
   padding-left: 5px;
@@ -4288,7 +4248,7 @@ Lecturer transcript
   overflow-x: hidden;
 }
 
-#yzxqpujoke .gt_stub {
+#nafedvfbbu .gt_stub {
   color: #333333;
   background-color: #FFFFFF;
   font-size: 100%;
@@ -4301,7 +4261,7 @@ Lecturer transcript
   padding-right: 5px;
 }
 
-#yzxqpujoke .gt_stub_row_group {
+#nafedvfbbu .gt_stub_row_group {
   color: #333333;
   background-color: #FFFFFF;
   font-size: 100%;
@@ -4315,15 +4275,15 @@ Lecturer transcript
   vertical-align: top;
 }
 
-#yzxqpujoke .gt_row_group_first td {
+#nafedvfbbu .gt_row_group_first td {
   border-top-width: 2px;
 }
 
-#yzxqpujoke .gt_row_group_first th {
+#nafedvfbbu .gt_row_group_first th {
   border-top-width: 2px;
 }
 
-#yzxqpujoke .gt_summary_row {
+#nafedvfbbu .gt_summary_row {
   color: #333333;
   background-color: #FFFFFF;
   text-transform: inherit;
@@ -4333,16 +4293,16 @@ Lecturer transcript
   padding-right: 5px;
 }
 
-#yzxqpujoke .gt_first_summary_row {
+#nafedvfbbu .gt_first_summary_row {
   border-top-style: solid;
   border-top-color: #D3D3D3;
 }
 
-#yzxqpujoke .gt_first_summary_row.thick {
+#nafedvfbbu .gt_first_summary_row.thick {
   border-top-width: 2px;
 }
 
-#yzxqpujoke .gt_last_summary_row {
+#nafedvfbbu .gt_last_summary_row {
   padding-top: 8px;
   padding-bottom: 8px;
   padding-left: 5px;
@@ -4352,7 +4312,7 @@ Lecturer transcript
   border-bottom-color: #D3D3D3;
 }
 
-#yzxqpujoke .gt_grand_summary_row {
+#nafedvfbbu .gt_grand_summary_row {
   color: #333333;
   background-color: #FFFFFF;
   text-transform: inherit;
@@ -4362,7 +4322,7 @@ Lecturer transcript
   padding-right: 5px;
 }
 
-#yzxqpujoke .gt_first_grand_summary_row {
+#nafedvfbbu .gt_first_grand_summary_row {
   padding-top: 8px;
   padding-bottom: 8px;
   padding-left: 5px;
@@ -4372,7 +4332,7 @@ Lecturer transcript
   border-top-color: #D3D3D3;
 }
 
-#yzxqpujoke .gt_last_grand_summary_row_top {
+#nafedvfbbu .gt_last_grand_summary_row_top {
   padding-top: 8px;
   padding-bottom: 8px;
   padding-left: 5px;
@@ -4382,11 +4342,11 @@ Lecturer transcript
   border-bottom-color: #D3D3D3;
 }
 
-#yzxqpujoke .gt_striped {
+#nafedvfbbu .gt_striped {
   background-color: rgba(128, 128, 128, 0.05);
 }
 
-#yzxqpujoke .gt_table_body {
+#nafedvfbbu .gt_table_body {
   border-top-style: solid;
   border-top-width: 2px;
   border-top-color: #D3D3D3;
@@ -4395,7 +4355,7 @@ Lecturer transcript
   border-bottom-color: #D3D3D3;
 }
 
-#yzxqpujoke .gt_footnotes {
+#nafedvfbbu .gt_footnotes {
   color: #333333;
   background-color: #FFFFFF;
   border-bottom-style: none;
@@ -4409,7 +4369,7 @@ Lecturer transcript
   border-right-color: #D3D3D3;
 }
 
-#yzxqpujoke .gt_footnote {
+#nafedvfbbu .gt_footnote {
   margin: 0px;
   font-size: 90%;
   padding-top: 4px;
@@ -4418,7 +4378,7 @@ Lecturer transcript
   padding-right: 5px;
 }
 
-#yzxqpujoke .gt_sourcenotes {
+#nafedvfbbu .gt_sourcenotes {
   color: #333333;
   background-color: #FFFFFF;
   border-bottom-style: none;
@@ -4432,7 +4392,7 @@ Lecturer transcript
   border-right-color: #D3D3D3;
 }
 
-#yzxqpujoke .gt_sourcenote {
+#nafedvfbbu .gt_sourcenote {
   font-size: 90%;
   padding-top: 4px;
   padding-bottom: 4px;
@@ -4440,72 +4400,72 @@ Lecturer transcript
   padding-right: 5px;
 }
 
-#yzxqpujoke .gt_left {
+#nafedvfbbu .gt_left {
   text-align: left;
 }
 
-#yzxqpujoke .gt_center {
+#nafedvfbbu .gt_center {
   text-align: center;
 }
 
-#yzxqpujoke .gt_right {
+#nafedvfbbu .gt_right {
   text-align: right;
   font-variant-numeric: tabular-nums;
 }
 
-#yzxqpujoke .gt_font_normal {
+#nafedvfbbu .gt_font_normal {
   font-weight: normal;
 }
 
-#yzxqpujoke .gt_font_bold {
+#nafedvfbbu .gt_font_bold {
   font-weight: bold;
 }
 
-#yzxqpujoke .gt_font_italic {
+#nafedvfbbu .gt_font_italic {
   font-style: italic;
 }
 
-#yzxqpujoke .gt_super {
+#nafedvfbbu .gt_super {
   font-size: 65%;
 }
 
-#yzxqpujoke .gt_footnote_marks {
+#nafedvfbbu .gt_footnote_marks {
   font-size: 75%;
   vertical-align: 0.4em;
   position: initial;
 }
 
-#yzxqpujoke .gt_asterisk {
+#nafedvfbbu .gt_asterisk {
   font-size: 100%;
   vertical-align: 0;
 }
 
-#yzxqpujoke .gt_indent_1 {
+#nafedvfbbu .gt_indent_1 {
   text-indent: 5px;
 }
 
-#yzxqpujoke .gt_indent_2 {
+#nafedvfbbu .gt_indent_2 {
   text-indent: 10px;
 }
 
-#yzxqpujoke .gt_indent_3 {
+#nafedvfbbu .gt_indent_3 {
   text-indent: 15px;
 }
 
-#yzxqpujoke .gt_indent_4 {
+#nafedvfbbu .gt_indent_4 {
   text-indent: 20px;
 }
 
-#yzxqpujoke .gt_indent_5 {
+#nafedvfbbu .gt_indent_5 {
   text-indent: 25px;
 }
 
-#yzxqpujoke .katex-display {
+#nafedvfbbu .katex-display {
   display: inline-flex !important;
   margin-bottom: 0.75em !important;
 }
 
-#yzxqpujoke div.Reactable > div.rt-table > div.rt-thead > div.rt-tr.rt-tr-group-header > div.rt-th-group:after {
+#nafedvfbbu div.Reactable > div.rt-table > div.rt-thead > div.rt-tr.rt-tr-group-header > div.rt-th-group:after {
   height: 0px !important;
 }
 </style>
@@ -4705,23 +4665,23 @@ Lecturer transcript
 <noscript>Please enable JavaScript to experience the dynamic code cell content on this page.</noscript>
 <div class="cell">
 <div class="cell-output-display">
-<div id="kvinsdqkpt" style="padding-left:0px;padding-right:0px;padding-top:10px;padding-bottom:10px;overflow-x:auto;overflow-y:auto;width:auto;height:auto;">
-<style>#kvinsdqkpt table {
+<div id="opvgywavys" style="padding-left:0px;padding-right:0px;padding-top:10px;padding-bottom:10px;overflow-x:auto;overflow-y:auto;width:auto;height:auto;">
+<style>#opvgywavys table {
   font-family: system-ui, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol', 'Noto Color Emoji';
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
 
-#kvinsdqkpt thead, #kvinsdqkpt tbody, #kvinsdqkpt tfoot, #kvinsdqkpt tr, #kvinsdqkpt td, #kvinsdqkpt th {
+#opvgywavys thead, #opvgywavys tbody, #opvgywavys tfoot, #opvgywavys tr, #opvgywavys td, #opvgywavys th {
   border-style: none;
 }
 
-#kvinsdqkpt p {
+#opvgywavys p {
   margin: 0;
   padding: 0;
 }
 
-#kvinsdqkpt .gt_table {
+#opvgywavys .gt_table {
   display: table;
   border-collapse: collapse;
   line-height: normal;
@@ -4747,12 +4707,12 @@ Lecturer transcript
   border-left-color: #D3D3D3;
 }
 
-#kvinsdqkpt .gt_caption {
+#opvgywavys .gt_caption {
   padding-top: 4px;
   padding-bottom: 4px;
 }
 
-#kvinsdqkpt .gt_title {
+#opvgywavys .gt_title {
   color: #333333;
   font-size: 125%;
   font-weight: initial;
@@ -4764,7 +4724,7 @@ Lecturer transcript
   border-bottom-width: 0;
 }
 
-#kvinsdqkpt .gt_subtitle {
+#opvgywavys .gt_subtitle {
   color: #333333;
   font-size: 85%;
   font-weight: initial;
@@ -4776,7 +4736,7 @@ Lecturer transcript
   border-top-width: 0;
 }
 
-#kvinsdqkpt .gt_heading {
+#opvgywavys .gt_heading {
   background-color: #FFFFFF;
   text-align: center;
   border-bottom-color: #FFFFFF;
@@ -4788,13 +4748,13 @@ Lecturer transcript
   border-right-color: #D3D3D3;
 }
 
-#kvinsdqkpt .gt_bottom_border {
+#opvgywavys .gt_bottom_border {
   border-bottom-style: solid;
   border-bottom-width: 2px;
   border-bottom-color: #D3D3D3;
 }
 
-#kvinsdqkpt .gt_col_headings {
+#opvgywavys .gt_col_headings {
   border-top-style: solid;
   border-top-width: 2px;
   border-top-color: #D3D3D3;
@@ -4809,7 +4769,7 @@ Lecturer transcript
   border-right-color: #D3D3D3;
 }
 
-#kvinsdqkpt .gt_col_heading {
+#opvgywavys .gt_col_heading {
   color: #333333;
   background-color: #FFFFFF;
   font-size: 100%;
@@ -4829,7 +4789,7 @@ Lecturer transcript
   overflow-x: hidden;
 }
 
-#kvinsdqkpt .gt_column_spanner_outer {
+#opvgywavys .gt_column_spanner_outer {
   color: #333333;
   background-color: #FFFFFF;
   font-size: 100%;
@@ -4841,15 +4801,15 @@ Lecturer transcript
   padding-right: 4px;
 }
 
-#kvinsdqkpt .gt_column_spanner_outer:first-child {
+#opvgywavys .gt_column_spanner_outer:first-child {
   padding-left: 0;
 }
 
-#kvinsdqkpt .gt_column_spanner_outer:last-child {
+#opvgywavys .gt_column_spanner_outer:last-child {
   padding-right: 0;
 }
 
-#kvinsdqkpt .gt_column_spanner {
+#opvgywavys .gt_column_spanner {
   border-bottom-style: solid;
   border-bottom-width: 2px;
   border-bottom-color: #D3D3D3;
@@ -4861,11 +4821,11 @@ Lecturer transcript
   width: 100%;
 }
 
-#kvinsdqkpt .gt_spanner_row {
+#opvgywavys .gt_spanner_row {
   border-bottom-style: hidden;
 }
 
-#kvinsdqkpt .gt_group_heading {
+#opvgywavys .gt_group_heading {
   padding-top: 8px;
   padding-bottom: 8px;
   padding-left: 5px;
@@ -4891,7 +4851,7 @@ Lecturer transcript
   text-align: left;
 }
 
-#kvinsdqkpt .gt_empty_group_heading {
+#opvgywavys .gt_empty_group_heading {
   padding: 0.5px;
   color: #333333;
   background-color: #FFFFFF;
@@ -4906,15 +4866,15 @@ Lecturer transcript
   vertical-align: middle;
 }
 
-#kvinsdqkpt .gt_from_md > :first-child {
+#opvgywavys .gt_from_md > :first-child {
   margin-top: 0;
 }
 
-#kvinsdqkpt .gt_from_md > :last-child {
+#opvgywavys .gt_from_md > :last-child {
   margin-bottom: 0;
 }
 
-#kvinsdqkpt .gt_row {
+#opvgywavys .gt_row {
   padding-top: 8px;
   padding-bottom: 8px;
   padding-left: 5px;
@@ -4933,7 +4893,7 @@ Lecturer transcript
   overflow-x: hidden;
 }
 
-#kvinsdqkpt .gt_stub {
+#opvgywavys .gt_stub {
   color: #333333;
   background-color: #FFFFFF;
   font-size: 100%;
@@ -4946,7 +4906,7 @@ Lecturer transcript
   padding-right: 5px;
 }
 
-#kvinsdqkpt .gt_stub_row_group {
+#opvgywavys .gt_stub_row_group {
   color: #333333;
   background-color: #FFFFFF;
   font-size: 100%;
@@ -4960,15 +4920,15 @@ Lecturer transcript
   vertical-align: top;
 }
 
-#kvinsdqkpt .gt_row_group_first td {
+#opvgywavys .gt_row_group_first td {
   border-top-width: 2px;
 }
 
-#kvinsdqkpt .gt_row_group_first th {
+#opvgywavys .gt_row_group_first th {
   border-top-width: 2px;
 }
 
-#kvinsdqkpt .gt_summary_row {
+#opvgywavys .gt_summary_row {
   color: #333333;
   background-color: #FFFFFF;
   text-transform: inherit;
@@ -4978,16 +4938,16 @@ Lecturer transcript
   padding-right: 5px;
 }
 
-#kvinsdqkpt .gt_first_summary_row {
+#opvgywavys .gt_first_summary_row {
   border-top-style: solid;
   border-top-color: #D3D3D3;
 }
 
-#kvinsdqkpt .gt_first_summary_row.thick {
+#opvgywavys .gt_first_summary_row.thick {
   border-top-width: 2px;
 }
 
-#kvinsdqkpt .gt_last_summary_row {
+#opvgywavys .gt_last_summary_row {
   padding-top: 8px;
   padding-bottom: 8px;
   padding-left: 5px;
@@ -4997,7 +4957,7 @@ Lecturer transcript
   border-bottom-color: #D3D3D3;
 }
 
-#kvinsdqkpt .gt_grand_summary_row {
+#opvgywavys .gt_grand_summary_row {
   color: #333333;
   background-color: #FFFFFF;
   text-transform: inherit;
@@ -5007,7 +4967,7 @@ Lecturer transcript
   padding-right: 5px;
 }
 
-#kvinsdqkpt .gt_first_grand_summary_row {
+#opvgywavys .gt_first_grand_summary_row {
   padding-top: 8px;
   padding-bottom: 8px;
   padding-left: 5px;
@@ -5017,7 +4977,7 @@ Lecturer transcript
   border-top-color: #D3D3D3;
 }
 
-#kvinsdqkpt .gt_last_grand_summary_row_top {
+#opvgywavys .gt_last_grand_summary_row_top {
   padding-top: 8px;
   padding-bottom: 8px;
   padding-left: 5px;
@@ -5027,11 +4987,11 @@ Lecturer transcript
   border-bottom-color: #D3D3D3;
 }
 
-#kvinsdqkpt .gt_striped {
+#opvgywavys .gt_striped {
   background-color: rgba(128, 128, 128, 0.05);
 }
 
-#kvinsdqkpt .gt_table_body {
+#opvgywavys .gt_table_body {
   border-top-style: solid;
   border-top-width: 2px;
   border-top-color: #D3D3D3;
@@ -5040,7 +5000,7 @@ Lecturer transcript
   border-bottom-color: #D3D3D3;
 }
 
-#kvinsdqkpt .gt_footnotes {
+#opvgywavys .gt_footnotes {
   color: #333333;
   background-color: #FFFFFF;
   border-bottom-style: none;
@@ -5054,7 +5014,7 @@ Lecturer transcript
   border-right-color: #D3D3D3;
 }
 
-#kvinsdqkpt .gt_footnote {
+#opvgywavys .gt_footnote {
   margin: 0px;
   font-size: 90%;
   padding-top: 4px;
@@ -5063,7 +5023,7 @@ Lecturer transcript
   padding-right: 5px;
 }
 
-#kvinsdqkpt .gt_sourcenotes {
+#opvgywavys .gt_sourcenotes {
   color: #333333;
   background-color: #FFFFFF;
   border-bottom-style: none;
@@ -5077,7 +5037,7 @@ Lecturer transcript
   border-right-color: #D3D3D3;
 }
 
-#kvinsdqkpt .gt_sourcenote {
+#opvgywavys .gt_sourcenote {
   font-size: 90%;
   padding-top: 4px;
   padding-bottom: 4px;
@@ -5085,72 +5045,72 @@ Lecturer transcript
   padding-right: 5px;
 }
 
-#kvinsdqkpt .gt_left {
+#opvgywavys .gt_left {
   text-align: left;
 }
 
-#kvinsdqkpt .gt_center {
+#opvgywavys .gt_center {
   text-align: center;
 }
 
-#kvinsdqkpt .gt_right {
+#opvgywavys .gt_right {
   text-align: right;
   font-variant-numeric: tabular-nums;
 }
 
-#kvinsdqkpt .gt_font_normal {
+#opvgywavys .gt_font_normal {
   font-weight: normal;
 }
 
-#kvinsdqkpt .gt_font_bold {
+#opvgywavys .gt_font_bold {
   font-weight: bold;
 }
 
-#kvinsdqkpt .gt_font_italic {
+#opvgywavys .gt_font_italic {
   font-style: italic;
 }
 
-#kvinsdqkpt .gt_super {
+#opvgywavys .gt_super {
   font-size: 65%;
 }
 
-#kvinsdqkpt .gt_footnote_marks {
+#opvgywavys .gt_footnote_marks {
   font-size: 75%;
   vertical-align: 0.4em;
   position: initial;
 }
 
-#kvinsdqkpt .gt_asterisk {
+#opvgywavys .gt_asterisk {
   font-size: 100%;
   vertical-align: 0;
 }
 
-#kvinsdqkpt .gt_indent_1 {
+#opvgywavys .gt_indent_1 {
   text-indent: 5px;
 }
 
-#kvinsdqkpt .gt_indent_2 {
+#opvgywavys .gt_indent_2 {
   text-indent: 10px;
 }
 
-#kvinsdqkpt .gt_indent_3 {
+#opvgywavys .gt_indent_3 {
   text-indent: 15px;
 }
 
-#kvinsdqkpt .gt_indent_4 {
+#opvgywavys .gt_indent_4 {
   text-indent: 20px;
 }
 
-#kvinsdqkpt .gt_indent_5 {
+#opvgywavys .gt_indent_5 {
   text-indent: 25px;
 }
 
-#kvinsdqkpt .katex-display {
+#opvgywavys .katex-display {
   display: inline-flex !important;
   margin-bottom: 0.75em !important;
 }
 
-#kvinsdqkpt div.Reactable > div.rt-table > div.rt-thead > div.rt-tr.rt-tr-group-header > div.rt-th-group:after {
+#opvgywavys div.Reactable > div.rt-table > div.rt-thead > div.rt-tr.rt-tr-group-header > div.rt-th-group:after {
   height: 0px !important;
 }
 </style>
