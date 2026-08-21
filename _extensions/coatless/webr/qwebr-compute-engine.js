@@ -169,7 +169,11 @@ globalThis.qwebrComputeEngine = async function(
         const out = result.output
         .filter(
             evt => evt.type === "stdout" || 
-            ( evt.type === "stderr" && (options.warning === "true" && options.message === "true")) 
+            ( evt.type === "stderr" && (options.warning === "true" && options.message === "true")) ||
+            // Errors share the stderr stream with messages and warnings, which the
+            // decks silence. An error must show regardless or a failing line
+            // looks like it ran fine (see AGENTS.md).
+            ( evt.type === "stderr" && /^Error/.test(evt.data))
         )
         .map((evt, index) => {
             const className = `qwebr-output-code-${evt.type}`;

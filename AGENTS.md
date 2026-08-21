@@ -122,3 +122,10 @@ by the device `pointsize` instead, which our vendored
 the same file sets the canvas background to transparent (upstream hard-codes
 white). Re-apply both edits if the extension is ever updated. Changing `dpi`
 means changing `webr_scale` in every deck.
+
+**WebR errors always show.** The decks set `message: false, warning: false`
+for webR cells, and upstream the extension puts errors on the same stderr
+stream and drops them with the rest, so a line like `grt` printed nothing.
+Our vendored `qwebr-compute-engine.js` keeps any stderr line starting with
+`Error` regardless of those options. A student must never see a failing line
+look as though it ran. Re-apply if the extension is updated.
