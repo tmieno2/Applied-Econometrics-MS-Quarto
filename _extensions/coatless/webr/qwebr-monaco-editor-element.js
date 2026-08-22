@@ -81,6 +81,18 @@ globalThis.qwebrCreateMonacoEditorInstance = function (cellData) {
     // Dynamically modify the height of the editor window if new lines are added.
     let ignoreEvent = false;
     const updateHeight = () => {
+      // PATCHED, see RULES.md. A cell on a slide or a tab that has not been opened
+      // sits in a `display: none` subtree, so its box measures 0 wide and Monaco
+      // falls back to its 5x5 minimum. Word wrap is on for every cell (webr.lua's
+      // own default), so at that width one character is one row: the 37-character
+      // `runif(5) # default is min=0 and max=1` measures 37 rows, and without this
+      // guard a one-line cell is given a 754px height. Write nothing until the box
+      // has a width. Opening the slide or tab changes the wrapped line count, which
+      // fires onDidContentSizeChange and brings us back here with a real measurement
+      // (verified on empty cells too, where the content height still moves 32 -> 20
+      // because the horizontal scrollbar stops being reserved).
+      if (!editorDiv.offsetWidth) return;
+
       // Increment editor height by 2 to prevent vertical scroll bar from appearing
       const contentHeight = editor.getContentHeight() + 2;
 

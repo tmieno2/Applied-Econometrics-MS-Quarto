@@ -39,7 +39,7 @@ overwrites it. Edit `_lecture-shared/notebook.scss` and sync.
 | `webr-setup.R` | The block to paste into a WebR `context: setup` cell |
 | `webr-setup-ggplot-chapter.R` | The variant for a chapter that teaches ggplot's own appearance |
 | `qwebr-compute-engine.js` | The patched WebR extension file, see section 7 |
-| `qwebr-monaco-editor-element.js` | The patched editor setup: a two-character line-number column instead of Monaco's five, and a 12px gap to the code |
+| `qwebr-monaco-editor-element.js` | The patched editor setup: a two-character line-number column instead of Monaco's five, a 12px gap to the code, and the guard that stops a hidden cell being given a height |
 
 ## 1. Deck header
 
@@ -210,7 +210,10 @@ sized with it.
 
   Written in the markup, they are read before the first measurement and every
   later write is skipped, so the columns are exactly what was asked for: no
-  70 percent cap, no widening to stop a line wrapping, no figure floor. They
+  70 percent cap, no widening to stop a line wrapping, no figure floor, and no
+  comfort test — that test sizes a code column from the font, and judging a
+  hand-set split against a column the cell will never have is how a split that
+  fits ends up stacked anyway. A cell that prints nothing still stacks. They
   work for a knitr cell in the same wrapper too. This is the escape hatch for a
   slide the arithmetic gets wrong; it is not the normal way to lay out a cell.
 - **All three overrides have a cell-option form**, which is what a decision
@@ -230,9 +233,11 @@ sized with it.
   ````
 
   `code-track` is one number, the code's share; the output takes the rest, so it
-  implies `layout: side`. Each option does exactly what its wrapper does,
-  including that forcing the split is a request: code that will not fit one line
-  still stacks. Keep the wrappers for a knitr cell, which has no `#|` options
+  implies `layout: side`. Each option does exactly what its wrapper does, which
+  differs between the two: `layout: side` is a request, and code that will not
+  fit one line still stacks, while `code-track` fixes the split and is taken as
+  given — code too long for the column the author chose wraps in it rather than
+  sending the cell back to the stack. Keep the wrappers for a knitr cell, which has no `#|` options
   this script reads, and for a region of several cells at once.
 
   The options are read from the cell's `#|` block, which qwebr passes through
@@ -450,6 +455,37 @@ must be re-applied if the extension is ever updated:
 3. any stderr line starting with `Error` is kept even though the decks set
    `message: false, warning: false`. Upstream drops errors with the rest, so a
    failing line printed nothing and looked to a student as though it had run.
+
+`_extensions/coatless/webr/qwebr-monaco-editor-element.js` carries two more,
+each marked `PATCHED` at the line it changes:
+
+1. `lineNumbersMinChars: 1` instead of Monaco's 5, and `lineDecorationsWidth: 9`
+   instead of 10, which together replace a ~75px empty band with a margin the
+   width of the digits (see section 2);
+2. `updateHeight()` returns early when the cell's box is 0 wide.
+
+The second one is worth stating in full, because the symptom does not look like
+a height bug. `updateHeight()` is the only thing that gives a cell's container a
+height: it asks Monaco how tall the content is and writes that as a pixel value.
+It runs once as soon as the editor is built, which for most cells is while they
+are still inside a `display: none` subtree, a slide nobody has reached or a tab
+nobody has opened. There Monaco measures 5x5, and since word wrap is on for
+every cell (`webr.lua`'s own default), one character is one row. A one-line cell
+was being given a 754px height, and cells on the exercise pages up to 3002px.
+What you see is a tall empty box with a faint mark in its top-left corner, which
+is the whole 5x5 editor painting the line number and one character.
+
+It corrected itself: opening the slide or the tab gives the box a width,
+Monaco's `automaticLayout` re-wraps, and `updateHeight()` runs again with a real
+measurement, all inside 50ms. So this was only ever visible as a flicker, or on
+a deck whose main thread was busy loading WebR packages. The guard removes the
+wrong state instead of shortening it: a hidden cell is now given no height at
+all, and the first height it ever receives is the correct one.
+
+The guard depends on Monaco firing `onDidContentSizeChange` when the width
+arrives. It always does, because the wrapped and unwrapped heights differ, and
+that holds even for an empty cell: measured 32 while hidden and 20 when shown,
+since the horizontal scrollbar stops being reserved.
 
 ## 8. Transcripts
 

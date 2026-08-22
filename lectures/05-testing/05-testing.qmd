@@ -1001,10 +1001,11 @@ You can apply the `broom::tidy()` function from the `broom` package to access th
 
 ```{webr-r}
 #| autorun: true
-#* tidy up the regression results
+#| code-track: 0.4
+#--- tidy up the regression results ---#
 reg_results_table <- broom::tidy(reg_wage)
 
-#* display
+#--- display ---#
 reg_results_table
 ```
 
@@ -1064,6 +1065,8 @@ Here is that work. We are testing whether the coefficient on education equals on
 </details>
 
 ```{webr-r}
+#| code-track: 0.5
+ 
 #--- coefficient estimate on educ ---#
 beta_educ <-
   reg_results_table %>%
@@ -1096,6 +1099,7 @@ And the other half: the critical value. First get the degrees of freedom from th
 The degree of freedom $(n-k-1)$ of the t-distribution can be obtained by applying `degrees_freedom(reg_wage, "resid")`:
 
 ```{webr-r}
+#| code-track: 0.5
 (
   df_t <- degrees_freedom(reg_wage, "resid")
 )
@@ -1106,6 +1110,7 @@ The degree of freedom $(n-k-1)$ of the t-distribution can be obtained by applyin
 You can get the 97.5% quantile of the $t_{522}$ using the `qt()` function:
 
 ```{webr-r}
+#| code-track: 0.5
 (
   critical_value <- qt(0.975, df = df_t)
 )
@@ -1895,6 +1900,7 @@ $SSR$ from the restricted model should be large because the restricted model has
 
 ```{webr-r}
 #| autorun: true
+#| code-track: 0.6
 #--- run OLS ---#
 res_u <- feols(log(salary) ~ years + gamesyr + bavg
   + hrunsyr + rbisyr, data = mlb1)
@@ -1908,6 +1914,7 @@ sum(res_u$residuals^2)
 **SSR of the restricted model**: $SSR_r$
 
 ```{webr-r}
+#| code-track: 0.6
 #--- run OLS ---#
 res_r <- feols(log(salary) ~ years + gamesyr, data = mlb1)
 
@@ -1995,7 +2002,7 @@ $$F = \frac{(SSR_r-SSR_u)/q}{SSR_u/(n-k-1)} \sim F_{q,n-k-1}$$
 
 ::: {.panel-tabset}
 
-#### Question
+#### Question 1
 
 <details class="transcript">
 <summary>Transcript</summary>
@@ -2006,7 +2013,7 @@ A quick sanity check on the formula above before we use it. The F-statistic is a
 
 Is the above $F$-statistic always positive?
 
-#### Answer
+#### Answer 1
 
 <details class="transcript">
 <summary>Transcript</summary>
@@ -2147,6 +2154,7 @@ The critical value comes from `qf`, and note it needs both degrees of freedom ar
 Find the critical value
 
 ```{webr-r}
+#| code-track: 0.6
 alpha <- 0.05 # 5%  significance level
 c_value <- qf(1 - alpha, df1 = df_q, df2 = df_ur)
 c_value
@@ -2155,6 +2163,7 @@ c_value
 Is F-stat > critical value?
 
 ```{webr-r}
+#| code-track: 0.6
 F_sta > c_value
 ```
 
@@ -2281,6 +2290,7 @@ Now the joint test, built by hand so you can see it is the same machinery. The r
 </details>
 
 ```{webr-r}
+#| code-track: 0.6
 #--- unrestricted ---#
 SSR_u <- sum(reg_u$residuals^2)
 
@@ -2306,6 +2316,7 @@ alpha <- 0.05
 The F-statistic for the hypothesis testing is:
 
 ```{webr-r}
+#| code-track: 0.6
 #--- F > critical value? ---#
 F_stat
 F_stat > c_value
@@ -2357,6 +2368,7 @@ Here is the correlation coefficients between the three variables:
 
 ```{webr-r}
 #| autorun: true
+#| code-track: 0.6
 dplyr::select(mlb1, bavg, hrunsyr, rbisyr) %>% cor()
 ```
 
@@ -2382,8 +2394,9 @@ It can be shown that square root of $F_{1, df}$ follows the $t_{df}$ distributio
 So, we can actually use the $F$-test for this type of hypothesis testing because $F_{1,n-k-1} \sim t_{n-k-1}^2$.
 
 ```{webr-r}
+#| code-track: 0.65
 #--- OLS ---#
-reg_sc <- feols(lwage ~ jc + univ + exper, data = twoyear) # OLS
+reg_sc <- feols(lwage ~ jc + univ + exper, data = twoyear)
 
 #--- F-test ---#
 F_test <- car::linearHypothesis(reg_sc, c("jc-univ=0"))

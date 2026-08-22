@@ -346,6 +346,14 @@
     // Output banner. A figure counts as content even though it prints no text.
     if (!entry.plot && (!entry.rows || !entry.cols)) return false;
 
+    // An author-set split — `#| code-track:` or the wrapper's own CSS variables
+    // — is a decision, and everything below here is the prediction it overrides.
+    // setTracks(), ensureNoWrap() and the plot floor all already stand aside for
+    // `webrCodeFixed`; this test did not, so it sized a code column from the
+    // font, found the output would not fit beside THAT column, and stacked the
+    // cell — throwing away a split that fitted in the column actually asked for.
+    if (area.closest('[data-webr-code-fixed="true"]')) return true;
+
     var available = Math.max(1, (area.clientWidth || 1005) - 16);
     var codePx = Math.max(MIN_CODE_PX,
       (textWidthPx(area, metrics.longest) + EDITOR_CHROME) * CODE_SLACK);

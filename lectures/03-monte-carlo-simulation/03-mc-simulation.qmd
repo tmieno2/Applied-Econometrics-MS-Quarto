@@ -183,12 +183,14 @@ ggplot2::theme_set(theme_lecture)
 ```
 
 ```{webr-r}
+#| code-track: 0.5
 runif(5) # default is min=0 and max=1
 ```
 
 <br>
 
 ```{webr-r}
+#| code-track: 0.5
 x <- runif(10000)
 hist(x)
 ```
@@ -210,6 +212,7 @@ Numbers drawn using pseudo random number generators are not truly random
 **Demonstration**
 
 ```{webr-r}
+#| code-track: 0.5
 set.seed(2387438)
 runif(5)
 ```
@@ -695,7 +698,7 @@ for (i in 1:B) {
 <details class="transcript">
 <summary>Transcript</summary>
 
-Step five, the comparison, and here is what a thousand estimates look like. The blue line is the truth, zero point five, which we chose. The red dashed line is the average of your estimates. They sit essentially on top of each other, which is the numerical confirmation that the sample mean is unbiased. Now read the second bullet, because it is the point students most often miss. Individual estimates are all over the place, from about zero point four to zero point six. Unbiasedness says nothing about any one of them. It is a statement about the center of this histogram.
+Step five, the comparison, and it comes in two pieces. The first cell collapses all thousand estimates to one number, their average, and it lands within about a thousandth of zero point five. The histogram below it is the same thousand estimates, uncollapsed. The blue line is the truth, zero point five, which we chose. The red dashed line is that same average of your estimates. They sit essentially on top of each other, which is the numerical confirmation that the sample mean is unbiased. Now read the last bullet, because it is the point students most often miss. Individual estimates are all over the place, from about zero point four to zero point six. Unbiasedness says nothing about any one of them. It is a statement about the center of this histogram.
 
 </details>
 
@@ -704,14 +707,29 @@ Compare your estimates with the true parameter
 + the truth here is $E[x] = 0.5$, because $x$ is drawn from `runif()`
 
 ```{webr-r}
+#| code-track: 0.5
 mean(estimate_storage_mean)
-
-hist(estimate_storage_mean, breaks = 30, main = "1000 sample means")
-abline(v = 0.5, col = "blue", lwd = 2) # the truth
-abline(v = mean(estimate_storage_mean), col = "red", lty = 2, lwd = 2) # average estimate
 ```
 
-+ the blue line (the truth) and the red dashed line (the average of your estimates) sit essentially on top of each other
++ this is the average of all 1000 estimates, and it should land within about a thousandth of 0.5
+
+<br>
+
+```{webr-r}
+#| layout: stacked
+ggplot(data = data.frame(x = estimate_storage_mean)) +
+  geom_histogram(aes(x = x), bins = 30, fill = "grey70", color = "white") +
+  geom_vline(xintercept = 0.5, color = "blue", linewidth = 1) + # the truth
+  geom_vline(
+    xintercept = mean(estimate_storage_mean),
+    color = "red", linetype = 2, linewidth = 1
+  ) + # average estimate
+  xlab("Sample mean") +
+  ggtitle("1000 sample means") +
+  theme_lecture
+```
+
++ the histogram is all 1000 estimates uncollapsed; the blue line (the truth) and the red dashed line (the average you just printed) sit essentially on top of each other
 + note that individual estimates are <span style = "color: red;"> not </span> 0.5 &mdash; unbiasedness is a statement about the <span style = "color: blue;"> center </span> of this histogram, not about any single estimate
 
 :::
@@ -797,11 +815,19 @@ And there it is. The estimates pile up around the red line at one point five, ex
 </details>
 
 ```{webr-r}
+#| code-track: 0.5
 mean(estimate_storage)
+```
 
-hist(estimate_storage, breaks = 30, main = "1000 estimates of beta_1")
-abline(v = 1, col = "blue", lwd = 2) # the truth
-abline(v = 1.5, col = "red", lwd = 2) # where the estimates actually center
+```{webr-r}
+#| layout: stacked
+ggplot(data = data.frame(x = estimate_storage)) +
+  geom_histogram(aes(x = x), bins = 30, fill = "grey70", color = "white") +
+  geom_vline(xintercept = 1, color = "blue", linewidth = 1) + # the truth
+  geom_vline(xintercept = 1.5, color = "red", linewidth = 1) + # where they center
+  xlab("Estimate of beta_1") +
+  ggtitle("1000 estimates of beta_1") +
+  theme_lecture
 ```
 
 + the estimates pile up around the red line, and the true value in blue sits well outside the bulk of the distribution
@@ -894,7 +920,7 @@ for (i in 1:B) {
   #--- OLS ---#
   reg <- fixest::feols(y ~ x, data = data) # OLS
   beta_storage[i] <- reg$coefficient["x"]
-  #* store estimated variance of beta_1_hat
+  #--- store the estimated variance of beta_1_hat ---#
   V_beta_storage[i] <- vcov(reg)["x", "x"]
 }
 ```
