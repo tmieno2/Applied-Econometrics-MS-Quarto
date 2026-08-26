@@ -28,7 +28,7 @@
       vertical-align: middle;
     }
   </style>
-  <link rel="stylesheet" href="../../site_libs/revealjs/dist/theme/quarto-704fb9daa92384f3b8b33063c36f01da.css">
+  <link rel="stylesheet" href="../../site_libs/revealjs/dist/theme/quarto-5cbf9ce0bec82c5b0c7629bb4ee56cc4.css">
   <script defer="" src="https://cdn.jsdelivr.net/npm/katex@0.18.4/dist/katex.min.js"></script>
   <script>document.addEventListener("DOMContentLoaded", function () {
  var mathElements = document.getElementsByClassName("math");
@@ -515,7 +515,7 @@
       var available = Math.max(1, (area.clientWidth || 1005) - 16);
       var share = parseFloat(host.style.getPropertyValue("--webr-code-share")) / 100;
       if (!share) return;
-      if (available * (1 - share) < MIN_PLOT_PX) stack(host, false);
+      if (available * (1 - share) < MIN_PLOT_PX) stack(area, host, false);
     }
 
     function measureRenderedCode(area, host, code, attempt) {
@@ -603,7 +603,7 @@
       if (share >= MAX_CODE_SHARE || attempt > 40) {
         // Even at the widest permitted code column the line will not fit, so the
         // cell has no business being side by side at all.
-        stack(host, true);
+        stack(area, host, true);
         return;
       }
       setTracks(host, area, share + 0.02);
@@ -654,19 +654,20 @@
       // No measurement for this cell: it was added or edited since the last run of
       // measure-webr-output.R, or R could not evaluate it. Judge on the code alone
       // rather than refuse, so an unmeasured deck still behaves reasonably.
+      // An author-set split — `#| code-track:` or the wrapper's own CSS variables
+      // — is a decision, and EVERYTHING below here is the prediction it overrides.
+      // setTracks(), ensureNoWrap() and the plot floor all already stand aside for
+      // `webrCodeFixed`. This test used to sit under the two below instead, which
+      // meant a hand-set split was still thrown away when the cell's own font
+      // measurement said the output would not fit, and — more often — when the
+      // cell printed nothing at all. An author who types a number wants to SEE
+      // that number, including on a cell with an empty output column.
+      if (area.closest('[data-webr-code-fixed="true"]')) return true;
       if (!entry) return true;
       // Ran and printed nothing, and drew nothing. There is no right-hand content
       // to show, so the code keeps the full width rather than facing an empty
       // Output banner. A figure counts as content even though it prints no text.
       if (!entry.plot && (!entry.rows || !entry.cols)) return false;
-
-      // An author-set split — `#| code-track:` or the wrapper's own CSS variables
-      // — is a decision, and everything below here is the prediction it overrides.
-      // setTracks(), ensureNoWrap() and the plot floor all already stand aside for
-      // `webrCodeFixed`; this test did not, so it sized a code column from the
-      // font, found the output would not fit beside THAT column, and stacked the
-      // cell — throwing away a split that fitted in the column actually asked for.
-      if (area.closest('[data-webr-code-fixed="true"]')) return true;
 
       var available = Math.max(1, (area.clientWidth || 1005) - 16);
       var codePx = Math.max(MIN_CODE_PX,
@@ -715,13 +716,12 @@
     // The one remaining way out of the side-by-side layout, and it can only fire
     // during load: the code will not fit on one line even in the widest column
     // allowed. Nothing a cell does at RUN time reaches here.
-    function stack(host, force) {
+    function stack(area, host, force) {
       // `::: {.side-out}` is a REQUEST, not an override: it cannot make code fit
       // that does not fit. What the exemption buys is that ordinary measurement
       // noise will not tear a deliberate wrapper down.
       if (host.dataset.webrLayoutManual === "true" && !force) return;
-      host.classList.remove("side-out");
-      host.dataset.webrLayout = "stacked";
+      markStacked(area, host);
     }
 
     // Called whenever the cell's DOM changes, which in practice means "the cell
@@ -739,9 +739,84 @@
       requestAnimationFrame(function () { markGutter(area, host); });
     }
 
+    // EVERY path that decides a cell stays stacked must come through here, and
+    // the reason is the attribute on the AREA. custom.scss puts any cell that has
+    // drawn a figure side by side, keyed off
+    // `:has(.qwebr-output-graph-area canvas):not([data-webr-layout="stacked"])`,
+    // and that `:not()` matches the interactive area — not the wrapper this
+    // script mostly works with. Stamping only the wrapper leaves that rule free
+    // to fire, and it fires at the moment the plot appears.
+    //
+    // What that looked like, measured on `L05_vector_raster_interaction.html`:
+    // the cell sat stacked until its plot was drawn, then flipped to
+    // `display: grid` with columns `1021px 9px` — custom.scss asks for `1fr 1fr`,
+    // but a `1fr` track may not shrink below its item's min-content width and
+    // Monaco's is the full slide — and the figure landed in the 9px track, 0x0,
+    // off the right edge of the slide. "The plot never appears." Adding
+    // `#| layout: stacked` by hand fixed it only because that option came through
+    // this function and stamped the area.
+    function markStacked(area, host) {
+      area.dataset.webrLayout = "stacked";
+      host = host || area.closest(".side-out") || area.closest(".cell") ||
+        area.parentElement;
+      if (host) {
+        host.classList.remove("side-out");
+        host.dataset.webrLayout = "stacked";
+      }
+    }
+
+    // A control that folds a cell's output away, because long output pushes
+    // everything below it down the slide and a result that has been read is then
+    // just in the way. It goes where the cell already has a header strip: the
+    // Output banner on a side-by-side cell (layOut() moves it there), the
+    // editor toolbar on a stacked one. All it does is set a flag on the
+    // interactive area; notebook.scss does the hiding.
+    function addOutputToggle(area) {
+      var bar = area.querySelector(".qwebr-editor-toolbar-right-buttons");
+      if (!bar || area.querySelector(".webr-output-toggle")) return;
+      var btn = document.createElement("button");
+      btn.type = "button";
+      // The extension's own reset and copy buttons carry exactly these classes.
+      // Wearing them too is what makes this look like part of the toolbar rather
+      // than something bolted on, and it inherits their hover state for free.
+      btn.className = "btn btn-light btn-xs qwebr-button webr-output-toggle";
+      // An eye, matching the reset and copy buttons beside it in being icon-only.
+      // Font Awesome needs no loading of its own: those two are already
+      // `fa-solid fa-arrows-rotate` and `fa-regular fa-copy`. The icon names the
+      // ACTION, not the current state — a folded cell shows a plain eye, "click
+      // to show".
+      //
+      // An icon carries no accessible name, so title and aria-label carry the
+      // words the button no longer prints. Both, not either: the title is the
+      // hover tooltip, the aria-label is what a screen reader announces.
+      var setState = function (hidden) {
+        var words = hidden ? "Show this cell's output" : "Hide this cell's output";
+        btn.innerHTML = '<i class="fa-solid fa-eye' + (hidden ? "" : "-slash") +
+          '" aria-hidden="true"></i>';
+        btn.title = words;
+        btn.setAttribute("aria-label", words);
+        btn.setAttribute("aria-expanded", hidden ? "false" : "true");
+      };
+      setState(false);
+      btn.addEventListener("click", function () {
+        var hide = area.dataset.webrOutputHidden !== "true";
+        area.dataset.webrOutputHidden = hide ? "true" : "false";
+        setState(hide);
+      });
+      // reveal reads keys off the document and stands aside only for inputs and
+      // contenteditable, not for a <button>. Without this, Space on a focused
+      // toggle both presses it and advances the slide.
+      btn.addEventListener("keydown", function (e) {
+        if (e.key === " " || e.key === "Enter") e.stopPropagation();
+      });
+      bar.appendChild(btn);
+    }
+
     function configure(area) {
       if (area.dataset.webrLayoutChecked === "true") return;
       area.dataset.webrLayoutChecked = "true";
+
+      addOutputToggle(area);
 
       // `::: {.stacked}` is the manual OPT-OUT, and the mirror of `.side-out`:
       // this cell keeps the vertical stack whatever the measurements say. The two
@@ -749,12 +824,7 @@
       // has looked at the slide outranks the arithmetic in both. It is checked
       // FIRST, before any measuring, because there is nothing left to decide.
       if (area.closest(".stacked")) {
-        var forcedHost = area.closest(".side-out") || area.closest(".cell") ||
-          area.parentElement;
-        if (forcedHost) {
-          forcedHost.classList.remove("side-out");
-          forcedHost.dataset.webrLayout = "stacked";
-        }
+        markStacked(area);
         return;
       }
 
@@ -765,17 +835,41 @@
       // means the same thing. Checked here rather than with the wrapper only
       // because the options have to be read first; nothing has been measured yet.
       if (details.options["layout"] === "stacked") {
-        var optHost = area.closest(".side-out") || area.closest(".cell") ||
-          area.parentElement;
-        if (optHost) {
-          optHost.classList.remove("side-out");
-          optHost.dataset.webrLayout = "stacked";
-        }
+        markStacked(area);
         return;
       }
 
+      // `#| code-track: 0.55` is read HERE, above every automatic gate, because
+      // it is the one option that overrides all of them. It used to be read forty
+      // lines down, after the two `return`s below had already sent a long cell or
+      // a cell inside a `.column` back to the stack without ever looking at it —
+      // an override that silently did nothing, which is worse than no override.
+      var codeTrack = parseFloat(details.options["code-track"]);
+      var fixedSplit = codeTrack > 0 && codeTrack < 1;
+
       var metrics = codeMetrics(details.code);
-      if (!metrics.lines || metrics.lines > MAX_CODE_LINES || metrics.maxChars > 88) return;
+      if (!metrics.lines) return;
+      // Too many lines, or a line too long for any column: no automatic split.
+      //
+      // Walking away silently was not the same as saying stacked, and the
+      // difference was 36 cells across the two courses. custom.scss's figure rule
+      // takes any unstamped cell that has drawn a plot into two columns of its
+      // own, which is the very layout this gate refuses: the code is too wide for
+      // half a slide, so the editor wraps. Record the decision instead.
+      //
+      // Only the AREA is stamped, and only the stylesheet reads it. A
+      // `::: {.side-out}` wrapper in the markup is left alone, because
+      // custom.scss already stands aside inside one and notebook.scss lays that
+      // cell out from the class — an author who typed the wrapper still gets it.
+      // `classes: qwebr-side-by-side` is exempt for the same reason: it is the
+      // author asking for custom.scss's layout by name.
+      if (!fixedSplit &&
+        (metrics.lines > MAX_CODE_LINES || metrics.maxChars > 88)) {
+        if (!area.classList.contains("qwebr-side-by-side")) {
+          area.dataset.webrLayout = "stacked";
+        }
+        return;
+      }
 
       var existingWrapper = area.closest(".side-out");
 
@@ -787,11 +881,8 @@
       // the class is in the markup, so notebook.scss would lay the cell out in
       // two columns regardless of what this script decides, and the halved width
       // is not something the author who typed `::: {.side-out}` accounted for.
-      if (area.closest(".column")) {
-        if (existingWrapper) {
-          existingWrapper.classList.remove("side-out");
-          existingWrapper.dataset.webrLayout = "stacked";
-        }
+      if (area.closest(".column") && !fixedSplit) {
+        if (existingWrapper) markStacked(area, existingWrapper);
         return;
       }
 
@@ -821,14 +912,13 @@
       // than only setting the flags is what makes the option identical to the
       // wrapper: the fit tests below read the class, so the cell can override the
       // figure floor, and code that will not fit one line still stacks.
-      var codeTrack = parseFloat(details.options["code-track"]);
-      if (codeTrack > 0 && codeTrack < 1) {
+      if (fixedSplit) {
         host.style.setProperty("--webr-code-track", codeTrack + "fr");
         host.style.setProperty("--webr-output-track", (1 - codeTrack) + "fr");
         host.style.setProperty("--webr-code-share", (codeTrack * 100) + "%");
         host.dataset.webrCodeFixed = "true";
       }
-      if ((codeTrack > 0 && codeTrack < 1) || details.options["layout"] === "side") {
+      if (fixedSplit || details.options["layout"] === "side") {
         host.classList.add("side-out");
         host.dataset.webrLayoutManual = "true";
       }
@@ -844,7 +934,13 @@
         // therefore as silent, when what that cell actually prints is a four-line
         // syntax error — which is the whole point of the slide it sits on.
         // A measured cell is judged on what R really printed.
-        if (!entry && printsNothing(details.code)) {
+        if (!entry && printsNothing(details.code) &&
+          host.dataset.webrCodeFixed !== "true") {
+          // Not markStacked(): that also strips a `::: {.side-out}` wrapper, and
+          // this branch is a guess from the source rather than a measurement, so
+          // it must not tear an author's wrapper down. Only the two attributes,
+          // which is what keeps custom.scss's figure rule off the cell.
+          area.dataset.webrLayout = "stacked";
           host.dataset.webrLayout = "stacked";
           return;
         }
@@ -852,7 +948,7 @@
           // force: a `::: {.side-out}` wrapper is a request, and the class is in
           // the markup, so it must be REMOVED here or the stylesheet lays the cell
           // out in two columns whatever this script decided.
-          stack(host, true);
+          stack(area, host, true);
           return;
         }
         if (entry && entry.plot) host.dataset.webrPlot = "true";
@@ -864,6 +960,13 @@
     // Everything below runs only for a cell that IS side by side: size its code
     // column, keep Monaco from wrapping in it, and keep the gutter caret centred.
     function layOut(area, host, details, metrics) {
+      // The banner is the output's own header strip, so on a side-by-side cell
+      // the toggle belongs there rather than in the toolbar over the code.
+      // notebook.scss puts it in the `outbar` grid area, on top of the ::before
+      // that paints the banner.
+      var toggle = area.querySelector(".webr-output-toggle");
+      if (toggle) area.appendChild(toggle);
+
       // Estimate an initial split from the longest source line, in pixels against
       // the width this cell actually has. The old form was `(maxChars + 10) / 145`,
       // which assumed ~145 characters span the full width; the real figure is ~109,
@@ -898,8 +1001,35 @@
       requestAnimationFrame(function () { assessOutput(area, host); });
     }
 
+    // `#| fig-max-height: 600`, or `#| fig-max-height: none` to lift the cap
+    // entirely for this cell. The 420px cap in notebook.scss is a floor plan for
+    // a slide that also carries a title, a tab bar and a couple of lines of text.
+    // Two things it cannot see: a slide with less on it than that, and a portrait
+    // figure, which gets nothing at all from the width it is handed and is held
+    // at whatever the cap allows in height. This writes the custom property the
+    // cap reads onto this cell only, so no other figure on the deck moves.
+    //
+    // Called from scan() rather than configure(), because configure() returns
+    // early for a setup cell, for `.stacked`, and for a cell inside a `.column`,
+    // and a figure in any of those is capped like every other.
+    function applyFigureCap(area) {
+      if (area.dataset.webrFigCap) return;
+      var details = detailsFor(area);
+      var raw = details && details.options && details.options["fig-max-height"];
+      if (!raw) return;
+      raw = String(raw).trim();
+      var value = raw === "none" ? "none"
+        : (parseFloat(raw) > 0 ? parseFloat(raw) + "px" : null);
+      if (!value) return;
+      area.dataset.webrFigCap = value;
+      area.style.setProperty("--webr-fig-max-height", value);
+    }
+
     function scan() {
-      document.querySelectorAll(".qwebr-interactive-area").forEach(configure);
+      document.querySelectorAll(".qwebr-interactive-area").forEach(function (area) {
+        applyFigureCap(area);
+        configure(area);
+      });
     }
 
     var pageObserver = new MutationObserver(scan);
@@ -1213,7 +1343,7 @@
   };
 
   // Store cell data
-  globalThis.qwebrCellDetails = [{"code":"# NOTE: keep every webr setup cell BELOW the first heading. A setup cell placed\n# above it renders its loading widget as an untitled slide of its own.\ndata(HousePrices, package = \"AER\")\n\n# Mirror of lecture_theme() in lectures/_lecture-theme.R — WebR cannot source\n# that file. Edit it first, then run `Rscript lectures/check-lecture-theme.R`,\n# which fails if this copy has drifted.\nlecture_theme <- function(base_size = 16) {\n  ggplot2::theme_bw(base_size = base_size) +\n    ggplot2::theme(\n      axis.text = ggplot2::element_text(size = base_size * 0.9),\n      axis.title = ggplot2::element_text(size = base_size),\n      legend.text = ggplot2::element_text(size = base_size * 0.9),\n      legend.title = ggplot2::element_text(size = base_size * 0.9),\n      plot.background = ggplot2::element_rect(fill = \"transparent\", colour = NA),\n      panel.background = ggplot2::element_rect(fill = \"transparent\", colour = NA),\n      legend.background = ggplot2::element_rect(fill = \"transparent\", colour = NA),\n      legend.key = ggplot2::element_rect(fill = \"transparent\", colour = NA),\n      # theme_bw's grey92 grid was chosen against a white panel and all but\n      # disappears on the warm paper once the panel stops being opaque.\n      panel.grid = ggplot2::element_line(colour = \"grey87\")\n    )\n}\n# The WebR canvas is 10x6in at out-width 100% of its output track\n# (lectures/_metadata.yml), the same canvas the knitr figures use. It asks for\n# the whole track because the 420px height cap in notebook.scss is what really\n# sizes it. 18pt rather than the 16pt knitr default: on a full slide both land\n# at 700x420, where 18pt reads at 17.5px and 16pt at 15.5px, and these decks\n# put figures in half-width columns where the smaller size gets hard to read.\n# webR draws its canvas at 72 dpi no matter what `dpi` says, so on a 216-dpi\n# canvas everything ggplot measures in points or mm comes out a third of its\n# size. Scale ggplot2's mm-to-point constants and the theme by the same\n# factor and the figure matches the knitr ones. Keep in step with `dpi` above.\nwebr_scale <- 216 / 72\nassignInNamespace(\".pt\", ggplot2::.pt * webr_scale, \"ggplot2\")\nassignInNamespace(\".stroke\", ggplot2::.stroke * webr_scale, \"ggplot2\")\ntheme_lecture <- lecture_theme(18 * webr_scale) +\n  # base_size also sets the theme line widths, which are in mm and already\n  # pass through the scaled .pt; pin them to what 18pt gives or they come\n  # out 9x thick.\n  ggplot2::theme(\n    line = ggplot2::element_line(linewidth = 18 / 22),\n    rect = ggplot2::element_rect(linewidth = 18 / 22)\n  )\nggplot2::theme_set(theme_lecture)","id":1,"options":{"autorun":"true","classes":"","comment":"","context":"setup","dpi":"216","editor-font-scale":"0.7","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"6","fig-width":"10","label":"unnamed-chunk-1","message":"false","out-height":"","out-width":"100%","output":"true","read-only":"false","results":"markup","warning":"false"}},{"code":"#--- load the AER package  ---#\nlibrary(AER) # load the AER package\n\n#--- load the HousePrices data set ---#\ndata(HousePrices) # load\n\n#--- inspect the two variables used in this lecture ---#\nhead(HousePrices[, c(\"price\", \"lotsize\")])","id":2,"options":{"autorun":"true","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.7","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"6","fig-width":"10","label":"unnamed-chunk-2","message":"false","out-height":"","out-width":"100%","output":"true","read-only":"false","results":"markup","warning":"false"}},{"code":"g_hp <-\n  ggplot(data = HousePrices) +\n  geom_point(aes(y = price, x = lotsize), size = 0.6) +\n  ylab(\"House Price ($)\") +\n  xlab(\"Lot Size\") +\n  theme_lecture\n\ng_hp","id":3,"options":{"autorun":"true","classes":"","comment":"","context":"output","dpi":"216","editor-font-scale":"0.7","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"6","fig-width":"10","label":"unnamed-chunk-3","message":"false","out-height":"","out-width":"100%","output":"true","read-only":"false","results":"markup","warning":"false"}},{"code":"g_hp + geom_smooth(aes(y = price, x = lotsize), method = \"lm\", se = F)","id":4,"options":{"autorun":"true","classes":"","comment":"","context":"output","dpi":"216","editor-font-scale":"0.7","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"6","fig-width":"10","label":"unnamed-chunk-4","message":"false","out-height":"","out-width":"100%","output":"true","read-only":"false","results":"markup","warning":"false"}},{"code":"g_hp +\n  geom_abline(intercept = 20000, slope = 7, color = \"red\")","id":5,"options":{"autorun":"true","classes":"","comment":"","context":"output","dpi":"216","editor-font-scale":"0.7","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"6","fig-width":"10","label":"unnamed-chunk-5","message":"false","out-height":"","out-width":"100%","output":"true","read-only":"false","results":"markup","warning":"false"}},{"code":"g_hp +\n  geom_abline(intercept = 70000, slope = 3.8, color = \"red\")","id":6,"options":{"autorun":"true","classes":"","comment":"","context":"output","dpi":"216","editor-font-scale":"0.7","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"6","fig-width":"10","label":"unnamed-chunk-6","message":"false","out-height":"","out-width":"100%","output":"true","read-only":"false","results":"markup","warning":"false"}},{"code":"#--- a handful of points, so the residuals are actually visible ---#\nset.seed(543)\nhp_few <- HousePrices[sample(nrow(HousePrices), 25), ]\nfit_few <- lm(price ~ lotsize, data = hp_few)\n\nggplot(data = hp_few, aes(x = lotsize, y = price)) +\n  geom_segment(\n    aes(xend = lotsize, yend = fitted(fit_few)),\n    color = \"red\"\n  ) +\n  geom_point(size = 1.2) +\n  geom_smooth(method = \"lm\", se = FALSE) +\n  ylab(\"House Price ($)\") +\n  xlab(\"Lot Size\") +\n  theme_lecture","id":7,"options":{"autorun":"true","classes":"","comment":"","context":"output","dpi":"216","editor-font-scale":"0.7","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"6","fig-width":"10","label":"unnamed-chunk-7","message":"false","out-height":"","out-width":"100%","output":"true","read-only":"false","results":"markup","warning":"false"}},{"code":"# NOTE: \"_demo\" names, so this illustration does not overwrite the x, y and\n# data objects the \"R code: hard way\" tab builds from HousePrices.\nx_demo <- 200 * runif(20)\ny_demo <- 100 + 0.5 * x_demo + rnorm(20) * 30\ndata_demo <- data.table(y = y_demo, x = x_demo)\ncoefs <- lm(y ~ x, data = data_demo)$coef\nggplot() +\n  geom_point(data = data_demo, aes(y = y, x = x)) +\n  geom_abline(intercept = coefs[1], slope = coefs[2]) +\n  geom_hline(yintercept = 0) +\n  geom_vline(xintercept = 0) +\n  #--- slope ---#\n  geom_curve(\n    aes(\n      x = 120, y = coefs[1] + coefs[2] * 100,\n      xend = 120, yend = coefs[1] + coefs[2] * 120\n    ),\n    color = \"red\"\n  ) +\n  geom_segment(\n    aes(\n      x = 100, y = coefs[1] + coefs[2] * 100,\n      xend = 130, yend = coefs[1] + coefs[2] * 100\n    ),\n    color = \"red\"\n  ) +\n  theme_lecture","id":8,"options":{"autorun":"true","classes":"","comment":"","context":"output","dpi":"216","editor-font-scale":"0.7","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"6","fig-width":"10","label":"unnamed-chunk-8","message":"false","out-height":"","out-width":"100%","output":"true","read-only":"false","results":"markup","warning":"false"}},{"code":"y <- HousePrices$price\nx <- HousePrices$lotsize\n\n#--- beta_1 ---#\nb1_num <- sum((x - mean(x)) * (y - mean(y)))\nb1_denom <- sum((x - mean(x))^2)\nb1 <- b1_num / b1_denom\nb1","id":9,"options":{"autorun":"true","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.7","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"6","fig-width":"10","label":"unnamed-chunk-9","message":"false","out-height":"","out-width":"100%","output":"true","read-only":"false","results":"markup","warning":"false"}},{"code":"library(fixest)\n\n#--- run OLS on the above model ---#\n# base R equivalent: lm(price ~ lotsize, data = HousePrices)\nuni_reg <- feols(price ~ lotsize, data = HousePrices)\n\nuni_reg","id":10,"options":{"autorun":"true","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.7","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"6","fig-width":"10","label":"unnamed-chunk-10","message":"false","out-height":"","out-width":"100%","output":"true","read-only":"false","results":"markup","warning":"false"}},{"code":"#--- list the things inside the regression results ---#\nls(uni_reg)","id":11,"options":{"autorun":"false","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.7","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"6","fig-width":"10","label":"unnamed-chunk-11","message":"false","out-height":"","out-width":"100%","output":"true","read-only":"false","results":"markup","warning":"false"}},{"code":"uni_reg$coefficients","id":12,"options":{"autorun":"false","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.7","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"6","fig-width":"10","label":"unnamed-chunk-12","message":"false","out-height":"","out-width":"100%","output":"true","read-only":"false","results":"markup","warning":"false"}},{"code":"#--- fitted values for the first 5 observation points ---#\nuni_reg$fitted.values[1:5]","id":13,"options":{"autorun":"false","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.7","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"6","fig-width":"10","label":"unnamed-chunk-13","message":"false","out-height":"","out-width":"100%","output":"true","read-only":"false","results":"markup","warning":"false"}},{"code":"#--- residuals for the first 5 observation points ---#\nuni_reg$residuals[1:5]","id":14,"options":{"autorun":"false","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.7","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"6","fig-width":"10","label":"unnamed-chunk-14","message":"false","out-height":"","out-width":"100%","output":"true","read-only":"false","results":"markup","warning":"false"}},{"code":"summary(uni_reg)","id":15,"options":{"autorun":"false","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.7","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"6","fig-width":"10","label":"unnamed-chunk-15","message":"false","out-height":"","out-width":"100%","output":"true","read-only":"false","results":"markup","warning":"false"}},{"code":"uni_reg$fitted.values[1:5]","id":16,"options":{"autorun":"true","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.7","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"6","fig-width":"10","label":"unnamed-chunk-16","message":"false","out-height":"","out-width":"100%","output":"true","read-only":"false","results":"markup","warning":"false"}},{"code":"(\nnew_data <- data.frame(lotsize = c(3000, 12000, 15000))\n)","id":17,"options":{"autorun":"true","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.7","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"6","fig-width":"10","label":"unnamed-chunk-17","message":"false","out-height":"","out-width":"100%","output":"true","read-only":"false","results":"markup","warning":"false"}},{"code":"predict(uni_reg, newdata = new_data)","id":18,"options":{"autorun":"true","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.7","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"6","fig-width":"10","label":"unnamed-chunk-18","message":"false","out-height":"","out-width":"100%","output":"true","read-only":"false","results":"markup","warning":"false"}},{"code":"","id":19,"options":{"autorun":"false","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.7","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"6","fig-width":"10","label":"unnamed-chunk-19","message":"false","out-height":"","out-width":"100%","output":"true","read-only":"false","results":"markup","warning":"false"}},{"code":"#--- access the coefficient values  ---#\nuni_reg$coefficients\n# class(uni_reg)\n\n#--- assess the impact ---#\nuni_reg$coefficients[\"lotsize\"] * 1000 - 5000","id":20,"options":{"autorun":"false","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.7","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"6","fig-width":"10","label":"unnamed-chunk-20","message":"false","out-height":"","out-width":"100%","output":"true","read-only":"false","results":"markup","warning":"false"}},{"code":"#--- pick the house where BOTH pieces are large, so neither arrow is a stub ---#\nfit_all <- lm(price ~ lotsize, data = HousePrices)\ny_bar <- mean(HousePrices$price)\ni <- which.max(pmin(abs(fitted(fit_all) - y_bar), abs(resid(fit_all))))\nx_i <- HousePrices$lotsize[i]\ny_i <- HousePrices$price[i]\nyhat_i <- fitted(fit_all)[i]\n\ng_hp +\n  geom_smooth(\n    aes(y = price, x = lotsize),\n    method = \"lm\", se = F, linewidth = 0.8\n  ) +\n  geom_hline(yintercept = y_bar, color = \"red\") +\n  #--- explained deviation: y_bar up to the fitted value ---#\n  annotate(\"segment\",\n    x = x_i, xend = x_i, y = y_bar, yend = yhat_i,\n    color = \"darkgreen\", linewidth = 0.8,\n    arrow = arrow(length = unit(0.015, \"npc\"), ends = \"both\")\n  ) +\n  #--- curved leaders connect both interval endpoints to its label ---#\n  annotate(\"curve\",\n    x = x_i, y = y_bar,\n    xend = x_i - 1100, yend = (y_bar + yhat_i) / 2 - 7000,\n    curvature = -0.25, color = \"darkgreen\", linewidth = 0.7\n  ) +\n  annotate(\"curve\",\n    x = x_i, y = yhat_i,\n    xend = x_i - 1100, yend = (y_bar + yhat_i) / 2 + 7000,\n    curvature = 0.25, color = \"darkgreen\", linewidth = 0.7\n  ) +\n  #--- residual: fitted value up to the observed point ---#\n  annotate(\"segment\",\n    x = x_i, xend = x_i, y = yhat_i, yend = y_i,\n    color = \"purple\", linewidth = 0.8,\n    arrow = arrow(length = unit(0.015, \"npc\"), ends = \"both\")\n  ) +\n  annotate(\"point\", x = x_i, y = y_i, size = 3.2) +\n  annotate(\"text\",\n    x = x_i - 1100, y = (y_bar + yhat_i) / 2,\n    label = \"hat(y)[i] - bar(y)\", parse = TRUE, color = \"darkgreen\",\n    size = 4.2, hjust = 0.5\n  ) +\n  annotate(\"text\",\n    x = x_i + 350, y = (yhat_i + y_i) / 2,\n    label = \"hat(u)[i]\", parse = TRUE, color = \"purple\",\n    size = 4.2, hjust = 0\n  ) +\n  #--- the y-bar label sits in clear air above the line, not in the point\n  #--- cloud on the left where it was being swallowed, and at the same size\n  #--- as the other two labels\n  annotate(\"text\",\n    x = 11000, y = y_bar * 1.09, label = \"bar(y)\",\n    parse = TRUE, color = \"red\", size = 4.2\n  )","id":21,"options":{"autorun":"true","classes":"","comment":"","context":"output","dpi":"216","editor-font-scale":"0.7","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"6","fig-width":"10","label":"unnamed-chunk-21","message":"false","out-height":"","out-width":"100%","output":"true","read-only":"false","results":"markup","warning":"false"}},{"code":"#--- R-squared of the house price regression ---#\nr2(uni_reg, \"r2\")","id":22,"options":{"autorun":"true","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.7","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"6","fig-width":"10","label":"unnamed-chunk-22","message":"false","out-height":"","out-width":"100%","output":"true","read-only":"false","results":"markup","warning":"false"}}];
+  globalThis.qwebrCellDetails = [{"code":"# NOTE: keep every webr setup cell BELOW the first heading. A setup cell placed\n# above it renders its loading widget as an untitled slide of its own.\ndata(HousePrices, package = \"AER\")\n\n# Mirror of lecture_theme() in lectures/_lecture-theme.R — WebR cannot source\n# that file. Edit it first, then run `Rscript lectures/check-lecture-theme.R`,\n# which fails if this copy has drifted.\nlecture_theme <- function(base_size = 16) {\n  ggplot2::theme_bw(base_size = base_size) +\n    ggplot2::theme(\n      axis.text = ggplot2::element_text(size = base_size * 0.9),\n      axis.title = ggplot2::element_text(size = base_size),\n      legend.text = ggplot2::element_text(size = base_size * 0.9),\n      legend.title = ggplot2::element_text(size = base_size * 0.9),\n      plot.background = ggplot2::element_rect(fill = \"transparent\", colour = NA),\n      panel.background = ggplot2::element_rect(fill = \"transparent\", colour = NA),\n      legend.background = ggplot2::element_rect(fill = \"transparent\", colour = NA),\n      legend.key = ggplot2::element_rect(fill = \"transparent\", colour = NA),\n      # theme_bw's grey92 grid was chosen against a white panel and all but\n      # disappears on the warm paper once the panel stops being opaque.\n      panel.grid = ggplot2::element_line(colour = \"grey87\")\n    )\n}\n# The WebR canvas is 10x6in at out-width 100% of its output track\n# (lectures/_metadata.yml), the same canvas the knitr figures use. It asks for\n# the whole track because the 420px height cap in notebook.scss is what really\n# sizes it. 18pt rather than the 16pt knitr default: on a full slide both land\n# at 700x420, where 18pt reads at 17.5px and 16pt at 15.5px, and these decks\n# put figures in half-width columns where the smaller size gets hard to read.\n# webR draws its canvas at 72 dpi no matter what `dpi` says, so on a 216-dpi\n# canvas everything ggplot measures in points or mm comes out a third of its\n# size. Scale ggplot2's mm-to-point constants and the theme by the same\n# factor and the figure matches the knitr ones. Keep in step with `dpi` above.\nwebr_scale <- 216 / 72\nassignInNamespace(\".pt\", ggplot2::.pt * webr_scale, \"ggplot2\")\nassignInNamespace(\".stroke\", ggplot2::.stroke * webr_scale, \"ggplot2\")\ntheme_lecture <- lecture_theme(18 * webr_scale) +\n  # base_size also sets the theme line widths, which are in mm and already\n  # pass through the scaled .pt; pin them to what 18pt gives or they come\n  # out 9x thick.\n  ggplot2::theme(\n    line = ggplot2::element_line(linewidth = 18 / 22),\n    rect = ggplot2::element_rect(linewidth = 18 / 22)\n  )\nggplot2::theme_set(theme_lecture)","id":1,"options":{"autorun":"true","classes":"","comment":"","context":"setup","dpi":"216","editor-font-scale":"0.7","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"6","fig-width":"10","label":"unnamed-chunk-1","message":"false","out-height":"","out-width":"100%","output":"true","read-only":"false","results":"markup","warning":"false"}},{"code":"#--- load the AER package  ---#\nlibrary(AER) # load the AER package\n\n#--- load the HousePrices data set ---#\ndata(HousePrices) # load\n\n#--- inspect the two variables used in this lecture ---#\nhead(HousePrices[, c(\"price\", \"lotsize\")])","id":2,"options":{"autorun":"true","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.7","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"6","fig-width":"10","label":"unnamed-chunk-2","message":"false","out-height":"","out-width":"100%","output":"true","read-only":"false","results":"markup","warning":"false"}},{"code":"g_hp <-\n  ggplot(data = HousePrices) +\n  geom_point(aes(y = price, x = lotsize), size = 0.6) +\n  ylab(\"House Price ($)\") +\n  xlab(\"Lot Size\") +\n  theme_lecture\n\ng_hp","id":3,"options":{"autorun":"true","classes":"","comment":"","context":"output","dpi":"216","editor-font-scale":"0.7","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"6","fig-width":"10","label":"unnamed-chunk-3","message":"false","out-height":"","out-width":"100%","output":"true","read-only":"false","results":"markup","warning":"false"}},{"code":"g_hp + geom_smooth(aes(y = price, x = lotsize), method = \"lm\", se = F)","id":4,"options":{"autorun":"true","classes":"","comment":"","context":"output","dpi":"216","editor-font-scale":"0.7","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"6","fig-width":"10","label":"unnamed-chunk-4","message":"false","out-height":"","out-width":"100%","output":"true","read-only":"false","results":"markup","warning":"false"}},{"code":"g_hp +\n  geom_abline(intercept = 20000, slope = 7, color = \"red\")","id":5,"options":{"autorun":"true","classes":"","comment":"","context":"output","dpi":"216","editor-font-scale":"0.7","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"6","fig-width":"10","label":"unnamed-chunk-5","message":"false","out-height":"","out-width":"100%","output":"true","read-only":"false","results":"markup","warning":"false"}},{"code":"g_hp +\n  geom_abline(intercept = 70000, slope = 3.8, color = \"red\")","id":6,"options":{"autorun":"true","classes":"","comment":"","context":"output","dpi":"216","editor-font-scale":"0.7","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"6","fig-width":"10","label":"unnamed-chunk-6","message":"false","out-height":"","out-width":"100%","output":"true","read-only":"false","results":"markup","warning":"false"}},{"code":"#--- a handful of points, so the residuals are actually visible ---#\nset.seed(543)\nhp_few <- HousePrices[sample(nrow(HousePrices), 25), ]\nfit_few <- lm(price ~ lotsize, data = hp_few)\n\nggplot(data = hp_few, aes(x = lotsize, y = price)) +\n  geom_segment(\n    aes(xend = lotsize, yend = fitted(fit_few)),\n    color = \"red\"\n  ) +\n  geom_point(size = 1.2) +\n  geom_smooth(method = \"lm\", se = FALSE) +\n  ylab(\"House Price ($)\") +\n  xlab(\"Lot Size\") +\n  theme_lecture","id":7,"options":{"autorun":"true","classes":"","comment":"","context":"output","dpi":"216","editor-font-scale":"0.7","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"6","fig-width":"10","label":"unnamed-chunk-7","message":"false","out-height":"","out-width":"100%","output":"true","read-only":"false","results":"markup","warning":"false"}},{"code":"# NOTE: \"_demo\" names, so this illustration does not overwrite the x, y and\n# data objects the \"R code: hard way\" tab builds from HousePrices.\nx_demo <- 200 * runif(20)\ny_demo <- 100 + 0.5 * x_demo + rnorm(20) * 30\ndata_demo <- data.table(y = y_demo, x = x_demo)\ncoefs <- lm(y ~ x, data = data_demo)$coef\nggplot() +\n  geom_point(data = data_demo, aes(y = y, x = x)) +\n  geom_abline(intercept = coefs[1], slope = coefs[2]) +\n  geom_hline(yintercept = 0) +\n  geom_vline(xintercept = 0) +\n  #--- slope ---#\n  geom_curve(\n    aes(\n      x = 120, y = coefs[1] + coefs[2] * 100,\n      xend = 120, yend = coefs[1] + coefs[2] * 120\n    ),\n    color = \"red\"\n  ) +\n  geom_segment(\n    aes(\n      x = 100, y = coefs[1] + coefs[2] * 100,\n      xend = 130, yend = coefs[1] + coefs[2] * 100\n    ),\n    color = \"red\"\n  ) +\n  theme_lecture","id":8,"options":{"autorun":"true","classes":"","comment":"","context":"output","dpi":"216","editor-font-scale":"0.7","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"6","fig-width":"10","label":"unnamed-chunk-8","message":"false","out-height":"","out-width":"100%","output":"true","read-only":"false","results":"markup","warning":"false"}},{"code":"y <- HousePrices$price\nx <- HousePrices$lotsize\n\n#--- beta_1 ---#\nb1_num <- sum((x - mean(x)) * (y - mean(y)))\nb1_denom <- sum((x - mean(x))^2)\nb1 <- b1_num / b1_denom\nb1","id":9,"options":{"autorun":"true","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.7","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"6","fig-width":"10","label":"unnamed-chunk-9","message":"false","out-height":"","out-width":"100%","output":"true","read-only":"false","results":"markup","warning":"false"}},{"code":"library(fixest)\n\n#--- run OLS on the above model ---#\n# base R equivalent: lm(price ~ lotsize, data = HousePrices)\nuni_reg <- feols(price ~ lotsize, data = HousePrices)\n\nuni_reg","id":10,"options":{"autorun":"true","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.7","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"6","fig-width":"10","label":"unnamed-chunk-10","message":"false","out-height":"","out-width":"100%","output":"true","read-only":"false","results":"markup","warning":"false"}},{"code":"#--- list the things inside the regression results ---#\nls(uni_reg)","id":11,"options":{"autorun":"false","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.7","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"6","fig-width":"10","label":"unnamed-chunk-11","message":"false","out-height":"","out-width":"100%","output":"true","read-only":"false","results":"markup","warning":"false"}},{"code":"uni_reg$coefficients","id":12,"options":{"autorun":"false","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.7","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"6","fig-width":"10","label":"unnamed-chunk-12","message":"false","out-height":"","out-width":"100%","output":"true","read-only":"false","results":"markup","warning":"false"}},{"code":"#--- fitted values for the first 5 observation points ---#\nuni_reg$fitted.values[1:5]","id":13,"options":{"autorun":"false","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.7","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"6","fig-width":"10","label":"unnamed-chunk-13","message":"false","out-height":"","out-width":"100%","output":"true","read-only":"false","results":"markup","warning":"false"}},{"code":"#--- residuals for the first 5 observation points ---#\nuni_reg$residuals[1:5]","id":14,"options":{"autorun":"false","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.7","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"6","fig-width":"10","label":"unnamed-chunk-14","message":"false","out-height":"","out-width":"100%","output":"true","read-only":"false","results":"markup","warning":"false"}},{"code":"summary(uni_reg)","id":15,"options":{"autorun":"false","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.7","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"6","fig-width":"10","label":"unnamed-chunk-15","message":"false","out-height":"","out-width":"100%","output":"true","read-only":"false","results":"markup","warning":"false"}},{"code":"uni_reg$fitted.values[1:5]","id":16,"options":{"autorun":"true","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.7","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"6","fig-width":"10","label":"unnamed-chunk-16","message":"false","out-height":"","out-width":"100%","output":"true","read-only":"false","results":"markup","warning":"false"}},{"code":"(\n  new_data <- data.frame(lotsize = c(3000, 12000, 15000))\n)","id":17,"options":{"autorun":"true","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.7","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"6","fig-width":"10","label":"unnamed-chunk-17","message":"false","out-height":"","out-width":"100%","output":"true","read-only":"false","results":"markup","warning":"false"}},{"code":"predict(uni_reg, newdata = new_data)","id":18,"options":{"autorun":"true","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.7","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"6","fig-width":"10","label":"unnamed-chunk-18","message":"false","out-height":"","out-width":"100%","output":"true","read-only":"false","results":"markup","warning":"false"}},{"code":"","id":19,"options":{"autorun":"false","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.7","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"6","fig-width":"10","label":"unnamed-chunk-19","message":"false","out-height":"","out-width":"100%","output":"true","read-only":"false","results":"markup","warning":"false"}},{"code":"#--- access the coefficient values  ---#\nuni_reg$coefficients\n# class(uni_reg)\n\n#--- assess the impact ---#\nuni_reg$coefficients[\"lotsize\"] * 1000 - 5000","id":20,"options":{"autorun":"false","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.7","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"6","fig-width":"10","label":"unnamed-chunk-20","message":"false","out-height":"","out-width":"100%","output":"true","read-only":"false","results":"markup","warning":"false"}},{"code":"#--- pick the house where BOTH pieces are large, so neither arrow is a stub ---#\nfit_all <- lm(price ~ lotsize, data = HousePrices)\ny_bar <- mean(HousePrices$price)\ni <- which.max(pmin(abs(fitted(fit_all) - y_bar), abs(resid(fit_all))))\nx_i <- HousePrices$lotsize[i]\ny_i <- HousePrices$price[i]\nyhat_i <- fitted(fit_all)[i]\n\ng_hp +\n  geom_smooth(\n    aes(y = price, x = lotsize),\n    method = \"lm\", se = F, linewidth = 0.8\n  ) +\n  geom_hline(yintercept = y_bar, color = \"red\") +\n  #--- explained deviation: y_bar up to the fitted value ---#\n  annotate(\"segment\",\n    x = x_i, xend = x_i, y = y_bar, yend = yhat_i,\n    color = \"darkgreen\", linewidth = 0.8,\n    arrow = arrow(length = unit(0.015, \"npc\"), ends = \"both\")\n  ) +\n  #--- curved leaders connect both interval endpoints to its label ---#\n  annotate(\"curve\",\n    x = x_i, y = y_bar,\n    xend = x_i - 1100, yend = (y_bar + yhat_i) / 2 - 7000,\n    curvature = -0.25, color = \"darkgreen\", linewidth = 0.7\n  ) +\n  annotate(\"curve\",\n    x = x_i, y = yhat_i,\n    xend = x_i - 1100, yend = (y_bar + yhat_i) / 2 + 7000,\n    curvature = 0.25, color = \"darkgreen\", linewidth = 0.7\n  ) +\n  #--- residual: fitted value up to the observed point ---#\n  annotate(\"segment\",\n    x = x_i, xend = x_i, y = yhat_i, yend = y_i,\n    color = \"purple\", linewidth = 0.8,\n    arrow = arrow(length = unit(0.015, \"npc\"), ends = \"both\")\n  ) +\n  annotate(\"point\", x = x_i, y = y_i, size = 3.2) +\n  annotate(\"text\",\n    x = x_i - 1100, y = (y_bar + yhat_i) / 2,\n    label = \"hat(y)[i] - bar(y)\", parse = TRUE, color = \"darkgreen\",\n    size = 4.2, hjust = 0.5\n  ) +\n  annotate(\"text\",\n    x = x_i + 350, y = (yhat_i + y_i) / 2,\n    label = \"hat(u)[i]\", parse = TRUE, color = \"purple\",\n    size = 4.2, hjust = 0\n  ) +\n  #--- the y-bar label sits in clear air above the line, not in the point\n  #--- cloud on the left where it was being swallowed, and at the same size\n  #--- as the other two labels\n  annotate(\"text\",\n    x = 11000, y = y_bar * 1.09, label = \"bar(y)\",\n    parse = TRUE, color = \"red\", size = 4.2\n  )","id":21,"options":{"autorun":"true","classes":"","comment":"","context":"output","dpi":"216","editor-font-scale":"0.7","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"6","fig-width":"10","label":"unnamed-chunk-21","message":"false","out-height":"","out-width":"100%","output":"true","read-only":"false","results":"markup","warning":"false"}},{"code":"#--- R-squared of the house price regression ---#\nr2(uni_reg, \"r2\")","id":22,"options":{"autorun":"true","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.7","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"6","fig-width":"10","label":"unnamed-chunk-22","message":"false","out-height":"","out-width":"100%","output":"true","read-only":"false","results":"markup","warning":"false"}}];
 
   </script>
   <script type="module">
@@ -2156,9 +2286,48 @@
   } 
 
   // Function to run the code using webR and parse the output
+  // How many characters of printed output fit across this cell's output box.
+  //
+  // Everything here is in CSS pixels, never getBoundingClientRect(): reveal
+  // scales the whole slide with a transform, so a rect is the scaled number
+  // while getComputedStyle and canvas.measureText are unscaled, and mixing the
+  // two gives a width out by the scale factor.
+  //
+  // The 80-character sample rather than one character because measureText
+  // rounds, and one rounded character multiplied by 124 is a visible error.
+  globalThis.qwebrOutputWidthChars = function (outputDiv) {
+      const DEFAULT_WIDTH = 80;
+      if (!outputDiv) return DEFAULT_WIDTH;
+      // The extension creates the output `pre` at load and keeps it hidden until
+      // the cell prints something, so its font is readable before the first run.
+      const probe = outputDiv.querySelector("pre") || outputDiv;
+      const usable = probe.clientWidth;  // content box: excludes the accent border
+      if (!usable) return DEFAULT_WIDTH;
+      const cs = getComputedStyle(probe);
+      const canvas = qwebrOutputWidthChars.canvas ||
+          (qwebrOutputWidthChars.canvas = document.createElement("canvas"));
+      const context = canvas.getContext("2d");
+      context.font = [cs.fontStyle, cs.fontWeight, cs.fontSize, cs.fontFamily]
+          .filter(Boolean).join(" ");
+      const perChar = context.measureText("0".repeat(80)).width / 80;
+      if (!perChar) return DEFAULT_WIDTH;
+      // qwebr-styling.css puts `margin: 1px 2px 1px 10px` on the div inside the
+      // pre, so 12px of the content box is never printable.
+      const chars = Math.floor((usable - 12) / perChar);
+      // Never NARROWER than R's own default. This only ever hands a cell more
+      // room than it had, so no slide that has already been read over prints
+      // differently unless its box was wider than 80 characters all along. A
+      // cell in a half-width `.column` measures about 60 and keeps 80, which is
+      // what it prints today: the tail scrolls, and trading that for a block
+      // two-thirds taller is not obviously the better deal on a slide.
+      // The ceiling is there because `options(width = )` is a hard limit in R,
+      // not a suggestion, and nothing on these decks wants a 300-character line.
+      return Math.max(DEFAULT_WIDTH, Math.min(200, chars));
+  };
+
   globalThis.qwebrComputeEngine = async function(
-      codeToRun, 
-      elements, 
+      codeToRun,
+      elements,
       options) {
 
       // Call into the R compute engine that persists within the document scope.
@@ -2220,6 +2389,19 @@
       // Store the code to run in history
       qwebrLogCodeToHistory(codeToRun, options);
 
+      // R wraps everything it prints at `getOption("width")` characters and webR
+      // leaves that at 80, whatever the box it is printing into. A full-width
+      // cell fits about 124 characters at the deck's code size, so a printed
+      // data frame stopped a third short of the right edge and R moved its last
+      // column into a second block underneath — which is how a six-column
+      // `st_join` result came out as five columns and then a lone `geometry`.
+      // Measure the box this cell actually got and let R use all of it.
+      //
+      // Safe to take at run time: webr-layout.html decides side-by-side versus
+      // stacked while the page loads and never revisits it (see assessOutput),
+      // so the width measured here is the width the output is printed into.
+      const widthFix = `options(width = ${qwebrOutputWidthChars(elements.outputCodeDiv)}); `;
+
       // webR's canvas draws text at the `pointsize` set above but still reports
       // its character metrics as if the font were 12pt. R sizes plot margins in
       // "lines" from those metrics, so on a 216 dpi canvas the margins come out
@@ -2236,7 +2418,7 @@
       // Evaluate the R code
       // Remove the active canvas silently
       const result = await mainWebRCodeShelter.captureR(
-          `${marginFix}${codeToRun}`,
+          `${widthFix}${marginFix}${codeToRun}`,
           captureOutputOptions
       );
 
@@ -2290,6 +2472,10 @@
 
           // Design an output object for messages
           const pre = document.createElement("pre");
+          // PATCHED: an `output: asis` cell hands back real HTML (a gt, kableExtra
+          // or tinytable table). It keeps the output box, but not the whitespace
+          // and font of a `pre`. See notebook.scss, and RULES.md section 7.
+          if (!showMarkup) { pre.classList.add("qwebr-output-asis"); }
           if (/\S/.test(out)) {
               // Display results as HTML elements to retain output styling
               const div = document.createElement("div");
@@ -2308,6 +2494,22 @@
           }
 
           elements.outputCodeDiv.appendChild(pre);
+
+          // PATCHED: HTML written by `output: asis` may carry its own <script>,
+          // which is how tinytable, modelsummary's default HTML output, fills its
+          // cells. innerHTML never runs a script, so the table arrived empty.
+          // Re-creating each script node runs it, and it must happen after the
+          // output is in the document or a detached node still does nothing.
+          if (!showMarkup) {
+              pre.querySelectorAll("script").forEach((original) => {
+                  const script = document.createElement("script");
+                  for (const attribute of original.attributes) {
+                      script.setAttribute(attribute.name, attribute.value);
+                  }
+                  script.textContent = original.textContent;
+                  original.replaceWith(script);
+              });
+          }
 
           // Determine if we have graphs to display
           if (result.images.length > 0) {
@@ -2524,6 +2726,16 @@ globalThis.qwebrCreateMonacoEditorInstance = function (cellData) {
       fontSize: qwebrScaledFontSize(editorDiv, qwebrOptions),         
       renderLineHighlight: "none",      // Disable current line highlighting
       hideCursorInOverviewRuler: true,  // Remove cursor indictor in right hand side scroll bar
+      // PATCHED, see RULES.md. Monaco reserves a strip at the right of the
+      // editor for the overview ruler — the map of marks beside a scrollbar —
+      // and draws a hairline border down its left side. Nothing in these decks
+      // puts a mark in it, so it is an empty ~14px band, and its border reads
+      // as the right edge of the code block: the block then looks narrower than
+      // the "Run Code" bar above it, which is the whole point of the bar being
+      // the editor's own width. No lanes, no border, and the code ground runs
+      // to the container edge.
+      overviewRulerLanes: 0,
+      overviewRulerBorder: false,
       // PATCHED, see RULES.md. Monaco's defaults reserve five characters of
       // number column (`lineNumbersMinChars: 5`) and a 10px decorations strip
       // beside it, which on a cell of at most a couple of dozen lines is a wide
@@ -2777,7 +2989,9 @@ globalThis.qwebrCreateMonacoEditorInstance = function (cellData) {
 <summary>
 Transcript
 </summary>
-<p>Let’s start with a concrete data set, because everything from here on is done on real numbers. We have five hundred and forty-six houses, and for each one we know the sale price and the lot size. The model is on screen: price for house i equals beta-zero, plus beta-one times lot size for house i, plus u-i. Same shape as everything in the last lecture. And the objective is simple to state, estimate the impact of lot size on house price. Notice how much work u-i is doing. Bedrooms, bathrooms, the neighbourhood, the year of sale, all of it sits inside that one term.</p>
+<p>Let’s start with a concrete data set, because everything from here on is done on real numbers. The data section says we have observations on five hundred and forty-six houses. For every house, we observe its sale price in dollars and its lot size. The subscript i labels a particular house, so price-i and lot-size-i belong to the same observation.</p>
+<p>Now look at the model. Price-i equals beta-zero, plus beta-one times lot-size-i, plus u-i. Beta-zero is the intercept, the baseline component when lot size is zero and u is zero. That value helps position the line, although a zero-sized lot is not economically meaningful here. Beta-one is the slope of the model’s systematic component. It tells us how that component changes when lot size rises by one unit. Interpreting the line as the conditional expectation, or the slope as a causal effect, requires restrictions on u-i. The objective at the bottom is to estimate that slope, which the slide calls the impact of lot size on price.</p>
+<p>Notice how much work u-i is doing. It contains every determinant of this house’s price that is not explicitly represented by lot size, including bedrooms, bathrooms, condition, neighbourhood, and the year of sale. It can also contain measurement error and purely idiosyncratic influences. That matters because lot size may be related to some of those omitted factors. Today we learn how OLS mechanically estimates beta-one. Whether that estimate can be interpreted as a causal, everything-else-fixed effect requires assumptions about u-i, which come next in the course. Flip to the R-code tab and we will bring these observations into the browser.</p>
 </details>
 <p><strong>Data</strong></p>
 <p>Observations of house price and lot size for 546 houses.</p>
@@ -2798,7 +3012,10 @@ Transcript
 <summary>
 Transcript
 </summary>
-<p>Here is the code that gets you the data, and this is a live R session running inside your browser, so you can edit it and press run. We load the AER package, which is where the HousePrices data lives, then call data to bring it into memory. The dataset has twelve columns, but the final line selects and previews only the two we use in this lecture: price and lot size. Do run it yourself rather than just reading it. The first time you press run it takes a moment, because R itself is downloading into the tab.</p>
+<p>Here is the code that gets you the data. This is a live R session running inside your browser, so you can edit the code and press Run Code. The autorun option means the cell should also execute when it becomes ready. The first time can take a moment because the browser has to initialize R and load the packages.</p>
+<p>Read the code from the top. Library, with A-E-R inside the parentheses, attaches the AER package for this session. That package supplies the HousePrices data. The next line calls data with HousePrices, which loads that named data set into memory as an object also called HousePrices. Loading a package makes its functions and data definitions available, while data actually creates the data object we want to inspect.</p>
+<p>The last line uses head, which displays the first six rows. Inside head, HousePrices bracket comma c of price and lotsize selects columns from the data frame. Leaving the position before the comma empty means keep every row. The c function combines the two quoted column names, so we keep only price and lotsize, in that order. The quotation marks matter because those are names, not objects to evaluate.</p>
+<p>Run it and read the result. The first house has a price of forty-two thousand dollars and a lot size of five thousand eight hundred fifty; the next rows begin thirty-eight thousand five hundred with four thousand, and forty-nine thousand five hundred with three thousand sixty. The complete data has twelve columns, but these are the two variables used on every slide today. This preview is a basic check that the data loaded, the names are correct, and the units look plausible. Now flip to Data visualization, because inspecting rows is not enough to reveal the relationship.</p>
 </details>
 <div class="side-out" style="--webr-code-track: 0.6fr; --webr-output-track: 0.4fr;">
 <div id="qwebr-insertion-location-2"></div>
@@ -2810,7 +3027,9 @@ Transcript
 <summary>
 Transcript
 </summary>
-<p>Before you estimate anything, look at your data. This is house price up the vertical axis against lot size along the horizontal. Two things to notice. First, there is clearly a positive relationship; bigger lots do sell for more. Second, and more important, look at the vertical spread at any given lot size. Take lot size four thousand and run your eye upwards: prices there range from about thirty thousand to well over a hundred thousand. That spread is the error term, made visible. Our job is to put one line through this cloud, and the scatter tells you in advance that no line will fit it well.</p>
+<p>Before you estimate anything, look at your data. The horizontal axis is lot size, and the vertical axis is house price in dollars. Each dot represents one of the five hundred and forty-six houses, positioned using that house’s lot size and sale price. Two features matter. First, the point cloud generally rises as you move right, so larger lots tend to be associated with higher prices. That positive pattern tells you to expect a positive estimate of beta-one. Second, look at the large vertical spread among houses with similar lot sizes. Around a lot size of four thousand, for example, prices range from roughly thirty thousand dollars to well above one hundred thousand. Lot size is informative, but it plainly cannot explain price by itself.</p>
+<p>That unexplained vertical variation is where the error term shows up in the data. It is not literally a set of observed u-i values, because we never observe the true population regression function and therefore cannot calculate the true errors. But it makes the idea concrete: houses with the same or similar lot size can have very different prices because bedrooms, location, condition, and other factors differ.</p>
+<p>The code builds the figure in layers. G-g-plot, with data equal to HousePrices, establishes the data source and saves the unfinished plot as g-h-p.&nbsp;Geom-point adds the observations. Inside aes, y equals price and x equals lotsize map those columns to the two axes; size equal to zero point six is outside aes because every dot should have the same small size. Y-lab and x-lab supply the readable axis titles. Theme-lecture applies the deck’s common appearance. The final line prints g-h-p.&nbsp;We save that plot because later tabs add different candidate lines to the same point cloud. Our next question is which line should be added and why.</p>
 </details>
 <div class="side-out">
 <div id="qwebr-insertion-location-3"></div>
@@ -2831,7 +3050,9 @@ Transcript
 <summary>
 Transcript
 </summary>
-<p>So here is the goal as a picture. We want to draw a line like this one through the cloud, and the slope of that line is our estimate of beta-one. The method is called ordinary least squares, OLS, and you will use it for the rest of your career. But notice I have quietly done something unjustified: I drew a line. Why this line, and not one slightly steeper, or shifted up a little? There are infinitely many lines available and I have not told you how to choose between them. The next few tabs are about answering that honestly.</p>
+<p>So here is the goal as both a picture and two bullets. We want a straight line through the cloud of house prices and lot sizes. Its vertical intercept will estimate beta-zero, and its slope will estimate beta-one, the change in predicted price for a one-unit increase in lot size. The line shown rises from left to right, matching the positive association we saw in the scatterplot.</p>
+<p>The code starts with g-h-p, the saved scatterplot from the previous tab, and uses a plus sign to add geom-smooth. Inside aes, y is price and x is lotsize, so the new layer uses the same two variables. Method equal to quote l-m tells R to fit an ordinary linear model rather than a flexible curve. S-e equal to false suppresses the shaded confidence band, leaving just the fitted line so we can focus on the mechanics.</p>
+<p>The second bullet names the method: ordinary least squares, or OLS. You will use it throughout the course. But notice that merely drawing a plausible line has not solved the problem. There are infinitely many possible intercepts and slopes. A line could be a little steeper, flatter, higher, or lower and still pass through the cloud. We therefore need a rule that ranks candidate lines. Flip through the examples next, where two visibly plausible lines imply very different slopes.</p>
 </details>
 <ul>
 <li>We want to draw a line like this, the slope of which is an estimate of <span class="math inline">\beta_1</span></li>
@@ -2851,7 +3072,8 @@ Transcript
 <summary>
 Transcript
 </summary>
-<p>Let’s take that question seriously by trying some lines out. Here is a candidate: an intercept of twenty thousand and a slope of seven. So this line claims a house with no lot at all is worth twenty thousand, and each extra unit of lot size adds seven dollars. Look at how it sits in the cloud. It is not absurd. It runs roughly through the middle of the data, and if you had to defend it in a seminar you probably could. Hold that impression, because the next tab shows a different line that also looks defensible, and they cannot both be best.</p>
+<p>Let’s take the choice of a line seriously by trying candidates. The heading gives this one’s two coefficients: beta-zero-hat equals twenty thousand and beta-one-hat equals seven. The hat tells you these are proposed estimates, not the unknown population parameters. The red line therefore has the equation predicted price equals twenty thousand plus seven times lot size. Its intercept says the line would predict twenty thousand dollars at a lot size of zero. Its slope says one additional unit of lot size is associated with seven additional dollars of predicted price, so one thousand additional units would correspond to seven thousand dollars.</p>
+<p>The code adds geom-abline to the saved scatterplot. Intercept equal to twenty thousand fixes where the line crosses the vertical axis, slope equal to seven fixes its rise per horizontal unit, and color equal to red distinguishes this candidate from the points. On screen, lot size is still on the horizontal axis and house price is on the vertical axis. The line is not absurd; it passes through the broad middle of the cloud. But visual plausibility alone does not prove it is best. Keep this slope of seven in mind, then flip to the second example.</p>
 </details>
 <div class="side-out tight">
 <div id="qwebr-insertion-location-5"></div>
@@ -2863,7 +3085,8 @@ Transcript
 <summary>
 Transcript
 </summary>
-<p>And here is the rival: intercept seventy thousand, slope three point eight. Higher starting point, flatter line. Flip back and forth between this tab and the previous one and you will see the problem. Both lines pass through the data. Neither is obviously wrong by eye. But they say completely different things about the world. One says an extra unit of lot size is worth seven dollars, the other says under four. If you were advising somebody on whether to buy more land, that gap matters enormously. Eyeballing is not going to settle it.</p>
+<p>Here is the rival candidate. Its beta-zero-hat is seventy thousand and its beta-one-hat is three point eight, so the equation is predicted price equals seventy thousand plus three point eight times lot size. Compared with the previous line, this one begins fifty thousand dollars higher at zero and rises more slowly. One additional unit of lot size corresponds to only three dollars and eighty cents of predicted price, or three thousand eight hundred dollars for an additional thousand units.</p>
+<p>The code again adds geom-abline to g-h-p.&nbsp;Intercept equal to seventy thousand and slope equal to three point eight define the line, while color equal to red makes it easy to see against the scatter. Flip back and forth between this tab and Example 1. Both red lines pass through substantial parts of the point cloud, and neither is obviously impossible by eye. Yet their economic implications differ sharply: one values an extra unit of lot size at seven dollars, the other at less than four. If you were advising someone about buying more land, that gap would matter. Eyeballing cannot resolve it consistently, so the next tab asks us to define what “best” means.</p>
 </details>
 <div class="side-out tight">
 <div id="qwebr-insertion-location-6"></div>
@@ -2875,7 +3098,9 @@ Transcript
 <summary>
 Transcript
 </summary>
-<p>Which brings us to the two questions in the box, and I want you to see that the second one is the real question. Asking which values of beta-hat-zero and beta-hat-one are best is meaningless until you say what best means. That is a decision we make, not something the data hands us. What we need is a criterion: a single number that scores any candidate line, so that comparing two lines becomes comparing two numbers. Once we have that, the whole thing turns into a minimization problem and the mathematics takes over. Defining that criterion is what the next tabs do.</p>
+<p>The callout collects the problem raised by the two examples. The first bullet asks which pair, among all possible values of beta-zero-hat and beta-one-hat, is best. Each pair defines one entire line, so this is not a choice of the intercept and slope separately. Moving either coefficient changes the fitted values for the observations.</p>
+<p>The second bullet is logically prior: what criterion will define “best”? The data do not label one line as the winner. We must choose a loss function, a numerical score that translates the gaps between a candidate line and the observed points into one measure of fit. Then every possible line receives a score, and “best” can mean the coefficient pair with the smallest score. A clear criterion makes the result reproducible. Two researchers using the same data and rule will choose the same line, rather than defending different visual impressions.</p>
+<p>The next tab introduces the individual gaps that the criterion will summarize. Those gaps are residuals. After that, OLS will square and add them, turning the search for a line into a minimization problem.</p>
 </details>
 <div title="Question">
 <div class="callout callout-important no-icon callout-titled callout-style-default">
@@ -2902,7 +3127,10 @@ Transcript
 <summary>
 Transcript
 </summary>
-<p>Here is the raw material for that criterion. Pick any values of beta-hat-zero and beta-hat-one, and that gives you a modeled value for every house: beta-hat-zero plus beta-hat-one times x-i. The residual is what is left over, the actual price minus the modeled price. Look at the figure, where I have taken twenty-five houses and drawn their residuals in red. Each red segment runs from a point to the line, so a long one means the line missed that house badly. Two things to keep straight. Residuals are computable, unlike the error term u, which you never see. And move the line, and every red segment changes.</p>
+<p>Here is the raw material for our criterion. Once you pick beta-zero-hat and beta-one-hat, observation i receives the modeled, or fitted, value beta-zero-hat plus beta-one-hat times x-i. The equation defines u-i-hat as y-i minus that fitted value. Y-i is the observed dependent variable for observation i, x-i is its explanatory variable, and the two beta-hats define the candidate line. A positive residual means the point lies above the line because actual y exceeds fitted y. A negative residual means the point lies below it. The residual’s absolute magnitude is the vertical miss, measured in the units of y, which here are dollars.</p>
+<p>Keep residual and error distinct. The population error u-i is the gap from the unknown population relationship, so it is unobservable. A residual u-i-hat is the gap from a line estimated or proposed using the sample, so we can compute it. Change either candidate coefficient and the fitted line moves, which changes every residual.</p>
+<p>Now look at the figure. Lot size is on the horizontal axis and house price in dollars is on the vertical axis. The code uses set-seed with five hundred forty-three so the same random subset appears every time. Sample chooses twenty-five row numbers from one through n-row of HousePrices, and the brackets keep those rows and every column in h-p-few. L-m estimates price tilde lotsize on that subset as fit-few.</p>
+<p>G-g-plot then uses h-p-few and maps lotsize to x and price to y. Geom-segment draws each red residual: x and x-end are both that house’s lot size, so the segment is vertical; y begins at the observed price, and y-end equals fitted of fit-few, the point on the estimated line. Geom-point draws the observations with size one point two. Geom-smooth, with method l-m and s-e false, draws the fitted straight line without a confidence band. The labels and theme finish the plot. Every red segment therefore connects one observed point to its fitted value. Long segments are large misses. The next tab explains how OLS converts all these signed misses into one score.</p>
 </details>
 <p>For particular values of <span class="math inline">\widehat{\beta}_0</span> and <span class="math inline">\widehat{\beta}_1</span> you pick, the modeled value of <span class="math inline">y</span> for individual <span class="math inline">i</span> is <span class="math inline">\widehat{\beta}_0 + \widehat{\beta}_1 x_i</span>.</p>
 <p>Then, the residual for individual <span class="math inline">i</span> is:</p>
@@ -2921,7 +3149,9 @@ Transcript
 <summary>
 Transcript
 </summary>
-<p>Now we can state the criterion, and it is the obvious one once you have seen those red segments: choose the line that makes them small overall. Specifically, square each residual, add them all up, and pick the beta-hats that make that sum as small as it can be. That is what ordinary least squares means, and the name is a literal description: least, squares. The mathematics below says exactly the same thing in symbols, minimize over beta-hat-zero and beta-hat-one the sum from i equals one to n of u-hat-i squared. That is the whole idea. Everything that follows is just carrying out the minimization.</p>
+<p>Now we can state the OLS criterion. The prose says to find beta-zero-hat and beta-one-hat that minimize the sum of the squared residuals. In other words, evaluate how far every observation is from a candidate line, square those distances, add them, and choose the coefficient pair with the smallest total. The name ordinary least squares is literal: choose the least possible sum of squares.</p>
+<p>Read the mathematical line aloud. Minimize, with respect to beta-zero-hat and beta-one-hat, the sum from i equals one to n of u-i-hat squared. The index i runs across all n observations, so every house affects the criterion. The text after “where” substitutes the definition of a residual: u-i-hat equals y-i minus the quantity beta-zero-hat plus beta-one-hat times x-i. Thus the objective is entirely a function of observed x and y values and the two coefficients we are choosing.</p>
+<p>Squaring makes every contribution nonnegative, so a residual of minus ten and a residual of plus ten contribute equally, one hundred, rather than canceling. It also gives larger misses disproportionate weight. The criterion is measured in squared units of y, squared dollars here, but its absolute unit is less important than which line makes it smallest. This slide defines the task; the Visualization tab asks why squares are the chosen loss, and the Derivation tab solves the minimization.</p>
 </details>
 <p><strong>Idea of OLS (Ordinary Least Squares)</strong></p>
 <p>Let’s find the values of <span class="math inline">\widehat{\beta}_0</span> and <span class="math inline">\widehat{\beta}_1</span> that minimize the sum of the squared residuals!</p>
@@ -2935,7 +3165,9 @@ Transcript
 <summary>
 Transcript
 </summary>
-<p>Two questions on this slide, and I want you to think about them rather than take the squaring on faith. First, why square? Suppose you just added the raw residuals up. Points above the line contribute positive numbers, points below contribute negative ones, and they cancel, so a wildly wrong line could score zero. Squaring removes the sign, and it also punishes one enormous miss more than several small ones. Second, why not absolute values? You could, and that method exists; it is called least absolute deviations. Squares win mainly because they give you something you can differentiate and solve by hand, which is exactly what we do next.</p>
+<p>This slide asks you not to take the word “squares” on faith. First orient yourself in the synthetic figure. The horizontal axis is x and the vertical axis is y. The code creates twenty x values with two hundred times run-if, so they lie between zero and two hundred. It creates y as one hundred plus zero point five times x plus random normal noise scaled by thirty. Data-table stores those vectors as columns y and x, and l-m estimates a line whose coefficients are saved in coefs. G-g-plot draws the points, geom-abline draws that fitted intercept and slope, and the horizontal and vertical reference lines mark zero. The red horizontal and curved vertical marks illustrate a horizontal change and the corresponding rise along the fitted line, which is how slope connects changes in x to changes in fitted y. The names ending in “demo” keep this illustration separate from the house-price objects used later.</p>
+<p>Now read the first question. If we simply sum raw residuals, observations above the line contribute positive values and observations below contribute negative values. Large errors can cancel even though the line fits poorly. In fact, once a regression includes an intercept, the OLS residuals sum to zero by construction, so the raw sum cannot tell you the quality of that fitted line at all. Squaring prevents cancellation because every squared residual is nonnegative. It also makes a residual twice as large contribute four times as much, so OLS penalizes a few very large misses heavily.</p>
+<p>The second question asks why not use absolute values, which also remove signs without squaring. We can. Minimizing the sum of absolute residuals gives least absolute deviations, closely related to median regression, and it is less sensitive to extreme residuals. OLS is especially convenient because squared residuals are smooth and differentiable. That lets us obtain closed-form coefficient formulas and later derive sampling variances cleanly. So the loss function is a modeling choice with consequences, not a law of nature. Flip to Derivation to see the calculus that squares make possible.</p>
 </details>
 <div id="qwebr-insertion-location-8"></div>
 <noscript>Please enable JavaScript to experience the dynamic code cell content on this page.</noscript>
@@ -2950,7 +3182,11 @@ Transcript
 <summary>
 Transcript
 </summary>
-<p>Here is the calculus, and you should watch it once even if you never do it again. We are minimizing S, the sum of squared residuals, over two unknowns, so we take a partial derivative with respect to each and set both to zero. Now look at what the two first-order conditions say once you divide out the minus two. The sum of the residuals is zero, and the sum of x times the residuals is zero. Those are not assumptions we are making; they are consequences of the arithmetic, and they hold in every OLS regression you will ever run. Solve the pair and you get the formulas at the bottom.</p>
+<p>Here is the calculus, and you should follow every line once even if software will do it afterward. The minimization problem at the top chooses beta-zero-hat and beta-one-hat to minimize the sum, from i equals one to n, of y-i minus beta-zero-hat minus beta-one-hat x-i, all squared. The slide then gives that objective a short name, S of beta-zero-hat comma beta-one-hat. S is one number for any proposed coefficient pair.</p>
+<p>Because there are two coefficients, we need two first-order conditions. For beta-zero-hat, differentiate each squared bracket using the chain rule. The derivative of the square supplies two times the bracket, and the derivative of the bracket with respect to beta-zero-hat is minus one. That produces minus two times the sum of the residuals. At a minimum, set it equal to zero. For beta-one-hat, the derivative of the bracket is minus x-i, so the second condition is minus two times the sum of x-i times u-i-hat, again set equal to zero.</p>
+<p>Dividing by minus two leaves the two conditions displayed next. The sum of all OLS residuals is zero. Also, the sum of x-i times its residual is zero. These are not behavioral assumptions about the population. They are mechanical consequences of fitting OLS with an intercept. The first says positive and negative residuals balance. Combined with the definition of the sample mean, it also implies the average fitted value equals y-bar. The second says the sample residual vector is orthogonal to x, which is the geometry behind the OLS solution.</p>
+<p>To see how the coefficient formulas follow, start with the first condition and substitute u-i-hat. Sum of y-i minus n beta-zero-hat minus beta-one-hat times sum of x-i equals zero. Divide by n and solve to obtain beta-zero-hat equals y-bar minus beta-one-hat x-bar. That is why the fitted line passes through the sample-means point, x-bar comma y-bar.</p>
+<p>Insert that intercept expression into the second condition and rewrite variables as deviations from their sample means. Solving gives beta-one-hat equal to the sum of x-i minus x-bar times y-i minus y-bar, divided by the sum of x-i minus x-bar squared. The numerator measures how x and y move together; the denominator measures the sample variation in x. The denominator must be positive, so x cannot be identical for every observation. Finally, beta-zero-hat is recovered from y-bar minus beta-one-hat x-bar. The bottom line defines y-bar as the sum of the y values divided by n and x-bar analogously. These formulas are the analytical OLS estimators. The next tab explains why “estimator” is not the same word as “estimate.”</p>
 </details>
 <p><strong>Minimization problem to solve</strong></p>
 <p><span class="math display">Min_{\widehat{\beta}_0,\widehat{\beta}_1} \sum_{i=1}^n [y_i-(\widehat{\beta}_0+\widehat{\beta}_1 x_i)]^2</span></p>
@@ -2989,7 +3225,9 @@ Transcript
 <summary>
 Transcript
 </summary>
-<p>This is a small distinction with a large payoff later, so let’s be careful with it. An estimator is a rule, a formula that says what to do with whatever data you are handed. An estimate is the number that comes out when you feed that rule your particular data. The formula on screen is the estimator; six point five nine nine is the estimate, for these five hundred and forty-six houses. And here is why it matters. Hand the same estimator a different sample of houses and you get a different number out. The estimate moves around. That variability is the entire subject of the next lecture.</p>
+<p>This is a small vocabulary distinction with a large payoff later, so let’s be precise. The first block defines an estimator as a rule or formula to apply once you receive data. Before sampling, it is a random quantity because its inputs, the sample observations, are random. The second block defines an estimate as the realized number obtained after plugging one particular data set into that rule.</p>
+<p>Look at the two bullets under “In this lecture.” The fraction with the sum of x-i minus x-bar times y-i minus y-bar in the numerator and the sum of x-i minus x-bar squared in the denominator is the slope estimator. It tells you what calculation to perform for any sample with variation in x. When that rule is applied to these five hundred and forty-six HousePrices observations, it returns six point five nine nine after rounding to three decimal places. That number is the slope estimate.</p>
+<p>Why insist on the distinction? Imagine drawing a different sample of houses. We would use exactly the same estimator, but the sample x values, y values, and their means would change, so the resulting estimate would generally change. Across repeated samples, beta-one-hat has a sampling distribution. Its center, spread, and shape determine whether our estimate is reliable and how uncertain we should be. That variability is the subject of the next lecture. First, the R demonstration will show that the formula and regression software produce the same estimate.</p>
 </details>
 <p><strong>Estimators</strong></p>
 <p>Specific <span style="color: red;"> rules (formula) </span> to use once you get the data</p>
@@ -3028,7 +3266,10 @@ Transcript
 <summary>
 Transcript
 </summary>
-<p>Let’s compute beta-one-hat by hand, straight from the formula, so you can see there is no magic in it. Pull the price column out as y and the lot size column as x. The numerator is the sum of x minus its mean, times y minus its mean. The denominator is the sum of x minus its mean, squared. Divide one by the other and there is your estimate. Run it and note the number, because in the next tab we get the identical number a much shorter way. I am making you do it the long way exactly once, so that the short way never feels like a black box.</p>
+<p>Let’s compute beta-one-hat by hand, straight from the formulas at the top, so you can see there is no magic in the regression command. The slope is the sum of the products of each x and y deviation from their means, divided by the sum of squared x deviations. Once the slope is known, the intercept is y-bar minus beta-one-hat times x-bar. The code on this slide implements the slope formula; it does not yet calculate the intercept.</p>
+<p>Read each line. HousePrices dollar-sign price extracts the entire price column and assigns that vector to y. HousePrices dollar-sign lotsize does the same for lot size and assigns it to x. The dollar sign selects a named component from a data frame. Because the rows stay aligned, x at position i and y at position i still describe the same house.</p>
+<p>For b-one-num, mean of x calculates x-bar and mean of y calculates y-bar. R subtracts each mean from every element of its vector. The two centered vectors are multiplied element by element, so each house contributes x-i minus x-bar times y-i minus y-bar. Sum adds those products to form the numerator. For b-one-denom, x minus mean x is squared element by element, and sum adds the squared deviations. Dividing b-one-num by b-one-denom gives b-one, and the final line prints it.</p>
+<p>Run the cell. The result is approximately six point five nine eight seven six eight, which rounds to six point five nine nine. Its units are dollars of house price per unit of lot size. The denominator is large when lot sizes have substantial variation; without any variation in x it would be zero and the slope could not be estimated. Note this number, then flip to the better-way tab. The software there should return exactly the same slope because it carries out this calculation internally.</p>
 </details>
 <p><strong>OLS Estimator Formula</strong></p>
 <p><span class="math display">
@@ -3049,7 +3290,9 @@ Transcript
 <summary>
 Transcript
 </summary>
-<p>And here is the short way, which is what you will actually use. The feols function from the fixest package takes a formula, price tilde lotsize, read as price explained by lot size, and the data frame. That is the whole call. The comment shows the base R equivalent, lm, which works identically for a regression this simple; we use feols because it handles things later in the course that lm cannot. Run it and compare the slope against the number you computed by hand. They match exactly, because it is the same formula. The intercept comes along for free.</p>
+<p>Here is the short way you will actually use. Library of fixest attaches the package that provides the feols function. Then uni-reg gets the result of feols with two main arguments. The first is the formula price tilde lotsize, read as “price modeled by lot size.” The variable to the left of the tilde is the dependent variable; the variable to the right is the explanatory variable. R includes an intercept by default, so this formula represents the same beta-zero plus beta-one times lotsize model used throughout the deck. The second argument, data equal to HousePrices, tells feols where to find both named columns.</p>
+<p>The returned model object is assigned to uni-reg. The final line prints it. Run the cell and the header identifies price as the dependent variable and reports five hundred and forty-six observations. The coefficient table gives an intercept of about thirty-four thousand one hundred thirty-six point one nine and a lotsize coefficient of about six point five nine eight seven seven. That slope matches the hand calculation on the previous tab. The printout also shows standard errors, t statistics, p-values, the root mean squared error, and adjusted R-squared. Those inference columns are previewed here but developed later.</p>
+<p>The comment shows the base R equivalent, l-m with the same formula and data arguments. For this simple regression, l-m and feols give the same OLS coefficient estimates. We use feols because fixest provides convenient tools for the more complicated models later in the course. The intercept “comes along for free” only in the sense that feols computes it automatically; mathematically it is y-bar minus the estimated slope times x-bar. Now open post-estimation to see what else the uni-reg object stores.</p>
 </details>
 <p>We can use the <code>feols()</code> function from the <code>fixest</code> package.</p>
 <div class="side-out">
@@ -3067,7 +3310,9 @@ Transcript
 <summary>
 Transcript
 </summary>
-<p>What comes back from feols is not just two numbers, it is a list holding everything the regression computed, and it is worth knowing how to open it up. Applying ls to the results prints the names of everything inside. Run it and read the list. You will see coefficients, fitted values, residuals, and a number of things we have not met yet. The next four tabs pull out the ones that matter today. The general lesson is worth more than the specific names: in R, a model object is a container you can reach into, not a printout you have to squint at.</p>
+<p>What comes back from feols is not just the two displayed coefficients. Uni-reg is a list-like fitted-model object containing the inputs, results, and intermediate quantities the regression computed. The code calls l-s on uni-reg. Here l-s lists the names of the components inside that object in alphabetical order; it does not print the component values themselves.</p>
+<p>Run it and scan the output. Call records the function call, and f-m-l and f-m-l-all preserve the formula. Coefficients stores the intercept and slope estimates, while coeftable combines estimates with their standard errors and test statistics. Fitted dot values contains one prediction for every observation, and residuals contains one observed-minus-fitted gap for every observation. N-obs records the sample size, n-params the number of estimated parameters, and s-s-r the sum of squared residuals that OLS minimized. S-e, sigma-squared, the Hessian, scores, and covariance components support the uncertainty calculations introduced later. Other entries record model settings, possible collinearity information, and the original observation selection.</p>
+<p>You do not need to memorize all these names. The point is that an R model object is a reusable container, not merely a printout. Functions such as summary and predict read components from it, and you can extract particular pieces when you need them. The next four tabs demonstrate the components that matter today: coefficients, fitted values, residuals, and a formatted summary. Start with Coefficients.</p>
 </details>
 <p>Apply <code>ls()</code> to see its elements:</p>
 <div class="side-out tight">
@@ -3080,7 +3325,9 @@ Transcript
 <summary>
 Transcript
 </summary>
-<p>The first thing you will want is the estimated coefficients, and they live in the coefficients element. Run it and two labelled numbers come back: the intercept, and the one on lotsize. That second number, six point five nine nine, is beta-one-hat, the estimate we have been building towards for two lectures now. Read it as a sentence: one more unit of lot size is associated with about six dollars sixty more in sale price. And note the word associated. Whether you are also entitled to say caused depends on the zero conditional mean condition, which is where this course goes next.</p>
+<p>The first component you will often want is the coefficient vector. The code uses uni-reg dollar-sign coefficients. The dollar sign reaches into the fitted model object by name, and coefficients is the component containing the OLS estimates. There are no function arguments here; the line simply extracts and prints that vector.</p>
+<p>Run it and two labeled numbers appear. The value labeled intercept is about thirty-four thousand one hundred thirty-six point one nine. That is beta-zero-hat, the fitted price at a lot size of zero. It positions the line, but be cautious about giving it a practical interpretation because the observed lots range from one thousand six hundred fifty to sixteen thousand two hundred, nowhere near zero. The value labeled lotsize is about six point five nine eight seven six eight. That is beta-one-hat, the slope estimate we calculated by hand.</p>
+<p>Read the slope as a sentence with units: in this sample, one additional unit of lot size is associated with about six dollars and sixty cents more in predicted house price. For a one-thousand-unit increase, linearity scales that to about six thousand five hundred ninety-nine dollars. “Associated” is the right word at this stage. Calling it a causal effect requires the omitted factors in u to satisfy the relevant zero conditional mean condition, among other assumptions. The labels are useful because they let you extract a coefficient by name later, as the exercise does. Flip to Fitted values to see what the two coefficients predict for each observed house.</p>
 </details>
 <div class="side-out tight">
 <div id="qwebr-insertion-location-12"></div>
@@ -3092,7 +3339,9 @@ Transcript
 <summary>
 Transcript
 </summary>
-<p>Fitted values are the model’s predictions at the lot sizes you actually observed: beta-hat-zero plus beta-hat-one times x-i, worked out for every house. I am printing only the first five so it stays readable. Compare these against the actual prices and you have the residuals, which is the next tab. One thing to notice is that there is one fitted value per house, so this object is exactly as long as your data set. That is what the figure back on the Residuals tab was drawing: a line’s worth of predictions, one for every point in the cloud.</p>
+<p>Fitted values are the model’s predictions at the explanatory-variable values actually observed in the estimation sample. For house i, y-i-hat equals the estimated intercept, thirty-four thousand one hundred thirty-six point one nine, plus the estimated slope, about six point five nine eight eight, times that house’s lot size.</p>
+<p>The code extracts uni-reg dollar-sign fitted dot values. The square brackets then subset that vector. One colon five creates the integer sequence one through five, so the display contains only the first five predictions rather than all five hundred and forty-six. Run it and you get approximately seventy-two thousand seven hundred thirty-eight point nine eight, sixty thousand five hundred thirty-one point two six, fifty-four thousand three hundred twenty-eight point four two, seventy-eight thousand eighteen, and seventy-six thousand one hundred four point three five dollars. Each corresponds, in order, to one of the first five houses shown in the data preview.</p>
+<p>There is one fitted value per estimation observation, so the complete component has five hundred and forty-six entries. These predictions all lie on the fitted line. The first house, for example, has a lot size of five thousand eight hundred fifty, which the equation maps to about seventy-two thousand seven hundred thirty-nine dollars. Its actual price was forty-two thousand dollars. Actual minus fitted gives a negative residual of about thirty thousand seven hundred thirty-nine dollars. The next tab extracts those residuals directly.</p>
 </details>
 <p>Predicted values at the observation points:</p>
 <div class="side-out tight">
@@ -3105,7 +3354,9 @@ Transcript
 <summary>
 Transcript
 </summary>
-<p>And here are the residuals as numbers, the same quantity you saw as red segments earlier. Each one is an actual price minus the model’s prediction for that house. Run it and look at the signs: some positive, some negative, which is the arithmetic guarantee we derived from the first-order condition, that they sum to zero. Then look at the magnitudes, because these are dollars, and some of them are large, tens of thousands. That is a useful reality check on a model with one explanatory variable. Lot size is genuinely informative about price, and it is nowhere near the whole story.</p>
+<p>Here are the residuals as numbers, the same quantity represented by the red vertical segments earlier. For every house, u-i-hat equals its actual price minus its fitted price. The code extracts the residuals component with the dollar sign and then uses square brackets one colon five to print the first five entries.</p>
+<p>Run it and you get approximately minus thirty thousand seven hundred thirty-eight point nine eight, minus twenty-two thousand thirty-one point two six, minus four thousand eight hundred twenty-eight point four two, minus seventeen thousand five hundred eighteen, and minus fifteen thousand one hundred four point three five dollars. All five displayed residuals happen to be negative, so every one of these first five houses sold for less than the model predicted. For the first observation, forty-two thousand minus seventy-two thousand seven hundred thirty-eight point nine eight equals minus thirty thousand seven hundred thirty-eight point nine eight, exactly matching the output.</p>
+<p>Across the full sample there are both positive and negative residuals. Because this OLS model includes an intercept, their full-sample sum is zero apart from numerical rounding, as the first-order condition showed. Do not infer that a short subset must sum to zero, and do not confuse “sum equals zero” with “small errors.” The magnitudes here are in dollars, and several are tens of thousands. That is a reality check: lot size helps explain price, but a one-variable model leaves much of the variation to location, house characteristics, and the other contents of u. Now flip to summary for the conventional compact report.</p>
 </details>
 <div class="side-out tight">
 <div id="qwebr-insertion-location-14"></div>
@@ -3117,7 +3368,10 @@ Transcript
 <summary>
 Transcript
 </summary>
-<p>If you simply want to look at a regression rather than pull pieces out of it, summary is the function. Run it and you get the standard printout: the coefficients, and beside each one some columns we have not defined yet, standard errors, t-values, p-values. Do not worry about those today. They are the machinery for deciding whether an estimate is distinguishable from zero, and lectures five and six are entirely about them. For now, read the estimate column, and notice the R-squared reported at the bottom, which is what we take apart at the end of this lecture.</p>
+<p>If you want a conventional regression report rather than one component, use summary. The code passes uni-reg as the sole argument, so summary dispatches the method designed for a fixest model and prints a structured overview.</p>
+<p>Run it and read from the top. “Dep. Var.: price” identifies the dependent variable, and “Observations: 546” confirms the sample size. “Standard-errors: IID” says the displayed standard errors use the independent and identically distributed error formula. That assumption and alternatives to it are later topics.</p>
+<p>The coefficient table has one row for the intercept and one for lotsize. Estimate is the coefficient itself: about thirty-four thousand one hundred thirty-six point one nine for the intercept and six point five nine eight eight for lotsize. Std. Error measures estimated sampling uncertainty. T value divides each estimate by its standard error, and Pr greater than absolute t is the two-sided p-value for testing that coefficient against zero. The stars summarize p-value thresholds. Do not use the stars as a substitute for understanding the estimand and assumptions; lectures five and six develop this inference machinery.</p>
+<p>At the bottom, the root mean squared error is about twenty-two thousand five hundred twenty-five point seven dollars, a typical residual size expressed back in price units. Adjusted R-squared is about zero point two eight five eight; it modifies R-squared for the number of regressors. The unadjusted R-squared used later is about zero point two eight seven one. For now, focus on the estimate column and recognize the other output. The final section of this deck takes apart exactly what R-squared measures.</p>
 </details>
 <p>You can have a nice quick summary of the regression results with the <code>summary()</code> function:</p>
 <div id="qwebr-insertion-location-15"></div>
@@ -3141,7 +3395,10 @@ Transcript
 <summary>
 Transcript
 </summary>
-<p>Now that we have numbers we can write the estimated model out, and this is the object you would report in a paper. Price equals thirty-four thousand one hundred and thirty-six, plus six point five nine nine times lot size. It has a name worth knowing, the sample regression function, and it is our estimate of the population regression function, the expected value of price given lot size. Read the callout, because it holds the caveat students most often drop. Regression predicts an expected value, an average. It is not telling you what your house will sell for. It is telling you what houses like yours sell for on average.</p>
+<p>Now that we have coefficient estimates, we can write the fitted relationship explicitly. This is the relationship you would typically report with the regression results. The model to be estimated at the top is price equals beta-zero plus beta-one times lotsize plus u. Beta-zero and beta-one are unknown population parameters, and u collects the other influences on an individual house’s price.</p>
+<p>The estimated line below replaces the unknown coefficients with the OLS estimates. Read it as fitted, or predicted, price equals thirty-four thousand one hundred thirty-six plus six point five nine nine times lot size. Thirty-four thousand one hundred thirty-six is the fitted intercept. Six point five nine nine is the fitted slope, so increasing lot size by one unit changes the line’s predicted price by about six dollars and sixty cents; increasing it by one thousand units changes predicted price by about six thousand five hundred ninety-nine dollars. The individual residual is not included in this prediction because it is the gap between a particular observed price and the line.</p>
+<p>The slide calls this fitted line the sample regression function, or S-R-F. It is estimated from this particular sample. Its population target is the population regression function, or P-R-F, written as the expected value of price conditional on lot size. “Conditional on” means we compare the average price among houses at a given lot size, not claim that every such house has the same price.</p>
+<p>Read the important callout carefully. OLS predicts an expected value of the dependent variable conditional on the explanatory variables. It does not tell you the exact sale price of an individual house. A house can lie far above or below the line because its residual includes location, bedrooms, condition, and everything else. The second bullet says beta-one-hat estimates how changing x changes expected y. Mechanically that is the change along the fitted line. Interpreting it as a causal, everything-else-fixed effect also requires the assumptions introduced next in the course. The following tabs show how to obtain predictions at observed and newly chosen lot sizes.</p>
 </details>
 <p><strong>Model to be estimated</strong></p>
 <p><span class="math display">
@@ -3173,7 +3430,9 @@ price =  34136 + 6.599 \times lotsize
 <summary>
 Transcript
 </summary>
-<p>This is the fitted values idea from a moment ago, met again where you would actually reach for it. The fitted values element gives you the model’s prediction for each house in your data. That is useful when you want to compare predicted against actual: to plot one against the other, or to hunt down the houses your model gets most badly wrong. But notice the restriction. These are predictions at the lot sizes that happen to appear in your data. If you want a prediction at some other lot size, one nobody in your sample has, you need the next tab.</p>
+<p>This is the fitted-values idea again, now presented as the tool you would use after estimating the model. Uni-reg dollar-sign fitted dot values reaches into the regression object and extracts the predictions at the observed lot sizes. The square brackets one colon five retain the first five entries, and autorun asks the browser to execute the cell when ready.</p>
+<p>Run it and the first five predicted prices are approximately seventy-two thousand seven hundred thirty-nine, sixty thousand five hundred thirty-one, fifty-four thousand three hundred twenty-eight, seventy-eight thousand eighteen, and seventy-six thousand one hundred four dollars. Each is calculated as thirty-four thousand one hundred thirty-six point one nine plus six point five nine eight eight times that observation’s lot size. These are conditional mean predictions from the fitted line, not guaranteed sale prices.</p>
+<p>The full fitted-values vector has one entry for each of the five hundred and forty-six houses used to estimate the regression. That row alignment makes it useful for comparing actual against predicted prices, plotting fit diagnostics, or identifying houses with especially large residuals. Notice the restriction stated in the slide prose: this component gives predictions only at lot sizes already present in the estimation data. To ask for a predicted price at a specifically chosen lot size, including one not observed in the sample, flip to New predictions.</p>
 </details>
 <p>You can access the predicted values at the observed points by looking at the <code>fitted.values</code> element of the regression results.</p>
 <div class="side-out tight">
@@ -3186,7 +3445,9 @@ Transcript
 <summary>
 Transcript
 </summary>
-<p>Predicting at new values is a two-step move, and it is worth learning properly because you will use it constantly. First, build a small data frame holding the x values you care about, here lot sizes of three thousand, twelve thousand and fifteen thousand. The column name has to match the variable name in your model exactly, or predict will not know what to do with it. Second, hand that data frame to predict along with the regression results. Out come three numbers, the expected price at each lot size. Note that fifteen thousand is near the top of the observed range; predicting far outside it is a riskier business.</p>
+<p>Predicting at chosen x values is a two-step move you will use constantly. Step one creates a new data frame. Inside data-frame, lotsize equal to c of three thousand, twelve thousand, and fifteen thousand creates one column with three rows. The c function combines those three numbers into a vector. The column must be named lotsize exactly, because that is the explanatory-variable name stored in the regression formula. The assignment saves the result as new-data. The surrounding parentheses make R both assign and print it, so the output lets you verify the three requested rows.</p>
+<p>Step two calls predict. Its first argument is uni-reg, the fitted model that supplies the intercept and slope. Newdata equal to new-data supplies the explanatory-variable values where predictions should be evaluated. Run it and the three predicted prices, in the same row order, are about fifty-three thousand nine hundred thirty-two point four nine dollars at a lot size of three thousand, one hundred thirteen thousand three hundred twenty-one point four zero at twelve thousand, and one hundred thirty-three thousand one hundred seventeen point seven one at fifteen thousand.</p>
+<p>Predict substitutes each lot size into the same line, thirty-four thousand one hundred thirty-six point one nine plus six point five nine eight eight times lotsize. It does not refit the regression. All three requested values lie within the sample’s observed range of one thousand six hundred fifty to sixteen thousand two hundred, although fifteen thousand is near the upper edge. Predictions far outside the observed range are extrapolations. The formula will still return a number, but the data provide little evidence that the linear relationship continues there. The exercise on the next tab uses the same slope to evaluate a change in lot size.</p>
 </details>
 <p>To calculate the predicted value at arbitrary values of <span class="math inline">x</span>,</p>
 <ol type="1">
@@ -3214,7 +3475,9 @@ Transcript
 <summary>
 Transcript
 </summary>
-<p>Here is a decision problem to work through yourself before you look at the solution. Your lot is three thousand. You can expand it by a thousand, and doing so costs you five thousand dollars. Should you? There is an empty code cell below for you, and you have the regression results already estimated. Read the note underneath as well, because there is a trap built into the question. I told you your current lot size is three thousand, and you do not need it. In a linear model the effect of one more unit is the same wherever you start from. That stops being true in lecture seven.</p>
+<p>Here is a decision problem to work through before opening the solution. Your current lot size is three thousand units. You can add one thousand units, holding everything else fixed, and the expansion costs five thousand dollars. The economic question is whether the predicted gain in house value exceeds that cost.</p>
+<p>You already have uni-reg in the browser, and the empty code cell is for your calculation. Start from the estimated slope, about six point five nine nine dollars of predicted price per additional unit of lot size. Multiply that marginal change by one thousand units to obtain the predicted gross benefit, then subtract five thousand dollars to obtain the predicted net benefit. A positive net value supports expanding under this simple calculation; a negative value does not.</p>
+<p>The note points out the deliberate trap. The current lot size of three thousand is a red herring. In a linear model, the fitted slope is constant, so the difference between the prediction at four thousand and the prediction at three thousand is beta-one-hat times one thousand. The intercept and starting value cancel. This constant marginal effect is convenient, but it is a restriction of the straight-line specification, not a universal economic truth. When the course allows curved relationships in lecture seven, the effect of an additional thousand units can depend on where you start. Try extracting the lotsize coefficient by name and calculating the net benefit, then compare your result with the Solution tab.</p>
 </details>
 <p>Your current lot size is 3000. You are thinking of expanding your lot by 1000 (with everything else fixed), which would cost you 5,000 USD. Should you do it? Use R to figure it out.</p>
 <div title="One thing to notice">
@@ -3238,7 +3501,10 @@ Transcript
 <summary>
 Transcript
 </summary>
-<p>Here is the answer. Pull out the coefficient on lotsize, multiply it by a thousand, because a thousand is what you are adding, and subtract the five thousand it costs. Six point five nine nine times a thousand is about six thousand six hundred; minus five thousand leaves roughly sixteen hundred dollars. Positive, so on these numbers, yes, expand. Now the honest caveat. This is an association, from a regression with a single explanatory variable and a great deal sitting in the error term. I would not stake my own five thousand on it. But the mechanics, coefficient times change, weighed against cost, are exactly right.</p>
+<p>Here is the calculation. The first executable line, uni-reg dollar-sign coefficients, prints the complete coefficient vector so you can confirm the available names and values. It shows the intercept and the lotsize slope. The commented class line does not run because it begins with a hash mark.</p>
+<p>The assessment line again extracts coefficients, then uses square brackets with the quoted name lotsize to select only that coefficient. Named selection is safer and clearer than relying on its numerical position. Multiplying by one thousand converts the slope from dollars per one unit of lot size into the predicted dollar gain from one thousand additional units. Subtracting five thousand accounts for the expansion cost.</p>
+<p>Run it. Six point five nine eight seven six eight times one thousand is about six thousand five hundred ninety-eight dollars and seventy-seven cents. After subtracting five thousand, the predicted net benefit is about one thousand five hundred ninety-eight dollars and seventy-seven cents. It is positive, so under the fitted linear relationship and the stated cost, the mechanical answer is yes, expand. The starting lot size never enters because the constant slope makes the predicted change equal to beta-one-hat times the change in lotsize.</p>
+<p>Now the honest caveat. This is an association estimated from a regression with one explanatory variable and a great deal left in u. The phrase “with everything else fixed” gives the decision a causal interpretation, but the regression warrants that interpretation only if the required identification assumptions hold. I would not stake my own five thousand dollars on this estimate without investigating omitted factors, uncertainty, and whether the expansion truly changes sale value. Still, the mechanics are exactly right: coefficient times change gives the model’s predicted gross change, and comparing it with cost gives the predicted net benefit.</p>
 </details>
 <div class="side-out">
 <div id="qwebr-insertion-location-20"></div>
@@ -3263,7 +3529,9 @@ Transcript
 <summary>
 Transcript
 </summary>
-<p>The last topic today is R-squared, and I want you to have the one-sentence version before any formulas arrive. R-squared measures how much better your model predicts the dependent variable than the laziest possible model does. And that lazy model is worth naming, because it is the benchmark the whole measure is built on: just guess the average price for every single house, ignoring lot size entirely. So R-squared answers one question. How much did knowing lot size actually buy me, over knowing nothing but the average? Everything in the next four tabs is machinery for turning that question into a number.</p>
+<p>The last topic today is R-squared, a goodness-of-fit measure. Start with the comparison emphasized in red. R-squared does not evaluate prediction in isolation. It asks how much better the fitted regression predicts the dependent variable than a benchmark that ignores the explanatory variables and uses the sample average of y for every observation.</p>
+<p>For our application, the benchmark predicts the same value, y-bar, for every house, regardless of lot size. That may sound lazy, but among all possible constant predictions, the sample mean minimizes the sum of squared prediction errors. The regression using lot size is allowed to move its prediction along a line instead. R-squared measures the proportional reduction in squared prediction error achieved by that line relative to the mean-only benchmark. Equivalently, it describes the share of the sample variation in price accounted for by fitted-price variation.</p>
+<p>This is a statement about in-sample fit. It does not automatically tell you how well the model predicts new data, whether the straight-line specification is sensible, or whether the lotsize coefficient is causal. A higher R-squared means the fitted values track the observed y values better according to this squared-error comparison. Everything in the next tabs builds that statement from the decomposition of one observation to the sums of squares and finally the formula.</p>
 </details>
 <p><span class="math inline">R^2</span> is a measure of how good your model is in predicting the dependent variable (explaining variations in the dependent variable) <span style="color: red;"> compared </span> to just using the average of the dependent variable as the predictor.</p>
 </div>
@@ -3272,7 +3540,10 @@ Transcript
 <summary>
 Transcript
 </summary>
-<p>Before the formula, here is the decomposition it rests on, and it is only algebra. Any observed y-i splits into two pieces: the fitted value, y-hat-i, and the residual, u-hat-i. Now subtract the sample average, y-bar, from both sides, and read the three bullets. On the left, y-i minus y-bar, is how far this house’s price sits from the average price; that is the total deviation you are trying to account for. On the right, y-hat-i minus y-bar is the part your model explains, and u-hat-i is the part it does not. Every measure of fit compares those two right-hand pieces.</p>
+<p>Before the R-squared formula, look at the exact decomposition on which it rests. By the definition of a residual, u-i-hat equals y-i minus y-i-hat. Rearranging gives the first line: observed y-i equals fitted y-i-hat plus residual u-i-hat. The slide also defines the fitted value as beta-zero-hat plus beta-one-hat times x-i. Every symbol refers to observation i except the two coefficient estimates, which define the common fitted line.</p>
+<p>The next line subtracts the sample average y-bar from both sides. Starting from y-i equals y-i-hat plus u-i-hat, subtract y-bar to get y-i minus y-bar equals y-i-hat minus y-bar plus u-i-hat. Nothing statistical has been assumed in that step; it is algebra.</p>
+<p>Now connect the equation to the three bullets. Y-i minus y-bar is the actual, or total, deviation from the mean. It tells you how far observation i’s actual outcome lies above or below the common mean prediction. Y-i-hat minus y-bar is the explained deviation: how far the regression moves its prediction away from the mean when it uses x-i. U-i-hat is the residual, the remaining gap between actual and fitted y. These are signed deviations, so direction matters: a negative residual means actual y is below fitted y.</p>
+<p>With an OLS intercept, the residuals sum to zero and the average fitted value equals y-bar. Those properties let the sample-wide squared total deviation separate cleanly into explained and residual sums of squares. R-squared will compare those totals. Flip to Visualization to see the same identity for one actual house.</p>
 </details>
 <p>You can decompose observed value of <span class="math inline">y</span> into two parts: fitted value and residual</p>
 <p><span class="math display">
@@ -3293,7 +3564,13 @@ y_i-\bar{y}=\widehat{y}_i-\bar{y}+\widehat{u}_i
 <summary>
 Transcript
 </summary>
-<p>Here is that split drawn for one real house, so the algebra has a picture attached to it. The red horizontal line is y-bar, the average price. The blue line is the fitted model. Now find the black dot over on the right: that is one house. The green arrow runs from the average up to the fitted line, and that is the explained part, what knowing this house’s lot size buys you. The purple arrow runs from the fitted line to where the house actually sold, and that is the residual, what the model missed. Green plus purple is the total deviation.</p>
+<p>Here is the decomposition drawn for one real house. Lot size is on the horizontal axis, and house price in dollars is on the vertical axis. The background dots are the HousePrices observations. The blue regression line gives fitted price at each lot size, and the red horizontal line is y-bar, the sample mean price, about sixty-eight thousand one hundred twenty-one dollars and sixty cents.</p>
+<p>The code first fits price tilde lotsize with l-m and saves it as fit-all. Mean of HousePrices dollar-sign price calculates y-bar. The next line chooses one house for which both decomposition pieces are visible. Abs of fitted minus y-bar measures the explained component’s length for every observation, and abs of resid measures the residual length. P-min takes the smaller of those two lengths observation by observation. Which-max selects the row whose smaller component is largest, ensuring neither arrow is merely a stub. The following lines extract that house’s lot size, actual price, and fitted price.</p>
+<p>The selected observation is house three hundred sixty-five. Its lot size is fifteen thousand six hundred, its actual price is eighty-four thousand nine hundred dollars, and its fitted price is about one hundred thirty-seven thousand seventy-seven dollars. G-h-p supplies the original scatterplot. Geom-smooth maps price to y and lotsize to x, uses method l-m for the straight OLS line, suppresses the standard-error band with s-e false, and sets line width to zero point eight. Geom-h-line places the red mean line at y-bar.</p>
+<p>The first annotate segment draws the green explained deviation at x-i. Its x and x-end are identical, making it vertical; y begins at y-bar and y-end is y-hat-i. Dark green and line width zero point eight style it. Arrow with length zero point zero one five in normalized parent coordinates and ends equal to both puts arrowheads at both endpoints. The two green annotate curves are curved leaders from the interval’s endpoints toward its label. Their chosen x and y endpoints, opposite curvatures, color, and width keep the label readable without obscuring the interval.</p>
+<p>The purple annotate segment runs vertically from y-hat-i to actual y-i, so it is the residual. Here the residual is negative, about minus fifty-two thousand one hundred seventy-seven dollars, which means the purple arrow goes downward from the fitted line to the black observed point. The next annotate call redraws that point at size three point two so the selected house stands out.</p>
+<p>The text annotations label the green interval as y-hat-i minus y-bar and the purple interval as u-i-hat. Parse equal to true renders those strings as mathematical notation; color matches each arrow, size controls readability, and h-just positions the text. The final text annotation labels y-bar in red near a clear part of the horizontal line.</p>
+<p>Now read the bullets as signed arithmetic. Green, y-hat-i minus y-bar, plus purple, u-i-hat, equals y-i minus y-bar, the total deviation. For this house, the fitted value is far above the mean, but the negative residual pulls actual price back down. The model explains movement from the mean to the fitted line; the residual is what it misses. The next tab squares and sums each kind of deviation across all houses.</p>
 </details>
 <p>The three pieces, drawn for a <span style="color: blue;"> single </span> observation. The red line is <span class="math inline">\bar{y}</span>; the blue line is the fitted model.</p>
 <div id="qwebr-insertion-location-21"></div>
@@ -3309,7 +3586,11 @@ Transcript
 <summary>
 Transcript
 </summary>
-<p>Three sums, and the names are more confusing than the mathematics, so take them slowly. Total sum of squares, SST, adds up the squared total deviations: how much price varies overall. Explained sum of squares, SSE, adds up the squared explained parts, the green arrows. Residual sum of squares, SSR, adds up the squared residuals, the purple arrows, and you have met this one already, because it is exactly the quantity OLS was chosen to minimize. One warning: some textbooks swap the letters SSE and SSR completely, so read the definition rather than trusting the acronym.</p>
+<p>This slide turns the three observation-level pieces into three sample-wide totals. Take the definitions slowly because the acronyms are less reliable than the formulas.</p>
+<p>Total sum of squares, S-S-T, is the sum from i equals one to n of y-i minus y-bar squared. Each term measures one observation’s squared distance from the sample mean. S-S-T therefore records the total sample variation in the dependent variable around its mean. It depends only on the observed y values, so every model fitted to the same sample is compared with the same total.</p>
+<p>Explained sum of squares, called S-S-E on this slide, is the sum of y-i-hat minus y-bar squared. These are the squared green components from the previous figure. It measures how much the model’s fitted values vary around the mean, or how much of the total variation the regression accounts for.</p>
+<p>Residual sum of squares, called S-S-R here, is the sum of u-i-hat squared. These are the squared purple components, the distances between actual and fitted y. You have already met this exact quantity: OLS chooses the coefficients that minimize it. Smaller S-S-R means the fitted line lies closer to the observations under squared-error loss.</p>
+<p>With an intercept, the OLS orthogonality conditions make the cross-product between explained deviations and residuals equal zero. Therefore S-S-T equals S-S-E plus S-S-R. Squaring also makes all three totals nonnegative. One warning: many textbooks use S-S-R for “regression,” meaning explained variation, and S-S-E for “error,” meaning residual variation, exactly reversing the final two labels used here. Always read the formula and full name rather than trusting the acronym. The next tab uses the identity among these three sums to define R-squared.</p>
 </details>
 <p><strong>total sum of squares (SST)</strong></p>
 <p><span class="math display">
@@ -3327,7 +3608,11 @@ SSR\equiv \sum_{i=1}^{n}\widehat{u}_i^2
 <summary>
 Transcript
 </summary>
-<p>Now the definition. R-squared is one minus SSR over SST. Where that comes from is the three lines below: total equals explained plus residual, rearrange, divide through by SST. So R-squared is equally the explained share, SSE over SST, and it sits between zero and one as long as your model includes an intercept. And here is the number for our regression, computed just below: about zero point two nine. Lot size accounts for roughly twenty-nine percent of the variation in house price. The other seventy-one percent is everything in u, bedrooms, location, condition, the year it sold.</p>
+<p>The callout gives the definition: R-squared equals one minus residual sum of squares divided by total sum of squares. S-S-R is the squared error left after fitting the regression. S-S-T is the squared error from predicting every outcome with y-bar. Their ratio is the fraction of benchmark variation that remains unexplained, so subtracting it from one gives the fraction removed by the regression.</p>
+<p>The three aligned lines show the equivalent explained-share formula. First, total sum of squares equals explained sum of squares plus residual sum of squares. Subtract S-S-R from both sides to get S-S-E equals S-S-T minus S-S-R. Divide every term by S-S-T. Then S-S-E over S-S-T equals one minus S-S-R over S-S-T, which is R-squared. So you can read R-squared either as the proportional reduction in squared error relative to the mean-only model or as the explained share of total sample variation.</p>
+<p>The stated zero-to-one bound relies on the model including an intercept and on a nonconstant dependent variable so S-S-T is positive. OLS cannot have a larger residual sum of squares than the intercept-only benchmark because that benchmark is one of the coefficient choices available to it, so R-squared is at least zero. Since residual sum of squares is nonnegative, R-squared cannot exceed one. Without an intercept, these identities and the usual bound need not hold.</p>
+<p>The next block contrasts two models. In y equals beta-zero plus u, the prediction is only the mean. Adding beta-one x lets predictions vary with x. R-squared measures the improvement in fitting y that this added information achieves. It is about the dependent variable, not directly about the quality or causal validity of beta-one.</p>
+<p>Finally, the code calls r-two with uni-reg and the quoted type r-two. Uni-reg supplies the fitted model, and the second argument requests ordinary R-squared rather than an adjusted version. Run it and the value is about zero point two eight seven zero seven seven. Thus lot size alone accounts for roughly twenty-eight point seven percent, about twenty-nine percent, of the sample variation in house prices relative to the mean benchmark. Roughly seventy-one point three percent remains in the residual variation, reflecting bedrooms, location, condition, sale year, nonlinearities, noise, and other contents of u. The Caveat tab explains why even this correctly calculated fit measure cannot validate the coefficient we care about.</p>
 </details>
 <div title="Definition">
 <div class="callout callout-note no-icon callout-titled callout-style-default">
@@ -3365,7 +3650,11 @@ Transcript
 <summary>
 Transcript
 </summary>
-<p>Now the warning, and it is the most important thing on this slide. R-squared tells you nothing about whether you have estimated beta-one well. Read the two blocks. We can always check how well a model predicts the dependent variable, because we observe the dependent variable. We can never check how well we estimated beta-one, because nobody ever shows us the true beta-one. So we are in the awkward position of being able to measure the thing we do not much care about, and unable to measure the thing we do. That is exactly why the next topic is assumptions.</p>
+<p>This warning is the most important lesson in the R-squared section. Read the “Important” block first. R-squared tells you how closely fitted outcomes track observed outcomes relative to the mean benchmark. It tells you nothing by itself about whether beta-one-hat is close to the causal, ceteris paribus effect beta-one. A model can predict y well for the wrong reasons, and a model with modest R-squared can still estimate a causal effect well if its identification strategy and assumptions are sound.</p>
+<p>The phrase ceteris paribus means holding other determinants of y fixed. In this one-variable regression, those determinants are placed in u. If lot size is correlated with omitted features such as location, house size, or neighbourhood quality, the slope may absorb their influence. That can bias beta-one-hat even if the fitted line explains a substantial share of price variation. Conversely, inherently noisy outcomes can produce a low R-squared even when x is exogenous and the slope is centered on the causal effect.</p>
+<p>The second bullet makes the economist’s distinction. We predict outcomes, such as an individual house price, but we estimate parameters, such as beta-one. Many applied economic questions care primarily about the parameter because it describes a policy effect, behavioral response, or ceteris paribus relationship. Prediction can still matter in economics, but it is a different objective and should not be confused with identification.</p>
+<p>Now read the “Problem” block. We observe the dependent variable, otherwise we could not run the regression, so we can compare actual y with fitted y and calculate residuals, sums of squares, and R-squared. But the true population beta-one is not observed. In a real application, nobody hands us the causal coefficient so we can calculate beta-one-hat minus beta-one directly. That means the sample cannot provide a direct test that our point estimate is close to the truth.</p>
+<p>We therefore evaluate estimation indirectly, through the research design and assumptions that connect the sample regression to the population parameter. We ask whether the model is correctly specified, whether x has variation, how the sample was drawn, and especially whether the error has mean zero conditional on x. Later we quantify sampling uncertainty with standard errors and confidence intervals, but those calculations also rest on assumptions. So do not select a causal model because it has the largest R-squared. The next topic turns from fit, which we can observe, to the assumptions needed for credible estimation of beta-one, which is what we actually care about.</p>
 </details>
 <p><strong>Important</strong></p>
 <ul>

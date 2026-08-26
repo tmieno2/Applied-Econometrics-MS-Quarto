@@ -62,11 +62,14 @@ $nb-code-size:  0.84rem;
 $nb-bar-pad-y:  10.2px;
 $nb-bar-pad-x:  21px;
 
-// Shared measure for code blocks. Pinned to the value custom.scss already gives
-// WebR cells (`.qwebr-interactive-area { width: 90% }`, custom.scss:217) so a
-// static {r} block and an interactive {webr-r} cell are the same length. If that
-// rule changes, change this with it.
-$nb-code-w:     90%;
+// Shared measure for code blocks. Pinned to the value custom.scss gives WebR
+// cells (`.qwebr-interactive-area`, custom.scss:217) so a static {r} block and
+// an interactive {webr-r} cell are the same length. If that rule changes, change
+// this with it. It was 90% until 2026-08-22: on a slide that also splits into
+// Quarto columns the reductions compound, and a cell in a 55% column kept only
+// 49% of the slide with a tenth of it blank to the right. A block now runs the
+// same width as the prose above it.
+$nb-code-w:     100%;
 
 $nb-code-bg:    #f4f1e9;   // warm — "what you wrote"
 $nb-gutter-bg:  #eae5d9;   // the line-number margin, a shade deeper than the code
@@ -112,10 +115,9 @@ hr { background-color: $nb-rule; }
 // ------------------------------------------------------------ code blocks ---
 code.sourceCode.r { background-color: $nb-code-bg !important; }
 
-// Static {r} blocks ran the full slide width while WebR cells stopped at 90%
-// (custom.scss:217, `.qwebr-interactive-area { width: 90% }`), so a slide mixing
-// the two had code blocks of two different lengths with no meaning attached to
-// the difference. Same measure for both.
+// Static {r} blocks and WebR cells once stopped at different widths, so a slide
+// mixing the two had code blocks of two different lengths with no meaning
+// attached to the difference. Same measure for both, whatever it is set to.
 //
 // Output is included so a block and its result stay the same width — otherwise
 // fixing the code introduces a new mismatch directly under it.
@@ -123,7 +125,7 @@ code.sourceCode.r { background-color: $nb-code-bg !important; }
 .reveal div.cell-output > pre { width: $nb-code-w; }
 
 // ...except inside .side-out, where these are grid items and must fill the
-// column the grid gave them. 90% of a column is not the point.
+// column the grid gave them. A share of a column is not the point.
 .reveal .side-out div.sourceCode,
 .reveal .side-out div.cell-output > pre { width: auto; }
 
@@ -176,6 +178,25 @@ div.cell-output.cell-output-stderr > pre > code { background-color: $nb-out-bg; 
   margin-top: 0;
 }
 
+// A cell marked `#| output: asis` hands back real HTML (a gt, kableExtra or
+// tinytable table), and the engine marks its output box `qwebr-output-asis`.
+// The box keeps its background and accent edge. What has to go is `white-space:
+// pre`, which turns every newline in that HTML into blank space and pushes the
+// table to the bottom of the box, and the code font, which is not what a table
+// should be set in. The table itself is sized by its content rather than
+// stretched across the box.
+.reveal div.qwebr-output-code-area pre.qwebr-output-asis {
+  white-space: normal;
+  // reveal's own body font, so the table is set like slide text rather
+  // than like code.
+  font-family: var(--r-main-font, sans-serif);
+
+  table {
+    width: auto;
+    margin: 0 auto;
+  }
+}
+
 // Plots get the same edge, but only once one exists — the graph area is present
 // and empty until a cell is run.
 .reveal div.qwebr-output-graph-area:not(:empty) {
@@ -204,12 +225,18 @@ div.cell-output.cell-output-stderr > pre > code { background-color: $nb-out-bg; 
 
 // Breathing room to the LEFT of the numbers. It cannot come from Monaco: its
 // number column is right-aligned and sized to the digits, so anything added
-// there appears between the number and the code, not before it. Padding the
-// editor's own container is safe — Monaco lays out against the content box, and
-// automaticLayout keeps up — and painting that strip in the gutter colour makes
-// it read as part of the margin rather than as a gap beside it.
+// there appears between the number and the code, not before it. Painting that
+// strip in the gutter colour makes it read as part of the margin rather than as
+// a gap beside it.
+//
+// It is a BORDER and must stay one. As padding it made Monaco overflow the
+// editor to the right: Monaco is laid out from `clientWidth`, which counts
+// padding but not borders, so the editor was told it had 7px more room than it
+// had and painted 7px past its own box — past the "Run Code" bar and past the
+// output under it. That was invisible while code blocks stopped at 90% of the
+// slide and there was a margin to bleed into. It is 8px rather than 7 because
+// it also absorbs the 1px edge the extension draws on this side.
 .reveal .qwebr-interactive-area .qwebr-editor {
-  padding-left: 7px;
   background-color: $nb-gutter-bg;
   // The extension draws its edges in #EEEEEE, a neutral grey, and against this
   // warm code ground a neutral hairline reads as blue. Worse, it draws TWO of
@@ -219,6 +246,8 @@ div.cell-output.cell-output-stderr > pre > code { background-color: $nb-out-bg; 
   // other one (below), and the seam becomes a single hairline in the same
   // colour as every other rule in the deck.
   border-color: $nb-rule;
+  // Last, so it survives the blanket `border-color` above.
+  border-left: 8px solid $nb-gutter-bg;
 }
 
 // Keep the editor's own top border rather than this one: .qwebr-console-area is
@@ -229,6 +258,21 @@ div.cell-output.cell-output-stderr > pre > code { background-color: $nb-out-bg; 
   border-color: $nb-rule;
   border-top: 0;
 }
+
+// Monaco 0.47 ships one rule whose selector list is a run of `:focus` selectors
+// and then, at the end, a bare `.monaco-editor`:
+//
+//     outline: 1px solid var(--vscode-focusBorder);  // #0090f1 in the vs theme
+//     outline-offset: -1px;
+//
+// so EVERY editor carries a blue outline drawn a pixel inside its own box,
+// focused or not. The box height is fractional (`getContentHeight() + 2`), so
+// each edge lands on half a device pixel and blends: the bottom edge reads as a
+// faint blue hairline crossing the number margin and the code, measured at
+// rgb(203,214,217) against the cream ground. It is not a focus indicator, since
+// it is painted at all times, so nothing is lost by dropping it. Specificity
+// 0,3,0 beats Monaco's 0,1,0; no !important needed.
+.reveal .qwebr-interactive-area .monaco-editor { outline: none; }
 
 .reveal .qwebr-interactive-area div.margin .line-numbers {
   color: $nb-muted;
@@ -544,11 +588,12 @@ div.cell-output.cell-output-stderr > pre > code { background-color: $nb-out-bg; 
 // column too — which is the common case in this course.
 .reveal .side-out .qwebr-interactive-area {
   position: relative;   // anchor for the gutter caret (::after, below)
-  // MUST match every other code block on the slide ($nb-code-w, the same 90%
-  // custom.scss gives `.qwebr-interactive-area`). This used to be 100%, which
-  // meant a cell visibly grew wider than its neighbours the instant it was
-  // promoted to side by side — a code block changing width under the reader.
-  // Going side by side changes how the cell is DIVIDED, never how wide it is.
+  // MUST match every other code block on the slide ($nb-code-w, the same value
+  // custom.scss gives `.qwebr-interactive-area`). Read the token, never a
+  // literal: this once said 100% while the rest said 90%, so a cell visibly grew
+  // wider the instant it was promoted to side by side — a code block changing
+  // width under the reader. Going side by side changes how the cell is DIVIDED,
+  // never how wide it is.
   width: $nb-code-w;
   max-width: $nb-code-w;
   box-sizing: border-box;
@@ -709,6 +754,62 @@ div.cell-output.cell-output-stderr > pre > code { background-color: $nb-out-bg; 
   }
 }
 
+// ---- Fold the output away ---------------------------------------------------
+//
+// Long output pushes everything below it down the slide, and once a result has
+// been read it is in the way. The button is injected by webr-layout.html — into
+// the Output banner on a side-by-side cell, into the editor toolbar on a stacked
+// one, the two places a cell already has a header strip — and all it does is set
+// this flag. The banner stays behind, so a folded cell still says "Output" and
+// still carries the control that brings it back.
+.reveal .qwebr-interactive-area[data-webr-output-hidden="true"] {
+  .qwebr-output-code-area,
+  .qwebr-output-graph-area { display: none; }
+}
+
+// The button wears the extension's own `.qwebr-button` class, so its size,
+// radius, background and hover highlight all come from qwebr-styling.css and it
+// cannot drift from the reset and copy buttons beside it. Only two things are
+// set here: the word is in the bar's font rather than the deck's, and it is the
+// same grey the extension gives those two icons (#696969, qwebr-styling.css
+// `.qwebr-button-reset`), so the label reads as secondary to the black "Output"
+// opposite it and darkens under the cursor.
+.reveal .webr-output-toggle {
+  display: inline-flex;
+  align-items: center;
+  color: #696969;
+  font-family: $nb-bar-font;
+  font-size: $nb-bar-size;
+  cursor: pointer;
+
+  &:hover,
+  &:focus-visible { color: #000; }
+}
+
+// Side by side it sits at the right end of the Output banner, in the SAME grid
+// area as the ::before that paints that banner. Two grid items in one area
+// overlap by design here: the pseudo-element paints the bar and its label, the
+// button paints over the empty right end of it. Matching $nb-bar-h makes the
+// whole right end of the bar the click target rather than one glyph.
+.reveal .side-out .qwebr-interactive-area > .webr-output-toggle {
+  grid-area: outbar;
+  justify-self: end;
+  z-index: 1;
+  // NOT `align-self: center`. The grid row is 34.78px while the banner PAINTS
+  // 37.6px (see the ::before note above), so centring in the row lands ~1.4px
+  // high. Standing the button on the row's top edge and giving it the banner's
+  // own height instead means its box and the painted bar are the same box, and
+  // the label centres inside that.
+  align-self: start;
+  min-height: $nb-bar-h;
+  // 0.75rem is the horizontal padding qwebr-styling.css gives `.qwebr-button`,
+  // so the eye has the same air around it as the copy icon opposite; the
+  // 0.5rem margin is the toolbar's own side padding, so it sits the same
+  // distance from the right edge as that icon does.
+  padding: 0 0.75rem;
+  margin-right: 0.5rem;
+}
+
 // Stack again when the slide is printed. NOT `(max-width: 800px)`, which is what
 // this used to say: reveal scales the whole 1050px slide to fit the window, so a
 // narrow window makes the slide SMALLER, never narrower in its own coordinates.
@@ -791,9 +892,15 @@ div.cell-output.cell-output-stderr > pre > code { background-color: $nb-out-bg; 
 // that back on a slide of this shape — heading, a couple of lines of text, a
 // figure — while still leaving the fullest slides inside 700px. The tab labels
 // shrinking (0.85em to 0.74em) paid for part of it.
+//
+// The number is a custom property so it can be overridden for one slide or one
+// cell without any of this cascade being repeated. `.figure-slide` below sets
+// it for a slide; `#| fig-max-height: 600` sets it on a single cell, which
+// webr-layout.html writes onto that cell's `.qwebr-interactive-area`. A value
+// set closer to the canvas wins, so cell beats slide beats this default.
 .reveal .cell-output-display img,
 .reveal .qwebr-output-graph-area canvas {
-  max-height: 420px;
+  max-height: var(--webr-fig-max-height, 420px);
   object-fit: contain;
 }
 
@@ -804,7 +911,4 @@ div.cell-output.cell-output-stderr > pre > code { background-color: $nb-out-bg; 
 // knitr 12x7.2in at out-width 95%, webr fig-width 10.2 / fig-height 6.55 at
 // out-width 80%. Both keep the ratio of display width to canvas width that the
 // defaults have, which is what holds the type size steady. See RULES.md.
-.reveal .figure-slide .cell-output-display img,
-.reveal .figure-slide .qwebr-output-graph-area canvas {
-  max-height: 540px;
-}
+.reveal .figure-slide { --webr-fig-max-height: 540px; }

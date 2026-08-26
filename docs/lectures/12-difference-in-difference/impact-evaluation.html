@@ -94,7 +94,7 @@
     code span.vs { color: #20794d; } /* VerbatimString */
     code span.wa { color: #5e5e5e; font-style: italic; } /* Warning */
   </style>
-  <link rel="stylesheet" href="../../site_libs/revealjs/dist/theme/quarto-704fb9daa92384f3b8b33063c36f01da.css">
+  <link rel="stylesheet" href="../../site_libs/revealjs/dist/theme/quarto-5cbf9ce0bec82c5b0c7629bb4ee56cc4.css">
   <script defer="" src="https://cdn.jsdelivr.net/npm/katex@0.18.4/dist/katex.min.js"></script>
   <script>document.addEventListener("DOMContentLoaded", function () {
  var mathElements = document.getElementsByClassName("math");
@@ -581,7 +581,7 @@
       var available = Math.max(1, (area.clientWidth || 1005) - 16);
       var share = parseFloat(host.style.getPropertyValue("--webr-code-share")) / 100;
       if (!share) return;
-      if (available * (1 - share) < MIN_PLOT_PX) stack(host, false);
+      if (available * (1 - share) < MIN_PLOT_PX) stack(area, host, false);
     }
 
     function measureRenderedCode(area, host, code, attempt) {
@@ -669,7 +669,7 @@
       if (share >= MAX_CODE_SHARE || attempt > 40) {
         // Even at the widest permitted code column the line will not fit, so the
         // cell has no business being side by side at all.
-        stack(host, true);
+        stack(area, host, true);
         return;
       }
       setTracks(host, area, share + 0.02);
@@ -720,19 +720,20 @@
       // No measurement for this cell: it was added or edited since the last run of
       // measure-webr-output.R, or R could not evaluate it. Judge on the code alone
       // rather than refuse, so an unmeasured deck still behaves reasonably.
+      // An author-set split — `#| code-track:` or the wrapper's own CSS variables
+      // — is a decision, and EVERYTHING below here is the prediction it overrides.
+      // setTracks(), ensureNoWrap() and the plot floor all already stand aside for
+      // `webrCodeFixed`. This test used to sit under the two below instead, which
+      // meant a hand-set split was still thrown away when the cell's own font
+      // measurement said the output would not fit, and — more often — when the
+      // cell printed nothing at all. An author who types a number wants to SEE
+      // that number, including on a cell with an empty output column.
+      if (area.closest('[data-webr-code-fixed="true"]')) return true;
       if (!entry) return true;
       // Ran and printed nothing, and drew nothing. There is no right-hand content
       // to show, so the code keeps the full width rather than facing an empty
       // Output banner. A figure counts as content even though it prints no text.
       if (!entry.plot && (!entry.rows || !entry.cols)) return false;
-
-      // An author-set split — `#| code-track:` or the wrapper's own CSS variables
-      // — is a decision, and everything below here is the prediction it overrides.
-      // setTracks(), ensureNoWrap() and the plot floor all already stand aside for
-      // `webrCodeFixed`; this test did not, so it sized a code column from the
-      // font, found the output would not fit beside THAT column, and stacked the
-      // cell — throwing away a split that fitted in the column actually asked for.
-      if (area.closest('[data-webr-code-fixed="true"]')) return true;
 
       var available = Math.max(1, (area.clientWidth || 1005) - 16);
       var codePx = Math.max(MIN_CODE_PX,
@@ -781,13 +782,12 @@
     // The one remaining way out of the side-by-side layout, and it can only fire
     // during load: the code will not fit on one line even in the widest column
     // allowed. Nothing a cell does at RUN time reaches here.
-    function stack(host, force) {
+    function stack(area, host, force) {
       // `::: {.side-out}` is a REQUEST, not an override: it cannot make code fit
       // that does not fit. What the exemption buys is that ordinary measurement
       // noise will not tear a deliberate wrapper down.
       if (host.dataset.webrLayoutManual === "true" && !force) return;
-      host.classList.remove("side-out");
-      host.dataset.webrLayout = "stacked";
+      markStacked(area, host);
     }
 
     // Called whenever the cell's DOM changes, which in practice means "the cell
@@ -805,9 +805,84 @@
       requestAnimationFrame(function () { markGutter(area, host); });
     }
 
+    // EVERY path that decides a cell stays stacked must come through here, and
+    // the reason is the attribute on the AREA. custom.scss puts any cell that has
+    // drawn a figure side by side, keyed off
+    // `:has(.qwebr-output-graph-area canvas):not([data-webr-layout="stacked"])`,
+    // and that `:not()` matches the interactive area — not the wrapper this
+    // script mostly works with. Stamping only the wrapper leaves that rule free
+    // to fire, and it fires at the moment the plot appears.
+    //
+    // What that looked like, measured on `L05_vector_raster_interaction.html`:
+    // the cell sat stacked until its plot was drawn, then flipped to
+    // `display: grid` with columns `1021px 9px` — custom.scss asks for `1fr 1fr`,
+    // but a `1fr` track may not shrink below its item's min-content width and
+    // Monaco's is the full slide — and the figure landed in the 9px track, 0x0,
+    // off the right edge of the slide. "The plot never appears." Adding
+    // `#| layout: stacked` by hand fixed it only because that option came through
+    // this function and stamped the area.
+    function markStacked(area, host) {
+      area.dataset.webrLayout = "stacked";
+      host = host || area.closest(".side-out") || area.closest(".cell") ||
+        area.parentElement;
+      if (host) {
+        host.classList.remove("side-out");
+        host.dataset.webrLayout = "stacked";
+      }
+    }
+
+    // A control that folds a cell's output away, because long output pushes
+    // everything below it down the slide and a result that has been read is then
+    // just in the way. It goes where the cell already has a header strip: the
+    // Output banner on a side-by-side cell (layOut() moves it there), the
+    // editor toolbar on a stacked one. All it does is set a flag on the
+    // interactive area; notebook.scss does the hiding.
+    function addOutputToggle(area) {
+      var bar = area.querySelector(".qwebr-editor-toolbar-right-buttons");
+      if (!bar || area.querySelector(".webr-output-toggle")) return;
+      var btn = document.createElement("button");
+      btn.type = "button";
+      // The extension's own reset and copy buttons carry exactly these classes.
+      // Wearing them too is what makes this look like part of the toolbar rather
+      // than something bolted on, and it inherits their hover state for free.
+      btn.className = "btn btn-light btn-xs qwebr-button webr-output-toggle";
+      // An eye, matching the reset and copy buttons beside it in being icon-only.
+      // Font Awesome needs no loading of its own: those two are already
+      // `fa-solid fa-arrows-rotate` and `fa-regular fa-copy`. The icon names the
+      // ACTION, not the current state — a folded cell shows a plain eye, "click
+      // to show".
+      //
+      // An icon carries no accessible name, so title and aria-label carry the
+      // words the button no longer prints. Both, not either: the title is the
+      // hover tooltip, the aria-label is what a screen reader announces.
+      var setState = function (hidden) {
+        var words = hidden ? "Show this cell's output" : "Hide this cell's output";
+        btn.innerHTML = '<i class="fa-solid fa-eye' + (hidden ? "" : "-slash") +
+          '" aria-hidden="true"></i>';
+        btn.title = words;
+        btn.setAttribute("aria-label", words);
+        btn.setAttribute("aria-expanded", hidden ? "false" : "true");
+      };
+      setState(false);
+      btn.addEventListener("click", function () {
+        var hide = area.dataset.webrOutputHidden !== "true";
+        area.dataset.webrOutputHidden = hide ? "true" : "false";
+        setState(hide);
+      });
+      // reveal reads keys off the document and stands aside only for inputs and
+      // contenteditable, not for a <button>. Without this, Space on a focused
+      // toggle both presses it and advances the slide.
+      btn.addEventListener("keydown", function (e) {
+        if (e.key === " " || e.key === "Enter") e.stopPropagation();
+      });
+      bar.appendChild(btn);
+    }
+
     function configure(area) {
       if (area.dataset.webrLayoutChecked === "true") return;
       area.dataset.webrLayoutChecked = "true";
+
+      addOutputToggle(area);
 
       // `::: {.stacked}` is the manual OPT-OUT, and the mirror of `.side-out`:
       // this cell keeps the vertical stack whatever the measurements say. The two
@@ -815,12 +890,7 @@
       // has looked at the slide outranks the arithmetic in both. It is checked
       // FIRST, before any measuring, because there is nothing left to decide.
       if (area.closest(".stacked")) {
-        var forcedHost = area.closest(".side-out") || area.closest(".cell") ||
-          area.parentElement;
-        if (forcedHost) {
-          forcedHost.classList.remove("side-out");
-          forcedHost.dataset.webrLayout = "stacked";
-        }
+        markStacked(area);
         return;
       }
 
@@ -831,17 +901,41 @@
       // means the same thing. Checked here rather than with the wrapper only
       // because the options have to be read first; nothing has been measured yet.
       if (details.options["layout"] === "stacked") {
-        var optHost = area.closest(".side-out") || area.closest(".cell") ||
-          area.parentElement;
-        if (optHost) {
-          optHost.classList.remove("side-out");
-          optHost.dataset.webrLayout = "stacked";
-        }
+        markStacked(area);
         return;
       }
 
+      // `#| code-track: 0.55` is read HERE, above every automatic gate, because
+      // it is the one option that overrides all of them. It used to be read forty
+      // lines down, after the two `return`s below had already sent a long cell or
+      // a cell inside a `.column` back to the stack without ever looking at it —
+      // an override that silently did nothing, which is worse than no override.
+      var codeTrack = parseFloat(details.options["code-track"]);
+      var fixedSplit = codeTrack > 0 && codeTrack < 1;
+
       var metrics = codeMetrics(details.code);
-      if (!metrics.lines || metrics.lines > MAX_CODE_LINES || metrics.maxChars > 88) return;
+      if (!metrics.lines) return;
+      // Too many lines, or a line too long for any column: no automatic split.
+      //
+      // Walking away silently was not the same as saying stacked, and the
+      // difference was 36 cells across the two courses. custom.scss's figure rule
+      // takes any unstamped cell that has drawn a plot into two columns of its
+      // own, which is the very layout this gate refuses: the code is too wide for
+      // half a slide, so the editor wraps. Record the decision instead.
+      //
+      // Only the AREA is stamped, and only the stylesheet reads it. A
+      // `::: {.side-out}` wrapper in the markup is left alone, because
+      // custom.scss already stands aside inside one and notebook.scss lays that
+      // cell out from the class — an author who typed the wrapper still gets it.
+      // `classes: qwebr-side-by-side` is exempt for the same reason: it is the
+      // author asking for custom.scss's layout by name.
+      if (!fixedSplit &&
+        (metrics.lines > MAX_CODE_LINES || metrics.maxChars > 88)) {
+        if (!area.classList.contains("qwebr-side-by-side")) {
+          area.dataset.webrLayout = "stacked";
+        }
+        return;
+      }
 
       var existingWrapper = area.closest(".side-out");
 
@@ -853,11 +947,8 @@
       // the class is in the markup, so notebook.scss would lay the cell out in
       // two columns regardless of what this script decides, and the halved width
       // is not something the author who typed `::: {.side-out}` accounted for.
-      if (area.closest(".column")) {
-        if (existingWrapper) {
-          existingWrapper.classList.remove("side-out");
-          existingWrapper.dataset.webrLayout = "stacked";
-        }
+      if (area.closest(".column") && !fixedSplit) {
+        if (existingWrapper) markStacked(area, existingWrapper);
         return;
       }
 
@@ -887,14 +978,13 @@
       // than only setting the flags is what makes the option identical to the
       // wrapper: the fit tests below read the class, so the cell can override the
       // figure floor, and code that will not fit one line still stacks.
-      var codeTrack = parseFloat(details.options["code-track"]);
-      if (codeTrack > 0 && codeTrack < 1) {
+      if (fixedSplit) {
         host.style.setProperty("--webr-code-track", codeTrack + "fr");
         host.style.setProperty("--webr-output-track", (1 - codeTrack) + "fr");
         host.style.setProperty("--webr-code-share", (codeTrack * 100) + "%");
         host.dataset.webrCodeFixed = "true";
       }
-      if ((codeTrack > 0 && codeTrack < 1) || details.options["layout"] === "side") {
+      if (fixedSplit || details.options["layout"] === "side") {
         host.classList.add("side-out");
         host.dataset.webrLayoutManual = "true";
       }
@@ -910,7 +1000,13 @@
         // therefore as silent, when what that cell actually prints is a four-line
         // syntax error — which is the whole point of the slide it sits on.
         // A measured cell is judged on what R really printed.
-        if (!entry && printsNothing(details.code)) {
+        if (!entry && printsNothing(details.code) &&
+          host.dataset.webrCodeFixed !== "true") {
+          // Not markStacked(): that also strips a `::: {.side-out}` wrapper, and
+          // this branch is a guess from the source rather than a measurement, so
+          // it must not tear an author's wrapper down. Only the two attributes,
+          // which is what keeps custom.scss's figure rule off the cell.
+          area.dataset.webrLayout = "stacked";
           host.dataset.webrLayout = "stacked";
           return;
         }
@@ -918,7 +1014,7 @@
           // force: a `::: {.side-out}` wrapper is a request, and the class is in
           // the markup, so it must be REMOVED here or the stylesheet lays the cell
           // out in two columns whatever this script decided.
-          stack(host, true);
+          stack(area, host, true);
           return;
         }
         if (entry && entry.plot) host.dataset.webrPlot = "true";
@@ -930,6 +1026,13 @@
     // Everything below runs only for a cell that IS side by side: size its code
     // column, keep Monaco from wrapping in it, and keep the gutter caret centred.
     function layOut(area, host, details, metrics) {
+      // The banner is the output's own header strip, so on a side-by-side cell
+      // the toggle belongs there rather than in the toolbar over the code.
+      // notebook.scss puts it in the `outbar` grid area, on top of the ::before
+      // that paints the banner.
+      var toggle = area.querySelector(".webr-output-toggle");
+      if (toggle) area.appendChild(toggle);
+
       // Estimate an initial split from the longest source line, in pixels against
       // the width this cell actually has. The old form was `(maxChars + 10) / 145`,
       // which assumed ~145 characters span the full width; the real figure is ~109,
@@ -964,8 +1067,35 @@
       requestAnimationFrame(function () { assessOutput(area, host); });
     }
 
+    // `#| fig-max-height: 600`, or `#| fig-max-height: none` to lift the cap
+    // entirely for this cell. The 420px cap in notebook.scss is a floor plan for
+    // a slide that also carries a title, a tab bar and a couple of lines of text.
+    // Two things it cannot see: a slide with less on it than that, and a portrait
+    // figure, which gets nothing at all from the width it is handed and is held
+    // at whatever the cap allows in height. This writes the custom property the
+    // cap reads onto this cell only, so no other figure on the deck moves.
+    //
+    // Called from scan() rather than configure(), because configure() returns
+    // early for a setup cell, for `.stacked`, and for a cell inside a `.column`,
+    // and a figure in any of those is capped like every other.
+    function applyFigureCap(area) {
+      if (area.dataset.webrFigCap) return;
+      var details = detailsFor(area);
+      var raw = details && details.options && details.options["fig-max-height"];
+      if (!raw) return;
+      raw = String(raw).trim();
+      var value = raw === "none" ? "none"
+        : (parseFloat(raw) > 0 ? parseFloat(raw) + "px" : null);
+      if (!value) return;
+      area.dataset.webrFigCap = value;
+      area.style.setProperty("--webr-fig-max-height", value);
+    }
+
     function scan() {
-      document.querySelectorAll(".qwebr-interactive-area").forEach(configure);
+      document.querySelectorAll(".qwebr-interactive-area").forEach(function (area) {
+        applyFigureCap(area);
+        configure(area);
+      });
     }
 
     var pageObserver = new MutationObserver(scan);
@@ -1281,7 +1411,7 @@
   };
 
   // Store cell data
-  globalThis.qwebrCellDetails = [{"code":"#--- load the kielmc data ---#\ndata(kielmc, package = \"wooldridge\")\n\n#--- change the scale of a variable ---#\n(\ndata <- \n  kielmc %>%\n  as_tibble() %>%\n  dplyr::mutate(rprice = rprice / 1000)\n)","id":1,"options":{"autorun":"true","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.7","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"6","fig-width":"10","label":"unnamed-chunk-1","message":"true","out-height":"","out-width":"100%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"(\nreg_81 <-\n  feols(\n    rprice ~ nearinc,\n    data = filter(data, year == 1981)\n  )\n)","id":2,"options":{"autorun":"true","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.7","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"6","fig-width":"10","label":"unnamed-chunk-2","message":"true","out-height":"","out-width":"100%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"(\nreg_78 <-\n  feols(\n    rprice ~ nearinc,\n    data = filter(data, year == 1978)\n  )\n)","id":3,"options":{"autorun":"true","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.7","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"6","fig-width":"10","label":"unnamed-chunk-3","message":"true","out-height":"","out-width":"100%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"(\n  fixest::feols(\n    rprice ~ y81,\n    data = filter(data, nearinc == 1)\n  )\n)","id":4,"options":{"autorun":"true","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.7","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"6","fig-width":"10","label":"unnamed-chunk-4","message":"true","out-height":"","out-width":"100%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"fixest::feols(\n  rprice ~ nearinc * y81,\n  vcov = \"hetero\",\n  data = data\n)","id":5,"options":{"autorun":"true","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.7","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"6","fig-width":"10","label":"unnamed-chunk-5","message":"true","out-height":"","out-width":"100%","output":"true","read-only":"false","results":"markup","warning":"true"}}];
+  globalThis.qwebrCellDetails = [{"code":"#--- load the kielmc data ---#\ndata(kielmc, package = \"wooldridge\")\n\n#--- change the scale of a variable ---#\n(\n  data <-\n    kielmc %>%\n    as_tibble() %>%\n    dplyr::mutate(rprice = rprice / 1000)\n)","id":1,"options":{"autorun":"true","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.7","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"6","fig-width":"10","label":"unnamed-chunk-1","message":"true","out-height":"","out-width":"100%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"(\n  reg_81 <-\n    feols(\n      rprice ~ nearinc,\n      data = filter(data, year == 1981)\n    )\n)","id":2,"options":{"autorun":"true","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.7","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"6","fig-width":"10","label":"unnamed-chunk-2","message":"true","out-height":"","out-width":"100%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"(\n  reg_78 <-\n    feols(\n      rprice ~ nearinc,\n      data = filter(data, year == 1978)\n    )\n)","id":3,"options":{"autorun":"true","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.7","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"6","fig-width":"10","label":"unnamed-chunk-3","message":"true","out-height":"","out-width":"100%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"(\n  fixest::feols(\n    rprice ~ y81,\n    data = filter(data, nearinc == 1)\n  )\n)","id":4,"options":{"autorun":"true","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.7","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"6","fig-width":"10","label":"unnamed-chunk-4","message":"true","out-height":"","out-width":"100%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"fixest::feols(\n  rprice ~ nearinc * y81,\n  vcov = \"hetero\",\n  data = data\n)","id":5,"options":{"autorun":"true","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.7","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"6","fig-width":"10","label":"unnamed-chunk-5","message":"true","out-height":"","out-width":"100%","output":"true","read-only":"false","results":"markup","warning":"true"}}];
 
   </script>
   <script type="module">
@@ -2224,9 +2354,48 @@
   } 
 
   // Function to run the code using webR and parse the output
+  // How many characters of printed output fit across this cell's output box.
+  //
+  // Everything here is in CSS pixels, never getBoundingClientRect(): reveal
+  // scales the whole slide with a transform, so a rect is the scaled number
+  // while getComputedStyle and canvas.measureText are unscaled, and mixing the
+  // two gives a width out by the scale factor.
+  //
+  // The 80-character sample rather than one character because measureText
+  // rounds, and one rounded character multiplied by 124 is a visible error.
+  globalThis.qwebrOutputWidthChars = function (outputDiv) {
+      const DEFAULT_WIDTH = 80;
+      if (!outputDiv) return DEFAULT_WIDTH;
+      // The extension creates the output `pre` at load and keeps it hidden until
+      // the cell prints something, so its font is readable before the first run.
+      const probe = outputDiv.querySelector("pre") || outputDiv;
+      const usable = probe.clientWidth;  // content box: excludes the accent border
+      if (!usable) return DEFAULT_WIDTH;
+      const cs = getComputedStyle(probe);
+      const canvas = qwebrOutputWidthChars.canvas ||
+          (qwebrOutputWidthChars.canvas = document.createElement("canvas"));
+      const context = canvas.getContext("2d");
+      context.font = [cs.fontStyle, cs.fontWeight, cs.fontSize, cs.fontFamily]
+          .filter(Boolean).join(" ");
+      const perChar = context.measureText("0".repeat(80)).width / 80;
+      if (!perChar) return DEFAULT_WIDTH;
+      // qwebr-styling.css puts `margin: 1px 2px 1px 10px` on the div inside the
+      // pre, so 12px of the content box is never printable.
+      const chars = Math.floor((usable - 12) / perChar);
+      // Never NARROWER than R's own default. This only ever hands a cell more
+      // room than it had, so no slide that has already been read over prints
+      // differently unless its box was wider than 80 characters all along. A
+      // cell in a half-width `.column` measures about 60 and keeps 80, which is
+      // what it prints today: the tail scrolls, and trading that for a block
+      // two-thirds taller is not obviously the better deal on a slide.
+      // The ceiling is there because `options(width = )` is a hard limit in R,
+      // not a suggestion, and nothing on these decks wants a 300-character line.
+      return Math.max(DEFAULT_WIDTH, Math.min(200, chars));
+  };
+
   globalThis.qwebrComputeEngine = async function(
-      codeToRun, 
-      elements, 
+      codeToRun,
+      elements,
       options) {
 
       // Call into the R compute engine that persists within the document scope.
@@ -2288,6 +2457,19 @@
       // Store the code to run in history
       qwebrLogCodeToHistory(codeToRun, options);
 
+      // R wraps everything it prints at `getOption("width")` characters and webR
+      // leaves that at 80, whatever the box it is printing into. A full-width
+      // cell fits about 124 characters at the deck's code size, so a printed
+      // data frame stopped a third short of the right edge and R moved its last
+      // column into a second block underneath — which is how a six-column
+      // `st_join` result came out as five columns and then a lone `geometry`.
+      // Measure the box this cell actually got and let R use all of it.
+      //
+      // Safe to take at run time: webr-layout.html decides side-by-side versus
+      // stacked while the page loads and never revisits it (see assessOutput),
+      // so the width measured here is the width the output is printed into.
+      const widthFix = `options(width = ${qwebrOutputWidthChars(elements.outputCodeDiv)}); `;
+
       // webR's canvas draws text at the `pointsize` set above but still reports
       // its character metrics as if the font were 12pt. R sizes plot margins in
       // "lines" from those metrics, so on a 216 dpi canvas the margins come out
@@ -2304,7 +2486,7 @@
       // Evaluate the R code
       // Remove the active canvas silently
       const result = await mainWebRCodeShelter.captureR(
-          `${marginFix}${codeToRun}`,
+          `${widthFix}${marginFix}${codeToRun}`,
           captureOutputOptions
       );
 
@@ -2358,6 +2540,10 @@
 
           // Design an output object for messages
           const pre = document.createElement("pre");
+          // PATCHED: an `output: asis` cell hands back real HTML (a gt, kableExtra
+          // or tinytable table). It keeps the output box, but not the whitespace
+          // and font of a `pre`. See notebook.scss, and RULES.md section 7.
+          if (!showMarkup) { pre.classList.add("qwebr-output-asis"); }
           if (/\S/.test(out)) {
               // Display results as HTML elements to retain output styling
               const div = document.createElement("div");
@@ -2376,6 +2562,22 @@
           }
 
           elements.outputCodeDiv.appendChild(pre);
+
+          // PATCHED: HTML written by `output: asis` may carry its own <script>,
+          // which is how tinytable, modelsummary's default HTML output, fills its
+          // cells. innerHTML never runs a script, so the table arrived empty.
+          // Re-creating each script node runs it, and it must happen after the
+          // output is in the document or a detached node still does nothing.
+          if (!showMarkup) {
+              pre.querySelectorAll("script").forEach((original) => {
+                  const script = document.createElement("script");
+                  for (const attribute of original.attributes) {
+                      script.setAttribute(attribute.name, attribute.value);
+                  }
+                  script.textContent = original.textContent;
+                  original.replaceWith(script);
+              });
+          }
 
           // Determine if we have graphs to display
           if (result.images.length > 0) {
@@ -2592,6 +2794,16 @@ globalThis.qwebrCreateMonacoEditorInstance = function (cellData) {
       fontSize: qwebrScaledFontSize(editorDiv, qwebrOptions),         
       renderLineHighlight: "none",      // Disable current line highlighting
       hideCursorInOverviewRuler: true,  // Remove cursor indictor in right hand side scroll bar
+      // PATCHED, see RULES.md. Monaco reserves a strip at the right of the
+      // editor for the overview ruler — the map of marks beside a scrollbar —
+      // and draws a hairline border down its left side. Nothing in these decks
+      // puts a mark in it, so it is an empty ~14px band, and its border reads
+      // as the right edge of the code block: the block then looks narrower than
+      // the "Run Code" bar above it, which is the whole point of the bar being
+      // the editor's own width. No lanes, no border, and the code ground runs
+      // to the container edge.
+      overviewRulerLanes: 0,
+      overviewRulerBorder: false,
       // PATCHED, see RULES.md. Monaco's defaults reserve five characters of
       // number column (`lineNumbersMinChars: 5`) and a 10px decorations strip
       // beside it, which on a cell of at most a couple of dozen lines is a wide
@@ -2843,7 +3055,9 @@ globalThis.qwebrCreateMonacoEditorInstance = function (cellData) {
 <summary>
 Transcript
 </summary>
-<p>Impact evaluation asks what a program or event caused, not merely what happened after it. The causal challenge is the missing counterfactual: for a treated unit, we do not observe what its outcome would have been at the same time without treatment. Most real programs are not randomly assigned, so participants can differ systematically from nonparticipants. Difference-in-differences is one design for constructing a credible comparison when treatment begins for one group but not another.</p>
+<p>Impact evaluation asks a causal question: what did a program or event change? That is different from simply documenting what happened after the program. Look at the examples. A groundwater-use limit might reduce pumping, a soil-moisture sensor might change irrigation, crop insurance might change input use, job training might raise productivity, and food assistance might affect health or education. In every case, the arrow is a causal claim. You want the outcome with the program minus the outcome the same units would have had without it.</p>
+<p>That second outcome is the counterfactual, and it is missing. For example, after a Nebraska well is regulated, you observe its regulated pumping, but you cannot observe that same well, in the same weather and year, pumping without the limit. You therefore need another observation or group to stand in for the missing outcome.</p>
+<p>Now look at the key-challenge callout. Most programs of interest are not randomized. Farmers choose whether to adopt technology or insurance, workers choose whether to enter training, and eligibility rules direct assistance toward people who already differ from nonrecipients. That self-selection makes program status correlated with other determinants of the outcome, which is the endogeneity problem named at the bottom of the callout. A raw participant-versus-nonparticipant comparison will then mix the program’s effect with those prior differences. Difference-in-differences, or DID, is one way to construct a more credible counterfactual when one group becomes exposed and another does not. The rest of the lecture asks exactly what DID removes and what assumption it still requires.</p>
 </details>
 <p><strong>Definition</strong></p>
 <p>Impact (program) evaluation is a field of econometrics that focuses on estimating the impact of a program or event.</p>
@@ -2876,7 +3090,10 @@ Transcript
 <summary>
 Transcript
 </summary>
-<p>Random assignment is the benchmark because it makes treatment independent of potential outcomes in expectation. Treated and control groups can still differ by chance in a particular sample, but assignment does not systematically favor one type. In the simple equation, this supports the zero-conditional-mean condition and lets the treatment indicator identify an average causal effect. Many policies cannot be randomized, so observational designs try to find variation that mimics the relevant part of an experiment.</p>
+<p>Random assignment is the gold standard because it breaks systematic selection into treatment. Each eligible unit has its treatment status assigned by chance, so, in expectation over possible assignments, the treated and control groups have the same distribution of potential outcomes. They may still differ by chance in one realized sample, especially a small one, but assignment does not consistently place high-income or low-income people in one group.</p>
+<p>Read the example equation aloud as income equals beta zero plus beta one times program, here financial aid, plus the error term u. Program is one for a person offered or assigned the aid and zero for a control person. Beta zero is the control group’s expected income. Beta one is the difference in expected income between the assigned groups, so under random assignment it is the average causal effect of the offer or program in this simple model. The error u collects all other determinants of income.</p>
+<p>The condition underneath says the expected value of u conditional on program status is zero. In words, people assigned to aid do not systematically have higher or lower unobserved income determinants than controls. Random assignment supports that condition. It is why ordinary least squares can consistently estimate beta one as the sample grows. Randomization does not guarantee identical sample means, perfect compliance, or precise estimates, but it supplies a known assignment mechanism that prevents selection bias.</p>
+<p>The problem callout explains why we need this course’s observational designs. Governments and researchers often cannot randomize laws, infrastructure, disasters, or ethically important benefits. We then use events outside our control and ask whether their treatment variation plausibly reproduces the relevant comparison that randomization would have provided. Flip to the next tab for that idea.</p>
 </details>
 <p><strong>Gold Standard</strong></p>
 <ul>
@@ -2908,7 +3125,9 @@ Transcript
 <summary>
 Transcript
 </summary>
-<p>A natural experiment is not automatically random. It is an external event or institutional rule that changes treatment exposure, and the researcher must explain why the resulting variation is plausibly unrelated to untreated potential outcomes. The assignment mechanism, timing, affected population, and possible spillovers all matter. DID often studies policy changes of this kind by comparing an exposed group with an unexposed group before and after the event.</p>
+<p>A natural, or quasi, experiment begins with an event or policy change that the investigator did not assign. As the definition says, it changes the environment facing individuals, families, firms, cities, or other units. Examples include a law introduced in one state, an infrastructure project placed in one location, or an eligibility cutoff created by an agency. The event generates treatment variation that we may be able to use even though we did not run an experiment.</p>
+<p>Do not read the word natural as meaning automatically random. The challenge on the slide is that the researcher did not control treatment assignment. You must study who was exposed, who was not, when exposure began, whether people anticipated it, and whether treatment affected the proposed control group through spillovers. You must also ask why the policy happened where and when it did. If a county adopts a program because its untreated outcome was already worsening, then policy status is related to the counterfactual outcome and the comparison remains endogenous.</p>
+<p>A credible natural experiment has a source of variation that is plausibly unrelated to untreated potential outcomes after accounting for the design. That credibility comes from institutional facts and observable evidence, not from the label. DID is often paired with natural experiments because it compares an exposed group with an unexposed group before and after the event. The method can remove fixed group differences and shared time shocks, but it cannot rescue an assignment process that produces different untreated trends. That distinction sets up the three approaches in the next section.</p>
 </details>
 <p><strong>Definition</strong></p>
 <p>An event or policy change outside investigators’ control that changes the environment in which individuals, families, firms, cities, or other units operate.</p>
@@ -2931,7 +3150,9 @@ Transcript
 <summary>
 Transcript
 </summary>
-<p>We will compare three estimators of the same incinerator effect. The exercise is deliberately structured so each approach removes a different source of confounding. A post-treatment cross-section leaves baseline group differences and differential trends. A before-after comparison leaves common time changes. DID subtracts both, but it still depends on the treated and control groups having parallel untreated changes. The algebra will make each identifying assumption visible.</p>
+<p>There are two objectives in this section. First, you will learn several ways someone might try to estimate the effect of the same program, including difference-in-differences. Second, you will learn why an estimator that is easy to calculate may still be a poor causal design.</p>
+<p>We will use the incinerator example for all three approaches so the target effect stays fixed. Approach one is a post-treatment cross-section: compare nearby treated houses with farther-away controls in 1981. Approach two is a before-after comparison: compare nearby houses in 1978 with nearby houses in 1981. Approach three, DID, combines the group comparison with the time comparison. Each step removes a different source of confounding. The post-only comparison retains both any baseline location gap and any difference in untreated changes. The treated before-after comparison removes a fixed location gap but retains every other time change. DID removes fixed group differences and time changes shared by both groups, but it still requires the groups to have had the same change without treatment.</p>
+<p>As we work through the algebra, keep two questions separate. What descriptive difference does the regression coefficient calculate, and under what assumptions does that difference equal the causal effect? Understanding both the strength and the weakness of each approach means being able to answer both questions.</p>
 </details>
 <ul>
 <li><p>Discuss different ways of estimating the impact of a program including the difference in differences (DID) method.</p></li>
@@ -2943,7 +3164,9 @@ Transcript
 <summary>
 Transcript
 </summary>
-<p>The proposed incinerator creates a location-based treatment. Houses near the site are exposed; houses farther away form a potential control group. We observe prices in 1978, when rumors existed but construction had not begun, and in 1981, when construction began. That timing raises questions about anticipation: if rumors already affected prices in 1978, calling it an untreated baseline is imperfect. For the classroom design, we use these years to compare the three estimators.</p>
+<p>Our program is the construction of an incinerator in North Andover, Massachusetts. The first bullet establishes the timing: rumors about the project began in 1978. The second says construction began in 1981. Houses near the proposed site are the treated group because their location exposes them most directly to possible odors, traffic, pollution, or stigma. Houses farther away are a candidate control group.</p>
+<p>The data contain sale prices and other house characteristics in both 1978 and 1981. We will call 1978 the before period because physical construction had not begun, and 1981 the after period because construction had begun. The outcome is the real, inflation-corrected sale price. If the incinerator makes nearby locations less desirable, the causal effect we seek should appear as a less favorable price change for nearby houses.</p>
+<p>The rumor date is not a minor historical detail. It raises an anticipation concern. Buyers and sellers may capitalize expected future harm into prices before construction begins. If rumors already lowered nearby prices during 1978, then that year’s price is not a completely untreated baseline. The resulting DID may miss an earlier part of the effect. We will leave the slide’s before-and-after classification in place for the classroom calculation, but a real evaluation would investigate the announcement process, exact sale dates, and earlier price trends. This example will let us compare the mechanics of three estimators while also seeing why institutional timing matters.</p>
 </details>
 <p><strong>Incinerator Construction</strong></p>
 <ul>
@@ -2959,7 +3182,10 @@ Transcript
 <summary>
 Transcript
 </summary>
-<p>The <code>kielmc</code> data contain house prices, location relative to the incinerator, year indicators, and housing characteristics. Real price is rescaled into thousands of dollars so coefficients are easier to read. Check how <code>nearinc</code> and <code>y81</code> are coded: their interaction will identify the DID estimate. This is a repeated-cross-section application—houses observed in 1978 need not be the identical houses observed in 1981.</p>
+<p>This code prepares the data used in all three approaches. The first call asks R to load the data set named keel-m-c from the Wooldridge package. Naming the package matters because it tells the data function exactly where to find that built-in data set. The result contains house sale prices, the sale year, location relative to the incinerator, and observed housing characteristics.</p>
+<p>The expression in parentheses both creates an object called data and prints the result on screen. Starting with keel-m-c, the pipe passes the data into as-tibble, which changes the printing and data-frame class without changing the observations. The next pipe passes that tibble into dee-plyer mutate. Mutate replaces real price with real price divided by one thousand. The original variable is measured in dollars, so after this transformation a one-unit coefficient means one thousand inflation-corrected dollars. That scale change affects how we state every estimate, but it does not affect t statistics or p-values.</p>
+<p>Two indicator variables will do the main design work. Near-inc equals one for houses near the site and zero for houses farther away. Why eighty-one equals one for 1981 sales and zero for 1978 sales. Later, their product will equal one only for nearby houses in 1981, the treated group in the after period.</p>
+<p>Notice also what the rows represent. This is a repeated cross-section, not necessarily a panel of the same houses. We observe sales from each location group in each year, but a house sold in 1978 need not be sold again in 1981. DID can work with repeated cross-sections if each cell represents the relevant population consistently. Changes in which kinds of houses sell, however, can create a composition problem, which is why the additional house characteristics can matter in a fuller analysis.</p>
 </details>
 <div id="qwebr-insertion-location-1"></div>
 <noscript>Please enable JavaScript to experience the dynamic code cell content on this page.</noscript>
@@ -2969,7 +3195,9 @@ Transcript
 <summary>
 Transcript
 </summary>
-<p>Approach one compares treated and control houses only after construction began. Approach two compares the treated area before and after. Approach three combines both comparisons. Each sounds reasonable in words, but each uses a different counterfactual. As we proceed, identify what would have happened to nearby-house prices without the incinerator and which observed quantity each approach uses as a substitute for that missing outcome.</p>
+<p>These three callouts are our roadmap. Approach one uses only the after period, 1981. It compares the mean real price of houses close to the incinerator with the mean for houses farther away. Its implicit counterfactual says the far-house price level in 1981 tells us what nearby houses would have cost in 1981 without construction. That requires the locations to be comparable not only in their change but also in their starting level.</p>
+<p>Approach two uses only the treated location group but both years. It compares nearby-house prices before and after construction began. Its implicit counterfactual says the nearby group’s 1978 mean tells us what its 1981 mean would have been without the incinerator. That requires no other force to have changed nearby real prices between the years.</p>
+<p>Approach three combines both dimensions. First find the 1978-to-1981 change for nearby houses. Then find the same change for far houses. Finally subtract the second change from the first. The far group’s change is used as the counterfactual time change for the near group. This difference-in-differences approach allows the groups to start at different levels and allows prices to change over time for reasons unrelated to construction. It requires those untreated changes to be the same across groups. As you move through the tabs, keep identifying the missing outcome and the observed substitute used for it.</p>
 </details>
 <div title="Approach 1">
 <div class="callout callout-note no-icon callout-titled callout-style-default">
@@ -3022,7 +3250,9 @@ Transcript
 <summary>
 Transcript
 </summary>
-<p>The first strategy uses only the 1981 cross-section and compares houses near the site with those farther away. Delta one is a mean difference after construction began. For it to be causal, <code>nearinc</code> must be unrelated to every other determinant of price in 1981. That is demanding because neighborhoods differ in amenities, housing stock, access, and pre-existing desirability. Location is not randomly assigned, so we should expect <code>nearinc</code> to be endogenous without strong controls or design evidence.</p>
+<p>Approach one discards the 1978 observations and runs a cross-sectional regression using only 1981 sales. Read the model as real price equals delta zero plus delta one times near-inc plus the error u. Real price is the inflation-corrected house price measured in thousands of dollars. Near-inc is one for a house near the incinerator and zero for a house farther away. Delta zero is therefore the expected 1981 price for far houses. Delta one is the near-versus-far difference in 1981. The error contains every other price determinant not represented by the indicator.</p>
+<p>The question at the bottom asks whether near-inc is endogenous. For delta one to identify the incinerator’s causal effect, near-inc must be uncorrelated with the unobserved determinants in u. That is a demanding condition. Location was not randomly assigned. Near and far neighborhoods can differ in school access, lot size, housing quality, transportation, taxes, industrial land use, or general desirability. Those features can affect price and also be correlated with proximity. The composition of houses sold in 1981 can differ as well.</p>
+<p>Even if you add observed housing controls, unobserved location differences may remain. The central mistake would be to interpret an after-period group difference as a treatment effect merely because the treatment is geographically defined. We first need to distinguish the mechanical meaning of delta one from its causal interpretation, which is what the next tab does.</p>
 </details>
 <p>Run regression on the following model using the 1981 data (cross-sectional data)</p>
 <p><span class="math inline">rprice = \delta_0 + \delta_1 nearinc + u</span></p>
@@ -3039,7 +3269,9 @@ Transcript
 <summary>
 Transcript
 </summary>
-<p>With a binary regressor and an intercept, delta zero is the mean for the far group and delta zero plus delta one is the mean for the near group. Subtracting gives delta one. This is a descriptive identity; it does not attach a causal label to the difference. The estimate includes any pre-existing price gap, any difference in price changes between locations, and the incinerator effect. Interpretation of the regression coefficient and identification of a causal effect are separate steps.</p>
+<p>Look first at the model and remember that near-inc can take only zero or one. For a far house, set near-inc equal to zero. The conditional expected real price in 1981 is then delta zero because the delta-one term drops out and the conditional mean of the regression error is zero. That is the second expectation line in the answer.</p>
+<p>For a nearby house, set near-inc equal to one. The expected price becomes delta zero plus delta one, which is the first expectation line. Now subtract the far-group mean from the near-group mean. Delta zero appears in both and cancels, leaving delta one. So delta one measures the 1981 mean price near the incinerator minus the 1981 mean price farther away. Since real price is in thousands, delta one is measured in thousands of inflation-corrected dollars. A negative value means nearby houses are cheaper on average in that year.</p>
+<p>This result follows mechanically from a regression with an intercept and one binary regressor. It is a descriptive identity, not yet a causal result. Delta one can contain a price difference that existed before construction, a difference in how the two locations would have changed for other reasons, and the incinerator’s effect. Statistical estimation tells us the size and uncertainty of the observed gap. Identification tells us whether that gap isolates the causal parameter. Keep that distinction in mind when we run the regression on the next tab.</p>
 </details>
 <p><strong>Model</strong></p>
 <p><span class="math inline">rprice = \delta_0 + \delta_1 nearinc + u</span></p>
@@ -3067,7 +3299,9 @@ Answer
 <summary>
 Transcript
 </summary>
-<p>The 1981 regression estimates the post-period gap directly. The coefficient on <code>nearinc</code> is the average real-price difference in thousands of dollars. Before deciding whether it represents harm from the incinerator, look at the pre-period. If nearby houses were already cheaper in 1978, the post-period gap cannot be attributed entirely to construction. Statistical significance does not repair that comparison problem.</p>
+<p>Here the fee-OLS call estimates the model from the previous tab. The first argument is the formula, real price on near-inc. The tilde means real price is the dependent variable and near-inc is the explanatory variable; fee-OLS includes an intercept by default. The data argument supplies only rows produced by filtering data to year equal to 1981. The outer parentheses print the fitted model while also saving it as reg eighty-one.</p>
+<p>Read the output in units of thousands of real dollars. There are 142 sales. The intercept is about 101.31, so far houses sold for an average of roughly 101,308 dollars. The near-inc coefficient is about negative 30.69, so nearby houses averaged roughly 30,688 dollars less. Adding the two coefficients gives a nearby mean of about 70.62 thousand dollars. The conventional standard error for the gap is about 5.83, the t statistic is negative 5.27, and the very small p-value rejects a zero 1981 difference under the model’s sampling assumptions.</p>
+<p>That strong statistical evidence does not establish causality. It says the post-period location means differ precisely in this sample. It does not say the entire gap was created by the incinerator. If nearby houses were already cheaper before construction, or if the two areas would have changed differently anyway, those components are inside negative 30.69. The reliability question on the slide is therefore a design question, not just a significance question. Flip to the 1978 tab to see whether the groups were already separated.</p>
 </details>
 <div id="qwebr-insertion-location-2"></div>
 <noscript>Please enable JavaScript to experience the dynamic code cell content on this page.</noscript>
@@ -3079,7 +3313,9 @@ Transcript
 <summary>
 Transcript
 </summary>
-<p>The 1978 regression reveals a substantial near-far price difference before construction began. That baseline gap could reflect neighborhood characteristics or anticipation caused by the earlier rumors. Either way, it shows why the 1981 cross-section is not a clean counterfactual comparison. A valid post-only design would require treated and control locations to have been comparable in untreated levels and changes, conditions the data already make doubtful.</p>
+<p>This tab repeats the same cross-sectional comparison using 1978, before construction began. On the left, the model reads real price equals theta zero plus theta one times near-inc plus u. Theta zero is the mean real price of far houses in 1978, and theta one is the nearby mean minus the far mean in that year. On the right, fee-OLS estimates that formula after filter keeps only rows whose year equals 1978. The parentheses print the result and save it as reg seventy-eight.</p>
+<p>There are 179 sales in this regression. The intercept is about 82.52, so the far-group mean was roughly 82,517 real dollars. The near-inc coefficient is about negative 18.82, with a standard error of about 4.74 and a p-value near 0.0001. Thus nearby houses averaged about 18,824 dollars less even in the designated before period, and their implied mean was about 63.69 thousand dollars.</p>
+<p>That is the critical fact in the blue callout. The 1981 gap of negative 30.69 did not begin from zero. At least negative 18.82 thousand dollars of near-versus-far difference was already visible in 1978. It may reflect stable neighborhood and house differences. Because rumors had begun, it might also include anticipation, which would mean 1978 is not fully untreated. Either explanation prevents us from assigning the full 1981 gap to construction. A post-only design would need equal untreated levels and equal untreated changes. The observed baseline gap directly contradicts the equal-level part. The visualization next puts all four group-year means together.</p>
 </details>
 <div class="columns">
 <div class="column" style="width:40%;">
@@ -3113,7 +3349,9 @@ rprice = \theta_0 + \theta_1 nearinc + u
 <summary>
 Transcript
 </summary>
-<p>The bars display the four group-time means that underlie every estimator in this section. First compare near with far within 1981: that is Approach one. Then compare the same groups in 1978 and note the pre-existing level gap. Finally compare how each group’s bar changes across years; DID will subtract those changes. Reading the four means visually is often the fastest way to detect what a two-by-two regression is doing.</p>
+<p>This graph displays the four cell means behind every calculation in the incinerator example. The horizontal axis is year, with 1978 on the left and 1981 on the right. The vertical axis is mean real house price in thousands of dollars. Within each year, the two differently shaded bars correspond to near-inc zero, the far group, and near-inc one, the nearby group. The bars are placed side by side by the dodge position rather than stacked, so their heights can be compared directly.</p>
+<p>In 1978, the far-group mean is about 82.52 thousand dollars and the near-group mean is about 63.69. Their gap is negative 18.82. In 1981, the corresponding means are about 101.31 and 70.62, giving the negative 30.69 gap from Approach one. The graph therefore makes the critical baseline difference visible: nearby houses did not start at the same level.</p>
+<p>Now read the graph across time within each group. Far-house prices rise by about 18.79 thousand dollars, from 82.52 to 101.31. Near-house prices rise by only about 6.93, from 63.69 to 70.62. Approach two uses only that 6.93 increase. DID compares the increases: 6.93 minus 18.79 equals about negative 11.86 thousand dollars. Visually, that is the amount by which the near group’s change falls short of the far group’s change. The graph cannot establish parallel trends with only one before year, but it does show exactly why DID removes the starting-level gap while a post-only comparison does not.</p>
 </details>
 <div class="cell">
 <div class="cell-output-display">
@@ -3130,7 +3368,10 @@ Transcript
 <summary>
 Transcript
 </summary>
-<p>The notation decomposes each observed mean. Gamma zero and gamma one are baseline means for far and near houses. Alpha zero and alpha one are the changes each group would experience from all causes other than treatment. Beta is the causal incinerator effect on the treated group. Approach one subtracts the two post-period means, leaving the baseline gap, the difference in untreated changes, and beta. It identifies beta only if both nuisance differences are zero—far stronger than merely having an untreated comparison group.</p>
+<p>This slide gives us notation for decomposing the four bars. Do not confuse these gamma, alpha, and beta symbols with the delta and theta coefficients from the separate cross-sectional regressions. Here they label underlying group-time means.</p>
+<p>In the table, near-inc zero is the far, control group. Its before mean is gamma zero. Its after mean is gamma zero plus alpha zero plus zero. Alpha zero is the control group’s 1978-to-1981 change caused by everything other than the incinerator, and the final zero records that the control group receives no treatment effect. Near-inc one is the nearby, treated group. Its before mean is gamma one. Its after mean is gamma one plus alpha one plus beta. Alpha one is the treated group’s counterfactual change from all non-incinerator causes. Beta is the true causal effect of construction on nearby-house prices.</p>
+<p>Now look at the Approach one algebra. We take the treated after mean, gamma one plus alpha one plus beta, and subtract the control after mean, gamma zero plus alpha zero plus zero. Regrouping terms gives gamma one minus gamma zero, plus alpha one minus alpha zero, plus beta. The first nuisance term is the pre-existing price-level difference. The second is the difference in untreated price changes. Approach one therefore combines both sources of confounding with the causal effect.</p>
+<p>The answer at the bottom gives sufficient conditions for this expression to equal beta. Gamma one must equal gamma zero, so the groups start at the same mean, and alpha one must equal alpha zero, so they would experience the same untreated change. Having a control group is not enough. Approach one uses its after level, so it needs both restrictions. The 1978 estimates already show that the equal-baseline condition fails in the sample. This motivates using changes instead of levels in Approach two.</p>
 </details>
 <div class="columns">
 <div class="column" style="width:50%;">
@@ -3219,7 +3460,9 @@ Transcript
 <summary>
 Transcript
 </summary>
-<p>Approach two keeps only nearby houses and compares their average price before and after construction began. This removes any fixed level difference between the near and far locations because the far group is not used at all. But every other change between 1978 and 1981 remains: inflation-adjusted market conditions, interest rates, local development, and composition changes. The before-after coefficient is causal only if nearby prices would have stayed constant without the incinerator.</p>
+<p>Approach two changes the comparison dimension. Instead of comparing locations in one year, restrict the data to nearby houses and compare that treated group before and after construction began. Both 1978 and 1981 observations are used, but no far-house observations enter this regression.</p>
+<p>Read the model as real price equals beta zero plus beta one times why eighty-one plus u. Real price is still the inflation-corrected sale price in thousands of dollars. Why eighty-one is a time indicator: it equals zero for 1978 and one for 1981. When it is zero, the expected nearby-house price is beta zero. When it is one, the expectation is beta zero plus beta one. Beta one is therefore the treated group’s change in mean real price between the two years.</p>
+<p>This strategy avoids attributing a fixed near-versus-far level difference to treatment because it does not use the far group at all. That is an advantage over Approach one. But the error term now contains every other force that changed nearby prices over time. Regional housing demand, interest rates, local employment, public services, neighborhood development, and changes in which kinds of nearby houses were sold can all move the 1981 mean. Inflation correction removes general price inflation, but not real housing-market changes. For beta one to equal the incinerator effect, nearby-house prices would have had to remain unchanged between 1978 and 1981 in the absence of construction. That is the strong identifying condition we will expose algebraically.</p>
 </details>
 <p><strong>Estimation strategy</strong></p>
 <p>Compare prices of nearby houses before and after construction began (1978 and 1981 data).</p>
@@ -3239,7 +3482,9 @@ Transcript
 <summary>
 Transcript
 </summary>
-<p>Within the nearby sample, beta zero is the 1978 mean and beta one is the change from 1978 to 1981. Again, that coefficient is a descriptive before-after difference. It combines the incinerator effect with every untreated time change affecting nearby houses. The fact that construction lies between the two dates does not imply that construction caused the entire difference; post hoc timing is not an identification strategy.</p>
+<p>Set the time indicator in the model to its two possible values. For nearby houses observed in 1978, why eighty-one equals zero. The conditional expected real price is beta zero, which is the first line in the answer. For nearby houses observed in 1981, why eighty-one equals one. The expectation is beta zero plus beta one, which is the second line.</p>
+<p>Now subtract the 1978 expectation from the 1981 expectation. Beta zero cancels, so beta one equals the 1981 nearby-house mean minus the 1978 nearby-house mean. That is why the blue answer describes beta one as the before-after difference in the treated group. Its unit is thousands of inflation-corrected dollars. A positive beta one means nearby prices rose on average; a negative value means they fell.</p>
+<p>This coefficient is descriptive until we supply a counterfactual assumption. In the notation used later, the 1981 nearby mean includes both the change from non-incinerator causes and the incinerator’s causal effect. The 1978 nearby mean by itself tells us the starting point, but not where that group would have gone without construction. The calendar sequence, construction happened between the two samples, does not prove that construction caused the full change. Treating every before-after movement as a program effect is the post hoc mistake this approach illustrates. On the next tab, the fitted coefficient shows why even the direction of the raw change can be misleading about the direction of the treatment effect.</p>
 </details>
 <p><strong>Model</strong></p>
 <p><span class="math inline">rprice=\beta_0+\beta_1y81+u</span></p>
@@ -3267,7 +3512,10 @@ Answer
 <summary>
 Transcript
 </summary>
-<p>The regression shows that nearby-house prices rose on average, though the change is not statistically significant. A harmful incinerator and a rising regional housing market can easily produce a positive net change. Conversely, a declining market can make a harmless event look damaging. The coefficient estimates alpha one plus beta, so without a control group’s change we cannot separate the treatment effect from the counterfactual trend.</p>
+<p>This fee-OLS call implements Approach two. The formula puts real price on why eighty-one, and the data argument filters the sample to near-inc equal to one, so only nearby houses remain. There is no object name on the left of an assignment here; the outer parentheses simply ensure that the fitted model prints.</p>
+<p>The regression uses 96 nearby-house sales. The intercept is about 63.69, which reproduces the 1978 nearby mean in thousands of real dollars. The why-eighty-one coefficient is about positive 6.93, so the 1981 mean is roughly 6,926 dollars higher than the 1978 mean. Its standard error is about 8.21, the t statistic is about 0.84, and the p-value is about 0.40. Thus the sample change is positive, but it is not statistically distinguishable from zero at conventional levels.</p>
+<p>Do not conclude that the incinerator helped house prices. A harmful incinerator effect can be more than offset by a rising regional housing market, leaving a positive net before-after change. In the other direction, a falling market could make a harmless program look damaging. The slide’s sentence correctly says that this comparison alone does not attribute the change to the incinerator.</p>
+<p>Using our mean notation, this coefficient estimates alpha one plus beta. Alpha one is what nearby prices would have changed because of all other forces, while beta is the construction effect. With only the treated group’s two means, those components cannot be separated. We need an observed estimate of the untreated market movement, which is the role the far group will play in DID.</p>
 </details>
 <div id="qwebr-insertion-location-4"></div>
 <noscript>Please enable JavaScript to experience the dynamic code cell content on this page.</noscript>
@@ -3279,7 +3527,10 @@ Transcript
 <summary>
 Transcript
 </summary>
-<p>Subtract the treated group’s baseline mean from its post mean. Gamma one cancels, leaving alpha one plus beta. Approach two therefore tolerates any fixed price level for nearby houses but assumes their untreated change alpha one is zero. That condition is usually implausible for an outcome such as housing price that changes over time. DID improves the comparison by using the control group’s observed change as an estimate of alpha one.</p>
+<p>Return to the four-cell table. Gamma j is the 1978 mean for group j, alpha j is that group’s change from every cause other than the incinerator, and beta is the true effect of the incinerator on the nearby group. For Approach two, we use only the near-inc-one row.</p>
+<p>The nearby after mean is gamma one plus alpha one plus beta. The nearby before mean is gamma one. Subtracting before from after gives open parenthesis gamma one plus alpha one plus beta close parenthesis minus gamma one. The two gamma-one terms cancel, leaving alpha one plus beta. This cancellation is why Approach two is not biased by a fixed difference between the initial price levels of near and far houses. Indeed, gamma zero never enters the calculation.</p>
+<p>The remaining problem is alpha one. That symbol is the treated group’s counterfactual price change, the movement that would have occurred between 1978 and 1981 without the incinerator. For Approach two to identify beta, the sufficient condition in the answer requires alpha one to equal zero. In words, absent construction, average nearby-house prices would have remained exactly constant. Real housing prices routinely move because of market conditions, financing costs, amenities, and sale composition, so zero untreated change is generally not credible.</p>
+<p>DID replaces that zero-change assumption with a comparative one. It uses the observed change for far houses, alpha zero, as an estimate of the missing alpha one. If alpha one and alpha zero are equal, subtracting the far change removes the untreated movement. Move to Approach three to see that second subtraction.</p>
 </details>
 <div class="columns">
 <div class="column" style="width:50%;">
@@ -3350,7 +3601,9 @@ Answer
 <summary>
 Transcript
 </summary>
-<p>DID compares changes rather than levels. First calculate the near group’s before-after change, which contains the treatment effect plus its untreated change. Then calculate the far group’s change, which estimates the common untreated movement. Subtracting removes that common change. In the regression, the post indicator captures the control group’s time change, the treated indicator captures the baseline group gap, and their interaction beta three is the difference in changes.</p>
+<p>Difference-in-differences follows the three red-highlighted steps on the slide. First, calculate the 1978-to-1981 change for houses close to the incinerator. That treated-group change contains both its untreated movement and the construction effect. Second, calculate the same before-after change for houses farther away. Since those houses are not treated, their change is used to represent the time movement that nearby houses would also have experienced without construction. Third, subtract the far-group change from the near-group change. That is the difference of the two differences.</p>
+<p>Unlike Approach one, we now use all four cells: near and far observations in both 1978 and 1981. Read the regression as real price equals beta zero, plus beta one times why eighty-one, plus beta two times near-inc, plus beta three times the product of near-inc and why eighty-one, plus u. Beta zero is the far-group 1978 mean. Beta one is the far group’s 1978-to-1981 change. Beta two is the near-versus-far gap in 1978. The interaction equals one only for nearby houses in 1981, so beta three is the additional change for the nearby group beyond the far group’s change.</p>
+<p>That interpretation shows how the regression performs DID. The treated main effect absorbs the fixed baseline location gap, the time main effect absorbs the change shared with controls, and the interaction measures what remains. Calling beta three an effect still requires parallel untreated trends and the other design assumptions. The next tab verifies the difference-of-differences interpretation for every combination of the two indicators.</p>
 </details>
 <p><strong>Estimation strategy (difference-in-differences or DID)</strong></p>
 <p>Compare the before–after change in prices for nearby houses with the before–after change for houses farther away.</p>
@@ -3374,7 +3627,10 @@ Transcript
 <summary>
 Transcript
 </summary>
-<p>Evaluate the regression equation for each of the four combinations of group and time. For the treated group after treatment, all four terms appear. For treated before, only the intercept and treated main effect appear. Their difference is beta one plus beta three. The control group’s before-after difference is beta one. Subtracting the control change from the treated change leaves beta three. This algebra explains why both main effects must accompany the interaction in the basic two-by-two model.</p>
+<p>To confirm the interpretation of beta three, plug zero or one into the two indicators for each group-time cell. Start with far houses in 1981. Why eighty-one is one, near-inc is zero, and their product is zero. Their expected real price is beta zero plus beta one, which is the first expectation on the left.</p>
+<p>For nearby houses in 1981, both indicators and their product equal one. The expectation is beta zero plus beta one plus beta two plus beta three. For far houses in 1978, both indicators are zero, so only beta zero remains. For nearby houses in 1978, why eighty-one is zero and near-inc is one, so the expectation is beta zero plus beta two. These four expressions also reveal the meanings of the main effects: beta zero is the control baseline, beta one is the control time change, and beta two is the baseline group gap.</p>
+<p>Now follow the right column. The treated group’s before-after difference is its 1981 expectation minus its 1978 expectation: beta zero plus beta one plus beta two plus beta three, minus beta zero plus beta two. Beta zero and beta two cancel, leaving beta one plus beta three. The control group’s before-after difference is beta zero plus beta one minus beta zero, which leaves beta one.</p>
+<p>Finally, subtract the control change from the treated change. Beta one plus beta three minus beta one equals beta three. That is the DID coefficient. Notice why the model includes both main effects with the interaction. Without them, the interaction would be forced to represent baseline or common-time differences as well. The saturated two-by-two specification assigns one fitted mean to each of the four cells, and beta three is exactly their difference-in-differences.</p>
 </details>
 <p>Let’s confirm that <span class="math inline">\beta_3</span> represents the difference-in-differences.</p>
 <div class="columns">
@@ -3407,7 +3663,10 @@ Transcript
 <summary>
 Transcript
 </summary>
-<p>The interaction <code>nearinc:y81</code> is the DID estimate. Its negative point estimate says nearby prices changed less favorably than far prices between 1978 and 1981, but the estimate is not statistically distinguishable from zero at conventional levels. More importantly, causal interpretation requires parallel untreated trends and the other design assumptions. Heteroskedasticity-robust standard errors address variance misspecification, not a bad counterfactual.</p>
+<p>This fee-OLS call estimates the saturated two-by-two model. In an R formula, near-inc times why eighty-one expands to the near-inc main effect, the why-eighty-one main effect, and their interaction. The vee-cov argument requests heteroskedasticity-robust standard errors, allowing the error variance to differ across observations. The data argument uses all 321 sales from both years and both location groups.</p>
+<p>The intercept is 82.52, the far-group mean in 1978. Near-inc is negative 18.82, the 1978 baseline gap. Why eighty-one is positive 18.79, the far group’s change from 1978 to 1981. The interaction near-inc colon why-eighty-one is negative 11.86. That last number also equals the nearby increase of 6.93 minus the far increase of 18.79. In substantive units, nearby prices changed about 11,864 real dollars less favorably than far prices.</p>
+<p>The robust standard error for the interaction is about 8.64, producing a t statistic near negative 1.37 and a p-value around 0.17. The point estimate is negative, but it is not statistically distinguishable from zero at conventional levels. Do not reverse that statement into proof of no effect; the interval is wide enough to contain economically meaningful values.</p>
+<p>More importantly, robust standard errors address uncertainty when the error variance is not constant. They do not make the control group’s trend a valid counterfactual. A causal interpretation of negative 11.86 requires parallel untreated trends, no anticipation, no treatment spillover into far houses, and stable composition of the repeated cross-sections. Statistical inference and research-design credibility solve different problems.</p>
 </details>
 <div id="qwebr-insertion-location-5"></div>
 <noscript>Please enable JavaScript to experience the dynamic code cell content on this page.</noscript>
@@ -3419,7 +3678,10 @@ Transcript
 <summary>
 Transcript
 </summary>
-<p>Using the mean decomposition, the treated change is alpha one plus beta and the control change is alpha zero. Their difference is beta plus alpha one minus alpha zero. Fixed baseline differences gamma one minus gamma zero have disappeared, and common time shocks disappear when alpha one equals alpha zero. DID identifies beta precisely under that equality. It does not require the groups to start at the same outcome level, only to have the same untreated change over the comparison period.</p>
+<p>Use the mean table to connect the regression coefficient to the causal decomposition. The nearby group’s after mean is gamma one plus alpha one plus beta, and its before mean is gamma one. Subtracting cancels gamma one and leaves alpha one plus beta. The far group’s after mean is gamma zero plus alpha zero, and its before mean is gamma zero. Subtracting cancels gamma zero and leaves alpha zero.</p>
+<p>The downward arrow tells you to subtract those two changes. Treated change minus control change is alpha one plus beta minus alpha zero. Rearranging gives alpha one minus alpha zero plus beta, which is the expression labeled beta-hat D-I-D. This is an estimand decomposition: the calculated DID equals the true causal effect plus the difference between the groups’ untreated changes.</p>
+<p>Notice what has disappeared. Gamma one minus gamma zero, the fixed baseline price gap, is nowhere in the final expression. The groups may start at very different price levels and DID can still work. Also, any time shock that moves both groups by the same amount appears in both alpha terms and cancels.</p>
+<p>The answer gives the identifying condition: alpha one equals alpha zero. In words, without the incinerator, near and far houses would have experienced the same 1978-to-1981 change in average real prices. Under that equality, alpha one minus alpha zero is zero and beta-hat D-I-D equals beta. Unlike Approach one, DID does not require gamma one to equal gamma zero. Unlike Approach two, it does not require the common untreated change to be zero. It requires equality of changes, which is the parallel-trends assumption on the next tab.</p>
 </details>
 <div class="cell">
 <div class="cell-output-display">
@@ -3477,7 +3739,10 @@ Answer
 <summary>
 Transcript
 </summary>
-<p>Parallel trends is a statement about an unobserved counterfactual: without construction, nearby-house prices would have changed by the same amount as far-house prices. It is not a statement that observed post-treatment trends are parallel, because treatment may cause them to diverge. We can examine multiple pre-periods for evidence against the assumption and investigate other differential events, but we can never observe the treated group’s untreated post outcome. Credibility therefore rests on design knowledge plus diagnostic evidence.</p>
+<p>Parallel trends is the key condition that alpha one equals alpha zero. In this example it says that, if construction had not occurred, average real prices for nearby houses would have changed from 1978 to 1981 by the same amount as average prices for far houses. The groups do not need equal levels. One series can remain consistently above the other. What must match is the untreated change over the comparison period.</p>
+<p>The general statement on the slide applies the same logic to any DID design. If treatment had not occurred, the treated group’s average outcome would have changed by the same amount as the control group’s average outcome. This is a claim about potential outcomes under no treatment, not a requirement that the observed post-treatment lines stay parallel. If treatment works, the observed treated trajectory should be allowed to separate from the control trajectory after treatment.</p>
+<p>The red phrase says the assumption is not directly testable. After treatment, we observe the treated group’s outcome under treatment, not its outcome under no treatment. That missing counterfactual is exactly what the assumption supplies, so the decisive equality cannot be checked in the post period.</p>
+<p>With several pre-treatment periods, you can compare earlier trends. Divergence before treatment is evidence against the assumption. Similar pre-trends are reassuring but cannot prove that no group-specific shock would have emerged after treatment. You should also use institutional knowledge to investigate anticipation, concurrent local events, spillovers, and sample composition. Parallel trends becomes credible through a coherent design argument supported by diagnostics, not through one insignificant pre-trend test.</p>
 </details>
 <p><strong>Key condition (parallel-trends assumption)</strong></p>
 <p><span class="math inline">\alpha_1=\alpha_0</span>: absent the incinerator, the two groups would have experienced the same change in house prices from 1978 to 1981.</p>
@@ -3497,7 +3762,11 @@ Transcript
 <summary>
 Transcript
 </summary>
-<p>The formulas summarize what each estimator leaves behind. The post-only comparison contains baseline differences and differential untreated changes. The treated before-after comparison contains the treated group’s untreated change. DID removes baseline differences and common time shocks but retains any difference in untreated trends. If the treated group would rise by five while the control would fall by five, DID carries a ten-unit bias even without treatment. The method is attractive because its assumption can be more plausible, not because it is assumption-free.</p>
+<p>This slide places the three estimands side by side. Approach one, the post-only near-versus-far comparison, equals gamma one minus gamma zero, plus alpha one minus alpha zero, plus beta. It retains the baseline level difference and the difference in untreated changes. To isolate beta, it needs equal starting means and equal untreated changes.</p>
+<p>Approach two, the nearby before-after comparison, equals alpha one plus beta. The fixed starting level cancels, but the entire untreated time movement of the treated group remains. It isolates beta only if alpha one is zero, meaning the outcome would not have changed at all without treatment.</p>
+<p>Approach three, DID, equals alpha one minus alpha zero plus beta. It removes the fixed baseline gap. It also removes time shocks common to both groups because those contribute equally to alpha one and alpha zero. It isolates beta when the untreated changes are equal, the parallel-trends condition.</p>
+<p>The four important bullets prevent a ranking based only on convenience. None of these approaches is automatically credible. Approaches one and two usually require particularly severe restrictions, but DID is not assumption-free. Look at the numerical example at the bottom. If the treated group would have risen by five without treatment while the control group would have fallen by five, alpha one minus alpha zero equals five minus negative five, or ten. DID would then exceed the true effect by ten units. Even if beta were zero, the estimator would report ten.</p>
+<p>DID is attractive because equal untreated changes can be more plausible than equal levels or zero change, especially with a carefully chosen control group. Whether it is plausible is a substantive question. The next historical example shows how institutional context can support that comparison.</p>
 </details>
 <p><strong>Approaches</strong></p>
 <p>Approach 1: <span class="math inline">(\gamma_1 - \gamma_0)+ (\alpha_1 - \alpha_0) + \beta</span></p>
@@ -3523,7 +3792,10 @@ Transcript
 <summary>
 Transcript
 </summary>
-<p>John Snow’s setting supplies a historical natural experiment. Competing water companies served nearby London households, but their intake locations changed differently between cholera epidemics. Lambeth moved upstream of major sewage contamination before 1854, while Southwark and Vauxhall remained downstream. The policy-like change is access to cleaner water. The design compares mortality changes for areas with Lambeth access against changes for areas served only by the downstream companies.</p>
+<p>This historical example concerns cholera in mid-nineteenth-century London. The first two bullets contrast the leading explanations. Many people believed cholera spread through contaminated air, the miasma theory. John Snow argued instead that transmission occurred through water contaminated with fecal matter. To evaluate that claim, we need variation in exposure to polluted water that is not simply a comparison of richer and poorer neighborhoods.</p>
+<p>Several private companies supplied London households with water from the River Thames. Their intake points mattered because water drawn downstream of central London received heavy sewage contamination. The crucial event occurred between the cholera epidemics of 1849 and 1854. In January 1852, the Lambeth Company moved its intake upstream, beyond the influence of London’s sewers. Southwark and Vauxhall continued drawing from a polluted downstream location.</p>
+<p>That change creates the natural experiment. Access to Lambeth water became access to a cleaner source, while the other suppliers remained a comparison. The before period is the 1849 epidemic, when Lambeth still drew downstream. The after period is 1854, after Lambeth moved upstream. The outcome will be cholera deaths per 10,000 people.</p>
+<p>The DID design asks whether mortality changed more favorably in districts with Lambeth access than in districts served only by Southwark and Vauxhall. The regression arithmetic will be simple. Its causal force comes from the historical supply arrangement and from whether the two sets of districts would otherwise have had comparable mortality changes.</p>
 </details>
 <p><strong>Cholera</strong></p>
 <ul>
@@ -3547,7 +3819,10 @@ Transcript
 <summary>
 Transcript
 </summary>
-<p>Treatment is defined by supplier exposure after Lambeth moved its intake. The 1849 epidemic provides the before period, when Lambeth still drew downstream; 1854 is the after period. Districts served only by Southwark and Vauxhall form the control group, while districts with Lambeth access form the treated group. For a causal interpretation, absent the intake move, mortality in the two groups must have changed similarly, and households’ supplier composition must not have shifted selectively in ways related to cholera risk.</p>
+<p>Define treatment carefully here. It is increased access to cleaner upstream water supplied by Lambeth, not merely residence in London and not Lambeth service in every year. Lambeth changed the quality of its source when it moved the intake. The relevant exposure is therefore being in a district with access to Lambeth after that move.</p>
+<p>The time comparison uses two epidemics. Before means 1849, when Lambeth still took water downstream and its customers did not yet receive the cleaner-source treatment. After means 1854, when Lambeth drew upstream. The control group consists of districts served only by Southwark and Vauxhall, whose intake remained at the polluted downstream location. The treated group consists of districts with access to Lambeth as well as other suppliers. The wording matters: treatment is not necessarily a perfectly exclusive supplier assignment, so the estimand reflects access and the district-level supplier mix represented in the table.</p>
+<p>The control group’s mortality change is supposed to capture epidemic-wide changes between 1849 and 1854, such as weather, population conditions, or the overall severity of cholera. The treated group’s change contains those shared forces plus the effect of cleaner water. Parallel trends says that without Lambeth’s upstream move, mortality in the two district groups would have changed by the same amount.</p>
+<p>For that claim to be credible, the groups should not experience other differential changes tied to cholera risk. Household sorting or a selective change in supplier composition could also contaminate the comparison. The next tab computes the DID, but keep those design conditions attached to the number.</p>
 </details>
 <p><strong>Treatment</strong></p>
 <ul>
@@ -3571,12 +3846,15 @@ Transcript
 <summary>
 Transcript
 </summary>
-<p>Mortality rises by 11.7 deaths per 10,000 in the control group and falls by 45.2 in the Lambeth-access group. Subtracting gives negative 56.9. Under parallel trends and the remaining assumptions, cleaner water reduced cholera mortality by about 56.9 deaths per 10,000. The calculation is simple, but the credibility comes from the supply arrangement and intake change. Always pair a DID number with the institutional story that makes the control trend a plausible counterfactual.</p>
+<p>The table has the four means needed for DID. Rows identify the supplier groups, columns identify the 1849 before epidemic and the 1854 after epidemic, and every entry is cholera mortality measured as deaths per 10,000 people. For districts served only by Southwark and Vauxhall, mortality rises from 134.9 to 146.6. The control-group change is therefore 146.6 minus 134.9, or positive 11.7 deaths per 10,000.</p>
+<p>For districts with access to Lambeth plus other suppliers, mortality falls from 130.1 to 84.9. The treated-group change is 84.9 minus 130.1, or negative 45.2. Notice that the groups begin at fairly similar mortality levels, but DID would not require that equality.</p>
+<p>The displayed equation subtracts the control change from the treated change: negative 45.2 minus positive 11.7 equals negative 56.9. Equivalently, read the full line as open parenthesis 84.9 minus 130.1 close parenthesis, minus open parenthesis 146.6 minus 134.9 close parenthesis. The negative sign means mortality changed downward by 56.9 more deaths per 10,000 in the Lambeth-access districts.</p>
+<p>Under parallel trends and the remaining assumptions, access to Lambeth’s cleaner upstream water reduced cholera mortality by about 56.9 deaths per 10,000 people. The arithmetic alone does not establish waterborne transmission. Credibility comes from the intake relocation, the comparison suppliers, stable exposure composition, and the absence of another group-specific change. The source link identifies Snow’s 1855 account. This is the general lesson: report the DID calculation together with the institutional story that makes the control trend a plausible counterfactual.</p>
 </details>
 <p><strong>Data</strong></p>
 <div class="cell">
 <div class="cell-output-display">
-<div class="tabwid"><style>.cl-e089dd24{}.cl-e0867d14{font-family:'Helvetica';font-size:11pt;font-weight:normal;font-style:normal;text-decoration:none;color:rgba(0, 0, 0, 1.00);background-color:transparent;}.cl-e087e794{margin:0;text-align:left;border-bottom: 0 solid rgba(0, 0, 0, 1.00);border-top: 0 solid rgba(0, 0, 0, 1.00);border-left: 0 solid rgba(0, 0, 0, 1.00);border-right: 0 solid rgba(0, 0, 0, 1.00);padding-bottom:5pt;padding-top:5pt;padding-left:5pt;padding-right:5pt;line-height: 1;background-color:transparent;}.cl-e087e795{margin:0;text-align:right;border-bottom: 0 solid rgba(0, 0, 0, 1.00);border-top: 0 solid rgba(0, 0, 0, 1.00);border-left: 0 solid rgba(0, 0, 0, 1.00);border-right: 0 solid rgba(0, 0, 0, 1.00);padding-bottom:5pt;padding-top:5pt;padding-left:5pt;padding-right:5pt;line-height: 1;background-color:transparent;}.cl-e087f888{width:2.103in;background-color:transparent;vertical-align: middle;border-bottom: 1.5pt solid rgba(102, 102, 102, 1.00);border-top: 1.5pt solid rgba(102, 102, 102, 1.00);border-left: 0 solid rgba(0, 0, 0, 1.00);border-right: 0 solid rgba(0, 0, 0, 1.00);margin-bottom:0;margin-top:0;margin-left:0;margin-right:0;}.cl-e087f892{width:0.668in;background-color:transparent;vertical-align: middle;border-bottom: 1.5pt solid rgba(102, 102, 102, 1.00);border-top: 1.5pt solid rgba(102, 102, 102, 1.00);border-left: 0 solid rgba(0, 0, 0, 1.00);border-right: 0 solid rgba(0, 0, 0, 1.00);margin-bottom:0;margin-top:0;margin-left:0;margin-right:0;}.cl-e087f893{width:2.103in;background-color:transparent;vertical-align: middle;border-bottom: 0 solid rgba(0, 0, 0, 1.00);border-top: 0 solid rgba(0, 0, 0, 1.00);border-left: 0 solid rgba(0, 0, 0, 1.00);border-right: 0 solid rgba(0, 0, 0, 1.00);margin-bottom:0;margin-top:0;margin-left:0;margin-right:0;}.cl-e087f894{width:0.668in;background-color:transparent;vertical-align: middle;border-bottom: 0 solid rgba(0, 0, 0, 1.00);border-top: 0 solid rgba(0, 0, 0, 1.00);border-left: 0 solid rgba(0, 0, 0, 1.00);border-right: 0 solid rgba(0, 0, 0, 1.00);margin-bottom:0;margin-top:0;margin-left:0;margin-right:0;}.cl-e087f89c{width:2.103in;background-color:transparent;vertical-align: middle;border-bottom: 1.5pt solid rgba(102, 102, 102, 1.00);border-top: 0 solid rgba(0, 0, 0, 1.00);border-left: 0 solid rgba(0, 0, 0, 1.00);border-right: 0 solid rgba(0, 0, 0, 1.00);margin-bottom:0;margin-top:0;margin-left:0;margin-right:0;}.cl-e087f89d{width:0.668in;background-color:transparent;vertical-align: middle;border-bottom: 1.5pt solid rgba(102, 102, 102, 1.00);border-top: 0 solid rgba(0, 0, 0, 1.00);border-left: 0 solid rgba(0, 0, 0, 1.00);border-right: 0 solid rgba(0, 0, 0, 1.00);margin-bottom:0;margin-top:0;margin-left:0;margin-right:0;}</style><table data-quarto-disable-processing="true" class="cl-e089dd24"><thead><tr style="overflow-wrap:break-word;"><th class="cl-e087f888"><p class="cl-e087e794"><span class="cl-e0867d14">Supplier</span></p></th><th class="cl-e087f892"><p class="cl-e087e795"><span class="cl-e0867d14">1849</span></p></th><th class="cl-e087f892"><p class="cl-e087e795"><span class="cl-e0867d14">1854</span></p></th></tr></thead><tbody><tr style="overflow-wrap:break-word;"><td class="cl-e087f893"><p class="cl-e087e794"><span class="cl-e0867d14">Southwark &amp; Vauxhall only</span></p></td><td class="cl-e087f894"><p class="cl-e087e795"><span class="cl-e0867d14">134.9</span></p></td><td class="cl-e087f894"><p class="cl-e087e795"><span class="cl-e0867d14">146.6</span></p></td></tr><tr style="overflow-wrap:break-word;"><td class="cl-e087f89c"><p class="cl-e087e794"><span class="cl-e0867d14">Lambeth + other suppliers</span></p></td><td class="cl-e087f89d"><p class="cl-e087e795"><span class="cl-e0867d14">130.1</span></p></td><td class="cl-e087f89d"><p class="cl-e087e795"><span class="cl-e0867d14">84.9</span></p></td></tr></tbody></table></div>
+<div class="tabwid"><style>.cl-b17e8e8c{}.cl-b17a478c{font-family:'Helvetica';font-size:11pt;font-weight:normal;font-style:normal;text-decoration:none;color:rgba(0, 0, 0, 1.00);background-color:transparent;}.cl-b17d3e88{margin:0;text-align:left;border-bottom: 0 solid rgba(0, 0, 0, 1.00);border-top: 0 solid rgba(0, 0, 0, 1.00);border-left: 0 solid rgba(0, 0, 0, 1.00);border-right: 0 solid rgba(0, 0, 0, 1.00);padding-bottom:5pt;padding-top:5pt;padding-left:5pt;padding-right:5pt;line-height: 1;background-color:transparent;}.cl-b17d3e89{margin:0;text-align:right;border-bottom: 0 solid rgba(0, 0, 0, 1.00);border-top: 0 solid rgba(0, 0, 0, 1.00);border-left: 0 solid rgba(0, 0, 0, 1.00);border-right: 0 solid rgba(0, 0, 0, 1.00);padding-bottom:5pt;padding-top:5pt;padding-left:5pt;padding-right:5pt;line-height: 1;background-color:transparent;}.cl-b17d47de{width:2.103in;background-color:transparent;vertical-align: middle;border-bottom: 1.5pt solid rgba(102, 102, 102, 1.00);border-top: 1.5pt solid rgba(102, 102, 102, 1.00);border-left: 0 solid rgba(0, 0, 0, 1.00);border-right: 0 solid rgba(0, 0, 0, 1.00);margin-bottom:0;margin-top:0;margin-left:0;margin-right:0;}.cl-b17d47df{width:0.668in;background-color:transparent;vertical-align: middle;border-bottom: 1.5pt solid rgba(102, 102, 102, 1.00);border-top: 1.5pt solid rgba(102, 102, 102, 1.00);border-left: 0 solid rgba(0, 0, 0, 1.00);border-right: 0 solid rgba(0, 0, 0, 1.00);margin-bottom:0;margin-top:0;margin-left:0;margin-right:0;}.cl-b17d47e0{width:2.103in;background-color:transparent;vertical-align: middle;border-bottom: 0 solid rgba(0, 0, 0, 1.00);border-top: 0 solid rgba(0, 0, 0, 1.00);border-left: 0 solid rgba(0, 0, 0, 1.00);border-right: 0 solid rgba(0, 0, 0, 1.00);margin-bottom:0;margin-top:0;margin-left:0;margin-right:0;}.cl-b17d47e1{width:0.668in;background-color:transparent;vertical-align: middle;border-bottom: 0 solid rgba(0, 0, 0, 1.00);border-top: 0 solid rgba(0, 0, 0, 1.00);border-left: 0 solid rgba(0, 0, 0, 1.00);border-right: 0 solid rgba(0, 0, 0, 1.00);margin-bottom:0;margin-top:0;margin-left:0;margin-right:0;}.cl-b17d47e2{width:2.103in;background-color:transparent;vertical-align: middle;border-bottom: 1.5pt solid rgba(102, 102, 102, 1.00);border-top: 0 solid rgba(0, 0, 0, 1.00);border-left: 0 solid rgba(0, 0, 0, 1.00);border-right: 0 solid rgba(0, 0, 0, 1.00);margin-bottom:0;margin-top:0;margin-left:0;margin-right:0;}.cl-b17d47e3{width:0.668in;background-color:transparent;vertical-align: middle;border-bottom: 1.5pt solid rgba(102, 102, 102, 1.00);border-top: 0 solid rgba(0, 0, 0, 1.00);border-left: 0 solid rgba(0, 0, 0, 1.00);border-right: 0 solid rgba(0, 0, 0, 1.00);margin-bottom:0;margin-top:0;margin-left:0;margin-right:0;}</style><table data-quarto-disable-processing="true" class="cl-b17e8e8c"><thead><tr style="overflow-wrap:break-word;"><th class="cl-b17d47de"><p class="cl-b17d3e88"><span class="cl-b17a478c">Supplier</span></p></th><th class="cl-b17d47df"><p class="cl-b17d3e89"><span class="cl-b17a478c">1849</span></p></th><th class="cl-b17d47df"><p class="cl-b17d3e89"><span class="cl-b17a478c">1854</span></p></th></tr></thead><tbody><tr style="overflow-wrap:break-word;"><td class="cl-b17d47e0"><p class="cl-b17d3e88"><span class="cl-b17a478c">Southwark &amp; Vauxhall only</span></p></td><td class="cl-b17d47e1"><p class="cl-b17d3e89"><span class="cl-b17a478c">134.9</span></p></td><td class="cl-b17d47e1"><p class="cl-b17d3e89"><span class="cl-b17a478c">146.6</span></p></td></tr><tr style="overflow-wrap:break-word;"><td class="cl-b17d47e2"><p class="cl-b17d3e88"><span class="cl-b17a478c">Lambeth + other suppliers</span></p></td><td class="cl-b17d47e3"><p class="cl-b17d3e89"><span class="cl-b17a478c">130.1</span></p></td><td class="cl-b17d47e3"><p class="cl-b17d3e89"><span class="cl-b17a478c">84.9</span></p></td></tr></tbody></table></div>
 </div>
 </div>
 <p><strong>DID estimate</strong></p>
@@ -3600,7 +3878,10 @@ Transcript
 <summary>
 Transcript
 </summary>
-<p>The Kansas application follows groundwater wells over time. A row is a well-year, <code>af_used</code> is pumping in acre-feet, <code>site</code> identifies the well, and <code>in_LEMA</code> identifies wells inside the policy region. Precipitation and reference evapotranspiration are weather controls. Because the same wells recur, we can add well fixed effects and cluster errors by well, but the policy is assigned to one geographic region, which creates additional spatial-inference concerns.</p>
+<p>Now we implement DID with well-level groundwater-use data from Kansas. The code reads the serialized R object in the file L-E-M-A underscore data dot R-D-S and assigns it to lema-data. Read-R-D-S reconstructs the single R object stored in that file. The outer parentheses make R print the object immediately after assigning it, so you can inspect the columns and repeated site-year rows rather than assuming the import worked.</p>
+<p>One row is one observation for a well in a year. Site is the well identifier. Year records the calendar year, and the data run from 1991 through 2019. A-f-used is the dependent variable, the amount of groundwater pumped in acre-feet. In-L-E-M-A equals one for wells inside the policy region and zero for wells outside. The data contain 34,125 well-year observations from 1,383 wells, of which 201 are in the LEMA and 1,182 are controls. Not every well appears in every year, so this is an unbalanced panel.</p>
+<p>The printed data also include p-r, precipitation, and e-t-zero, reference evapotranspiration. Those weather variables help control for changing water demand. Available water capacity and bulk density are soil characteristics, but they are not used directly in the displayed regressions. Because the same site can appear in many years, later specifications can use site fixed effects and allow regression errors to be correlated within a well over time.</p>
+<p>Keep the treatment level in mind, however. The policy is assigned to one geographic region, not independently to 201 unrelated wells. Well-level clustering addresses serial correlation, but common regional or spatial shocks can still make conventional inference too optimistic. We will return to that issue after building the basic DID variables.</p>
 </details>
 <p><strong>Well-level groundwater use data in Kansas</strong></p>
 <div class="cell">
@@ -3637,7 +3918,9 @@ Transcript
 <summary>
 Transcript
 </summary>
-<p>The map defines treatment spatially. Wells inside the red LEMA boundary become subject to an allocation beginning in 2013; nearby wells outside form the comparison group. This makes spillovers and spatial differences central design questions. Pumping restrictions could affect neighboring groundwater conditions, and farms inside and outside the boundary may face different trends. The before period ends in 2012, and the post period begins in 2013.</p>
+<p>Treatment is defined spatially on this slide. In the map, each black point is a groundwater well. The horizontal axis is longitude, running roughly from 101.0 degrees west on the left to 100.2 degrees west on the right. The vertical axis is latitude, from about 39.1 degrees north at the bottom to 39.7 degrees north at the top. The irregular red polygon is the LEMA boundary. Wells inside that boundary are the treated units, and wells outside are the candidate controls.</p>
+<p>The policy timing is below the map. Beginning in 2013, pumping by wells inside the LEMA became subject to an allocation limit. Before therefore means every observation through 2012, while after means 2013 onward. Treatment is the combination of place and time: an inside well is not yet exposed before 2013, and an outside well is not directly exposed after 2013.</p>
+<p>The map also tells you what to worry about. Control wells are geographically dispersed around the treated region, so farms inside and outside the boundary may differ in soils, crops, aquifer conditions, or prior pumping trends. Site fixed effects can absorb stable differences, but not different changes over time. Spillovers are also possible. Reduced pumping inside the boundary can affect groundwater conditions outside it, or producers can shift activity across the line. If outside wells are indirectly affected, their post-policy trend is no longer an untreated counterfactual. The map is therefore part of the design argument, not just an illustration. Next we encode the 2013 timing in the data.</p>
 </details>
 <div class="columns">
 <div class="column" style="width:40%;">
@@ -3671,7 +3954,10 @@ Transcript
 <summary>
 Transcript
 </summary>
-<p>Create a post indicator equal to one from 2013 onward. Treatment-group membership is already stored in <code>in_LEMA</code>. Their product equals one only for LEMA wells in post-policy years and is the DID treatment variable. Inspecting one well confirms that the post indicator switches at the intended date. Also verify that group membership is stable and that no coding or missing-data change coincides with treatment.</p>
+<p>The first code line creates the time component of treatment. Mutate takes lema-data and adds a variable called before-after. Inside mutate, if-else checks whether year is greater than or equal to 2013. It returns one when that condition is true and zero otherwise. The result is assigned back to lema-data. Thus 1991 through 2012 are coded zero, and 2013 through 2019 are coded one.</p>
+<p>The next pipeline is a coding check. Starting from lema-data, select keeps only site, year, and before-after so the relevant columns are easy to read. Filter then keeps site equal to 160 and years greater than 2000. In the printed rows, before-after remains zero through 2012 and switches to one in 2013. It stays one in every later observed year. Site 160 has no printed 2018 row, which is a reminder that the panel is unbalanced, not evidence that the indicator switched back.</p>
+<p>Treatment-group membership does not need to be created because in-L-E-M-A already equals one for wells inside the boundary and zero outside. The DID interaction is the product of before-after and in-L-E-M-A. It equals one only for inside wells from 2013 onward. It is zero for treated wells before the policy and for control wells in every year.</p>
+<p>Do not stop after seeing one well coded correctly. In an applied project, verify that the policy date is correct for all observations, that in-L-E-M-A is stable within site, that years are not duplicated, and that missingness or reporting rules did not change at treatment. A perfectly formed interaction can still estimate a compositional break instead of a policy effect if the underlying sample changes.</p>
 </details>
 <p>Data transformation:</p>
 <p><strong>Before or after</strong></p>
@@ -3716,7 +4002,10 @@ Transcript
 <summary>
 Transcript
 </summary>
-<p>The basic equation includes post, treated, their interaction, and time-varying weather controls. Beta three is the additional post-period change for treated wells relative to controls. The regression uses clustered standard errors by site to allow within-well serial correlation. A causal interpretation requires parallel untreated pumping trends conditional on the controls, no anticipation, no spillovers that contaminate controls, and no treatment-induced change in the observed sample.</p>
+<p>The general equation writes the outcome for unit i in time t as alpha zero, plus beta one times post at time t, plus beta two times treated for unit i, plus beta three times their product, plus X for unit i at time t prime times gamma, plus the error v for unit i at time t. Here the outcome is acre-feet pumped by a well in a year. Post is before-after, treated is in-L-E-M-A, and X contains the time-varying controls. Alpha zero is the control group’s baseline intercept. Beta one captures the control group’s post change, beta two the baseline treated-control gap, and beta three the additional post change for treated wells. X prime gamma means a set of controls, each multiplied by its coefficient. V collects remaining outcome determinants.</p>
+<p>The R code estimates that equation. Fee-OLS receives a formula with a-f-used on before-after times in-L-E-M-A, which expands to both main effects and their interaction, plus precipitation p-r and reference evapotranspiration e-t-zero. Those weather controls matter because wet years and atmospheric water demand affect pumping. The cluster argument, tilde site, computes standard errors allowing errors for the same well to be arbitrarily correlated over time. The data argument supplies lema-data.</p>
+<p>In the output, the interaction estimate is about negative 34.76 acre-feet, with a site-clustered standard error of about 2.10. Conditional on the two weather controls, treated wells’ post-policy change is therefore about 34.8 acre-feet lower than the control change. The before-after coefficient is about negative 9.03 for controls, and the in-L-E-M-A coefficient shows treated wells started about 30.00 acre-feet higher under this pooled specification. Precipitation has a negative coefficient, while e-t-zero has a small positive coefficient.</p>
+<p>Beta three has a causal interpretation only if, conditional on the controls, untreated pumping trends would have been parallel. We also need no anticipation, no spillovers into controls, no treatment-induced sample change, and an inference strategy suited to the regional assignment. Clustering fixes within-well serial correlation, not those design threats.</p>
 </details>
 <p><strong>DID estimating equation (in general)</strong></p>
 <p><span class="math display">
@@ -3755,7 +4044,10 @@ RMSE: 71.4   Adj. R2: 0.10752</code></pre>
 <summary>
 Transcript
 </summary>
-<p>Site fixed effects absorb every characteristic of a well that is constant over time: location, soil, depth, and stable operator traits. Because <code>in_LEMA</code> never changes for a well, its main effect is perfectly absorbed and is omitted. The interaction remains because it changes at 2013 only for treated wells. DID can be estimated with repeated cross-sections, but a panel permits this stronger control for stable unit heterogeneity.</p>
+<p>DID does not require panel data, as the incinerator repeated cross-sections demonstrated. Two representative group samples before and after can identify the basic two-by-two estimand. With this panel, however, we repeatedly observe wells and can add a fixed effect for each site.</p>
+<p>In the formula, the vertical bar separates the ordinary regressors from the fixed effects. Site after the bar tells fee-OLS to include a separate intercept for every well. Those site effects absorb every characteristic that is constant within a well over time, whether observed or unobserved. That includes exact location, stable soil properties, well depth if unchanged, and persistent operator characteristics. Identification now comes from changes within a well after removing its own average.</p>
+<p>The right side before the bar includes before-after, the interaction before-after colon in-L-E-M-A, precipitation, and e-t-zero. The time-invariant in-L-E-M-A main effect is deliberately omitted because it never changes within a site and is perfectly collinear with the site fixed effects. Its baseline level difference is already absorbed. The interaction remains identified because it switches from zero to one in 2013 for treated wells only. The cluster argument still requests within-site correlated errors.</p>
+<p>The output removes 18 singleton observations that cannot contribute within-site variation. The interaction estimate is about negative 36.55 acre-feet with a clustered standard error of about 1.96. The post coefficient is about negative 8.75 for controls after conditioning on weather and site effects. Compared with the pooled model, the fixed-effect estimate controls much more fully for stable well heterogeneity. It still does not control for an unobserved factor that changes differently over time inside the LEMA. The next tab adds common year shocks.</p>
 </details>
 <p>DID does <span style="color: blue;">not</span> require panel data; two repeated cross-sections can be sufficient for the basic two-period design. With panel data, unit fixed effects absorb all time-invariant unit characteristics, observed or unobserved.</p>
 <div class="cell">
@@ -3787,7 +4079,10 @@ RMSE: 43.7     Adj. R2: 0.652559
 <summary>
 Transcript
 </summary>
-<p>Adding year effects absorbs any shock shared by all wells in a year, so the post main effect is also redundant. The interaction remains the policy coefficient, estimated after removing well averages, common year shocks, and weather controls. Site clustering handles arbitrary correlation over time within a well. It does not solve spatial dependence among wells or the fact that treatment occurs in only one region, so conventional p-values may overstate how much independent policy variation the study contains.</p>
+<p>With many years, a single before-after main effect forces every common change after 2013 into one step. Year fixed effects are more flexible. Putting site plus year after the vertical bar gives each well its own intercept and each calendar year its own intercept. The site effects remove stable well differences. The year effects remove any shock common to all wells in a given year, such as statewide weather, commodity prices, or regulations.</p>
+<p>Because a full set of year effects already represents each year’s common movement, before-after is perfectly collinear with them and does not appear separately. Likewise, in-L-E-M-A is absorbed by site effects. The formula therefore contains only the interaction before-after colon in-L-E-M-A, precipitation, and e-t-zero before the bar. The interaction still varies both across group and over time, so it remains the DID coefficient. The cluster argument again allows serial correlation within each site.</p>
+<p>After removing 18 fixed-effect singleton observations, the regression uses 34,107 observations, 1,365 site effects, and 29 year effects. The policy interaction is about negative 37.15 acre-feet, with a site-clustered standard error of about 1.96. This is the additional post-2013 change inside the LEMA after removing well averages, common year shocks, and the two weather controls. Precipitation is estimated at about negative 0.115 per unit. E-t-zero is about positive 0.053 and has a p-value around 0.084 in this specification.</p>
+<p>The warning below the code is essential. Clustering by site handles correlation over time within a well. It does not handle arbitrary spatial correlation across nearby wells or shocks common to the one treated region. Because the effective treatment variation is one regional policy, 201 treated wells are not 201 independent policy experiments. Conventional standard errors can therefore overstate precision even though the coefficient has many stars.</p>
 </details>
 <p>With multiple years before and after treatment, year fixed effects absorb shocks common to all wells in each year.</p>
 <div class="cell">
@@ -3828,7 +4123,11 @@ RMSE: 40.7     Adj. R2: 0.698111
 <summary>
 Transcript
 </summary>
-<p>Parallel trends becomes more credible through a collection of evidence, not a single test. Choose controls that face similar outcome determinants, rule out group-specific events at treatment, and inspect multiple pre-period trajectories. Similar pre-trends can reveal obvious violations but cannot establish the unobserved post-treatment counterfactual. Also investigate anticipation, spillovers into controls, and compositional changes. Event-study leads and placebo estimates should be interpreted jointly with confidence intervals rather than as a hunt for insignificant p-values.</p>
+<p>There is no single test that certifies a DID as reliable. The first task is choosing a control group whose untreated outcome would plausibly respond to the same forces as the treated group. The bullets list the evidence you should assemble.</p>
+<p>First, investigate contemporaneous events. If another rule, drought response, crop shift, or reporting change affects only LEMA wells when the allocation begins, the interaction combines that event with the policy. Second, compare the groups on features related to outcome trends. Similar outcome levels are neither required nor sufficient for DID. A control can start lower but still have a credible common trend; a control at the same level can be on a different trajectory.</p>
+<p>Third, when several pre-treatment periods exist, plot the group-specific paths. Similar pre-period trajectories rule out some obvious violations. They do not prove what the treated group would have done after 2013 without treatment, which is why the red word not matters. Examine effect estimates by event time as well, including leads before treatment and lags after it.</p>
+<p>Fourth, investigate the other assumptions explicitly. Anticipation means units alter pumping before the formal start. Spillovers mean the control group is affected. Treatment-induced composition means the set of observed wells changes because of the policy. Any of those breaks the intended comparison even when pre-trend lines look similar.</p>
+<p>The two tasks at the bottom turn these ideas into diagnostics. Plot trajectories and event-time estimates with axes, treatment timing, and uncertainty clearly shown. Run placebo or lead tests in the pre-period. Prefer a joint test of planned leads to many isolated p-values, and report coefficients with confidence intervals. The goal is to look for economically meaningful evidence against the design, not to hunt until every placebo is insignificant.</p>
 </details>
 <p><strong>Important</strong></p>
 <p>Selecting a credible control group is central to DID. The following evidence can make parallel untreated trends more plausible:</p>
@@ -3856,7 +4155,9 @@ Transcript
 <summary>
 Transcript
 </summary>
-<p>In the first simulated graph, treated and control outcomes move with roughly the same slope before treatment even though their levels differ. Different levels are allowed in DID because group fixed effects absorb them. After the treatment line, the treated series separates. This is the visual pattern most compatible with the basic parallel-trends story, though sampling noise and a short pre-period still leave uncertainty.</p>
+<p>In Example one, the horizontal axis is time, running from period one through period ten, and the vertical axis is a generic outcome. The black and gray point-and-line series are labeled Treatment and Control at their right ends. The dashed vertical line at time seven marks the start of the treatment period, as the callout beside it says.</p>
+<p>Before time seven, the two series sit at different levels but rise with roughly the same slope. That is the distinction you need to see. Parallel trends does not require the treated and control outcomes to coincide. A stable level gap is allowed because the group main effect or unit fixed effects absorb it. What matters is whether the untreated changes appear comparable.</p>
+<p>At and after the dashed line, the treated series shifts upward relative to the control series. That separation is the kind of pattern a positive treatment effect could create when prior trends are approximately parallel. The points include random noise, so do not demand identical year-to-year movements. Also do not treat the picture as proof: there are only six pre-treatment periods, and similar observed pre-trends cannot reveal the missing untreated post path. Use this graph as the visual benchmark, then flip to Example two for the contrasting warning pattern.</p>
 </details>
 <div class="cell">
 <div class="cell-output-display">
@@ -3873,7 +4174,9 @@ Transcript
 <summary>
 Transcript
 </summary>
-<p>In the second graph, the groups are already converging before treatment. Extending those distinct trends into the post period would produce a difference in changes even if treatment had no effect. A basic DID that assumes equal untreated changes is therefore questionable. Possible responses include choosing a better control group, modeling a defensible trend structure, changing the window, or using another design—but not ignoring the visible pre-treatment divergence.</p>
+<p>Example two uses the same layout. Time is on the horizontal axis, the generic outcome is on the vertical axis, and the dashed line at period seven marks treatment. The two series are again labeled at their right ends so you can follow the group paths without a separate legend.</p>
+<p>This time, look to the left of the treatment line. The groups are already converging. The control series rises faster than the treated series, so their vertical gap shrinks before any treatment occurs. That visible difference in slopes is evidence against the basic parallel-trends assumption. If those distinct untreated trajectories continued after period seven, treated minus control changes would differ even with a true treatment effect of zero.</p>
+<p>The post-treatment separation therefore cannot be interpreted by simply applying a common-trend DID. A treatment effect is added in the simulation, but the graph does not let a basic DID cleanly separate that effect from the pre-existing differential trend. Possible responses include finding a control group with a more credible trajectory, choosing a substantively justified time window, modeling a trend structure that theory supports, or selecting a different research design. Adding a linear group trend mechanically can also extrapolate poorly, so it needs justification. The key response is not to ignore the pre-period divergence or to focus only on whether a formal pre-trend test happens to reject.</p>
 </details>
 <div class="cell">
 <div class="cell-output-display">
@@ -3894,7 +4197,10 @@ Transcript
 <summary>
 Transcript
 </summary>
-<p>Plot average pumping for LEMA and control wells over all available years, with the vertical line marking treatment. The early years show notable differences in movement, while later pre-period patterns may appear more comparable. The correct response is not to select a window solely because it looks favorable. Explain why a chosen period is substantively comparable, report sensitivity to alternative windows, and remember that averages can hide heterogeneous well-level changes and spatial shocks.</p>
+<p>This is the pre-trend diagnostic for the LEMA application. The horizontal axis is calendar year from 1991 through 2019. The vertical axis is mean pumping in acre-feet, computed separately in each year for wells with in-L-E-M-A zero and one. The legend identifies the Control and LEMA series. The solid vertical line at 2012.5 sits between 2012 and 2013, so observations to its left are pre-policy and those to its right are post-policy.</p>
+<p>The code behind the graph first groups the data by year and treatment status, then summarizes a mean of a-f-used for each cell. The plot connects those annual means. Look at both movement and level. LEMA wells generally pump more before treatment, which alone is allowed. The more important issue is that the gap and year-to-year movements are not stable throughout the full pre-period. For example, the means are about 223 versus 162 acre-feet in 1991, nearly equal at 80 versus 78 in 1993, and about 189 versus 151 in 2012. The earliest years show especially notable relative movement, while portions of the later pre-period can look more comparable.</p>
+<p>Immediately after the line, the LEMA mean drops to about 110 in 2013 while the control mean is about 130, and the treated series remains generally lower afterward. That is visually consistent with reduced pumping, but it is not causal evidence by itself.</p>
+<p>Do not choose a starting year only because deleting inconvenient early observations makes the lines look parallel. A defensible window should follow from data quality, policy history, agronomic conditions, or the comparison you intend to estimate. Report sensitivity to alternative windows. Finally, these are group averages. They can hide heterogeneous well paths, changing sample composition, and spatial shocks, so pair the graph with design knowledge and formal diagnostics.</p>
 </details>
 <p>How do the pre-treatment trajectories look in this example?</p>
 <div class="cell">
@@ -3913,7 +4219,10 @@ Transcript
 <summary>
 Transcript
 </summary>
-<p>A pre-treatment placebo pretends the policy began earlier and estimates the same treated-by-post comparison using only untreated observations. A nonzero placebo can reveal differential trends or another group-specific shock, weakening the design. An insignificant placebo does not prove parallel trends: the test may lack power, and trying many dates raises multiple-testing concerns. Report the estimates and intervals for a planned set of placebo dates and interpret them with the trajectory plot.</p>
+<p>A pre-treatment placebo asks whether the same research design finds an effect when no real treatment had occurred. Follow the four steps in the first callout. Use only observations before the actual 2013 policy, keep the actual treatment-group definition, assign that group a fake treatment date somewhere in the pre-period, and estimate the same treated-by-post interaction.</p>
+<p>If treated and control wells were following parallel untreated paths around the fake date, the placebo DID should be near zero apart from sampling variation. A statistically significant or substantively large placebo suggests that the groups were already changing differently, or that another group-specific shock occurred. That evidence weakens the idea that the actual control trend supplies the treated group’s counterfactual.</p>
+<p>Now read the second callout as a warning against a mechanical pass-fail exercise. An insignificant estimate is not proof of parallel trends. A short pre-period or noisy outcome can give the test little power, so a large violation may still have a wide interval containing zero. If you try many fake dates and highlight only favorable results, ordinary significance thresholds also create a multiple-testing problem.</p>
+<p>Choose a planned set of substantively meaningful placebo dates, report point estimates and confidence intervals, and consider a joint test where appropriate. Interpret the placebos alongside the plotted trajectories and institutional history. The next three tabs show how different fake dates can reveal different parts of the LEMA pre-period.</p>
 </details>
 <div title="Placebo tests: idea">
 <div class="callout callout-note no-icon callout-titled callout-style-default">
@@ -3948,7 +4257,9 @@ Transcript
 <summary>
 Transcript
 </summary>
-<p>Restrict the data to years before the actual 2013 policy, then assign a fake post period beginning in 2000 for the true treatment group. Site and year fixed effects preserve the same comparison structure as the main model. The interaction should be near zero if treated and control wells were evolving similarly around this placebo date, subject to sampling uncertainty. Weather controls and site clustering are kept consistent with the main specification.</p>
+<p>For the first placebo, pretend the LEMA began in 2000. The first pipeline filters lema-data to years greater than or equal to 1993 and less than or equal to 2012. The upper bound ensures every observation precedes the true 2013 policy. The lower bound defines the pre-period window used for this exercise. Mutate then creates after-two-thousand with if-else: it is one in 2000 through 2012 and zero in 1993 through 1999. The result is stored as pre-lema-data.</p>
+<p>The regression keeps the structure of the preferred main specification. A-f-used is the dependent variable. Capital-I tells R to treat the product after-two-thousand times in-L-E-M-A as arithmetic inside the formula. That product is one only for actual LEMA wells in the fake post period. P-r and e-t-zero are the weather controls. Site plus year after the vertical bar adds well and calendar-year fixed effects. Clustering on site allows within-well serial correlation, and the data argument uses only pre-lema-data.</p>
+<p>The fake-treatment coefficient is about positive 1.99 acre-feet. Its site-clustered standard error is about 2.59, giving a t statistic around 0.77 and a p-value around 0.44. For this particular window and fake date, the estimate is small relative to its uncertainty and is not statistically significant. That is consistent with similar differential changes around 2000, but it does not prove them. The interval still contains nonzero values, and a different placebo date examines a different split of the pre-period. Keeping the weather controls, fixed effects, and clustering aligned with the main model makes the placebo target the timing assumption rather than a change in specification.</p>
 </details>
 <p>Create a fake treatment for wells inside the LEMA in 2000.</p>
 <div class="cell">
@@ -3988,7 +4299,10 @@ RMSE: 39.6     Adj. R2: 0.711105
 <summary>
 Transcript
 </summary>
-<p>Repeat the placebo exercise with 1995 as the fake treatment date. Different placebo dates examine different portions of the pre-period and need not give identical answers. Looking across estimates and confidence intervals is more informative than declaring each one pass or fail. If results depend sharply on the pre-period chosen, that instability should be part of the substantive assessment of the 2013 design.</p>
+<p>This tab repeats the same exercise but moves the fake policy date to 1995. Filter again keeps 1993 through 2012, so all observations precede the real allocation. Mutate creates after-nineteen-ninety-five, equal to zero in 1993 and 1994 and one from 1995 through 2012. Because there are only two fake-before years, this split uses a relatively short baseline, which is relevant to precision and sensitivity.</p>
+<p>The fee-OLS formula again uses a-f-used as the outcome. Capital-I around after-nineteen-ninety-five times in-L-E-M-A forms the placebo interaction without asking the formula parser to expand main effects. The site and year fixed effects already absorb the time-invariant group indicator and the common fake-post pattern. P-r and e-t-zero remain as weather controls, errors are clustered by site, and pre-lema-data supplies the restricted sample.</p>
+<p>The placebo estimate is about negative 2.35 acre-feet with a clustered standard error of about 2.91. Its t statistic is around negative 0.81 and its p-value is about 0.42. Like the 2000 placebo, it is not statistically distinguishable from zero in this specification. The point estimates need not match because the fake dates divide the data differently and average different year-to-year comparisons.</p>
+<p>Do not summarize the two tabs only as two passes. Compare the magnitudes and confidence intervals, relate each split to the trajectory graph, and consider the limited number of early baseline years. If placebo conclusions change sharply when the date or sample window moves, that instability belongs in your evaluation of the real 2013 estimate. The final tab chooses an earlier sample and exposes a much clearer warning.</p>
 </details>
 <p>Create a fake treatment for wells inside the LEMA in 1995.</p>
 <div class="cell">
@@ -4029,7 +4343,11 @@ RMSE: 39.6     Adj. R2: 0.711096
 <summary>
 Transcript
 </summary>
-<p>This final placebo uses the earliest part of the sample and a fake 1993 treatment date. A statistically significant interaction warns that the groups changed differently even before the real policy, or that some other differential event occurred. It does not quantify the bias in the actual 2013 coefficient and should not be subtracted from it. Instead, it demonstrates that a correctly coded DID regression can still rest on an implausible counterfactual. Design evidence remains the decisive ingredient.</p>
+<p>This last placebo asks what happens if the available sample is 1991 through 2000 and we pretend treatment began in 1993. Filter keeps years less than or equal to 2000; since the data begin in 1991, that creates the stated ten-year sample. Mutate creates after-nineteen-ninety-three, equal to zero in 1991 and 1992 and one from 1993 onward.</p>
+<p>Fee-OLS then estimates a-f-used on the fake-post times actual-group interaction, plus precipitation and e-t-zero, with site and year fixed effects after the vertical bar and site-clustered standard errors. The fitted object is saved as did-res-placebo rather than printed immediately.</p>
+<p>The following code formats the result. M-summary takes the saved model. G-o-f-omit uses the pattern I-C, Log, Adj, F, Pseudo, or Within to suppress those goodness-of-fit rows. Output equals flex-table creates a slide-ready table, and stars equals true adds significance symbols. The pipes then set all text to size nine, color the coefficient entry in the first row and second column red, and auto-fit the table dimensions.</p>
+<p>The highlighted placebo interaction is about negative 16.39 acre-feet with a clustered standard error of about 3.90, a t statistic around negative 4.20, and a p-value below 0.001. This is strong evidence that treated and control wells changed differently around 1993, long before the real policy, or that another differential shock occurred then.</p>
+<p>Do not subtract negative 16.39 from the 2013 estimate. A placebo at another date does not directly measure the actual coefficient’s bias. It warns that the counterfactual comparison is sensitive and that a correctly coded fixed-effect regression can still have an implausible design. The result should prompt investigation of the early years, sensitivity to justified windows, and alternative controls, not a mechanical bias correction.</p>
 </details>
 <p>What if the available data span 1991–2000 and the apparent treatment date is 1993?</p>
 <div class="cell">
@@ -4060,7 +4378,7 @@ Transcript
 <span id="cb19-9"><a></a>  <span class="fu">autofit</span>()</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 </details>
 <div class="cell-output-display">
-<div class="tabwid"><style>.cl-e2d95122{}.cl-e2d64298{font-family:'Helvetica';font-size:9pt;font-weight:normal;font-style:normal;text-decoration:none;color:rgba(0, 0, 0, 1.00);background-color:transparent;}.cl-e2d64299{font-family:'Helvetica';font-size:9pt;font-weight:normal;font-style:normal;text-decoration:none;color:rgba(255, 0, 0, 1.00);background-color:transparent;}.cl-e2d78bee{margin:0;text-align:left;border-bottom: 0 solid rgba(0, 0, 0, 1.00);border-top: 0 solid rgba(0, 0, 0, 1.00);border-left: 0 solid rgba(0, 0, 0, 1.00);border-right: 0 solid rgba(0, 0, 0, 1.00);padding-bottom:5pt;padding-top:5pt;padding-left:5pt;padding-right:5pt;line-height: 1;background-color:transparent;}.cl-e2d78bef{margin:0;text-align:center;border-bottom: 0 solid rgba(0, 0, 0, 1.00);border-top: 0 solid rgba(0, 0, 0, 1.00);border-left: 0 solid rgba(0, 0, 0, 1.00);border-right: 0 solid rgba(0, 0, 0, 1.00);padding-bottom:5pt;padding-top:5pt;padding-left:5pt;padding-right:5pt;line-height: 1;background-color:transparent;}.cl-e2d79940{width:1.626in;background-color:transparent;vertical-align: middle;border-bottom: 1.5pt solid rgba(102, 102, 102, 1.00);border-top: 1.5pt solid rgba(102, 102, 102, 1.00);border-left: 0 solid rgba(0, 0, 0, 1.00);border-right: 0 solid rgba(0, 0, 0, 1.00);margin-bottom:0;margin-top:0;margin-left:0;margin-right:0;}.cl-e2d7994a{width:0.855in;background-color:transparent;vertical-align: middle;border-bottom: 1.5pt solid rgba(102, 102, 102, 1.00);border-top: 1.5pt solid rgba(102, 102, 102, 1.00);border-left: 0 solid rgba(0, 0, 0, 1.00);border-right: 0 solid rgba(0, 0, 0, 1.00);margin-bottom:0;margin-top:0;margin-left:0;margin-right:0;}.cl-e2d7994b{width:1.626in;background-color:transparent;vertical-align: middle;border-bottom: 0 solid rgba(0, 0, 0, 1.00);border-top: 0 solid rgba(0, 0, 0, 1.00);border-left: 0 solid rgba(0, 0, 0, 1.00);border-right: 0 solid rgba(0, 0, 0, 1.00);margin-bottom:0;margin-top:0;margin-left:0;margin-right:0;}.cl-e2d7994c{width:0.855in;background-color:transparent;vertical-align: middle;border-bottom: 0 solid rgba(0, 0, 0, 1.00);border-top: 0 solid rgba(0, 0, 0, 1.00);border-left: 0 solid rgba(0, 0, 0, 1.00);border-right: 0 solid rgba(0, 0, 0, 1.00);margin-bottom:0;margin-top:0;margin-left:0;margin-right:0;}.cl-e2d79954{width:1.626in;background-color:transparent;vertical-align: middle;border-bottom: 0 solid rgba(0, 0, 0, 1.00);border-top: 0 solid rgba(0, 0, 0, 1.00);border-left: 0 solid rgba(0, 0, 0, 1.00);border-right: 0 solid rgba(0, 0, 0, 1.00);margin-bottom:0;margin-top:0;margin-left:0;margin-right:0;}.cl-e2d79955{width:0.855in;background-color:transparent;vertical-align: middle;border-bottom: 0 solid rgba(0, 0, 0, 1.00);border-top: 0 solid rgba(0, 0, 0, 1.00);border-left: 0 solid rgba(0, 0, 0, 1.00);border-right: 0 solid rgba(0, 0, 0, 1.00);margin-bottom:0;margin-top:0;margin-left:0;margin-right:0;}.cl-e2d79956{width:1.626in;background-color:transparent;vertical-align: middle;border-bottom: 0 solid rgba(0, 0, 0, 1.00);border-top: 0 solid rgba(0, 0, 0, 1.00);border-left: 0 solid rgba(0, 0, 0, 1.00);border-right: 0 solid rgba(0, 0, 0, 1.00);margin-bottom:0;margin-top:0;margin-left:0;margin-right:0;}.cl-e2d7995e{width:0.855in;background-color:transparent;vertical-align: middle;border-bottom: 0 solid rgba(0, 0, 0, 1.00);border-top: 0 solid rgba(0, 0, 0, 1.00);border-left: 0 solid rgba(0, 0, 0, 1.00);border-right: 0 solid rgba(0, 0, 0, 1.00);margin-bottom:0;margin-top:0;margin-left:0;margin-right:0;}.cl-e2d7995f{width:1.626in;background-color:transparent;vertical-align: middle;border-bottom: 0.75pt solid rgba(102, 102, 102, 1.00);border-top: 0 solid rgba(0, 0, 0, 1.00);border-left: 0 solid rgba(0, 0, 0, 1.00);border-right: 0 solid rgba(0, 0, 0, 1.00);margin-bottom:0;margin-top:0;margin-left:0;margin-right:0;}.cl-e2d79968{width:0.855in;background-color:transparent;vertical-align: middle;border-bottom: 0.75pt solid rgba(102, 102, 102, 1.00);border-top: 0 solid rgba(0, 0, 0, 1.00);border-left: 0 solid rgba(0, 0, 0, 1.00);border-right: 0 solid rgba(0, 0, 0, 1.00);margin-bottom:0;margin-top:0;margin-left:0;margin-right:0;}.cl-e2d79969{width:1.626in;background-color:transparent;vertical-align: middle;border-bottom: 0 solid rgba(0, 0, 0, 1.00);border-top: 0.75pt solid rgba(102, 102, 102, 1.00);border-left: 0 solid rgba(0, 0, 0, 1.00);border-right: 0 solid rgba(0, 0, 0, 1.00);margin-bottom:0;margin-top:0;margin-left:0;margin-right:0;}.cl-e2d7996a{width:0.855in;background-color:transparent;vertical-align: middle;border-bottom: 0 solid rgba(0, 0, 0, 1.00);border-top: 0.75pt solid rgba(102, 102, 102, 1.00);border-left: 0 solid rgba(0, 0, 0, 1.00);border-right: 0 solid rgba(0, 0, 0, 1.00);margin-bottom:0;margin-top:0;margin-left:0;margin-right:0;}.cl-e2d79972{width:1.626in;background-color:transparent;vertical-align: middle;border-bottom: 0 solid rgba(0, 0, 0, 1.00);border-top: 0 solid rgba(0, 0, 0, 1.00);border-left: 0 solid rgba(0, 0, 0, 1.00);border-right: 0 solid rgba(0, 0, 0, 1.00);margin-bottom:0;margin-top:0;margin-left:0;margin-right:0;}.cl-e2d79973{width:0.855in;background-color:transparent;vertical-align: middle;border-bottom: 0 solid rgba(0, 0, 0, 1.00);border-top: 0 solid rgba(0, 0, 0, 1.00);border-left: 0 solid rgba(0, 0, 0, 1.00);border-right: 0 solid rgba(0, 0, 0, 1.00);margin-bottom:0;margin-top:0;margin-left:0;margin-right:0;}.cl-e2d79974{width:1.626in;background-color:transparent;vertical-align: middle;border-bottom: 1.5pt solid rgba(102, 102, 102, 1.00);border-top: 0 solid rgba(0, 0, 0, 1.00);border-left: 0 solid rgba(0, 0, 0, 1.00);border-right: 0 solid rgba(0, 0, 0, 1.00);margin-bottom:0;margin-top:0;margin-left:0;margin-right:0;}.cl-e2d7997c{width:0.855in;background-color:transparent;vertical-align: middle;border-bottom: 1.5pt solid rgba(102, 102, 102, 1.00);border-top: 0 solid rgba(0, 0, 0, 1.00);border-left: 0 solid rgba(0, 0, 0, 1.00);border-right: 0 solid rgba(0, 0, 0, 1.00);margin-bottom:0;margin-top:0;margin-left:0;margin-right:0;}.cl-e2d7997d{width:1.626in;background-color:transparent;vertical-align: middle;border-bottom: 0 solid rgba(255, 255, 255, 0.00);border-top: 0 solid rgba(255, 255, 255, 0.00);border-left: 0 solid rgba(255, 255, 255, 0.00);border-right: 0 solid rgba(255, 255, 255, 0.00);margin-bottom:0;margin-top:0;margin-left:0;margin-right:0;}.cl-e2d79986{width:0.855in;background-color:transparent;vertical-align: middle;border-bottom: 0 solid rgba(255, 255, 255, 0.00);border-top: 0 solid rgba(255, 255, 255, 0.00);border-left: 0 solid rgba(255, 255, 255, 0.00);border-right: 0 solid rgba(255, 255, 255, 0.00);margin-bottom:0;margin-top:0;margin-left:0;margin-right:0;}</style><table data-quarto-disable-processing="true" class="cl-e2d95122"><thead><tr style="overflow-wrap:break-word;"><th class="cl-e2d79940"><p class="cl-e2d78bee"><span class="cl-e2d64298"> </span></p></th><th class="cl-e2d7994a"><p class="cl-e2d78bef"><span class="cl-e2d64298">(1)</span></p></th></tr></thead><tbody><tr style="overflow-wrap:break-word;"><td class="cl-e2d7994b"><p class="cl-e2d78bee"><span class="cl-e2d64298">I(after_1993 * in_LEMA)</span></p></td><td class="cl-e2d7994c"><p class="cl-e2d78bef"><span class="cl-e2d64299">-16.386***</span></p></td></tr><tr style="overflow-wrap:break-word;"><td class="cl-e2d7994b"><p class="cl-e2d78bee"><span class="cl-e2d64298"></span></p></td><td class="cl-e2d7994c"><p class="cl-e2d78bef"><span class="cl-e2d64298">(3.900)</span></p></td></tr><tr style="overflow-wrap:break-word;"><td class="cl-e2d79954"><p class="cl-e2d78bee"><span class="cl-e2d64298">pr</span></p></td><td class="cl-e2d79955"><p class="cl-e2d78bef"><span class="cl-e2d64298">-0.121***</span></p></td></tr><tr style="overflow-wrap:break-word;"><td class="cl-e2d7994b"><p class="cl-e2d78bee"><span class="cl-e2d64298"></span></p></td><td class="cl-e2d7994c"><p class="cl-e2d78bef"><span class="cl-e2d64298">(0.026)</span></p></td></tr><tr style="overflow-wrap:break-word;"><td class="cl-e2d79956"><p class="cl-e2d78bee"><span class="cl-e2d64298">et0</span></p></td><td class="cl-e2d7995e"><p class="cl-e2d78bef"><span class="cl-e2d64298">0.114+</span></p></td></tr><tr style="overflow-wrap:break-word;"><td class="cl-e2d7995f"><p class="cl-e2d78bee"><span class="cl-e2d64298"></span></p></td><td class="cl-e2d79968"><p class="cl-e2d78bef"><span class="cl-e2d64298">(0.065)</span></p></td></tr><tr style="overflow-wrap:break-word;"><td class="cl-e2d79969"><p class="cl-e2d78bee"><span class="cl-e2d64298">Num.Obs.</span></p></td><td class="cl-e2d7996a"><p class="cl-e2d78bef"><span class="cl-e2d64298">11288</span></p></td></tr><tr style="overflow-wrap:break-word;"><td class="cl-e2d79956"><p class="cl-e2d78bee"><span class="cl-e2d64298">R2</span></p></td><td class="cl-e2d7995e"><p class="cl-e2d78bef"><span class="cl-e2d64298">0.714</span></p></td></tr><tr style="overflow-wrap:break-word;"><td class="cl-e2d79972"><p class="cl-e2d78bee"><span class="cl-e2d64298">RMSE</span></p></td><td class="cl-e2d79973"><p class="cl-e2d78bef"><span class="cl-e2d64298">41.02</span></p></td></tr><tr style="overflow-wrap:break-word;"><td class="cl-e2d79974"><p class="cl-e2d78bee"><span class="cl-e2d64298">Std.Errors</span></p></td><td class="cl-e2d7997c"><p class="cl-e2d78bef"><span class="cl-e2d64298">by: site</span></p></td></tr></tbody><tfoot><tr style="overflow-wrap:break-word;"><td colspan="2" class="cl-e2d7997d"><p class="cl-e2d78bee"><span class="cl-e2d64298">+ p &lt; 0.1, * p &lt; 0.05, ** p &lt; 0.01, *** p &lt; 0.001</span></p></td></tr></tfoot></table></div>
+<div class="tabwid"><style>.cl-b3270426{}.cl-b3249790{font-family:'Helvetica';font-size:9pt;font-weight:normal;font-style:normal;text-decoration:none;color:rgba(0, 0, 0, 1.00);background-color:transparent;}.cl-b324979a{font-family:'Helvetica';font-size:9pt;font-weight:normal;font-style:normal;text-decoration:none;color:rgba(255, 0, 0, 1.00);background-color:transparent;}.cl-b325c8c2{margin:0;text-align:left;border-bottom: 0 solid rgba(0, 0, 0, 1.00);border-top: 0 solid rgba(0, 0, 0, 1.00);border-left: 0 solid rgba(0, 0, 0, 1.00);border-right: 0 solid rgba(0, 0, 0, 1.00);padding-bottom:5pt;padding-top:5pt;padding-left:5pt;padding-right:5pt;line-height: 1;background-color:transparent;}.cl-b325c8c3{margin:0;text-align:center;border-bottom: 0 solid rgba(0, 0, 0, 1.00);border-top: 0 solid rgba(0, 0, 0, 1.00);border-left: 0 solid rgba(0, 0, 0, 1.00);border-right: 0 solid rgba(0, 0, 0, 1.00);padding-bottom:5pt;padding-top:5pt;padding-left:5pt;padding-right:5pt;line-height: 1;background-color:transparent;}.cl-b325d1be{width:1.626in;background-color:transparent;vertical-align: middle;border-bottom: 1.5pt solid rgba(102, 102, 102, 1.00);border-top: 1.5pt solid rgba(102, 102, 102, 1.00);border-left: 0 solid rgba(0, 0, 0, 1.00);border-right: 0 solid rgba(0, 0, 0, 1.00);margin-bottom:0;margin-top:0;margin-left:0;margin-right:0;}.cl-b325d1bf{width:0.855in;background-color:transparent;vertical-align: middle;border-bottom: 1.5pt solid rgba(102, 102, 102, 1.00);border-top: 1.5pt solid rgba(102, 102, 102, 1.00);border-left: 0 solid rgba(0, 0, 0, 1.00);border-right: 0 solid rgba(0, 0, 0, 1.00);margin-bottom:0;margin-top:0;margin-left:0;margin-right:0;}.cl-b325d1c0{width:1.626in;background-color:transparent;vertical-align: middle;border-bottom: 0 solid rgba(0, 0, 0, 1.00);border-top: 0 solid rgba(0, 0, 0, 1.00);border-left: 0 solid rgba(0, 0, 0, 1.00);border-right: 0 solid rgba(0, 0, 0, 1.00);margin-bottom:0;margin-top:0;margin-left:0;margin-right:0;}.cl-b325d1c1{width:0.855in;background-color:transparent;vertical-align: middle;border-bottom: 0 solid rgba(0, 0, 0, 1.00);border-top: 0 solid rgba(0, 0, 0, 1.00);border-left: 0 solid rgba(0, 0, 0, 1.00);border-right: 0 solid rgba(0, 0, 0, 1.00);margin-bottom:0;margin-top:0;margin-left:0;margin-right:0;}.cl-b325d1c2{width:1.626in;background-color:transparent;vertical-align: middle;border-bottom: 0 solid rgba(0, 0, 0, 1.00);border-top: 0 solid rgba(0, 0, 0, 1.00);border-left: 0 solid rgba(0, 0, 0, 1.00);border-right: 0 solid rgba(0, 0, 0, 1.00);margin-bottom:0;margin-top:0;margin-left:0;margin-right:0;}.cl-b325d1c3{width:0.855in;background-color:transparent;vertical-align: middle;border-bottom: 0 solid rgba(0, 0, 0, 1.00);border-top: 0 solid rgba(0, 0, 0, 1.00);border-left: 0 solid rgba(0, 0, 0, 1.00);border-right: 0 solid rgba(0, 0, 0, 1.00);margin-bottom:0;margin-top:0;margin-left:0;margin-right:0;}.cl-b325d1c4{width:1.626in;background-color:transparent;vertical-align: middle;border-bottom: 0 solid rgba(0, 0, 0, 1.00);border-top: 0 solid rgba(0, 0, 0, 1.00);border-left: 0 solid rgba(0, 0, 0, 1.00);border-right: 0 solid rgba(0, 0, 0, 1.00);margin-bottom:0;margin-top:0;margin-left:0;margin-right:0;}.cl-b325d1c8{width:0.855in;background-color:transparent;vertical-align: middle;border-bottom: 0 solid rgba(0, 0, 0, 1.00);border-top: 0 solid rgba(0, 0, 0, 1.00);border-left: 0 solid rgba(0, 0, 0, 1.00);border-right: 0 solid rgba(0, 0, 0, 1.00);margin-bottom:0;margin-top:0;margin-left:0;margin-right:0;}.cl-b325d1c9{width:1.626in;background-color:transparent;vertical-align: middle;border-bottom: 0.75pt solid rgba(102, 102, 102, 1.00);border-top: 0 solid rgba(0, 0, 0, 1.00);border-left: 0 solid rgba(0, 0, 0, 1.00);border-right: 0 solid rgba(0, 0, 0, 1.00);margin-bottom:0;margin-top:0;margin-left:0;margin-right:0;}.cl-b325d1ca{width:0.855in;background-color:transparent;vertical-align: middle;border-bottom: 0.75pt solid rgba(102, 102, 102, 1.00);border-top: 0 solid rgba(0, 0, 0, 1.00);border-left: 0 solid rgba(0, 0, 0, 1.00);border-right: 0 solid rgba(0, 0, 0, 1.00);margin-bottom:0;margin-top:0;margin-left:0;margin-right:0;}.cl-b325d1cb{width:1.626in;background-color:transparent;vertical-align: middle;border-bottom: 0 solid rgba(0, 0, 0, 1.00);border-top: 0.75pt solid rgba(102, 102, 102, 1.00);border-left: 0 solid rgba(0, 0, 0, 1.00);border-right: 0 solid rgba(0, 0, 0, 1.00);margin-bottom:0;margin-top:0;margin-left:0;margin-right:0;}.cl-b325d1cc{width:0.855in;background-color:transparent;vertical-align: middle;border-bottom: 0 solid rgba(0, 0, 0, 1.00);border-top: 0.75pt solid rgba(102, 102, 102, 1.00);border-left: 0 solid rgba(0, 0, 0, 1.00);border-right: 0 solid rgba(0, 0, 0, 1.00);margin-bottom:0;margin-top:0;margin-left:0;margin-right:0;}.cl-b325d1cd{width:1.626in;background-color:transparent;vertical-align: middle;border-bottom: 0 solid rgba(0, 0, 0, 1.00);border-top: 0 solid rgba(0, 0, 0, 1.00);border-left: 0 solid rgba(0, 0, 0, 1.00);border-right: 0 solid rgba(0, 0, 0, 1.00);margin-bottom:0;margin-top:0;margin-left:0;margin-right:0;}.cl-b325d1ce{width:0.855in;background-color:transparent;vertical-align: middle;border-bottom: 0 solid rgba(0, 0, 0, 1.00);border-top: 0 solid rgba(0, 0, 0, 1.00);border-left: 0 solid rgba(0, 0, 0, 1.00);border-right: 0 solid rgba(0, 0, 0, 1.00);margin-bottom:0;margin-top:0;margin-left:0;margin-right:0;}.cl-b325d1d2{width:1.626in;background-color:transparent;vertical-align: middle;border-bottom: 1.5pt solid rgba(102, 102, 102, 1.00);border-top: 0 solid rgba(0, 0, 0, 1.00);border-left: 0 solid rgba(0, 0, 0, 1.00);border-right: 0 solid rgba(0, 0, 0, 1.00);margin-bottom:0;margin-top:0;margin-left:0;margin-right:0;}.cl-b325d1d3{width:0.855in;background-color:transparent;vertical-align: middle;border-bottom: 1.5pt solid rgba(102, 102, 102, 1.00);border-top: 0 solid rgba(0, 0, 0, 1.00);border-left: 0 solid rgba(0, 0, 0, 1.00);border-right: 0 solid rgba(0, 0, 0, 1.00);margin-bottom:0;margin-top:0;margin-left:0;margin-right:0;}.cl-b325d1d4{width:1.626in;background-color:transparent;vertical-align: middle;border-bottom: 0 solid rgba(255, 255, 255, 0.00);border-top: 0 solid rgba(255, 255, 255, 0.00);border-left: 0 solid rgba(255, 255, 255, 0.00);border-right: 0 solid rgba(255, 255, 255, 0.00);margin-bottom:0;margin-top:0;margin-left:0;margin-right:0;}.cl-b325d1d5{width:0.855in;background-color:transparent;vertical-align: middle;border-bottom: 0 solid rgba(255, 255, 255, 0.00);border-top: 0 solid rgba(255, 255, 255, 0.00);border-left: 0 solid rgba(255, 255, 255, 0.00);border-right: 0 solid rgba(255, 255, 255, 0.00);margin-bottom:0;margin-top:0;margin-left:0;margin-right:0;}</style><table data-quarto-disable-processing="true" class="cl-b3270426"><thead><tr style="overflow-wrap:break-word;"><th class="cl-b325d1be"><p class="cl-b325c8c2"><span class="cl-b3249790"> </span></p></th><th class="cl-b325d1bf"><p class="cl-b325c8c3"><span class="cl-b3249790">(1)</span></p></th></tr></thead><tbody><tr style="overflow-wrap:break-word;"><td class="cl-b325d1c0"><p class="cl-b325c8c2"><span class="cl-b3249790">I(after_1993 * in_LEMA)</span></p></td><td class="cl-b325d1c1"><p class="cl-b325c8c3"><span class="cl-b324979a">-16.386***</span></p></td></tr><tr style="overflow-wrap:break-word;"><td class="cl-b325d1c0"><p class="cl-b325c8c2"><span class="cl-b3249790"></span></p></td><td class="cl-b325d1c1"><p class="cl-b325c8c3"><span class="cl-b3249790">(3.900)</span></p></td></tr><tr style="overflow-wrap:break-word;"><td class="cl-b325d1c2"><p class="cl-b325c8c2"><span class="cl-b3249790">pr</span></p></td><td class="cl-b325d1c3"><p class="cl-b325c8c3"><span class="cl-b3249790">-0.121***</span></p></td></tr><tr style="overflow-wrap:break-word;"><td class="cl-b325d1c0"><p class="cl-b325c8c2"><span class="cl-b3249790"></span></p></td><td class="cl-b325d1c1"><p class="cl-b325c8c3"><span class="cl-b3249790">(0.026)</span></p></td></tr><tr style="overflow-wrap:break-word;"><td class="cl-b325d1c4"><p class="cl-b325c8c2"><span class="cl-b3249790">et0</span></p></td><td class="cl-b325d1c8"><p class="cl-b325c8c3"><span class="cl-b3249790">0.114+</span></p></td></tr><tr style="overflow-wrap:break-word;"><td class="cl-b325d1c9"><p class="cl-b325c8c2"><span class="cl-b3249790"></span></p></td><td class="cl-b325d1ca"><p class="cl-b325c8c3"><span class="cl-b3249790">(0.065)</span></p></td></tr><tr style="overflow-wrap:break-word;"><td class="cl-b325d1cb"><p class="cl-b325c8c2"><span class="cl-b3249790">Num.Obs.</span></p></td><td class="cl-b325d1cc"><p class="cl-b325c8c3"><span class="cl-b3249790">11288</span></p></td></tr><tr style="overflow-wrap:break-word;"><td class="cl-b325d1c4"><p class="cl-b325c8c2"><span class="cl-b3249790">R2</span></p></td><td class="cl-b325d1c8"><p class="cl-b325c8c3"><span class="cl-b3249790">0.714</span></p></td></tr><tr style="overflow-wrap:break-word;"><td class="cl-b325d1cd"><p class="cl-b325c8c2"><span class="cl-b3249790">RMSE</span></p></td><td class="cl-b325d1ce"><p class="cl-b325c8c3"><span class="cl-b3249790">41.02</span></p></td></tr><tr style="overflow-wrap:break-word;"><td class="cl-b325d1d2"><p class="cl-b325c8c2"><span class="cl-b3249790">Std.Errors</span></p></td><td class="cl-b325d1d3"><p class="cl-b325c8c3"><span class="cl-b3249790">by: site</span></p></td></tr></tbody><tfoot><tr style="overflow-wrap:break-word;"><td colspan="2" class="cl-b325d1d4"><p class="cl-b325c8c2"><span class="cl-b3249790">+ p &lt; 0.1, * p &lt; 0.05, ** p &lt; 0.01, *** p &lt; 0.001</span></p></td></tr></tfoot></table></div>
 </div>
 </div>
 <ul>
@@ -4082,7 +4400,10 @@ Transcript
 <summary>
 Transcript
 </summary>
-<p>Everything in this lecture assumed a single treatment date. All treated units switched on at the same moment, so there was exactly one before period and one after period, and the two-way fixed-effects regression recovered the comparison we drew on the slides. Many policies are not adopted that way. States pass a law in different years, counties join a program on a rolling basis, and firms adopt a technology over a decade. In that staggered setting the same regression no longer estimates what most people assume it does, and that is the point of this final section.</p>
+<p>Up to this point, every treated unit in an example has shared one treatment date. For the incinerator, all nearby houses enter the after period when construction begins in 1981. For the LEMA, all inside wells enter the policy period in 2013. Controls remain untreated. That common timing creates one clean division between before and after for the treated group.</p>
+<p>The displayed two-way fixed-effects equation writes the outcome for unit i at time t as beta three times post at t times treated for i, plus X for i at t prime times gamma, plus unit effect alpha i, plus year effect lambda t, plus error v i t. Beta three is the DID interaction coefficient. X prime gamma represents observed time-varying controls. Alpha i absorbs all time-invariant unit characteristics, and lambda t absorbs shocks common to every unit in a year. The treated main effect is absorbed by alpha i, and the post main effect is absorbed by lambda t, which is why they do not appear separately.</p>
+<p>With one adoption date, beta three compares the treated group’s before-after change with the controls’ change, exactly as in the four-cell algebra. Multiple years can contribute to the before and after averages, but no treated unit is used as an untreated comparison for another treated unit at a different stage.</p>
+<p>Many real policies do not have common timing. States pass laws in different years, counties enter programs in waves, and firms adopt technologies gradually. That is staggered adoption. In that setting, running the same-looking two-way fixed-effects regression still produces a coefficient, but the coefficient need not be the simple average treatment effect you intend. The next tab explains where the problematic comparisons enter.</p>
 </details>
 <p>Every example in this lecture had a <span style="color: blue;">single</span> treatment date.</p>
 <ul>
@@ -4098,7 +4419,10 @@ Transcript
 <summary>
 Transcript
 </summary>
-<p>Now suppose units are treated at different times. The regression looks identical, and software will happily report a single coefficient. But with staggered timing, that coefficient is a weighted average of many two-by-two comparisons, and some of those comparisons use already-treated units as the control group. When treatment effects change over time, borrowing an already-treated unit as a control subtracts part of the treatment effect itself. The weights can even be negative, so the reported coefficient can fall outside the range of every underlying effect, and can be negative when every unit’s true effect is positive.</p>
+<p>Suppose one group adopts early, another adopts later, and perhaps a third is never treated. A plain two-way fixed-effects regression still reports one treatment coefficient, but it is assembled from many two-by-two DID comparisons across groups and time periods. Some comparisons are useful, such as an early cohort versus a not-yet-treated cohort before the latter adopts. The dangerous comparisons arise after one cohort is already treated and the regression uses that cohort as the control for a cohort treated later.</p>
+<p>Why is an already-treated control a problem? DID subtracts the control group’s change as though it represented an untreated trend. If that group’s treatment effect is evolving with time since adoption, its observed change includes treatment dynamics. Subtracting it removes part of one treatment effect while trying to estimate another. Cohorts can also have genuinely different effects because their populations or treatment versions differ.</p>
+<p>The two-way fixed-effects coefficient combines these comparisons with regression weights. Under staggered timing and heterogeneous or dynamic treatment effects, some implicit weights can be negative. A weighted average with negative weights is not constrained to lie between the smallest and largest underlying effects. That is why the important callout says the reported coefficient can fall outside every unit’s true effect and can even be negative when every true effect is positive.</p>
+<p>This is not a software bug, and adding more unit and year fixed effects does not solve it. The regression is answering a different weighted-comparison question. The problem disappears under strong homogeneous-effect conditions, but those conditions are often least plausible when effects build, fade, or differ by cohort. Before choosing an estimator, you must therefore identify whether adoption timing is common or staggered.</p>
 </details>
 <p><strong>The problem</strong></p>
 <p>When units are treated at <span style="color: red;">different</span> times, the same TWFE regression is a weighted average of <span style="color: blue;">many</span> <span class="math inline">2\times2</span> DID comparisons — and some of them use <span style="color: red;">already-treated</span> units as the control group.</p>
@@ -4121,7 +4445,11 @@ Transcript
 <summary>
 Transcript
 </summary>
-<p>The first step is diagnostic: state whether your adoption timing is common or staggered. If it is common, the estimators in this lecture are appropriate and no special machinery is needed. If it is staggered, use one of the heterogeneity-robust estimators developed in the recent literature. They build the comparison explicitly from not-yet-treated units, report effects by cohort and by event time, and then aggregate with sensible weights. In R, the fixest package implements the Sun and Abraham correction directly, and the did package implements Callaway and Sant’Anna. You are not expected to derive these, but you are expected to recognize when your design needs them.</p>
+<p>Step one is to state the treatment timing in your own project. If every treated unit adopts at a common date, the two-by-two logic and common-timing fixed-effect specifications in this lecture apply as presented. If different cohorts adopt in different years, do not report a plain two-way fixed-effects treatment coefficient without investigating what it compares.</p>
+<p>Step two is to use methods designed for staggered timing and heterogeneous effects. Callaway and Sant’Anna estimate treatment effects for particular adoption cohorts at particular times using appropriate untreated comparison units, and the R package did implements that framework. Sun and Abraham construct cohort-by-event-time effects that avoid the contaminated already-treated comparisons in a conventional event study; in fee-OLS, the sun-ab function provides that specification. These methods can report how effects vary by cohort and by time since treatment before aggregating them with interpretable weights.</p>
+<p>The Goodman-Bacon decomposition shows which two-by-two DID comparisons and weights make up a plain staggered-adoption two-way fixed-effects coefficient. It lets you diagnose how much of the reported coefficient comes from each comparison, including comparisons that use already-treated cohorts as controls.</p>
+<p>For any of these approaches, you still need the substantive DID assumptions: credible comparison groups, parallel untreated trends for the comparisons actually used, no anticipation, and well-defined treatment without problematic spillovers. A modern estimator fixes the weighting and comparison problem; it cannot fix a bad research design.</p>
+<p>The scope callout sets your responsibility. You do not need to derive these estimators in this course. You do need to recognize staggered adoption, name the estimator you used, and explain why its comparison groups are appropriate. That timing check is the final habit to carry from this lecture into your own impact-evaluation project.</p>
 </details>
 <p><strong>Step 1: state your timing</strong></p>
 <p>Is treatment adopted at a common date, or staggered?</p>

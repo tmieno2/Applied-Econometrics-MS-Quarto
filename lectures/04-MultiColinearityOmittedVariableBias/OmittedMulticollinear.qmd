@@ -43,7 +43,9 @@ library(ggplot2)
 <details class="transcript">
 <summary>Transcript</summary>
 
-Two questions in red on this slide, and they are the two you will face on every project you ever run. The first is a decision: you have a variable available, should you put it in the model? The second is a consequence: there is a variable you know matters and you simply cannot measure it, so what does that do to you? Notice these are not the same question. One is about a choice, the other about a constraint. The two concepts underneath, multicollinearity and omitted variable bias, are the answers, and this whole lecture is about telling them apart.
+Two questions in red on this slide, and they are the two you will face on every empirical project. Start with the first bullet. You have a candidate variable available, and you must decide whether it belongs in the regression. Adding every variable you can find is not automatically safer, because an added variable can make the coefficient you care about much less precise. But deleting controls just to obtain smaller standard errors is not safe either, because a missing variable can make that coefficient systematically wrong. The second bullet is a different problem. You may know that a variable matters but be unable to observe it, perhaps because the survey never collected it or because the concept is inherently hard to measure. Then omission is a constraint rather than a choice, and you need to know what the omission does to your estimate and what claims remain defensible.
+
+The two concepts at the bottom organize those questions. Multicollinearity concerns relationships among variables that are included as regressors, and its central consequence is a loss of precision. Omitted variable bias concerns a missing determinant that becomes part of the regression error, and under particular conditions it shifts the coefficient away from the effect you intended to estimate. Notice already that “include or omit” is not answered by a mechanical rule. We will separate relevance, meaning whether a variable affects the outcome, from correlation, meaning whether it moves with the regressor of interest. The four possible combinations will show exactly when inclusion costs precision and exactly when omission creates bias.
 
 </details>
 
@@ -67,7 +69,9 @@ Two important concepts you need to be aware of:
 <details class="transcript">
 <summary>Transcript</summary>
 
-Two definitions to have in front of you, and the contrast matters. Multicollinearity is about relationships among your independent variables: two or more of them are highly correlated with each other. Note that the definition says nothing about y at all. Omitted variable bias is about something missing: an important variable is not in the model. Read the word in blue in each box, because those are the words we will be pressing on. What counts as a consequence of multicollinearity, and what makes an omitted variable important, are precisely what the four cases work out.
+Keep these two definitions in front of you, because students often blend them together even though they describe different problems. In the first callout, multicollinearity means that two or more explanatory variables are highly related to one another, either positively or negatively. If one rises whenever another rises, or rises whenever another falls, the regression has little independent movement with which to distinguish their separate effects. Notice that this definition says nothing about the dependent variable. It also does not say that the error is correlated with a regressor. That is why multicollinearity by itself does not bias ordinary least squares. The blue question, “consequences?”, points us toward variance, standard errors, and how accurately separate coefficients can be estimated.
+
+The second callout defines omitted variable bias as bias caused by leaving an important variable out of the model. The blue word “important” needs more precision than ordinary speech gives it. A variable can strongly affect the outcome and still create no bias in the coefficient on x-one if it is unrelated to x-one. Conversely, correlation with x-one is not enough if the omitted variable has no effect on the outcome. Bias requires both features together. The four cases ahead vary those two features one at a time, so we can identify which feature causes which consequence. By the end, “important” will mean important for both the outcome equation and the assignment or selection process that determines x-one.
 
 </details>
 
@@ -86,7 +90,11 @@ Bias caused by not including (omitting) <span style="color:blue"> important </sp
 <details class="transcript">
 <summary>Transcript</summary>
 
-The simplest possible setting in which the question can even be asked: y depends on two variables, x-one and x-two, plus an error. Your interest is entirely in x-one. That is the coefficient in your paper, the one your policy conclusion rests on. X-two is the variable you are deciding about. So read the objective box carefully. We are not asking whether x-two is estimated well. We are asking what happens to beta-one-hat depending on whether x-two is in the model or out of it. Two variables is enough to see everything; more would only add algebra.
+This is the simplest model in which the inclusion decision can be studied. For observation i, y-sub-i is the outcome. Beta-zero is the intercept. Beta-one is the partial effect of x-one-sub-i on y, holding x-two fixed. Beta-two is the partial effect of x-two-sub-i, holding x-one fixed. The final term, u-sub-i, collects every remaining determinant of y that is not represented by the two regressors. The subscript i reminds you that the outcome, both explanatory variables, and the error vary across observations, while the beta coefficients are population parameters.
+
+Your substantive interest is beta-one. Think of x-one as a treatment, policy, input, or exposure whose effect will support the main conclusion of your paper. X-two is the candidate control whose inclusion is uncertain. Read the objective callout carefully: we are not primarily asking whether beta-two itself can be estimated accurately. We are asking what happens to the estimator of beta-one when x-two is included or omitted. That “holding x-two fixed” interpretation of beta-one is central. If x-two is left out and moves with x-one, the short regression may combine the effects of both variables and no longer isolate beta-one.
+
+Using two regressors keeps the algebra visible, but the logic extends directly to many controls. With many regressors, x-two can represent one omitted factor or an entire group of controls, and the relevant correlation is the portion related to x-one after accounting for whatever else is in the model. The next tab crosses whether beta-two is zero with whether x-one and x-two are correlated.
 
 </details>
 
@@ -107,7 +115,11 @@ Using this simple model, we investigate what happens to the coefficient estimate
 <details class="transcript">
 <summary>Transcript</summary>
 
-Four cases, and look at how they are constructed, because the structure is the whole design of the lecture. Two things can be true or false. Either beta-two is zero or it is not, meaning x-two either matters for y or it does not. And either x-two is correlated with x-one or it is not. Two binary conditions give four combinations, and those are exactly the four cases listed. Nothing else varies. So when you see a difference in the results, you know precisely which of the two conditions caused it, because only one thing changed.
+The same true model is printed at the top of this tab, and the four cases are generated by changing only two features of it. First ask whether beta-two equals zero. If it does, x-two has no partial effect on y once x-one is held fixed, so we will call it irrelevant. If beta-two is not zero, x-two is a genuine determinant of the outcome. Second ask whether x-one and x-two are correlated. A zero correlation means their linear movements are unrelated in the population. A nonzero, and especially a high, correlation means that observations with different values of x-one also tend to have different values of x-two.
+
+Now read the cases as a two-by-two design. Case 1 includes x-two even though beta-two is zero, and x-two is uncorrelated with x-one. That is the harmless benchmark. Case 2 still includes an irrelevant x-two, but now x-two is highly correlated with x-one. Comparing Cases 1 and 2 isolates the consequence of multicollinearity. Case 3 does the opposite experiment: beta-two is not zero, but x-two is uncorrelated with x-one and is omitted from the estimated model. Comparing Case 3 with Case 1 isolates what relevance does to the error variance. Case 4 omits an x-two that both matters and is highly correlated with x-one. That final combination produces omitted variable bias.
+
+The blue words “include” and “omit” describe our modeling action. The blue words “not” and “highly” describe the relationship between the regressors. Nothing else in the simulation design changes across the corresponding comparisons. That controlled structure lets you attribute each change in the coefficient distribution to relevance, correlation, or their interaction rather than to an unrelated change in the experiment.
 
 </details>
 
@@ -134,7 +146,11 @@ What happens if $\beta_2\ne 0$, but <span style="color:blue">omit</span> $x_2$ t
 <details class="transcript">
 <summary>Transcript</summary>
 
-Two things we track in every case: is beta-one-hat unbiased, and how large is its variance. And then the formula, which you already have from lecture 02. Read the three bullets under it, because they are the map for the entire lecture. Omitting a relevant variable pushes that variable into the error term, which changes the numerator. Including a correlated variable raises R-squared-j, which shrinks the denominator. The four cases are just the four combinations of those two effects being present or absent. Everything that follows is bookkeeping on this one expression.
+We will evaluate every case with the two questions at the top. First, is beta-one-hat unbiased? That means that across repeated random samples, the expected value of the estimator equals the true beta-one. An unbiased estimator can be above or below the truth in any one sample, but its sampling distribution is centered correctly. Second, what is the variance of beta-one-hat? Variance measures how widely estimates vary across samples, so it is the formal measure of precision behind the standard error. Smaller variance means the estimate is more accurate in repeated sampling, conditional on being centered at the right target.
+
+The displayed formula from Lecture 02 says that the variance of beta-j-hat equals sigma-squared divided by S-S-T-sub-j times one minus R-squared-sub-j. Sigma-squared is the variance of the regression error. S-S-T-sub-j is the total sum of squares of regressor x-sub-j, the amount of sample variation available in the variable whose coefficient you are estimating. R-squared-sub-j comes from the auxiliary regression of x-sub-j on every other included covariate. It measures how much of x-sub-j those other regressors can explain. If that auxiliary R-squared is high, one minus R-squared is small, so little independent variation in x-sub-j remains and the coefficient variance becomes large.
+
+The three bullets below the formula are the map for the lecture. Omitting a relevant x-two moves beta-two times x-two into the new error term, which can increase the numerator. Including an x-two that is correlated with x-one increases the auxiliary R-squared for x-one, which shrinks the denominator. Bias is a separate question: omission biases beta-one-hat only when the omitted component of the error is related to x-one. The four cases turn the numerator effect, denominator effect, and bias condition on or off in controlled combinations.
 
 </details>
 
@@ -164,7 +180,11 @@ $$Var(\widehat{\beta}_j)= \frac{\sigma^2}{SST_j(1-R^2_j)}$$
 <details class="transcript">
 <summary>Transcript</summary>
 
-Case one, and it is the easy corner. Read the three conditions. X-one and x-two are uncorrelated, beta-two is zero, and the error is well behaved. So x-two is doing nothing at all: it does not affect y, and it carries no information about x-one either. The example makes that concrete. A farmer's height genuinely has no effect on corn yield, and taller farmers do not apply more nitrogen. Ask yourself before we run anything: if you throw a variable like that into your regression, what could possibly go wrong? Case one is the sanity check.
+Case 1 is the benchmark in which x-two is harmless in both relevant senses. Start with the true model at the top. Y-sub-i equals beta-zero plus beta-one times x-one-sub-i, plus beta-two times x-two-sub-i, plus u-sub-i. The first condition says the population correlation between x-one and x-two is zero, so x-two does not linearly predict the regressor whose effect we care about. The second says beta-two equals zero, so changing x-two while holding x-one fixed does not change y. The third says the conditional expectation of u given both regressors is zero. That is the exogeneity condition ensuring that the unexplained part of y is not systematically related to either included variable.
+
+The corn example translates every symbol. Corn yield is y, nitrogen application is x-one, and the farmer’s height is x-two. Beta-one is the effect of an additional unit of nitrogen on expected yield, holding height fixed. Beta-two would be the partial effect of height, but the slide sets it to zero. The bullet also says height is unrelated to nitrogen use, so knowing that a farmer is taller gives no systematic information about the amount of nitrogen applied. Height therefore neither explains the outcome nor competes with nitrogen for identifying variation.
+
+This is a sanity check for both omission and inclusion. If we omit height, the term beta-two times height vanishes because beta-two is zero. If we include height, its lack of correlation with nitrogen means it should not systematically reduce the independent nitrogen variation. Before opening the next tabs, use those two facts to predict both bias and precision.
 
 </details>
 
@@ -187,7 +207,11 @@ $\text{corn yield} = \beta_0 + \beta_1 \times N + \beta_2 \times \text{farmer's 
 <details class="transcript">
 <summary>Transcript</summary>
 
-This same tab appears in all four cases, and I want you to actually answer it before clicking to the results. Three questions. Is beta-one-hat unbiased in the model that leaves x-two out. Is it unbiased in the model that puts x-two in. And how do the two variances compare. Commit to an answer, even a guess, before you see the simulation. The reason is that all four cases produce a picture, and if you have not predicted it you will simply look at the picture and think it was obvious. Predicting first is what makes the surprise in case four land.
+This question tab introduces the two estimating equations that will be held fixed across all four cases. E-E-one is the short regression. It includes x-one but omits x-two. Because the true outcome still contains beta-two times x-two, that omitted contribution must go somewhere. We absorb it into a composite error called v-sub-i, defined as beta-two times x-two-sub-i plus u-sub-i. E-E-two is the long regression. It includes x-one and x-two separately and therefore retains the original error u-sub-i. In both equations beta-one denotes the population effect we want, but the estimator from E-E-one will recover it only if the composite error behaves properly with respect to x-one.
+
+The callout asks three separate questions. First, in E-E-one, does the expected coefficient estimate on x-one equal beta-one? To answer, ask whether v is related to x-one. In Case 1, beta-two is zero, so v reduces to u, and the assumed zero conditional mean condition suggests no bias. Second, is the x-one estimator in E-E-two unbiased? This equation matches the true model, and the slide assumes u has conditional mean zero given both regressors, so yes. Third, compare the two sampling variances. Use the variance formula rather than intuition: omitting x-two can change the error variance, while including it can change the auxiliary R-squared for x-one.
+
+Commit to all three answers before opening the simulation tab. The same questions recur in every case, and prediction prevents you from treating each resulting picture as obvious after the fact. Here the population benchmark predicts two centered distributions with essentially the same width. Later cases change exactly one or both conditions and let you see why that prediction changes.
 
 </details>
 
@@ -216,7 +240,13 @@ What do you think is gonna happen? Any guess?
 <details class="transcript">
 <summary>Transcript</summary>
 
-Three cells, and they follow exactly the recipe from lecture 03. The first sets the sample size, the number of iterations, and a storage matrix with two columns, one per estimating equation. The second is the loop. Read the data generation lines: x-one and x-two are drawn independently, and y is built with a zero coefficient on x-two, so the setup conditions are enforced by the code rather than assumed. Then both regressions run on the same data, which is important, and both coefficients get stored. The third cell builds the density plot with the true value marked in blue.
+There are four visible code blocks here, including the one-time WebR setup, and each has a distinct job. The long setup block defines the lecture theme used by every browser-generated plot. Theme-B-W supplies the base appearance; the element-text settings scale axis and legend labels; transparent backgrounds allow the slide’s paper color to show through; and the grey grid remains visible on that background. The WebR scale adjusts sizes because the browser graphics device draws at seventy-two dots per inch while the deck requests two hundred sixteen. Theme-set makes this adjusted theme the default for later plots.
+
+The first simulation cell sets N equal to one hundred observations per sample and B equal to one thousand repeated samples. Matrix with zero, B, and two creates a one-thousand-row, two-column storage object. Each row will hold one repetition, and the two columns correspond to E-E-one and E-E-two. Set-seed with thirty-seven-thousand eight-hundred thirty-four makes the random draws reproducible. The for loop then runs the same experiment for i from one through B.
+
+Inside the loop, r-norm of N draws independent standard-normal values for x-one, x-two, and u. The outcome line sets the intercept to one, beta-one to one, and beta-two to zero. Data-frame binds those vectors so both fee-ols calls use exactly the same simulated sample. The first call regresses y on x-one; the second regresses y on x-one plus x-two. In each call, the data argument supplies the constructed data frame, coefficient selects the fitted coefficients, and the name x-one extracts only the estimate we are studying. Dee-tee bracket i comma one and i comma two store the paired results.
+
+The final block converts each storage column to a data table with a common estimate name and an equation label, row-binds them, and maps the estimate to the horizontal axis and equation type to fill. Geom-density draws the two sampling distributions with half transparency so overlap is visible. The fill scale titles the legend, and the blue vertical line at one marks the true beta-one. The x-axis label names the quantity, and the legend is placed below the plot. Flip to the results tab to see what those one thousand repetitions produced.
 
 </details>
 
@@ -338,7 +368,11 @@ g_case_1 <- ggplot(data = plot_data) +
 <details class="transcript">
 <summary>Transcript</summary>
 
-Two densities, and the blue line is the true beta-one of one. Look at three things. Both densities are centered on the blue line, so both estimating equations are unbiased, which is what you would hope. Their widths are nearly identical in this simulation. In a finite sample, the sample correlation will not be exactly zero and estimating an extra coefficient uses a degree of freedom, so the added variable is not literally free. But an irrelevant variable that is orthogonal to x-one has no systematic precision benefit, and its cost becomes negligible here. Keep this image in mind, because in the next three cases one or both of those observations will fail.
+The horizontal axis is the estimated coefficient on x-one, and the vertical height of each density shows how frequently estimates occur near that horizontal value across the one thousand simulated samples. The fill color distinguishes E-E-one from E-E-two, as the legend at the bottom indicates. The blue vertical line is at one, the true value of beta-one used to generate every sample. A distribution centered on that line is evidence of unbiasedness in this Monte Carlo experiment; a narrower distribution indicates greater precision.
+
+Look first at location. Both colored densities are centered essentially on the blue line, so neither omitting nor including x-two produces a systematic shift. In the run used to check this deck, the simulation means were about one point zero zero one for both equations. That matches the logic of the setup: beta-two is zero, so leaving x-two out does not put a relevant component into the error, and the correctly specified long regression is unbiased by assumption.
+
+Now compare widths. The curves are almost on top of each other. The simulated variances were about zero point zero one zero eight for E-E-one and zero point zero one zero nine for E-E-two. They are not algebraically identical in an ordinary finite sample. Even though the population correlation is zero, the realized sample correlation is almost never exactly zero, and estimating an extra coefficient also affects finite-sample uncertainty. The slide’s “same variance” statement is the population, orthogonal benchmark. The practical message is that an irrelevant regressor orthogonal to x-one provides no systematic precision gain and only a small finite-sample cost here. Keep both the common center and common width in mind, because later cases alter one or both.
 
 </details>
 
@@ -357,7 +391,11 @@ g_case_1
 <details class="transcript">
 <summary>Transcript</summary>
 
-Now let's explain the picture rather than just look at it. On the left, the truth; on the right, the model we actually estimated, which pushes x-two into a composite error term v. The question is whether the zero conditional mean condition holds for that composite error. Work it out before opening the answer. V contains beta-two times x-two plus u. Beta-two is zero, so the first piece vanishes entirely, and u was assumed uncorrelated with x-one. So the condition holds and there is no bias. Notice we needed only one of the two conditions here.
+Now explain the centered E-E-one density rather than simply observing it. The left column repeats the true model and its three Case 1 conditions. The right column shows the short model we actually estimate. Because x-two is omitted, its contribution is included in v-sub-i, where v-sub-i equals beta-two times x-two-sub-i plus u-sub-i. The question below the columns asks whether the expected value of this composite error, conditional on x-one-sub-i, equals zero. That is the condition needed for the short-regression coefficient on x-one to be unbiased for beta-one.
+
+Work through the conditional expectation term by term. The expected v given x-one equals beta-two times the expected x-two given x-one, plus the expected u given x-one. In Case 1, beta-two equals zero, so the entire first term is zero regardless of the realized value of x-two. The original assumption that u has zero conditional mean given x-one and x-two also implies, by averaging over x-two, that u has zero conditional mean given x-one alone. Therefore the second term is zero as well. The answer panel expresses the same idea using lack of correlation: x-one is unrelated to both x-two and u.
+
+So E-E-one has no omitted variable bias. Notice which condition does the decisive work here. Even if x-one and x-two had been correlated, multiplying x-two by a true coefficient of zero would still remove it from v. Case 2 will make exactly that change and confirm the point. For now, the omitted variable is harmless because it is irrelevant to y, not merely because the variables are uncorrelated.
 
 </details>
 
@@ -403,7 +441,11 @@ Yes, because $x_1$ is not correlated with either of $x_2$ and $u$. So, **no** bi
 <details class="transcript">
 <summary>Transcript</summary>
 
-The other estimating equation, and this one is almost trivial. We estimated exactly the model that generated the data, error term and all. So the question is just whether the original zero conditional mean condition holds, and we assumed it does in the setup. No bias. The reason this tab is worth a moment anyway is the contrast with the previous one. Both give unbiased estimates, but for different reasons: this one because the model is correct, that one because the thing it left out happened to be harmless. Only one of those is robust.
+E-E-two is the long regression shown in the right column. It includes both x-one and x-two, so it is identical to the true model in the left column. There is no composite error here. The regression error is the original u-sub-i, and the question asks whether its expected value conditional on x-one and x-two is zero. That statement appears explicitly as the third setup condition, so the answer is yes.
+
+The conditional mean condition is stronger and more useful than saying only that each regressor has zero simple correlation with u. It means that after fixing any values of x-one and x-two, the remaining unobserved determinants average to zero. Under that assumption, ordinary least squares attributes systematic changes in y to the included regressors rather than to a predictable part of the error. Therefore the expected coefficient on x-one is beta-one, and the coefficient is unbiased. Beta-two happens to equal zero in this case, but including a zero-coefficient variable does not itself create bias.
+
+Compare the logic with the E-E-one tab. Both estimators are unbiased, but for different reasons. E-E-two is unbiased because it estimates the full data-generating model under the stated exogeneity assumption. E-E-one is unbiased because the omitted component beta-two times x-two happens to vanish. The first justification is the standard correct-specification argument. The second depends on a special property of the omitted variable. That distinction matters later, when beta-two is no longer zero and the short regression’s composite error must be examined directly.
 
 </details>
 
@@ -454,7 +496,13 @@ Yes, because $x_1$ and $x_2$ are not correlated with $u$ (by assumption). So, **
 <details class="transcript">
 <summary>Transcript</summary>
 
-Now variance, and we walk the formula term by term. The two questions below are the two moving parts. R-squared-j is the R-squared from regressing x-one on all the other covariates, and in this model there are no other covariates, so it is zero and the denominator is untouched. And the error variance: v is beta-two times x-two plus u, but beta-two is zero, so v is just u, and its variance is sigma-u squared. Both parts unchanged. That is why we get the answer we get on the comparison tab.
+Now use the variance formula for the E-E-one coefficient on x-one. In the middle column, sigma-v-squared is the variance of the short regression’s composite error. S-S-T-sub-j is the total sum of squared deviations in the regressor whose coefficient is being estimated, here x-one. R-squared-sub-j is obtained by regressing that regressor on all other covariates included in the same estimating equation. The two question tabs below isolate the numerator and the collinearity part of the denominator.
+
+Open the R-squared question first. E-E-one contains x-one and an intercept, but no other explanatory variable. There is therefore no included covariate that can explain x-one, so for this comparison the auxiliary R-squared is zero. One minus R-squared is one, and the denominator reduces to the total variation in x-one.
+
+Next open the error-variance question. The first line names the target, the variance of v-sub-i. The second substitutes the definition of v, beta-two times x-two-sub-i plus u-sub-i. Because beta-two equals zero, beta-two times x-two is identically zero for every observation. Thus v equals u, not merely on average but observation by observation, and the variance of v equals the variance of u, denoted sigma-u-squared. No covariance term remains because the omitted component itself has vanished.
+
+Both components therefore match the simplest one-regressor variance expression: numerator sigma-u-squared and denominator S-S-T for x-one. This explains the precision of E-E-one and prepares the direct comparison with E-E-two on the next tab.
 
 </details>
 
@@ -524,7 +572,11 @@ because $\beta_2 = 0$.
 <details class="transcript">
 <summary>Transcript</summary>
 
-Same two questions for the model that includes x-two. R-squared-j is now the R-squared from regressing x-one on x-two, and since those two are uncorrelated by construction, it is zero on average. Note the words on average: in any single sample the correlation is not exactly zero, so R-squared-j is a small positive number. But it does not systematically inflate anything. And the error variance is sigma-u squared, since we estimated the true model. So again both parts unchanged, and for a different reason than before.
+Apply the same variance formula to E-E-two, the model that includes both regressors. The numerator is sigma-u-squared because u-sub-i is the regression error in the correctly specified model. There is no omitted x-two component inside that error. The second question tab therefore simply identifies the error variance as the variance of u, which is sigma-u-squared.
+
+The denominator requires more attention because E-E-two does contain another covariate. For the coefficient on x-one, R-squared-sub-j is the R-squared from the auxiliary regression of x-one on x-two and an intercept. In a one-regressor auxiliary regression, that R-squared is the squared sample correlation between x-one and x-two. The true Case 1 correlation is zero, so its population counterpart is zero and the slide records R-squared as zero on average. This leaves one minus R-squared equal to one in the population comparison, just as in E-E-one.
+
+Keep “on average” separate from “in every sample.” Independent normal draws will have a small accidental sample correlation, so the fitted auxiliary R-squared is nonnegative and typically a little above zero. In the checked simulation, its mean was about zero point zero one one. That small realized R-squared slightly shrinks the denominator and helps explain why the two Monte Carlo variances are close rather than numerically identical. The key economic point is that x-two does not systematically absorb the variation in x-one needed to estimate beta-one. E-E-two and E-E-one consequently have the same benchmark numerator and denominator, reached for different reasons.
 
 </details>
 
@@ -593,7 +645,11 @@ $$
 <details class="transcript">
 <summary>Transcript</summary>
 
-Here is the population comparison laid out. When x-two is orthogonal to x-one, the multicollinearity term is zero, and both models have error variance sigma-u squared. In an actual finite sample, their sample correlation will generally be small rather than exactly zero, and the larger model also estimates one more coefficient. Thus the variances need not be exactly identical, although they are nearly so in this design. The practical lesson is that an irrelevant, nearly uncorrelated control offers no precision gain and usually has only a small precision cost.
+The callout asks whether the variance of beta-one-hat in E-E-one is less than, equal to, or greater than its variance in E-E-two. Compare the three columns component by component. In the E-E-one column, R-squared-sub-j is zero because x-one is the only regressor, and the error variance is sigma-u-squared because beta-two equals zero makes v equal u. In the E-E-two column, the population auxiliary R-squared is also zero because x-one and x-two are uncorrelated, and the error variance is again sigma-u-squared because the regression error is u.
+
+Now insert those entries into the formula in the third column. Both models use the same sample variation S-S-T-sub-j in x-one. Both have sigma-u-squared in the numerator. With R-squared equal to zero in the benchmark, both have S-S-T-sub-j times one in the denominator. The displayed answer therefore says the variances are the same because every component is the same.
+
+Interpret that equality as the ideal population-orthogonality comparison used by the slide. In a realized finite sample, the x-one and x-two draws will generally have a small nonzero sample correlation even when their population correlation is zero. Then E-E-two has a small positive auxiliary R-squared, and estimating the extra coefficient can also affect the estimated standard error through degrees of freedom. So the two finite-sample variances need not be exactly equal, as the Monte Carlo results showed, although they are nearly equal in this design. The practical lesson is unchanged: an irrelevant control that is nearly orthogonal to x-one offers no precision benefit, and its precision cost is small rather than the dramatic cost produced by strong multicollinearity.
 
 </details>
 
@@ -644,7 +700,11 @@ They are the same because all the components are the same.
 <details class="transcript">
 <summary>Transcript</summary>
 
-The two takeaways from case one, and both are permission rather than warning. Including a variable that has no explanatory power and is uncorrelated with x-one leaves your variance exactly where it was. And omitting such a variable leaves you unbiased. So in this corner of the world it genuinely does not matter what you do. Remember that this is the only case where that is true. Three more cases follow, and each one breaks exactly one of the two conditions we imposed here, so you will be able to attribute every difference to the thing that changed.
+The two bullets summarize Case 1 from the perspectives of inclusion and omission. Start with the first. X-two has no explanatory power beyond x-one because beta-two is zero, and it is not correlated with x-one. Including it therefore leaves the error variance at sigma-u-squared and leaves the population auxiliary R-squared at zero. Under the slide’s orthogonal benchmark, the variance of the x-one estimator is the same as when x-two is excluded. In finite samples the extra variable is not literally costless, because accidental sample correlation can produce a small precision loss, but there is no systematic precision benefit or serious multicollinearity penalty.
+
+The second bullet looks at omission. When x-two is left out, the composite error is beta-two times x-two plus u. Since beta-two is zero, that composite error is simply u. It remains unrelated to x-one under the stated zero conditional mean assumption, so the x-one estimator remains unbiased. In plain language, leaving out a variable that truly does not affect y cannot cause the regression to assign that nonexistent effect to x-one.
+
+Thus both modeling choices are safe in this special corner: the short and long regressions are centered on beta-one and have essentially the same precision. Do not turn that into a general license to include or omit controls casually. Case 2 keeps beta-two at zero but makes x-two highly correlated with x-one, revealing the precision cost of inclusion. Case 3 keeps the variables uncorrelated but makes beta-two nonzero, revealing the precision cost of omission. Case 4 combines both changes and produces bias. Move to Case 2 with the Case 1 picture as the baseline.
 
 </details>
 
@@ -664,7 +724,11 @@ The two takeaways from case one, and both are permission rather than warning. In
 <details class="transcript">
 <summary>Transcript</summary>
 
-Case two, and exactly one thing has changed from case one: x-one and x-two are now correlated. Beta-two is still zero, so x-two is still genuinely irrelevant to y. Read the example, because it is the shape this takes in practice. Fertilizer expenditure is almost entirely determined by how much nitrogen you applied, so the two are tightly related. But once you already know the nitrogen rate, the dollar figure tells you nothing further about yield. An irrelevant variable that happens to move with the one you care about. This is what multicollinearity means.
+Case 2 changes exactly one condition from Case 1. The true model is still y-sub-i equals beta-zero plus beta-one x-one-sub-i plus beta-two x-two-sub-i plus u-sub-i. Beta-two is still zero, so x-two has no partial effect on the outcome. The original error still has conditional mean zero given both regressors, so exogeneity remains intact. The change is the first bullet: x-one and x-two now have a nonzero, and in the simulation very high, correlation. That lets us study multicollinearity while holding relevance and error behavior fixed.
+
+The corn example makes this configuration concrete. Y is corn yield, x-one is the physical quantity of nitrogen applied, and x-two is fertilizer expenditure. Expenditure is almost determined by quantity applied, because purchasing more nitrogen normally costs more. Thus the two regressors contain nearly the same variation. But after the actual nitrogen rate is already in the regression, expenditure is assumed to add no further explanation of yield, so beta-two equals zero. It is irrelevant to the conditional mean of y but highly related to the regressor whose effect we want.
+
+That last distinction defines the issue. Multicollinearity is not that two variables both affect y, and it is not correlation between a regressor and u. It is limited independent movement among included regressors. If nitrogen and expenditure rise together, the long regression must use the small cases where they differ to decide which coefficient receives a change in yield. We should therefore expect no bias from correlation alone, but less precision when x-two is included. The next tabs show both claims.
 
 </details>
 
@@ -687,7 +751,13 @@ $\text{corn yield} = \beta_0 + \beta_1 \times N + \beta_2 \times \text{fertilize
 <details class="transcript">
 <summary>Transcript</summary>
 
-Same three questions, and now they are worth more thought than in case one. X-two still does not belong in the model in any meaningful sense, since beta-two is zero. So your instinct might be that including it is still harmless. Predict all three answers before moving on. In particular, think hard about the third one. If x-two carries no information about y, can putting it in the regression really cost you anything? Write down yes or no. The whole point of case two is that the answer is not what most people expect.
+The two estimating equations are unchanged. E-E-one includes only x-one, and its composite error v equals beta-two times x-two plus u. E-E-two includes both x-one and x-two and keeps u as its error. The parenthetical sentence emphasizes that the equations differ only by whether x-two is a separate covariate. In Case 2, beta-two is zero but x-two is highly correlated with x-one.
+
+Answer the three bullets separately. For bias in E-E-one, substitute beta-two equals zero into v. The omitted component vanishes, v becomes u, and the coefficient on x-one remains unbiased even though x-one and x-two are correlated. For E-E-two, the equation matches the stated true model and u has conditional mean zero given both regressors, so its x-one coefficient is also unbiased. This is an important warning against saying “multicollinearity biases OLS.” It does not.
+
+The third bullet asks for the variance ranking. E-E-one has no other included covariate, so the auxiliary R-squared for x-one is zero. E-E-two makes x-two an included covariate, and because x-two predicts x-one extremely well, the auxiliary R-squared is near one. One minus that value makes the denominator of the variance formula small. Both equations have the same error variance because beta-two is zero, so the denominator effect determines the ranking: the x-one coefficient in E-E-two should be much more variable.
+
+Commit to that prediction before moving on. The surprising point is that a variable can carry no information about y conditional on x-one and still be very costly to include, because it removes the independent variation used to distinguish beta-one from beta-two.
 
 </details>
 
@@ -716,7 +786,13 @@ What do you think is gonna happen? Any guess?
 <details class="transcript">
 <summary>Transcript</summary>
 
-The code is identical to case one except for two lines, and they are the ones to read. A common term mu is drawn, and then both x-one and x-two are built as nine parts mu plus one part their own noise. That makes them correlated by construction, and very strongly so. Everything else is untouched, including the zero coefficient on x-two in the line that builds y. One condition changed, everything else fixed, which is the controlled experiment we set up at the start of the lecture.
+The setup cell again uses one hundred observations per simulated sample, one thousand repetitions, and a B-by-two zero matrix for the paired coefficient estimates. Set-seed fixes the random-number sequence, and the for loop repeats the data generation, two regressions, and storage for i from one through B. The structure is the same as Case 1 so that only the relationship between the regressors changes.
+
+Focus on the data-generation lines. Mu is a new N-length standard-normal common component. X-one equals zero point one times its own standard-normal draw plus zero point nine times mu. X-two is built the same way, but with a separate idiosyncratic draw. The independent ten-percent pieces create a little variable-specific movement, while the shared ninety-percent piece makes the regressors move together. Their covariance is zero point nine squared, or zero point eight one. Each variance is zero point one squared plus zero point nine squared, or zero point eight two. Their population correlation is therefore about zero point nine eight eight, and the squared correlation is about zero point nine seven six.
+
+U is an independent standard-normal error. The y line sets the intercept to one, beta-one to one, and beta-two to zero. Thus x-two remains irrelevant even though it is strongly correlated with x-one. Data-frame packages the vectors. Fee-ols first fits y on x-one and then y on x-one plus x-two using the same data; coefficient named x-one extracts the target estimate; and bracket i comma one or two places each result in the matching storage column.
+
+The visualization block converts the two columns into labeled data tables, row-binds them, and draws overlapping density curves of b-hat by estimating equation. Alpha one-half reveals overlap, the blue vertical line at one marks the truth, and the bottom legend identifies the fills. The next tab shows how changing only regressor correlation changes the widths.
 
 </details>
 
@@ -773,7 +849,7 @@ b_ee2 <- data.table(
 
 plot_data <- rbind(b_ee1, b_ee2)
 
-g_case_2 <- 
+g_case_2 <-
   ggplot(data = plot_data) +
   geom_density(aes(x = bhat, fill = type), alpha = 0.5) +
   scale_fill_discrete(name = "Estimating Equation") +
@@ -788,7 +864,11 @@ g_case_2 <-
 <details class="transcript">
 <summary>Transcript</summary>
 
-Now look at the difference from case one. Both densities are still centered on the blue line, so both are still unbiased, and that is genuinely reassuring. But they are no longer the same shape. The one for the model including x-two is visibly wider, sometimes dramatically so. You have paid a real price in precision for including a variable that contributes nothing. That is the consequence of multicollinearity, and notice what it is not: it is not bias. Your estimator is still right on average. It is just less reliable in any one sample.
+Read the graph using the same three features as before. The horizontal axis reports the estimated coefficient on x-one, the density height shows the concentration of estimates across the one thousand repetitions, and the fill identifies E-E-one or E-E-two. The blue vertical line at one is the true beta-one. Both density curves are centered near that line. In the checked run their means were about one point zero zero two for E-E-one and one point zero three eight for E-E-two. The latter deviation is ordinary Monte Carlo noise from a very dispersed estimator, not a systematic shift. Across repeated experiments its expected center is one.
+
+The striking difference is width. E-E-one, which omits the irrelevant x-two, is narrow. E-E-two, which includes x-two, is dramatically wider. The checked sampling variances were about zero point zero one three and zero point five two two, respectively. A single E-E-two sample can therefore produce an estimate far from one even though the estimator is unbiased. Its standard error should communicate that uncertainty.
+
+This is the consequence of multicollinearity. X-two contributes no partial explanatory power for y because beta-two is zero, but it explains almost all of x-one. The long regression is trying to separate two coefficients using only the tiny independent pieces of the regressors. That weak separation increases variance. It does not shift the sampling distribution to a false target, so do not call it bias. It also does not imply a poor overall fit: a regression can predict y well while its individual correlated coefficients are imprecise. Compare this picture with Case 1, where removing the common component left both center and width essentially unchanged.
 
 </details>
 
@@ -807,7 +887,11 @@ g_case_2
 <details class="transcript">
 <summary>Transcript</summary>
 
-Why is leaving x-two out still unbiased here, when x-two is now correlated with x-one? Read the answer carefully, because the logic matters. The composite error v is beta-two times x-two plus u. X-one is indeed correlated with x-two, which sounds alarming. But beta-two is zero, so that whole term is zero, and correlation with something multiplied by zero is harmless. What is left is u, uncorrelated with x-one by assumption. So no bias. Correlation alone is not enough to hurt you. Hold on to that; it is half of what case four needs.
+The columns place the true model beside E-E-one, the model that omits x-two. The short-regression error is v-sub-i, defined as beta-two times x-two-sub-i plus u-sub-i. The question is whether v has conditional mean zero given x-one. If it does, ordinary least squares does not systematically attach part of v to the x-one coefficient.
+
+Case 2 deliberately contains one alarming fact and one neutralizing fact. X-one is correlated with x-two, so if x-two entered v with a nonzero coefficient, v would inherit that relationship. But beta-two equals zero. Multiplying x-two by zero makes beta-two times x-two identically zero, regardless of how strongly x-two moves with x-one. Therefore v equals u. The setup assumption that u has zero conditional mean given x-one and x-two implies that its mean given x-one is also zero. The two bullets inside the answer panel state those steps: correlation is present, but the coefficient is zero; x-one is not related to u.
+
+Consequently, E-E-one remains unbiased for beta-one. This is why correlation by itself is not an omitted variable problem. For omission to shift the x-one coefficient, the omitted variable must first affect y, so that it actually enters the composite error, and it must also be related to x-one, so that the regression can confuse its effect with beta-one. Case 2 supplies only the second condition. Case 4 will supply both.
 
 </details>
 
@@ -856,7 +940,11 @@ So, **no** bias.
 <details class="transcript">
 <summary>Transcript</summary>
 
-And the model that includes x-two is unbiased for the same trivial reason as in case one: it is the model that generated the data. Nothing about correlation between regressors threatens unbiasedness. That is worth stating plainly, because multicollinearity has a bad reputation and people sometimes think it biases coefficients. It does not. Correlated regressors are entirely consistent with all four of the conditions we listed in lecture 02. The damage multicollinearity does is on the variance side only, which is the next tab.
+E-E-two includes x-one and x-two separately, exactly as the true model does. Its error is u-sub-i rather than the composite v. The question below the columns repeats the exogeneity condition: is the expected value of u conditional on x-one and x-two equal to zero? The setup states that it is, so ordinary least squares is unbiased for both included coefficients, including beta-one.
+
+The nonzero correlation between x-one and x-two does not contradict that condition. Correlation among regressors is different from correlation between a regressor and the error. The regressors may move almost in lockstep while u remains unpredictable once their values are known. In that situation the normal equations still center the coefficient estimates on the correct population parameters. The regression simply has little independent variation with which to tell the two effects apart.
+
+This distinction corrects a common description of multicollinearity. It does not make OLS coefficients systematically too high or too low. It increases their sampling variance, which produces larger standard errors, wider confidence intervals, smaller absolute t statistics for a given estimate, and unstable-looking point estimates across samples. None of those is bias. Perfect collinearity would prevent separate estimation altogether because the design matrix would not have full rank; the high but imperfect collinearity simulated here still permits estimation, but with poor precision. Flip to the variance tabs to see that loss arise from R-squared-sub-j.
 
 </details>
 
@@ -907,7 +995,11 @@ Yes, because $x_1$ and $x_2$ are not correlated with $u$ (by assumption). So, **
 <details class="transcript">
 <summary>Transcript</summary>
 
-The variance terms for the model that omits x-two, and the answers are the same as in case one. R-squared-j is zero, because with only one regressor there is nothing to regress it on. And the error variance is sigma-u squared, because beta-two is zero, so v collapses to u again. Neither term feels the correlation between x-one and x-two, because x-two is not in this model at all. That is the key: this estimating equation is completely insulated from what x-two is doing. The next tab is where it bites.
+For E-E-one, evaluate the numerator and denominator of the variance formula shown in the middle column. R-squared-sub-j refers to the auxiliary regression of the target regressor, x-one, on all other covariates included in E-E-one. There are no other covariates in this short equation, so the slide assigns that R-squared a value of zero. The high relationship between x-one and x-two cannot raise this auxiliary R-squared because x-two is not an included regressor.
+
+For the numerator, start with v equals beta-two times x-two plus u. The variance question substitutes this expression explicitly. Since beta-two equals zero, the omitted term is zero for every observation, v equals u, and the variance of v is sigma-u-squared. Correlation between x-one and x-two does not change that identity. It would matter for bias if beta-two were nonzero, but here there is no x-two component inside the error to carry the correlation.
+
+Therefore the variance of the E-E-one x-one coefficient uses sigma-u-squared over S-S-T for x-one times one minus zero. It is the same short-regression expression as in Case 1. This is an important modeling point: leaving an irrelevant correlated variable out insulates the coefficient from the multicollinearity that including it would create. Nothing about x-two enters either the short equation’s error variance or its auxiliary R-squared. The next tab adds x-two to the included covariate set and changes the denominator sharply.
 
 </details>
 
@@ -977,7 +1069,11 @@ because $\beta_2 = 0$.
 <details class="transcript">
 <summary>Transcript</summary>
 
-Here is where the two cases diverge. R-squared-j is the R-squared from regressing x-one on x-two, and now those two are strongly correlated, so it is large. Run the cell to see it: with this data generating process it comes out around zero point nine seven. Now put that in the denominator. One minus zero point nine seven is about zero point zero two four, so the denominator is shrunk by a factor of roughly forty. The error variance is unchanged. One term moved, in the direction that hurts.
+For E-E-two, the error is the original u, so the numerator of the variance formula remains sigma-u-squared. The second question tab records exactly that. All of the precision loss comes from the auxiliary R-squared in the denominator.
+
+For the coefficient on x-one, regress x-one on the other included covariate, x-two. The WebR cell demonstrates this with one hundred observations. It generates a common standard-normal mu, constructs x-one and x-two from ten percent separate noise and ninety percent common variation, places them in a data frame, and calls fee-ols with x-one on the left of the tilde and x-two on the right. The surrounding parentheses print the fitted result when you run the cell. Because no seed is set in this small demonstration, the exact sample value changes from run to run, but it should be close to the population auxiliary R-squared of zero point nine seven six.
+
+Insert that magnitude into the formula. One minus zero point nine seven six is about zero point zero two four. Multiplying S-S-T-sub-j by that number leaves only about two point four percent of x-one’s total variation as variation independent of x-two. Equivalently, the variance inflation factor, one divided by one minus R-squared, is about forty-one. The numerator has not improved because x-two has a true coefficient of zero, so this denominator shrinkage is a pure precision cost. That is why the E-E-two density is much wider even though it remains centered correctly.
 
 </details>
 
@@ -1030,7 +1126,7 @@ mu <- rnorm(N) # common term shared by x1 and x2
 x1 <- 0.1 * rnorm(N) + 0.9 * mu # independent variable
 x2 <- 0.1 * rnorm(N) + 0.9 * mu # independent variable
 (
-ols_res <- feols(x1 ~ x2, data = data.frame(x1 = x1, x2 = x2))
+  ols_res <- feols(x1 ~ x2, data = data.frame(x1 = x1, x2 = x2))
 )
 ```
 </details>
@@ -1056,7 +1152,11 @@ $$
 <details class="transcript">
 <summary>Transcript</summary>
 
-Compare the columns. The error variances are identical, sigma-u squared in both. The only difference is R-squared-j: zero for the model that omits x-two, positive and large for the model that includes it. Same numerator, smaller denominator, so a larger variance. That is the answer, and it is the precise statement of what multicollinearity costs you. Not bias, not a wrong answer on average, but a wider sampling distribution, which in practice means larger standard errors and a coefficient you cannot distinguish from zero.
+Use the three columns to answer the greater-than, equal-to, or less-than question. E-E-one has auxiliary R-squared equal to zero and error variance sigma-u-squared. E-E-two has the same error variance, because its error is u and beta-two was zero in the short model as well. Its auxiliary R-squared is greater than zero, and in this design it is very close to one because x-two explains nearly all of x-one.
+
+The formula in the third column divides the common error variance by S-S-T-sub-j times one minus R-squared-sub-j. Both equations use the same observed variation in x-one and the same numerator. For E-E-one, one minus zero equals one. For E-E-two, one minus a large R-squared is small. Dividing by the smaller denominator makes the E-E-two coefficient variance larger. That justifies the answer panel: the variance in E-E-one is less than the variance in E-E-two.
+
+This is the exact sense in which multicollinearity hurts estimation. The expected x-one coefficient is still beta-one in both equations, so there is no systematic directional error. But E-E-two has a wider sampling distribution. In an empirical table that appears as a larger standard error, a wider confidence interval, and often a smaller t statistic, even if the overall regression has a high R-squared. A nonsignificant coefficient under multicollinearity need not mean the true effect is zero; it may mean the data contain too little independent movement to separate the correlated effects. Here that loss buys nothing because x-two is irrelevant.
 
 </details>
 
@@ -1107,7 +1207,13 @@ So, $Var(\widehat{\beta}_1)$ in $EE_1$ $<$ $Var(\widehat{\beta}_1)$ in $EE_2$
 <details class="transcript">
 <summary>Transcript</summary>
 
-Case two in two lines. Including an irrelevant but highly correlated variable inflates the variance of the coefficient you care about. And omitting it leaves you unbiased. So here, unlike case one, the choice matters, and it points clearly toward leaving x-two out. Now notice what makes this case safe to reason about: because beta-two is zero, there is no bias on either side, so variance is the only consideration. In case four that will no longer be true, and the decision will get genuinely hard.
+The first bullet summarizes the inclusion result. X-two has no explanatory power beyond x-one because beta-two equals zero, but it is highly correlated with x-one. Adding it to E-E-two therefore leaves the error variance unchanged while raising the auxiliary R-squared for x-one. One minus R-squared shrinks, the variance of beta-one-hat rises, and the standard error becomes larger. The Monte Carlo plot showed precisely this wider but correctly centered distribution.
+
+The second bullet summarizes omission. In E-E-one, x-two is folded into v, but beta-two equals zero, so the folded term vanishes. V equals u, remains exogenous to x-one, and the x-one estimator is unbiased. High correlation with a variable that has no outcome effect is not enough to produce omitted variable bias.
+
+Unlike Case 1, the modeling choice therefore matters for precision. If these assumptions were known to be true, leaving x-two out would dominate: both equations are unbiased, and the short equation is more precise. In practice, of course, you rarely know with certainty that a candidate control’s population coefficient is exactly zero. Dropping a control merely because it raises a standard error can be dangerous if that control actually affects y. That is why this case is a conceptual benchmark rather than a mechanical variable-selection rule.
+
+Carry two lessons forward. Multicollinearity is a variance problem, not a bias problem, and an omitted variable requires a nonzero outcome effect before its correlation with x-one can create bias. Case 3 now changes the other switch: x-two will matter for y but will be unrelated to x-one.
 
 </details>
 
@@ -1127,7 +1233,11 @@ Case two in two lines. Including an irrelevant but highly correlated variable in
 <details class="transcript">
 <summary>Transcript</summary>
 
-Case three, and we have flipped the other switch. Now beta-two is not zero, so x-two genuinely affects y, but x-one and x-two are back to being uncorrelated. Read the example, because the reasoning behind it is what you would need to argue in a paper. Growing season rainfall obviously affects corn yield. But a farmer picks their nitrogen rate before the season begins, so the rate they chose cannot depend on rain that has not fallen yet. A variable that matters for y but is unrelated to your variable of interest.
+Case 3 flips the other switch in the true model. The first bullet restores a zero population correlation between x-one and x-two. The second says beta-two is not zero, so x-two now has a genuine partial effect on y. The third retains the zero conditional mean assumption for u given both regressors. This combination lets us isolate what happens when we omit a relevant outcome determinant that is unrelated to the regressor of interest.
+
+Translate the corn example carefully. Y is corn yield, x-one is the nitrogen rate, and x-two is growing-season rainfall. Beta-two is nonzero because rainfall affects crop growth and therefore yield even after nitrogen is held fixed. Yet the farmer chooses the nitrogen rate before the growing season starts. If future rainfall is not known when that decision is made, realized rainfall should not systematically vary with the chosen rate, so the slide sets the correlation between nitrogen and rainfall to zero.
+
+This timing argument is the sort of substantive reasoning you need in an empirical paper. It is not enough to label rainfall “important.” You must ask important for what. It is important for predicting y, so omitting it will increase unexplained outcome variation. But it is not related to x-one, so its effect cannot systematically masquerade as the effect of nitrogen. That distinction predicts a loss of precision without omitted variable bias. In a randomized experiment, treatment assignment is designed to be unrelated to pre-treatment and external outcome determinants for exactly this reason. Case 3 is the regression version of that protection.
 
 </details>
 
@@ -1150,7 +1260,13 @@ $\text{corn yield} = \beta_0 + \beta_1 \times N + \beta_2 \times \text{growing s
 <details class="transcript">
 <summary>Transcript</summary>
 
-The three questions again, and this is the case where I most often see the wrong guess. X-two now matters for y, and we are considering leaving it out. That sounds like the definition of omitting an important variable, so the natural prediction is bias. Commit to your answer. Then think about the phrase we used in the definition tab at the start: an important variable. Case three is going to force us to be much more precise about what important means, because the obvious reading of it turns out to be wrong.
+E-E-one again omits x-two and places beta-two times x-two inside the composite error v. E-E-two includes both regressors and retains u as the error. The only new Case 3 facts are that beta-two is nonzero and x-one is uncorrelated with x-two. Use those facts to answer the three questions rather than relying on the vague statement that an important variable has been omitted.
+
+For the first bias question, v now genuinely contains x-two because beta-two does not vanish. But unbiasedness of the x-one coefficient depends on whether that composite error moves with x-one. X-two is uncorrelated with x-one, and u is exogenous by assumption, so neither component of v has a linear relationship with x-one in this setup. E-E-one therefore remains centered on beta-one. For E-E-two, the full model and zero conditional mean assumption again imply unbiasedness.
+
+The variance comparison is different. In E-E-one, the omitted beta-two x-two component adds variation to the error, increasing the numerator of the variance expression. In E-E-two, accounting for x-two removes that component from the error. Because x-two is uncorrelated with x-one, including it does not create a population multicollinearity penalty in the denominator. The long regression should therefore have the smaller coefficient variance.
+
+Commit to those answers before viewing the simulation: both estimators unbiased, but E-E-one wider than E-E-two. The common wrong guess is that any omitted determinant biases every coefficient. Case 3 shows why that is false. Omission can make the regression noisier without moving its center if the missing determinant is unrelated to the included regressor.
 
 </details>
 
@@ -1179,7 +1295,13 @@ What do you think is gonna happen? Any guess?
 <details class="transcript">
 <summary>Transcript</summary>
 
-Read the data generation block and compare it against case one. X-one and x-two are drawn independently again, exactly as in case one. The single change is in the line that builds y: the coefficient on x-two is now one rather than zero. So x-two genuinely affects the outcome. Everything else in the loop, both regressions, the storage, is untouched. One line different from case one, and it is the line that decides whether x-two is a real determinant of y or a passenger.
+The first cell sets one hundred observations per sample, one thousand repetitions, and a one-thousand-by-two matrix initialized to zero. The two columns will store the x-one coefficient from the short and long equations for each repetition. Set-seed makes the complete sequence reproducible, and the for loop repeats the experiment one thousand times.
+
+Inside the loop, r-norm of N independently draws x-one, x-two, and u from standard-normal distributions. Drawing x-one and x-two separately enforces the Case 3 design: their population correlation is zero. The y line is the key change from Case 1. It constructs y as one plus one times x-one plus one times x-two plus u. The displayed code omits the redundant multiplication by one, but both beta-one and beta-two are therefore one. X-two now explains real outcome variation.
+
+Data-frame puts y, x-one, and x-two into the object supplied through the data argument of fee-ols. The first regression uses the formula y tilde x-one, so it omits x-two. The second uses y tilde x-one plus x-two. Coefficient named x-one extracts the target estimate, and the i-th row of the two storage columns keeps the paired results from that same sample. Pairing matters because differences between equations are not contaminated by different random datasets.
+
+The visualization code creates one labeled data table from each storage column, row-binds them, and gives ggplot the combined object. Geom-density maps b-hat to the horizontal axis and equation type to fill, with one-half transparency. The fill scale names the legend, the blue vertical line at one identifies the true beta-one, and the legend sits below the plot. The next tab lets you check both center and width against the prediction.
 
 </details>
 
@@ -1235,7 +1357,7 @@ b_ee2 <- data.table(
 
 plot_data <- rbind(b_ee1, b_ee2)
 
-g_case_3 <- 
+g_case_3 <-
   ggplot(data = plot_data) +
   geom_density(aes(x = bhat, fill = type), alpha = 0.5) +
   scale_fill_discrete(name = "Estimating Equation") +
@@ -1250,7 +1372,11 @@ g_case_3 <-
 <details class="transcript">
 <summary>Transcript</summary>
 
-And here is the surprise, if you predicted bias. Both densities are still centered on the blue line. Omitting a variable that genuinely affects y did not bias anything, because it was uncorrelated with x-one. But look at the widths, and note that the ranking has reversed from case two. Now it is the model that omits x-two which is wider. Including a relevant variable bought you precision. So the two cases point in opposite directions, and that is not a contradiction; it is two different terms of the same formula moving.
+The horizontal axis is the estimated x-one coefficient, the density height represents how concentrated the one thousand estimates are, and the two fills correspond to E-E-one and E-E-two. The blue vertical line at one marks the beta-one used in the data-generating process. Begin with location: both distributions are centered essentially on the blue line. In the checked run, the means were about zero point nine nine five for E-E-one and one point zero zero one for E-E-two. Omitting a variable with a real effect on y did not create a systematic shift because that variable was generated independently of x-one.
+
+Now compare dispersion. E-E-one, the equation that omits x-two, is visibly wider. Its checked variance was about zero point zero two one seven. E-E-two had variance about zero point zero one zero nine, roughly half as large. This ranking reverses Case 2. Here inclusion removes the variation in y caused by x-two from the regression error, and it does so without sacrificing population variation in x-one because the regressors are orthogonal.
+
+There is no contradiction between the two cases. In Case 2 the numerator was unchanged and the multicollinearity denominator shrank, making inclusion costly. In Case 3 the population denominator is unchanged and the error-variance numerator falls, making inclusion beneficial. This plot also separates bias from imprecision. E-E-one is not wrong on average, but any single estimate is less reliable because rainfall-like variation remains unexplained. Flip to the bias tabs for the centering argument, then to the variance tabs for the width calculation.
 
 </details>
 
@@ -1269,7 +1395,13 @@ g_case_3
 <details class="transcript">
 <summary>Transcript</summary>
 
-Why is omitting a genuinely relevant variable still unbiased? The composite error v is beta-two times x-two plus u, and now beta-two is not zero, so x-two really is sitting in the error term. But the condition we need is that v is uncorrelated with x-one, and x-two is uncorrelated with x-one by construction. So the error term is inflated but not tilted. That distinction is the whole of case three: a variable in your error term is only dangerous if it is correlated with your regressor. Otherwise it is just noise.
+The left column gives the true model and the Case 3 conditions. The right column gives E-E-one, where omitting x-two creates v-sub-i equal to beta-two x-two-sub-i plus u-sub-i. Unlike Cases 1 and 2, beta-two is nonzero, so the x-two component really remains in v. The question is whether the expected composite error conditional on x-one equals zero.
+
+Consider its two pieces. X-two is uncorrelated with x-one by the Case 3 design, and in the simulation the stronger fact of independence is true. Thus beta-two times x-two does not systematically rise or fall with x-one. The original zero conditional mean assumption also ensures that u has no systematic relationship with x-one. Combining those pieces, the short-regression error is not related to x-one, so the coefficient on x-one remains unbiased. The answer panel summarizes this by saying x-one is correlated with neither x-two nor u.
+
+What changed is the amount of noise, not its direction. Because beta-two is nonzero, variation in x-two now contributes to v and makes the short regression’s residual more variable. But that extra component is balanced across values of x-one, so it widens the sampling distribution without shifting its center. “Inflated but not tilted” is the distinction to remember.
+
+More generally, saying only that a missing variable affects y is insufficient to establish omitted variable bias in beta-one-hat. You must also show that it is related to x-one in the relevant projection. Case 3 lacks that second condition, which is why omission costs precision rather than unbiasedness.
 
 </details>
 
@@ -1315,7 +1447,13 @@ So, **no** bias.
 <details class="transcript">
 <summary>Transcript</summary>
 
-The model that includes x-two is unbiased, for the same reason as always: it is the true model and the zero conditional mean condition was assumed. Nothing new here. But there is something worth noticing across the three cases so far. This estimating equation has been unbiased in every single one, because it always estimates the model that generated the data. All the interesting variation has been on the other side, in what happens when you leave something out. Case four is the first time that stops being enough.
+E-E-two includes x-one and x-two, so the equation in the right column is the same as the true model in the left column. Its regression error is u-sub-i. The displayed question asks whether the conditional expectation of u given both regressors is zero. That is exactly the third setup condition, so the answer is yes and the x-one coefficient is unbiased.
+
+Beta-two being nonzero does not threaten this result. It means x-two must be accounted for somewhere, and E-E-two accounts for it explicitly as a regressor. Nor does the zero correlation between x-one and x-two create the unbiasedness of the correctly specified equation. Even correlated regressors are compatible with unbiased OLS when the error has zero conditional mean. Here orthogonality will matter mainly for precision.
+
+Across Cases 1 through 3, E-E-two has remained unbiased for the same reason: it always matches the data-generating equation and retains an exogenous u. E-E-one has also remained unbiased, but for changing special reasons. In Cases 1 and 2, beta-two was zero, so the omitted component vanished. In Case 3, beta-two is nonzero but x-two is unrelated to x-one, so the omitted component behaves as extra noise rather than confounding.
+
+Case 4 will remove both protections at once. E-E-two will still be unbiased under the same assumption, but E-E-one will contain a nonzero omitted component related to x-one. That comparison is what reveals omitted variable bias.
 
 </details>
 
@@ -1366,7 +1504,11 @@ Yes, because $x_1$ and $x_2$ are not correlated with $u$ (by assumption). So, **
 <details class="transcript">
 <summary>Transcript</summary>
 
-Now the variance, and this is the tab where case three finally differs from the earlier ones. R-squared-j is still zero, since there are no other regressors. But look at the error variance. V is beta-two times x-two plus u, and beta-two is no longer zero, so the algebra in the answer does not collapse. You get beta-two squared times the variance of x-two, plus sigma-u squared. The error variance has genuinely grown. That is the price of leaving a relevant variable in the error term.
+For E-E-one, the auxiliary R-squared remains zero because x-one is the only included explanatory variable. There are no other covariates in the short regression that can explain it. Thus the denominator of the displayed variance formula is S-S-T for x-one times one.
+
+The numerator is where Case 3 differs. Open the error-variance tab and read the aligned calculation line by line. The first line identifies the variance of the regression error as the variance of v-sub-i. The second replaces v with beta-two times x-two-sub-i plus u-sub-i. For a constant beta-two, the variance of beta-two x-two is beta-two squared times the variance of x-two. The variance of a sum would also include twice the covariance between beta-two x-two and u. The zero conditional mean assumption makes x-two uncorrelated with u, so that covariance is zero. The final line is therefore beta-two squared times the variance of x-two plus sigma-u-squared.
+
+Unlike the earlier cases, beta-two is not zero, so the first term does not disappear. In the simulation beta-two equals one and x-two has variance one, making the composite error variance two rather than one. That larger numerator widens the E-E-one coefficient distribution. The omission does not bias beta-one-hat because x-two is unrelated to x-one, but it discards useful explanation of y and makes the short regression noisier. This is the precision cost of leaving a relevant orthogonal predictor in the error term.
 
 </details>
 
@@ -1440,7 +1582,11 @@ Var(error) & = Var(v_i) \\
 <details class="transcript">
 <summary>Transcript</summary>
 
-And for the model that includes x-two, both terms are back near their smallest values. The population relationship between x-one and x-two is zero, so sample R-squared-j is near zero rather than exactly zero. The error variance is just sigma-u squared, because x-two is properly accounted for rather than dumped into the error. The large reduction in the numerator drives the comparison in this design; the small finite-sample denominator and degrees-of-freedom differences do not overturn it.
+For E-E-two, begin with the auxiliary R-squared question. The coefficient of interest is on x-one, and the only other included regressor is x-two, so regress x-one on x-two. The WebR example draws one hundred independent standard-normal values for each variable, places them in a data frame, and fits fee-ols with x-one as the dependent variable and x-two as the predictor. The surrounding parentheses print the fit. Because the cell has no seed, its exact sample R-squared changes whenever it is run. Its population value is zero, while a finite sample typically produces a small positive value. In the checked Monte Carlo design the average was about zero point zero one one.
+
+Next consider the error variance. E-E-two includes x-two, so its effect beta-two times x-two is modeled directly rather than hidden in the residual. The regression error is only u-sub-i, and its variance is sigma-u-squared. Compare that with E-E-one’s numerator, which also contained beta-two squared times the variance of x-two.
+
+Thus inclusion produces a substantial numerator reduction, from two to one in this simulation, with no population multicollinearity cost because x-one and x-two are orthogonal. The finite-sample auxiliary R-squared and the estimation of one additional coefficient impose small costs, but they do not overturn the large error-variance reduction in this design. E-E-two therefore has the narrower x-one sampling distribution shown on the results tab.
 
 </details>
 
@@ -1492,7 +1638,7 @@ N <- 100
 x1 <- rnorm(N) # independent variable
 x2 <- rnorm(N) # independent variable
 (
-ols_res <- feols(x1 ~ x2, data = data.frame(x1 = x1, x2 = x2))
+  ols_res <- feols(x1 ~ x2, data = data.frame(x1 = x1, x2 = x2))
 )
 ```
 </details>
@@ -1518,7 +1664,11 @@ $$
 <details class="transcript">
 <summary>Transcript</summary>
 
-The comparison now runs the other way. At the population level the regressors are orthogonal, so the multicollinearity denominator is unchanged. But the error variances differ: the model omitting x-two carries beta-two squared times the variance of x-two on top of sigma-u squared, while the model including it carries only sigma-u squared. In this design that precision gain easily dominates the small finite-sample cost of estimating another coefficient. Compare this against case two, where strong collinearity made inclusion costly.
+The callout asks for the variance ranking, and the columns display every component. E-E-one has R-squared-sub-j equal to zero because it includes no covariate besides x-one. Its error variance is beta-two squared times the variance of x-two plus sigma-u-squared, because the omitted x-two effect remains inside v. E-E-two also has a population auxiliary R-squared of zero because x-one and x-two are uncorrelated, but its error variance is only sigma-u-squared because x-two is included explicitly.
+
+Insert those entries into the formula in the third column. S-S-T-sub-j is the same variation in x-one for both equations. One minus R-squared is one in both population denominators. The E-E-one numerator contains an additional nonnegative term, beta-two squared times the variance of x-two. Because beta-two is nonzero and x-two varies, that term is strictly positive. E-E-one therefore has the larger variance, exactly as the answer panel states.
+
+This reverses Case 2 for a clear reason. In Case 2, including x-two left the numerator unchanged but severely shrank the denominator through multicollinearity. In Case 3, including x-two substantially reduces the numerator and leaves the population denominator unchanged. The checked simulation reflected that logic, with E-E-one variance about twice E-E-two variance. In a finite sample the long regression can have a small accidental R-squared and uses an additional estimated coefficient, but those small costs do not overturn the ranking here. A relevant control uncorrelated with the treatment improves precision by explaining outcome variation without taking away identifying variation in the treatment.
 
 </details>
 
@@ -1569,7 +1719,13 @@ So, $Var(\widehat{\beta}_1)$ in $EE_1$ $>$ $Var(\widehat{\beta}_1)$ in $EE_2$
 <details class="transcript">
 <summary>Transcript</summary>
 
-Case three summarised, and note that both statements favour including x-two. Including a relevant but uncorrelated variable reduces your variance, because it takes explanatory power out of the error term. And omitting it leaves you unbiased, so nothing catastrophic happens if you cannot get it. That last point is genuinely useful in practice: if you can argue a missing variable is uncorrelated with your treatment, you can argue it costs you precision but not credibility. That argument is the backbone of a randomised experiment.
+The first bullet gives the inclusion result. X-two has explanatory power beyond x-one because beta-two is nonzero, but it is not correlated with x-one. Adding x-two to the model removes beta-two times x-two from the error, reducing its variance from beta-two squared times the variance of x-two plus sigma-u-squared to sigma-u-squared. At the same time, orthogonality keeps the population auxiliary R-squared for x-one at zero. The numerator falls without a denominator penalty, so the x-one estimator becomes more precise.
+
+The second bullet gives the omission result. If x-two is unavailable and E-E-one must be used, the x-one coefficient is still unbiased because the omitted component does not move with x-one. The cost is a wider sampling distribution and larger standard error, not a systematic shift. This is why “the omitted variable affects y” is only half of an omitted-variable-bias argument.
+
+Both results favor including x-two when it is available: you preserve unbiasedness and gain precision. But the case also offers reassurance when it is unavailable. If you can make a credible design-based or institutional argument that the missing factor is unrelated to x-one, its omission need not undermine the causal coefficient’s center. It will make the outcome noisier and the estimate less precise.
+
+Random assignment is the central example. By making treatment independent of other outcome determinants, randomization prevents those determinants from being correlated with x-one. Researchers may include prognostic controls to improve precision, but leaving them out does not bias the treatment effect under successful randomization. Case 4 now shows why observational settings are harder: relevant omitted factors commonly help determine x-one as well as y.
 
 </details>
 
@@ -1588,7 +1744,11 @@ Case three summarised, and note that both statements favour including x-two. Inc
 <details class="transcript">
 <summary>Transcript</summary>
 
-Case four, both switches flipped. X-two matters for y, and it is correlated with x-one. Read the example and the note under it. Better soil raises yield, and farmers do not apply the same nitrogen rate on good ground as on poor ground, so soil quality is related to the nitrogen decision. Now read the second bullet, which is the honest one. This is the case that actually happens. Case one is a curiosity, cases two and three are instructive, and case four is what you will face on essentially every project with observational data.
+Case 4 combines the two conditions that were separated in Cases 2 and 3. In the true model, beta-two is not zero, so x-two affects the outcome after x-one is held fixed. X-one and x-two are also correlated, so observations with different x-one values systematically differ in x-two. The final condition still says that u has zero conditional mean given both regressors. That means the full equation is well behaved; the problem will be created by omitting x-two, not by an inherently endogenous u.
+
+The corn example translates the combination. Y is yield, x-one is nitrogen, and x-two is soil quality. Better soil raises yield, so beta-two is nonzero and plausibly positive. Farmers also adjust nitrogen to field conditions, so soil quality helps determine the nitrogen rate and the correlation is nonzero. If soil quality is missing from the dataset, its yield effect enters the error of a nitrogen-only regression, and that error varies systematically with nitrogen. The regression can then attribute some of the soil effect to nitrogen.
+
+Read the second bullet in the callout as a warning about observational data. Case 4 is common because people, firms, and governments choose x-one in response to factors that also affect y. Education choices respond to ability and family background; input choices respond to land quality and expected prices; program participation responds to need. Those factors are both relevant to outcomes and correlated with the variable of interest. Cases 1 through 3 taught us that neither relevance nor correlation alone is sufficient for bias. Case 4 supplies both, so this is where the short regression loses unbiasedness and where the inclusion decision becomes a genuine bias-precision trade-off.
 
 </details>
 
@@ -1612,7 +1772,13 @@ $\text{corn yield} = \beta_0 + \beta_1 \times N + \beta_2 \times \text{soil qual
 <details class="transcript">
 <summary>Transcript</summary>
 
-Three questions once more, and by now you have the tools to predict all three. Case two taught you that correlation alone does not bias anything. Case three taught you that relevance alone does not bias anything either. So what happens when both are present at once? Commit to an answer. And a fourth question I want you to hold in mind while you predict: if there is bias, can you say anything about its size and direction, or is it simply unknown? That question is where the second half of the lecture goes.
+The two estimating equations are unchanged. E-E-one omits x-two and uses v-sub-i equal to beta-two x-two-sub-i plus u-sub-i as its error. E-E-two includes both regressors and uses u-sub-i. In Case 4, beta-two is nonzero and x-two is correlated with x-one, so the composite error in E-E-one contains a relevant component that moves with the included regressor.
+
+For the first question, the expected x-one coefficient in E-E-one does not equal beta-one. The regression cannot distinguish the part of y associated with x-two from the part associated with x-one when x-two is missing and the two move together. For the second question, E-E-two remains unbiased because it matches the true model and the conditional mean of u given both regressors is zero.
+
+The variance question has no universal less-than or greater-than answer. Including x-two reduces the regression error variance by removing a real outcome determinant, which improves precision through the numerator. But because x-two is highly correlated with x-one, inclusion also raises the auxiliary R-squared and shrinks the denominator, which harms precision. Which force dominates depends on the magnitude of beta-two, the amount of independent variation in x-two, the strength of correlation, and the sample design. Moreover, the familiar variance formula requires care for E-E-one because its composite error is endogenous.
+
+Hold one additional question in mind: can we predict the direction and size of the bias? The answer is yes. It will be beta-two times the slope from regressing the omitted x-two on the included x-one. The simulation first reveals that shift, and the theory tabs later derive it.
 
 </details>
 
@@ -1641,7 +1807,13 @@ What do you think is gonna happen? Any guess?
 <details class="transcript">
 <summary>Transcript</summary>
 
-Read the loop and notice that it combines the two changes we made separately before. X-one and x-two share the common term mu, as in case two, so they are correlated. And the coefficient on x-two in the line that builds y is one rather than zero, as in case three, so x-two matters. Both conditions hold at once for the first time. Everything else, sample size, iterations, both regressions, is identical to the three previous cases, so any difference in the output is attributable to those two lines together.
+The setup cell again chooses N equal to one hundred observations, B equal to one thousand repetitions, and a B-by-two matrix for the paired coefficient estimates. Set-seed makes the experiment reproducible, and the loop runs from one through B. Keeping those elements identical to the previous cases makes the comparison controlled.
+
+Inside the loop, mu is a standard-normal common component. X-one and x-two each equal zero point one times their own standard-normal noise plus zero point nine times mu. They therefore share most of their variation, with covariance zero point eight one, variance zero point eight two for each, and correlation about zero point nine eight eight. U is an independent standard-normal error. The y line then sets the intercept, beta-one, and beta-two all equal to one: y equals one plus x-one plus one times x-two plus u. The explicit one times x-two highlights the change from Case 2. X-two now both matters for y and moves with x-one.
+
+Data-frame assembles the sample. The first fee-ols call estimates y on x-one alone, while the second estimates y on x-one plus x-two. Coefficient named x-one extracts the target estimate, and bracket i comma one or two stores the two estimates from the same repetition.
+
+For the graph, each storage column becomes a labeled data table and row-bind stacks them. Geom-density shows the two sampling distributions. The blue solid vertical line at one marks the true beta-one. The new red dashed vertical line at one point nine eight eight marks the theoretically predicted center of the omitted-variable estimator. Line type two creates the dashes, and line width one keeps both reference lines visible. The next two tabs compare the simulated center with that prediction.
 
 </details>
 
@@ -1698,7 +1870,7 @@ b_ee2 <- data.table(
 
 plot_data <- rbind(b_ee1, b_ee2)
 
-g_case_4 <- 
+g_case_4 <-
   ggplot(data = plot_data) +
   geom_density(aes(x = bhat, fill = type), alpha = 0.5) +
   scale_fill_discrete(name = "Estimating Equation") +
@@ -1714,7 +1886,13 @@ g_case_4 <-
 <details class="transcript">
 <summary>Transcript</summary>
 
-And there it is. The two densities are no longer on top of each other, and one of them is nowhere near the blue line. The model that omits x-two has moved bodily to the right, centered near the red dashed line at about two, when the truth is one. It is not less precise; it is answering a different question. That is bias, and it is the first time we have seen it in this lecture. The model including x-two remains centered on the truth, exactly as it has in all four cases.
+The horizontal axis shows the estimated coefficient on x-one, and density height shows where estimates concentrate across the one thousand samples. The fill colors identify E-E-one and E-E-two. Two reference lines now matter: the solid blue line at one is the true beta-one, and the dashed red line at one point nine eight eight is the predicted center of the short-regression estimator.
+
+The E-E-two density is centered near the blue line. In the checked run its mean was about one point zero three eight. Because this estimator is extremely dispersed under strong multicollinearity, that modest offset from one is consistent with Monte Carlo noise; its theoretical expectation remains one. The full regression includes x-two and satisfies the stated zero conditional mean condition.
+
+The E-E-one density is not centered on the truth. It has shifted almost an entire unit to the right and is centered near the red line. Its checked mean was about one point nine nine zero, very close to the predicted one point nine eight eight. This is omitted variable bias: repeated sampling does not average the coefficient back to beta-one. The short regression attributes nearly all of x-two’s positive effect to x-one because the regressors move almost one for one.
+
+Do not confuse location with width. E-E-one is actually much narrower in this particular design, but it is precise around the wrong target. E-E-two is wide but centered correctly. The bullet beneath the graph identifies the blue truth and red prediction, then points you to the next tab for the calculation. That separation is the bias-variance trade-off we will discuss after deriving the bias.
 
 </details>
 
@@ -1731,7 +1909,13 @@ g_case_4
 <details class="transcript">
 <summary>Transcript</summary>
 
-And the bias is not merely present, it is predictable to three digits. Work through the two numbers. The covariance of x-one and x-two is zero point eight one, because they share nine tenths of a common term whose variance is one. And the variance of x-one is zero point eight two. Their ratio is delta-one, about zero point nine eight eight. Multiply by beta-two, which is one, and add to the true beta-one. You get one point nine eight eight. Run the cell and compare against your own simulation. It matches.
+This tab calculates the red line from the data-generating process rather than choosing it after seeing the graph. Both regressors contain zero point nine times the same standard-normal mu. Their independent zero point one noise terms are unrelated, so the only shared contribution to covariance is zero point nine times zero point nine times the variance of mu. Since that variance is one, the covariance of x-one and x-two is zero point eight one.
+
+The variance of x-one is the sum of the variances of its independent pieces. Zero point one squared times variance one plus zero point nine squared times variance one equals zero point zero one plus zero point eight one, or zero point eight two. Delta-one is the slope from the auxiliary regression of x-two on x-one. With an intercept, that population slope is the covariance of x-one and x-two divided by the variance of x-one, so delta-one equals zero point eight one over zero point eight two, approximately zero point nine eight eight.
+
+The expected short-regression coefficient equals beta-one plus beta-two times delta-one. Beta-one is one, beta-two is one, and delta-one is about zero point nine eight eight. Therefore the expected estimate is one point nine eight eight, and the bias itself is positive zero point nine eight eight. The two mean calls in the WebR cell average storage column one for E-E-one and column two for E-E-two. In the checked run they returned about one point nine nine zero and one point zero three eight. The first matches the prediction closely, while the second fluctuates around one.
+
+The note explains the teaching sequence. Monte Carlo simulation has confirmed a result before we have proved it. The omitted-variable-bias theory slide two slides ahead will derive the formula and clarify why the auxiliary regression must put the omitted variable on the left and the included variable on the right.
 
 </details>
 
@@ -1761,7 +1945,13 @@ We have not derived that formula yet &mdash; it is on the `Omitted Variable Bias
 <details class="transcript">
 <summary>Transcript</summary>
 
-Now the explanation. The composite error v contains beta-two times x-two plus u. In case two, beta-two was zero so that term vanished. In case three, x-two was uncorrelated with x-one so the term was harmless. Here neither escape is available. X-two is in the error term with a non-zero coefficient, and it is correlated with x-one. So the error term is correlated with the regressor, the zero conditional mean condition fails, and beta-one-hat is biased. Both conditions were necessary, and both are now present.
+The columns show why the E-E-one density moved. In the true model, x-two has its own coefficient and u has zero conditional mean given both regressors. In the estimated short model, x-two is missing, so v-sub-i equals beta-two x-two-sub-i plus u-sub-i. The displayed question asks whether the expected value of v conditional on x-one is zero.
+
+Expand that expectation. It contains beta-two times the expected x-two given x-one, plus the expected u given x-one. The u part is zero under the setup assumption. The x-two part is not zero as a function of x-one because beta-two is nonzero and x-two is correlated with x-one. In the linear projection used later, the predictable part of x-two is delta-zero plus delta-one x-one. Multiplying by beta-two inserts beta-two times delta-one x-one into the composite error. Ordinary least squares then loads that systematic x-one-related component onto the coefficient of x-one.
+
+Compare the earlier cases. In Case 2, correlation was present but beta-two was zero, so the omitted component vanished. In Case 3, beta-two was nonzero but x-two was unrelated to x-one, so the component behaved like noise. Here neither protection applies. The answer panel therefore says no: the composite error fails the required condition and the x-one estimator is biased.
+
+Both conditions are necessary. The sign and size are not arbitrary; the coefficient converges to beta-one plus beta-two delta-one. With both beta-two and delta-one positive in this simulation, the bias is positive and nearly one.
 
 </details>
 
@@ -1807,7 +1997,13 @@ So, there will be bias.
 <details class="transcript">
 <summary>Transcript</summary>
 
-The model that includes x-two is still unbiased, and this is the point of the whole lecture in one tab. Bias came not from the world being complicated, but from us leaving something out. Put x-two back in and the problem disappears entirely. That is why economists reach for controls. The catch, which the variance tabs cover next, is that x-two is highly correlated with x-one here, so including it is not free. This is the only case where you actually have to weigh one thing against the other.
+E-E-two places x-one and x-two on the right-hand side separately, exactly as the true model does. Its error is the original u-sub-i. The question asks whether the expected value of u given x-one and x-two is zero, and the third setup condition says yes. Thus the coefficient on x-one is centered on beta-one even though the two regressors are highly correlated.
+
+This comparison locates the source of bias precisely. The data-generating world can contain correlated determinants without violating OLS exogeneity. Bias arose when the estimated equation omitted one of those determinants and forced it into an error that then moved with x-one. Restoring x-two to the regression removes beta-two x-two from the error, so the zero conditional mean condition is restored and the omitted variable bias disappears.
+
+That is why economists include controls that are plausible confounders: variables that help determine y and are related to the regressor of interest. A control is not included merely because it predicts y, nor merely because it correlates with x-one. It is the combination that protects the interpretation of beta-one.
+
+The catch is precision. X-two and x-one share almost all their variation, so after x-two is included there is very little independent variation in x-one available to identify beta-one. E-E-two is unbiased but noisy. E-E-one is biased but, in this particular simulation, tightly concentrated. The variance tabs explain why this trade-off has no universal ranking, while the professional conclusion will be that precision around the correct target is generally preferable to confidence around the wrong one.
 
 </details>
 
@@ -1858,7 +2054,13 @@ Yes, because $x_1$ and $x_2$ are not correlated with $u$ (by assumption). So, **
 <details class="transcript">
 <summary>Transcript</summary>
 
-The variance terms for the model that omits x-two, and both moving parts are now active. R-squared-j is zero, as always in a one-regressor model. But the error variance has grown, exactly as in case three: beta-two squared times the variance of x-two, plus sigma-u squared. With the numbers here that is about one point eight two rather than one. So the numerator is inflated. Remember though that this estimator is also biased, so a small variance would be no comfort. Precision around the wrong number is worse than useless.
+This tab displays the familiar variance ingredients for E-E-one, but Case 4 requires an important qualification. The auxiliary R-squared shown in the first answer is zero because x-one is the only included explanatory variable in the short equation. There is no other included covariate on which to regress x-one.
+
+The second answer computes the unconditional variance of the composite error v. The first line names variance of error as variance of v. The second substitutes v equals beta-two x-two plus u. Because the zero conditional mean assumption implies x-two and u are uncorrelated, the variance of their sum is beta-two squared times the variance of x-two plus sigma-u-squared. In this data-generating process beta-two is one, variance of x-two is zero point eight two, and sigma-u-squared is one, so the unconditional variance of v is one point eight two.
+
+However, do not insert that one point eight two into the standard exogenous-error variance formula as if E-E-one satisfied its assumptions. Here v is correlated with x-one, which is exactly why the estimator is biased. The displayed formula was derived under a zero conditional mean or related exogeneity condition, and that condition fails for the short equation. The unconditional variance calculation describes how variable v is overall, but it is not by itself a valid derivation of the sampling variance around the biased estimator’s target.
+
+The simulation can still show the actual dispersion for this specific design. Its E-E-one estimates were tightly distributed around about one point nine nine, not around beta-one. A small spread around a biased target is not evidence of a good estimator. Keep the bias and variance questions conceptually separate as you move to E-E-two.
 
 </details>
 
@@ -1932,7 +2134,13 @@ Var(error) & = Var(v_i) \\
 <details class="transcript">
 <summary>Transcript</summary>
 
-And for the model that includes x-two, the error variance is back down to sigma-u squared, but R-squared-j is now large, because x-one and x-two are strongly correlated. Run the cell to see it come out around zero point nine seven. So this estimating equation has the better numerator and the much worse denominator, while the other one has the reverse. For the first time the two terms of the formula point in opposite directions, and which one wins is a question of magnitudes rather than principle.
+For E-E-two, the standard variance formula applies under the stated zero conditional mean assumption. Its numerator is the variance of u-sub-i, sigma-u-squared, because x-two is modeled explicitly and no longer appears in the error. That is smaller than the unconditional variance of the short equation’s composite v.
+
+The denominator carries the multicollinearity cost. For the coefficient on x-one, R-squared-sub-j comes from regressing x-one on x-two. The WebR cell generates one hundred observations using the common mu construction, puts x-one and x-two in a data frame, and fits fee-ols with x-one on the left and x-two on the right. The parentheses print the regression. With no seed in this demonstration, the exact output varies, but it should be close to the theoretical R-squared of zero point nine seven six.
+
+One minus that R-squared is about zero point zero two four, so only about two point four percent of x-one’s total variation remains after projecting out x-two. The variance inflation factor is roughly forty-one. Thus E-E-two combines a clean error variance of one with a severely shrunken denominator. The resulting beta-one estimator is unbiased but highly variable, which matches the wide density on the results tab.
+
+The slide contrasts this with E-E-one’s larger unconditional composite-error variance, but remember that the usual plug-in formula is not valid for E-E-one because its error is endogenous. For E-E-two, every part of the formula is legitimate. The broader lesson is still that including a relevant correlated variable creates two opposing forces: removing it from the error helps precision, while multicollinearity hurts precision. Their magnitudes determine dispersion, while inclusion is what removes the bias.
 
 </details>
 
@@ -1985,7 +2193,7 @@ mu <- rnorm(N) # common term shared by x1 and x2
 x1 <- 0.1 * rnorm(N) + 0.9 * mu # independent variable
 x2 <- 0.1 * rnorm(N) + 0.9 * mu # independent variable
 (
-ols_res <- feols(x1 ~ x2, data = data.frame(x1 = x1, x2 = x2))
+  ols_res <- feols(x1 ~ x2, data = data.frame(x1 = x1, x2 = x2))
 )
 ```
 </details>
@@ -2011,7 +2219,13 @@ $$
 <details class="transcript">
 <summary>Transcript</summary>
 
-This comparison needs more care than the first three cases. The familiar variance formula assumes the regression error satisfies the exogeneity condition. In EE1 here, the composite error contains x-two and is correlated with x-one, so we cannot obtain its sampling variance by simply inserting the unconditional variance of that composite error into the usual formula. The Monte Carlo distributions can still illustrate bias and dispersion for this particular data-generating process, but the columns below are intuition, not a valid general variance derivation for EE1.
+The callout asks whether the x-one coefficient variance in E-E-one is less than, equal to, or greater than the variance in E-E-two, and the answer panel correctly says that it depends. The columns explain the intended competing forces. E-E-one has no other included covariate, so its auxiliary R-squared is shown as zero. Its composite error v contains beta-two x-two plus u, whose unconditional variance is beta-two squared times the variance of x-two plus sigma-u-squared. E-E-two has the smaller error variance sigma-u-squared, but its auxiliary R-squared is nonzero and very high because x-one and x-two are strongly correlated.
+
+Those movements point in opposite directions in the displayed formula: a larger numerator tends to raise variance, while a larger R-squared makes one minus R-squared smaller and also tends to raise variance. Therefore there is no universal ranking based only on the words “relevant” and “correlated.” Magnitudes matter, and the later tabs use simulation to exhibit both possible rankings.
+
+But this comparison needs more care than Cases 1 through 3. The familiar formula assumes that the regression error satisfies the exogeneity condition under which the OLS variance was derived. In E-E-one here, v contains x-two and is correlated with x-one. That failure produces the bias we just analyzed. Consequently, you cannot obtain E-E-one’s actual sampling variance by simply plugging the unconditional variance of v into the standard formula in the third column. The E-E-two calculation is valid, but the E-E-one column is only intuition about competing variation, not a valid general variance derivation.
+
+Monte Carlo simulation can still measure dispersion around each estimator’s own sampling center for a fully specified data-generating process. Use those simulated variances for the numerical comparisons on the next tabs, while remembering that E-E-one’s center is not beta-one.
 
 </details>
 
@@ -2059,7 +2273,13 @@ It depends.
 <details class="transcript">
 <summary>Transcript</summary>
 
-Let's put numbers on the correctly specified EE2: R-squared-j is about zero point nine seven six, so one minus it is about zero point zero two four. That strong collinearity makes the EE2 estimate imprecise. The simulation shows that the biased EE1 estimate is less dispersed in this design. Do not justify EE1's dispersion by plugging 1.82 into the standard exogenous-error formula, however; EE1 violates the condition under which that formula was derived.
+This tab explains why the simulation’s biased E-E-one density was narrower than the unbiased E-E-two density in the original Case 4 design. Start with the first bullet. X-one and x-two have correlation about zero point nine eight eight, so the auxiliary R-squared for E-E-two is about zero point nine seven six. The WebR cell verifies the magnitude with ten thousand observations. It draws one common mu vector, builds x-one and x-two from ninety percent mu and ten percent separate noise, and squares cor of x-one and x-two. The comment identifies that squared correlation as R-squared-sub-j. Because no seed is supplied, the exact result changes slightly, but it should remain near zero point nine seven six.
+
+One minus that value is about zero point zero two four. For correctly specified E-E-two, this shrinks the effective x-one variation by a factor of roughly forty-one and makes its coefficient highly imprecise. The checked Monte Carlo variance was about zero point five two two.
+
+The second bullet notes that beta-two equals one and the unconditional variance of x-two is zero point eight two, so the unconditional variance of the composite v is one point eight two rather than one. The slide describes that as a mild penalty for E-E-one compared with the enormous E-E-two denominator penalty. That comparison is suggestive, but not a valid application of the standard formula: E-E-one’s v is correlated with x-one, so plugging one point eight two into an exogenous-error formula does not derive its sampling variance. The simulation itself shows E-E-one variance about zero point zero one three around its biased center.
+
+So the numerical conclusion is sound for this simulation: E-E-one is less dispersed, but centered near one point nine nine rather than the true one. E-E-two is centered correctly but wide. Precision alone would favor the wrong estimator here, which is why bias cannot be ignored.
 
 </details>
 
@@ -2087,7 +2307,13 @@ A near-doubling of the numerator is no match for a denominator shrunk by a facto
 <details class="transcript">
 <summary>Transcript</summary>
 
-Now let's deliberately change the data-generating process and watch the simulated ranking flip. X-one and x-two share almost nothing, so including x-two creates little multicollinearity, while x-two has a large effect and substantial independent variation. Run both cells. The simulated variances reverse their earlier ranking. This demonstrates that a biased estimator can be more or less dispersed than the correctly specified estimator depending on the design; it does not restore the invalid plug-in variance calculation for EE1.
+This tab deliberately changes the data-generating process to prove that the Case 4 dispersion ranking is not general. The first two bullets describe the changes. X-one and x-two now share only zero point one times mu, so their covariance is just zero point zero one and E-E-two has little multicollinearity. X-two also has coefficient five and variance about four point nine eight, so omitting it leaves a very large outcome component unexplained.
+
+In the first WebR cell, autorun false means you start the simulation manually. Set-seed makes it reproducible. N is one hundred, B is one thousand, and storage-rev has one row per repetition and two equation columns. In each loop, x-one is mostly its own noise, zero point nine times an independent normal, plus zero point one mu. X-two is two point two three times separate noise plus zero point one mu. U is standard normal, and y equals one plus x-one plus five x-two plus u. The two fee-ols calls estimate the short and long regressions on the same data. The final c call names and prints the variances of the two stored coefficient series. In the checked run, they were about one point seven nine five for E-E-one and zero point zero one two seven for E-E-two.
+
+The second cell row-binds labeled estimates and draws densities. The horizontal axis is the x-one estimate, density height shows concentration, fill identifies the equation, and the blue line at one marks the true beta-one. E-E-one is now the wide curve, while E-E-two is tightly concentrated at one. The final bullets report the approximate variance ranking and explain the remaining bias. The auxiliary slope is covariance zero point zero one divided by variance of x-one zero point eight two, about zero point zero one two two. Multiplying by beta-two of five gives a positive bias around zero point zero six one. The checked E-E-one mean was about one point zero nine, with Monte Carlo noise around that theoretical center, and its standard deviation was about one point three four, so the small shift is visually hidden by the enormous spread.
+
+This reversal shows that a biased estimator can be more or less dispersed than the correct estimator. It does not make the invalid E-E-one plug-in formula valid; the simulation measures the ranking directly for this design.
 
 </details>
 
@@ -2152,7 +2378,11 @@ ggplot(data = plot_data_rev) +
 <details class="transcript">
 <summary>Transcript</summary>
 
-Case four in two lines. There is a genuine bias-variance trade-off when a variable both matters and is correlated with your variable of interest. And economists tend to opt for unbiasedness. That second line is a professional norm rather than a theorem, so it is worth saying why. A biased estimate with tight standard errors will confidently tell you the wrong number, and no amount of extra data fixes it. A noisy but unbiased estimate at least tells you the truth eventually, and honestly reports how uncertain it is.
+The first bullet summarizes the only case in which omission changes the center of the x-one estimator. X-two is important in the outcome equation because beta-two is nonzero, and it is related to x-one. Omitting it creates a composite error correlated with x-one, so E-E-one is biased. Including it in E-E-two removes that bias, but the high correlation among included regressors may inflate variance. The original simulation made the biased estimator narrower, while the reversed simulation made it wider. That is why the slide calls this a genuine bias-variance trade-off rather than claiming one universal variance ranking.
+
+The second bullet states the usual econometric preference for unbiasedness. Treat that as a professional and inferential principle, not an algebraic theorem that unbiased estimators always minimize every loss function. A tightly estimated biased coefficient can give narrow confidence intervals around the wrong target and support confident but false policy conclusions. Under persistent omitted variable bias, simply collecting more observations generally shrinks sampling noise around the biased probability limit rather than moving the estimate to beta-one. More data can make the wrong answer look more decisive.
+
+An unbiased but noisy estimator is honest about what the design can identify. Its confidence interval is wide when independent variation is scarce, and with sufficient informative variation its sampling distribution concentrates around the true parameter. In some prediction problems, researchers explicitly accept bias to lower mean squared error, but the goal here is causal or structural interpretation of beta-one. For that goal, controlling a genuine confounder is usually worth the larger standard error. The remedy for poor precision is better data or stronger independent variation, not quietly omitting a relevant correlated control.
 
 </details>
 
@@ -2168,7 +2398,13 @@ Case four in two lines. There is a genuine bias-variance trade-off when a variab
 <details class="transcript">
 <summary>Transcript</summary>
 
-Here is the whole lecture on one slide. Two conditions, four cells. Read across the top row: with beta-two equal to zero, x-two is irrelevant, and the only question is whether including it costs you variance, which it does when the two are correlated. Read the bottom row: x-two matters, and now omitting it either costs variance or costs you bias. Then read the two bullets. Bias appears in exactly one cell, and it needs both conditions at once. Either one on its own, as cases two and three showed, leaves you unbiased.
+This table compresses the four controlled experiments into two dimensions. The columns ask whether x-one and x-two are uncorrelated or correlated. The rows ask whether beta-two is zero or nonzero. The question above the table is always whether x-two should be included when the target is beta-one.
+
+Start in the top-left cell, Case 1. Beta-two is zero and the regressors are uncorrelated. Omitting x-two is unbiased because its outcome effect is zero, while including it creates no population multicollinearity penalty. Both estimators are unbiased and have the same benchmark variance, aside from small finite-sample differences. Move to the top-right, Case 2. Beta-two is still zero, so both estimators remain unbiased. But correlation means that including x-two raises the auxiliary R-squared for x-one and inflates variance. This is the pure multicollinearity case.
+
+In the bottom-left, Case 3, beta-two is nonzero but x-two is uncorrelated with x-one. Omitting x-two does not bias the x-one coefficient because the missing component behaves like unrelated noise. It does raise the error variance, so including x-two improves precision without a population collinearity cost. In the bottom-right, Case 4, beta-two is nonzero and the variables are correlated. Omitting x-two puts a relevant x-one-related component into the error and biases the short-regression coefficient. Including it restores unbiasedness but may inflate variance because little independent x-one variation remains.
+
+The first takeaway bullet identifies the necessary pair of conditions for omitted variable bias: x-two must affect y and be related to x-one. Either condition alone is harmless for the center of beta-one-hat, as Cases 2 and 3 demonstrated. The second bullet separates ordinary variance decisions from the credibility decision in Case 4. In the three unbiased cells, inclusion or omission changes precision at most. In Case 4, omission changes the target, so economists generally accept the possible precision cost of including the confounder. The next slide derives the exact direction and magnitude of that bias.
 
 </details>
 
@@ -2195,7 +2431,13 @@ Two things to carry away:
 <details class="transcript">
 <summary>Transcript</summary>
 
-Now the algebra behind what case four showed us. Notice the two different symbols: beta-one-tilde for the estimator from the model that omits x-two, beta-one-hat for the one that includes it. Then the auxiliary regression, and read the direction carefully because this is where people go wrong. You regress the omitted variable on the included one, not the reverse. Delta-one is that slope, the covariance over the variance of x-one. The boxed result says the bias is beta-two times delta-one, and case four's number came from exactly this.
+Now derive the algebra behind Case 4. The true model says y-sub-i equals beta-zero plus beta-one x-one-sub-i plus beta-two x-two-sub-i plus u-sub-i. Beta-zero is the intercept, beta-one is the partial effect we care about, beta-two is the effect of the candidate omitted variable, and u contains the remaining determinants. E-E-one leaves x-two out and therefore has the composite error v equal to beta-two x-two plus u. The slide uses beta-one-tilde for the x-one estimator from this short regression. E-E-two includes both regressors and uses beta-one-hat and beta-two-hat for the corresponding long-regression estimators. Keeping the tilde and hat distinct prevents us from pretending that the two equations estimate the same coefficient under omission.
+
+The auxiliary regression in red and blue is the key step. Regress the omitted variable x-two on the included variable x-one: x-two-sub-i equals delta-zero plus delta-one x-one-sub-i plus e-sub-i. Delta-zero is the auxiliary intercept, delta-one is the linear slope relating x-two to x-one, and e is the residual portion of x-two that is orthogonal to x-one. With an intercept, delta-one equals covariance of x-one and x-two divided by variance of x-one. Read the direction carefully: omitted on included. Reversing it changes the denominator and gives the wrong bias formula.
+
+Substitute that auxiliary equation into the true model. Beta-two x-two becomes beta-two delta-zero plus beta-two delta-one x-one plus beta-two e. Collect constants to get beta-zero plus beta-two delta-zero. Collect x-one terms to get beta-one plus beta-two delta-one, all multiplying x-one. The remaining error is beta-two e plus u. Because e is an auxiliary-regression residual orthogonal to x-one, and u is exogenous, the short regression’s expected x-one coefficient is beta-one plus beta-two delta-one.
+
+Therefore the difference between the expected short estimate and beta-one is beta-two times delta-one. Beta-two measures how strongly the omitted factor affects y; delta-one measures how strongly that omitted factor moves with the included regressor. Case 4 used beta-two equal to one and delta-one about zero point nine eight eight, producing the red prediction one point nine eight eight.
 
 </details>
 
@@ -2242,7 +2484,13 @@ That is, if you omit $x_2$ and regress $y$ only on $x_1$, then the bias is the p
 <details class="transcript">
 <summary>Transcript</summary>
 
-The four sign combinations, and they follow directly from the formula. Bias is beta-two times delta-one, and delta-one has the same sign as the correlation, so the sign of the bias is just the product of two signs. Work through the first line to convince yourself and the rest will follow. Then read the magnitude bullets and the note. The bias grows with the correlation and with the size of beta-two. It does not depend on beta-one at all. The coefficient you care about could be huge or zero; the bias is the same either way.
+The direction section applies the result that bias equals beta-two times delta-one. Because variance of x-one is positive, delta-one, covariance over variance, has the same sign as the covariance and therefore the same sign as the correlation. The sign of the bias is consequently the product of two signs: the relationship between x-one and the omitted x-two, and the effect of x-two on y.
+
+Read the four bullets as a sign table. Positive correlation with positive beta-two gives positive times positive, so beta-one-tilde is biased upward. Positive correlation with negative beta-two gives a negative bias. Negative correlation with positive beta-two also gives a negative bias. Negative correlation with negative beta-two gives a positive bias because the product of two negatives is positive. “Positive bias” means the expected short-regression coefficient exceeds beta-one; “negative bias” means it falls below beta-one. It does not by itself tell you the sign of the estimated coefficient.
+
+For magnitude, rewrite delta-one as the correlation between x-one and x-two times the standard deviation of x-two divided by the standard deviation of x-one. Holding both standard deviations fixed, a larger absolute correlation produces a larger absolute delta-one and therefore more absolute bias. Holding delta-one fixed, a larger absolute beta-two also creates more bias because the omitted variable has a stronger outcome effect. The scale of the variables matters through the standard-deviation ratio, which is why the first magnitude bullet explicitly holds those standard deviations fixed.
+
+Finally, read the note. Beta-one, the true effect we care about, does not appear in beta-two times delta-one. The same omitted-variable shift is added whether beta-one is large, small, positive, negative, or zero. What beta-one does affect is whether that shift reverses the observed sign or merely makes an effect look stronger or weaker. The examples apply this sign logic.
 
 </details>
 
@@ -2275,7 +2523,11 @@ $\beta_1$ &mdash; the coefficient you actually care about &mdash; plays <span st
 <details class="transcript">
 <summary>Transcript</summary>
 
-Work this one out yourself before I say anything. Nitrogen is your variable of interest, soil erodibility is omitted and sits in the error term. Two facts on screen. Farmers apply more nitrogen to more erodible ground to compensate for nutrient loss, so the correlation is positive. And erodibility hurts yield, so gamma is negative. Positive correlation times negative gamma gives a negative bias. So your estimate of nitrogen's effect on yield comes out too low. You would understate the value of fertiliser, possibly badly.
+Read the equation as a short regression with the omitted component shown in parentheses. Corn yield is the outcome. Alpha is the intercept. N, nitrogen application, is the included variable of interest, and beta is its true partial effect on yield. Soil erodibility is omitted from the estimated regression. Gamma is its effect on yield, and mu is the remaining error. Because gamma times soil erodibility is left inside the parentheses with mu, it becomes part of the short-regression error.
+
+Now sign the two pieces of the bias formula. The first bullet says farmers tend to apply more nitrogen on more erodible fields to compensate for nutrients lost through erosion. As soil erodibility rises, N tends to rise, so the correlation between the included variable and the omitted variable is positive. Equivalently, the auxiliary slope from erodibility on N is positive. The second bullet says erodibility reduces corn yield, so gamma, playing the role of beta-two, is negative.
+
+The bias on beta-hat is gamma times that positive auxiliary slope. Negative times positive is negative. Therefore the nitrogen coefficient from a regression that omits soil erodibility is biased downward: its expected value is below the true beta. If nitrogen truly raises yield, the estimate will understate that benefit and could even cross zero if the negative bias is large enough. The reasoning, not just the sign, belongs in an empirical paper: explain both why farmers choose more nitrogen on erodible land and why erosion harms yield. Without those two claims, the direction cannot be signed.
 
 </details>
 
@@ -2295,7 +2547,11 @@ What is the direction of bias on $\hat{\beta}$?
 <details class="transcript">
 <summary>Transcript</summary>
 
-This is the classic housing example, and it is worth knowing because it appears in Wooldridge and in real policy debates. You want the effect of distance to an incinerator on house prices. But planners put incinerators on the edge of town, so distance to the incinerator is negatively related to distance from the city center, and distance from the center lowers prices. Negative correlation times negative gamma gives a positive bias. So you would overstate how much being near an incinerator hurts a house's value.
+This equation studies house price as the outcome. Alpha is the intercept. Distance to incinerators is the included variable, and beta is the effect we want. Distance to the city center is omitted, gamma is its partial effect on house price, and mu is the remaining error. The parentheses show that gamma times city-center distance is being absorbed into the short-regression error.
+
+Use the city’s geography to sign the auxiliary slope. The first bullet says planners place incinerators on the outskirts. For houses lying between the center and an outlying incinerator, moving farther from the incinerator generally means moving closer to the center. Thus distance to the incinerator and distance to the city center are negatively related. The second bullet says being farther from the center lowers house prices because access to central jobs and amenities is worse, so gamma is negative.
+
+The omitted-variable bias is gamma times the slope from omitted city-center distance on included incinerator distance. That is negative times negative, which is positive. Therefore the estimated coefficient on distance to the incinerator is biased upward. If the true beta is positive because houses farther from a hazardous facility are more valuable, the short regression exaggerates that benefit, equivalently overstating the price penalty from being near the incinerator. The estimate confuses proximity to the city center, which raises prices, with distance from the outskirts incinerator. As always, the conclusion relies on the geographic correlation and the negative city-center-distance effect both being credible.
 
 </details>
 
@@ -2315,7 +2571,11 @@ What is the direction of bias on $\hat{\beta}$?
 <details class="transcript">
 <summary>Transcript</summary>
 
-One from my own field. You are estimating the effect of precipitation on groundwater use, and irrigation technology is omitted. Farmers in drier places adopt center pivot more, so precipitation is negatively correlated with center pivot adoption. And center pivot applies water more efficiently, so gamma is negative. Negative times negative gives a positive bias. Now notice something useful: you would expect the true effect of precipitation on groundwater use to be negative, and the bias pushes upward, against your expectation. The next tab is about why that is good news.
+Here groundwater use by an irrigating farmer is the outcome. Precipitation is the included variable of interest, beta is its true effect, and alpha is the intercept. Center pivot is the omitted variable. The definition line says it equals one when center-pivot irrigation is used and zero when the farmer instead uses less efficient flood irrigation. Gamma is the center-pivot effect on groundwater use, and mu is the remaining error. The parenthesized terms form the short-regression error when technology is not observed.
+
+Sign the auxiliary relationship first. The next bullet says farmers facing relatively low growing-season precipitation are more likely to adopt center pivot. When precipitation is low, the center-pivot indicator tends to be one; when precipitation is high, it tends to be zero. That is a negative relationship between precipitation and the omitted indicator. The final bullet says center pivot applies water more efficiently than flood irrigation, so adopting it reduces groundwater use and gamma is negative.
+
+Bias equals gamma times the slope from center-pivot adoption on precipitation. Both factors are negative, so the bias is positive. The precipitation coefficient is shifted upward relative to its true value. Agronomic reasoning suggests the true beta is negative because more rain reduces the need to pump groundwater. A positive bias therefore works against that expected negative effect, making the estimate less negative and possibly concealing it. If the estimated coefficient remains negative despite this upward pressure, the true effect must be at least as negative under the maintained sign argument. Flip to the next set of examples to see exactly what that conservative-estimate claim does and does not establish.
 
 </details>
 
@@ -2347,7 +2607,13 @@ When the direction of the bias is the <span style = "color: red;"> opposite </sp
 <details class="transcript">
 <summary>Transcript</summary>
 
-Here is why signing the bias is worth the effort. The true effect is minus ten, the bias is plus five, so what you actually estimate is minus five. You never see the first two numbers, only the last. But if you can argue the bias is positive, then your estimate of minus five is a conservative one: the truth must be even more negative. So you can say, with a straight face, that the effect is at least this large. The bias worked against you and the result survived anyway.
+This tab turns the groundwater example into numbers and explains the statement above the tabs: a bias that points opposite the expected effect can make an observed sign especially persuasive. The equation has groundwater use as y, precipitation as the included x-one, center pivot as the omitted x-two, beta as the precipitation effect, gamma as the technology effect, and mu as the remaining error.
+
+Read the three bullets as the decomposition expected estimate equals truth plus bias. The true beta is minus ten, but the red note says you do not observe it. The omitted-variable bias is plus five, also unobserved. Adding them gives beta-hat equal to minus five, the only quantity you see in the short regression. The positive bias has moved the estimate upward, toward zero, rather than creating or exaggerating a negative sign.
+
+Suppose you can defend the sign argument from the previous tab: low-precipitation farmers adopt efficient center pivot more, so precipitation and adoption are negatively related, and center pivot reduces groundwater use, so gamma is negative. Their product makes the bias positive. If the observed coefficient is still negative, subtracting a positive bias must make the underlying beta more negative. In the numerical illustration, minus five minus plus five equals minus ten.
+
+That is why minus five is called conservative in magnitude. Under the maintained assumptions, the true reduction in groundwater use from additional precipitation is at least as large in absolute value as the estimate suggests. You still do not know that the bias is exactly five, and you must provide substantive evidence for its positive direction. But a result that survives bias pushing the other way is stronger evidence for the negative sign than the raw coefficient alone.
 
 </details>
 
@@ -2368,7 +2634,13 @@ You believe the direction of bias is positive (you need provide reasoning behind
 <details class="transcript">
 <summary>Transcript</summary>
 
-And here is the case where the same reasoning gives you nothing. True effect minus ten, bias minus five, estimate minus fifteen. Again you see only the last number. But now the bias points the same direction as your finding, so it could be doing all the work. A large enough negative bias could produce a negative estimate even if the truth were positive. Read the last sentence: there is nothing you can do. The direction of the bias determines whether this argument is available to you, and you do not get to choose it.
+This tab illustrates the opposite logical situation with the house-price equation. House price is the outcome, distance to incinerators is the included variable, beta is its true effect, distance to the city center is the omitted factor with coefficient gamma, and mu is the remaining error. The numerical bullets are a generic same-direction-bias illustration: true beta minus ten plus bias minus five produces the observed beta-hat of minus fifteen. You observe only minus fifteen, not the separate truth and bias.
+
+If you have reason to believe the omitted-variable bias is negative and the estimated coefficient is also negative, the bias reinforces the sign you expected to find. The observed negative value could combine a genuinely negative beta with a negative shift, as the numbers show. But it could also arise from a zero or even positive true beta overwhelmed by a sufficiently large negative bias. For example, a true value of plus two and a bias of minus seventeen would produce the same observed minus fifteen. The sign of the estimate therefore does not establish the sign of the causal effect.
+
+This is why the final paragraph says you cannot be confident that beta-hat would remain negative if city-center distance were observed and controlled. The data reveal only truth plus bias, and knowing that both the suspected bias and estimate are negative gives no lower bound on how negative the truth must be. You need the missing variable, a proxy, an alternative research design, a credible bound on bias magnitude, or some other identifying information.
+
+One caution when connecting this numerical illustration to the earlier incinerator example: the earlier geographic assumptions implied a positive bias, while this tab posits a negative bias. Treat this tab as demonstrating the same-direction logic rather than as following from those earlier assumptions. The useful rule is general: opposite-direction bias can support a conservative claim; same-direction bias cannot.
 
 </details>
 

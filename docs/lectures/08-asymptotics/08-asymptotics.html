@@ -99,7 +99,7 @@
     code span.vs { color: #20794d; } /* VerbatimString */
     code span.wa { color: #5e5e5e; font-style: italic; } /* Warning */
   </style>
-  <link rel="stylesheet" href="../../site_libs/revealjs/dist/theme/quarto-704fb9daa92384f3b8b33063c36f01da.css">
+  <link rel="stylesheet" href="../../site_libs/revealjs/dist/theme/quarto-5cbf9ce0bec82c5b0c7629bb4ee56cc4.css">
   <script defer="" src="https://cdn.jsdelivr.net/npm/katex@0.18.4/dist/katex.min.js"></script>
   <script>document.addEventListener("DOMContentLoaded", function () {
  var mathElements = document.getElementsByClassName("math");
@@ -586,7 +586,7 @@
       var available = Math.max(1, (area.clientWidth || 1005) - 16);
       var share = parseFloat(host.style.getPropertyValue("--webr-code-share")) / 100;
       if (!share) return;
-      if (available * (1 - share) < MIN_PLOT_PX) stack(host, false);
+      if (available * (1 - share) < MIN_PLOT_PX) stack(area, host, false);
     }
 
     function measureRenderedCode(area, host, code, attempt) {
@@ -674,7 +674,7 @@
       if (share >= MAX_CODE_SHARE || attempt > 40) {
         // Even at the widest permitted code column the line will not fit, so the
         // cell has no business being side by side at all.
-        stack(host, true);
+        stack(area, host, true);
         return;
       }
       setTracks(host, area, share + 0.02);
@@ -725,19 +725,20 @@
       // No measurement for this cell: it was added or edited since the last run of
       // measure-webr-output.R, or R could not evaluate it. Judge on the code alone
       // rather than refuse, so an unmeasured deck still behaves reasonably.
+      // An author-set split — `#| code-track:` or the wrapper's own CSS variables
+      // — is a decision, and EVERYTHING below here is the prediction it overrides.
+      // setTracks(), ensureNoWrap() and the plot floor all already stand aside for
+      // `webrCodeFixed`. This test used to sit under the two below instead, which
+      // meant a hand-set split was still thrown away when the cell's own font
+      // measurement said the output would not fit, and — more often — when the
+      // cell printed nothing at all. An author who types a number wants to SEE
+      // that number, including on a cell with an empty output column.
+      if (area.closest('[data-webr-code-fixed="true"]')) return true;
       if (!entry) return true;
       // Ran and printed nothing, and drew nothing. There is no right-hand content
       // to show, so the code keeps the full width rather than facing an empty
       // Output banner. A figure counts as content even though it prints no text.
       if (!entry.plot && (!entry.rows || !entry.cols)) return false;
-
-      // An author-set split — `#| code-track:` or the wrapper's own CSS variables
-      // — is a decision, and everything below here is the prediction it overrides.
-      // setTracks(), ensureNoWrap() and the plot floor all already stand aside for
-      // `webrCodeFixed`; this test did not, so it sized a code column from the
-      // font, found the output would not fit beside THAT column, and stacked the
-      // cell — throwing away a split that fitted in the column actually asked for.
-      if (area.closest('[data-webr-code-fixed="true"]')) return true;
 
       var available = Math.max(1, (area.clientWidth || 1005) - 16);
       var codePx = Math.max(MIN_CODE_PX,
@@ -786,13 +787,12 @@
     // The one remaining way out of the side-by-side layout, and it can only fire
     // during load: the code will not fit on one line even in the widest column
     // allowed. Nothing a cell does at RUN time reaches here.
-    function stack(host, force) {
+    function stack(area, host, force) {
       // `::: {.side-out}` is a REQUEST, not an override: it cannot make code fit
       // that does not fit. What the exemption buys is that ordinary measurement
       // noise will not tear a deliberate wrapper down.
       if (host.dataset.webrLayoutManual === "true" && !force) return;
-      host.classList.remove("side-out");
-      host.dataset.webrLayout = "stacked";
+      markStacked(area, host);
     }
 
     // Called whenever the cell's DOM changes, which in practice means "the cell
@@ -810,9 +810,84 @@
       requestAnimationFrame(function () { markGutter(area, host); });
     }
 
+    // EVERY path that decides a cell stays stacked must come through here, and
+    // the reason is the attribute on the AREA. custom.scss puts any cell that has
+    // drawn a figure side by side, keyed off
+    // `:has(.qwebr-output-graph-area canvas):not([data-webr-layout="stacked"])`,
+    // and that `:not()` matches the interactive area — not the wrapper this
+    // script mostly works with. Stamping only the wrapper leaves that rule free
+    // to fire, and it fires at the moment the plot appears.
+    //
+    // What that looked like, measured on `L05_vector_raster_interaction.html`:
+    // the cell sat stacked until its plot was drawn, then flipped to
+    // `display: grid` with columns `1021px 9px` — custom.scss asks for `1fr 1fr`,
+    // but a `1fr` track may not shrink below its item's min-content width and
+    // Monaco's is the full slide — and the figure landed in the 9px track, 0x0,
+    // off the right edge of the slide. "The plot never appears." Adding
+    // `#| layout: stacked` by hand fixed it only because that option came through
+    // this function and stamped the area.
+    function markStacked(area, host) {
+      area.dataset.webrLayout = "stacked";
+      host = host || area.closest(".side-out") || area.closest(".cell") ||
+        area.parentElement;
+      if (host) {
+        host.classList.remove("side-out");
+        host.dataset.webrLayout = "stacked";
+      }
+    }
+
+    // A control that folds a cell's output away, because long output pushes
+    // everything below it down the slide and a result that has been read is then
+    // just in the way. It goes where the cell already has a header strip: the
+    // Output banner on a side-by-side cell (layOut() moves it there), the
+    // editor toolbar on a stacked one. All it does is set a flag on the
+    // interactive area; notebook.scss does the hiding.
+    function addOutputToggle(area) {
+      var bar = area.querySelector(".qwebr-editor-toolbar-right-buttons");
+      if (!bar || area.querySelector(".webr-output-toggle")) return;
+      var btn = document.createElement("button");
+      btn.type = "button";
+      // The extension's own reset and copy buttons carry exactly these classes.
+      // Wearing them too is what makes this look like part of the toolbar rather
+      // than something bolted on, and it inherits their hover state for free.
+      btn.className = "btn btn-light btn-xs qwebr-button webr-output-toggle";
+      // An eye, matching the reset and copy buttons beside it in being icon-only.
+      // Font Awesome needs no loading of its own: those two are already
+      // `fa-solid fa-arrows-rotate` and `fa-regular fa-copy`. The icon names the
+      // ACTION, not the current state — a folded cell shows a plain eye, "click
+      // to show".
+      //
+      // An icon carries no accessible name, so title and aria-label carry the
+      // words the button no longer prints. Both, not either: the title is the
+      // hover tooltip, the aria-label is what a screen reader announces.
+      var setState = function (hidden) {
+        var words = hidden ? "Show this cell's output" : "Hide this cell's output";
+        btn.innerHTML = '<i class="fa-solid fa-eye' + (hidden ? "" : "-slash") +
+          '" aria-hidden="true"></i>';
+        btn.title = words;
+        btn.setAttribute("aria-label", words);
+        btn.setAttribute("aria-expanded", hidden ? "false" : "true");
+      };
+      setState(false);
+      btn.addEventListener("click", function () {
+        var hide = area.dataset.webrOutputHidden !== "true";
+        area.dataset.webrOutputHidden = hide ? "true" : "false";
+        setState(hide);
+      });
+      // reveal reads keys off the document and stands aside only for inputs and
+      // contenteditable, not for a <button>. Without this, Space on a focused
+      // toggle both presses it and advances the slide.
+      btn.addEventListener("keydown", function (e) {
+        if (e.key === " " || e.key === "Enter") e.stopPropagation();
+      });
+      bar.appendChild(btn);
+    }
+
     function configure(area) {
       if (area.dataset.webrLayoutChecked === "true") return;
       area.dataset.webrLayoutChecked = "true";
+
+      addOutputToggle(area);
 
       // `::: {.stacked}` is the manual OPT-OUT, and the mirror of `.side-out`:
       // this cell keeps the vertical stack whatever the measurements say. The two
@@ -820,12 +895,7 @@
       // has looked at the slide outranks the arithmetic in both. It is checked
       // FIRST, before any measuring, because there is nothing left to decide.
       if (area.closest(".stacked")) {
-        var forcedHost = area.closest(".side-out") || area.closest(".cell") ||
-          area.parentElement;
-        if (forcedHost) {
-          forcedHost.classList.remove("side-out");
-          forcedHost.dataset.webrLayout = "stacked";
-        }
+        markStacked(area);
         return;
       }
 
@@ -836,17 +906,41 @@
       // means the same thing. Checked here rather than with the wrapper only
       // because the options have to be read first; nothing has been measured yet.
       if (details.options["layout"] === "stacked") {
-        var optHost = area.closest(".side-out") || area.closest(".cell") ||
-          area.parentElement;
-        if (optHost) {
-          optHost.classList.remove("side-out");
-          optHost.dataset.webrLayout = "stacked";
-        }
+        markStacked(area);
         return;
       }
 
+      // `#| code-track: 0.55` is read HERE, above every automatic gate, because
+      // it is the one option that overrides all of them. It used to be read forty
+      // lines down, after the two `return`s below had already sent a long cell or
+      // a cell inside a `.column` back to the stack without ever looking at it —
+      // an override that silently did nothing, which is worse than no override.
+      var codeTrack = parseFloat(details.options["code-track"]);
+      var fixedSplit = codeTrack > 0 && codeTrack < 1;
+
       var metrics = codeMetrics(details.code);
-      if (!metrics.lines || metrics.lines > MAX_CODE_LINES || metrics.maxChars > 88) return;
+      if (!metrics.lines) return;
+      // Too many lines, or a line too long for any column: no automatic split.
+      //
+      // Walking away silently was not the same as saying stacked, and the
+      // difference was 36 cells across the two courses. custom.scss's figure rule
+      // takes any unstamped cell that has drawn a plot into two columns of its
+      // own, which is the very layout this gate refuses: the code is too wide for
+      // half a slide, so the editor wraps. Record the decision instead.
+      //
+      // Only the AREA is stamped, and only the stylesheet reads it. A
+      // `::: {.side-out}` wrapper in the markup is left alone, because
+      // custom.scss already stands aside inside one and notebook.scss lays that
+      // cell out from the class — an author who typed the wrapper still gets it.
+      // `classes: qwebr-side-by-side` is exempt for the same reason: it is the
+      // author asking for custom.scss's layout by name.
+      if (!fixedSplit &&
+        (metrics.lines > MAX_CODE_LINES || metrics.maxChars > 88)) {
+        if (!area.classList.contains("qwebr-side-by-side")) {
+          area.dataset.webrLayout = "stacked";
+        }
+        return;
+      }
 
       var existingWrapper = area.closest(".side-out");
 
@@ -858,11 +952,8 @@
       // the class is in the markup, so notebook.scss would lay the cell out in
       // two columns regardless of what this script decides, and the halved width
       // is not something the author who typed `::: {.side-out}` accounted for.
-      if (area.closest(".column")) {
-        if (existingWrapper) {
-          existingWrapper.classList.remove("side-out");
-          existingWrapper.dataset.webrLayout = "stacked";
-        }
+      if (area.closest(".column") && !fixedSplit) {
+        if (existingWrapper) markStacked(area, existingWrapper);
         return;
       }
 
@@ -892,14 +983,13 @@
       // than only setting the flags is what makes the option identical to the
       // wrapper: the fit tests below read the class, so the cell can override the
       // figure floor, and code that will not fit one line still stacks.
-      var codeTrack = parseFloat(details.options["code-track"]);
-      if (codeTrack > 0 && codeTrack < 1) {
+      if (fixedSplit) {
         host.style.setProperty("--webr-code-track", codeTrack + "fr");
         host.style.setProperty("--webr-output-track", (1 - codeTrack) + "fr");
         host.style.setProperty("--webr-code-share", (codeTrack * 100) + "%");
         host.dataset.webrCodeFixed = "true";
       }
-      if ((codeTrack > 0 && codeTrack < 1) || details.options["layout"] === "side") {
+      if (fixedSplit || details.options["layout"] === "side") {
         host.classList.add("side-out");
         host.dataset.webrLayoutManual = "true";
       }
@@ -915,7 +1005,13 @@
         // therefore as silent, when what that cell actually prints is a four-line
         // syntax error — which is the whole point of the slide it sits on.
         // A measured cell is judged on what R really printed.
-        if (!entry && printsNothing(details.code)) {
+        if (!entry && printsNothing(details.code) &&
+          host.dataset.webrCodeFixed !== "true") {
+          // Not markStacked(): that also strips a `::: {.side-out}` wrapper, and
+          // this branch is a guess from the source rather than a measurement, so
+          // it must not tear an author's wrapper down. Only the two attributes,
+          // which is what keeps custom.scss's figure rule off the cell.
+          area.dataset.webrLayout = "stacked";
           host.dataset.webrLayout = "stacked";
           return;
         }
@@ -923,7 +1019,7 @@
           // force: a `::: {.side-out}` wrapper is a request, and the class is in
           // the markup, so it must be REMOVED here or the stylesheet lays the cell
           // out in two columns whatever this script decided.
-          stack(host, true);
+          stack(area, host, true);
           return;
         }
         if (entry && entry.plot) host.dataset.webrPlot = "true";
@@ -935,6 +1031,13 @@
     // Everything below runs only for a cell that IS side by side: size its code
     // column, keep Monaco from wrapping in it, and keep the gutter caret centred.
     function layOut(area, host, details, metrics) {
+      // The banner is the output's own header strip, so on a side-by-side cell
+      // the toggle belongs there rather than in the toolbar over the code.
+      // notebook.scss puts it in the `outbar` grid area, on top of the ::before
+      // that paints the banner.
+      var toggle = area.querySelector(".webr-output-toggle");
+      if (toggle) area.appendChild(toggle);
+
       // Estimate an initial split from the longest source line, in pixels against
       // the width this cell actually has. The old form was `(maxChars + 10) / 145`,
       // which assumed ~145 characters span the full width; the real figure is ~109,
@@ -969,8 +1072,35 @@
       requestAnimationFrame(function () { assessOutput(area, host); });
     }
 
+    // `#| fig-max-height: 600`, or `#| fig-max-height: none` to lift the cap
+    // entirely for this cell. The 420px cap in notebook.scss is a floor plan for
+    // a slide that also carries a title, a tab bar and a couple of lines of text.
+    // Two things it cannot see: a slide with less on it than that, and a portrait
+    // figure, which gets nothing at all from the width it is handed and is held
+    // at whatever the cap allows in height. This writes the custom property the
+    // cap reads onto this cell only, so no other figure on the deck moves.
+    //
+    // Called from scan() rather than configure(), because configure() returns
+    // early for a setup cell, for `.stacked`, and for a cell inside a `.column`,
+    // and a figure in any of those is capped like every other.
+    function applyFigureCap(area) {
+      if (area.dataset.webrFigCap) return;
+      var details = detailsFor(area);
+      var raw = details && details.options && details.options["fig-max-height"];
+      if (!raw) return;
+      raw = String(raw).trim();
+      var value = raw === "none" ? "none"
+        : (parseFloat(raw) > 0 ? parseFloat(raw) + "px" : null);
+      if (!value) return;
+      area.dataset.webrFigCap = value;
+      area.style.setProperty("--webr-fig-max-height", value);
+    }
+
     function scan() {
-      document.querySelectorAll(".qwebr-interactive-area").forEach(configure);
+      document.querySelectorAll(".qwebr-interactive-area").forEach(function (area) {
+        applyFigureCap(area);
+        configure(area);
+      });
     }
 
     var pageObserver = new MutationObserver(scan);
@@ -1284,7 +1414,7 @@
   };
 
   // Store cell data
-  globalThis.qwebrCellDetails = [{"code":"# NOTE: a webr setup cell renders a loading widget wherever it sits, so keep it\n# inside a content slide rather than on a section divider (or, worse, above the\n# first heading, where it becomes an untitled slide of its own).\n# Mirror of lecture_theme() in lectures/_lecture-theme.R. WebR runs in the\n# browser, against a virtual filesystem that does not hold the repo, so it\n# cannot source that file. Edit the file first, then run\n#     Rscript lectures/check-lecture-theme.R\n# which fails if this copy has drifted from it.\nlecture_theme <- function(base_size = 16) {\n  ggplot2::theme_bw(base_size = base_size) +\n    ggplot2::theme(\n      axis.text = ggplot2::element_text(size = base_size * 0.9),\n      axis.title = ggplot2::element_text(size = base_size),\n      legend.text = ggplot2::element_text(size = base_size * 0.9),\n      legend.title = ggplot2::element_text(size = base_size * 0.9),\n      plot.background = ggplot2::element_rect(fill = \"transparent\", colour = NA),\n      panel.background = ggplot2::element_rect(fill = \"transparent\", colour = NA),\n      legend.background = ggplot2::element_rect(fill = \"transparent\", colour = NA),\n      legend.key = ggplot2::element_rect(fill = \"transparent\", colour = NA),\n      # theme_bw's grey92 grid was chosen against a white panel and all but\n      # disappears on the warm paper once the panel stops being opaque.\n      panel.grid = ggplot2::element_line(colour = \"grey87\")\n    )\n}\n\n# The WebR canvas is 10x6in at out-width 100% of its output track\n# (lectures/_metadata.yml), the same canvas the knitr figures use. It asks for\n# the whole track because the 420px height cap in notebook.scss is what really\n# sizes it. 18pt rather than the 16pt knitr default: on a full slide both land\n# at 700x420, where 18pt reads at 17.5px and 16pt at 15.5px, and these decks\n# put figures in half-width columns where the smaller size gets hard to read.\n# webR draws its canvas at 72 dpi no matter what `dpi` says, so on a 216-dpi\n# canvas everything ggplot measures in points or mm comes out a third of its\n# size. Scale ggplot2's mm-to-point constants and the theme by the same\n# factor and the figure matches the knitr ones. Keep in step with `dpi` above.\nwebr_scale <- 216 / 72\nassignInNamespace(\".pt\", ggplot2::.pt * webr_scale, \"ggplot2\")\nassignInNamespace(\".stroke\", ggplot2::.stroke * webr_scale, \"ggplot2\")\ntheme_lecture <- lecture_theme(18 * webr_scale) +\n  # base_size also sets the theme line widths, which are in mm and already\n  # pass through the scaled .pt; pin them to what 18pt gives or they come\n  # out 9x thick.\n  ggplot2::theme(\n    line = ggplot2::element_line(linewidth = 18 / 22),\n    rect = ggplot2::element_rect(linewidth = 18 / 22)\n  )\nggplot2::theme_set(theme_lecture)","id":1,"options":{"autorun":"true","classes":"","comment":"","context":"setup","dpi":"216","editor-font-scale":"0.7","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"6","fig-width":"10","label":"unnamed-chunk-1","message":"true","out-height":"","out-width":"100%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"#--- Preparation ---#\nB <- 1000 # the number of iterations\nN_list <- c(100, 1000, 10000) # sample size\nN_len <- length(N_list)\nestimate_storage <- matrix(0, B, N_len) # estimates storage\n\nfor (j in 1:N_len) {\n  temp_N <- N_list[j]\n  for (i in 1:B) {\n    #--- generate data ---#\n    x <- rnorm(temp_N) # independent variable\n    u <- rnorm(temp_N) * 0.2 # error\n    y <- 1 + x + u # dependent variable 1\n    data <- data.frame(y = y, x = x)\n\n    #--- OLS ---#\n    reg <- lm(y ~ x, data = data) # OLS\n\n    #--- store coef estimates ---#\n    estimate_storage[i, j] <- reg$coef[2]\n  }\n}","id":2,"options":{"autorun":"false","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.7","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"6","fig-width":"10","label":"unnamed-chunk-2","message":"true","out-height":"","out-width":"100%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"plot_data <- melt(as.data.table(estimate_storage), measure.vars = 1:N_len)\n\n#--- create a figure ---#\ng_co_ex <-\n  ggplot(data = plot_data) +\n  geom_density(aes(x = value, fill = variable), alpha = 0.4) +\n  geom_vline(xintercept = 1) +\n  xlim(0.9, 1.1) +\n  scale_fill_discrete(\n    name = \"Sample Size\",\n    labels = c(\"N=100 \", \"N=1,000 \", \"N=10,000\")\n  ) +\n  theme_lecture +\n  theme(\n    legend.position = \"bottom\"\n  )\n\ng_co_ex","id":3,"options":{"autorun":"false","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.7","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"6","fig-width":"10","label":"unnamed-chunk-3","message":"true","out-height":"","out-width":"100%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"#--- Preparation ---#\nB <- 1000 # the number of iterations\nN_list <- c(100, 1000, 10000) # sample size\nN_len <- length(N_list)\nestimate_storage <- matrix(0, B, N_len) # estimates storage\n\nfor (j in 1:N_len) {\n  temp_N <- N_list[j]\n  for (i in 1:B) {\n    #--- generate data ---#\n    mu <- rnorm(temp_N) # shared term between x and u #<<\n    x <- rnorm(temp_N) + 0.5 * mu # <<\n    u <- rnorm(temp_N) + 0.5 * mu # <<\n    y <- 1 + x + u # dependent variable\n    data <- data.frame(y = y, x = x)\n\n    #--- OLS ---#\n    reg <- lm(y ~ x, data = data) # OLS\n\n    #--- store coef estimates ---#\n    estimate_storage[i, j] <- reg$coef[2]\n  }\n}","id":4,"options":{"autorun":"false","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.7","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"6","fig-width":"10","label":"unnamed-chunk-4","message":"true","out-height":"","out-width":"100%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"#--- wide to long format ---#\nplot_data <- melt(as.data.table(estimate_storage), measure.vars = 1:N_len)\n\n#--- create a figure ---#\ng_inco_ex <- ggplot(data = plot_data) +\n  geom_density(aes(x = value, fill = variable), alpha = 0.4) +\n  geom_vline(xintercept = 1, linetype = \"dashed\") +\n  geom_vline(xintercept = 1.2) +\n  scale_fill_discrete(\n    name = \"Sample Size\",\n    labels = c(\"N=100 \", \"N=1,000 \", \"N=10,000\")\n  ) +\n  theme_lecture +\n  theme(\n    legend.position = \"bottom\"\n  )\n\ng_inco_ex","id":5,"options":{"autorun":"false","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.7","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"6","fig-width":"10","label":"unnamed-chunk-5","message":"true","out-height":"","out-width":"100%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"(\nx <- rbinom(10, size = 1, prob = 0.3)\n)\n\nsqrt(10) * (mean(x) - 0.3)","id":6,"options":{"autorun":"true","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.7","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"6","fig-width":"10","label":"unnamed-chunk-6","message":"true","out-height":"","out-width":"100%","output":"true","read-only":"false","results":"markup","warning":"true"}}];
+  globalThis.qwebrCellDetails = [{"code":"# NOTE: a webr setup cell renders a loading widget wherever it sits, so keep it\n# inside a content slide rather than on a section divider (or, worse, above the\n# first heading, where it becomes an untitled slide of its own).\n# Mirror of lecture_theme() in lectures/_lecture-theme.R. WebR runs in the\n# browser, against a virtual filesystem that does not hold the repo, so it\n# cannot source that file. Edit the file first, then run\n#     Rscript lectures/check-lecture-theme.R\n# which fails if this copy has drifted from it.\nlecture_theme <- function(base_size = 16) {\n  ggplot2::theme_bw(base_size = base_size) +\n    ggplot2::theme(\n      axis.text = ggplot2::element_text(size = base_size * 0.9),\n      axis.title = ggplot2::element_text(size = base_size),\n      legend.text = ggplot2::element_text(size = base_size * 0.9),\n      legend.title = ggplot2::element_text(size = base_size * 0.9),\n      plot.background = ggplot2::element_rect(fill = \"transparent\", colour = NA),\n      panel.background = ggplot2::element_rect(fill = \"transparent\", colour = NA),\n      legend.background = ggplot2::element_rect(fill = \"transparent\", colour = NA),\n      legend.key = ggplot2::element_rect(fill = \"transparent\", colour = NA),\n      # theme_bw's grey92 grid was chosen against a white panel and all but\n      # disappears on the warm paper once the panel stops being opaque.\n      panel.grid = ggplot2::element_line(colour = \"grey87\")\n    )\n}\n\n# The WebR canvas is 10x6in at out-width 100% of its output track\n# (lectures/_metadata.yml), the same canvas the knitr figures use. It asks for\n# the whole track because the 420px height cap in notebook.scss is what really\n# sizes it. 18pt rather than the 16pt knitr default: on a full slide both land\n# at 700x420, where 18pt reads at 17.5px and 16pt at 15.5px, and these decks\n# put figures in half-width columns where the smaller size gets hard to read.\n# webR draws its canvas at 72 dpi no matter what `dpi` says, so on a 216-dpi\n# canvas everything ggplot measures in points or mm comes out a third of its\n# size. Scale ggplot2's mm-to-point constants and the theme by the same\n# factor and the figure matches the knitr ones. Keep in step with `dpi` above.\nwebr_scale <- 216 / 72\nassignInNamespace(\".pt\", ggplot2::.pt * webr_scale, \"ggplot2\")\nassignInNamespace(\".stroke\", ggplot2::.stroke * webr_scale, \"ggplot2\")\ntheme_lecture <- lecture_theme(18 * webr_scale) +\n  # base_size also sets the theme line widths, which are in mm and already\n  # pass through the scaled .pt; pin them to what 18pt gives or they come\n  # out 9x thick.\n  ggplot2::theme(\n    line = ggplot2::element_line(linewidth = 18 / 22),\n    rect = ggplot2::element_rect(linewidth = 18 / 22)\n  )\nggplot2::theme_set(theme_lecture)","id":1,"options":{"autorun":"true","classes":"","comment":"","context":"setup","dpi":"216","editor-font-scale":"0.7","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"6","fig-width":"10","label":"unnamed-chunk-1","message":"true","out-height":"","out-width":"100%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"#--- Preparation ---#\nB <- 1000 # the number of iterations\nN_list <- c(100, 1000, 10000) # sample size\nN_len <- length(N_list)\nestimate_storage <- matrix(0, B, N_len) # estimates storage\n\nfor (j in 1:N_len) {\n  temp_N <- N_list[j]\n  for (i in 1:B) {\n    #--- generate data ---#\n    x <- rnorm(temp_N) # independent variable\n    u <- rnorm(temp_N) * 0.2 # error\n    y <- 1 + x + u # dependent variable 1\n    data <- data.frame(y = y, x = x)\n\n    #--- OLS ---#\n    reg <- lm(y ~ x, data = data) # OLS\n\n    #--- store coef estimates ---#\n    estimate_storage[i, j] <- reg$coef[2]\n  }\n}","id":2,"options":{"autorun":"false","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.7","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"6","fig-width":"10","label":"unnamed-chunk-2","message":"true","out-height":"","out-width":"100%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"plot_data <- melt(as.data.table(estimate_storage), measure.vars = 1:N_len)\n\n#--- create a figure ---#\ng_co_ex <-\n  ggplot(data = plot_data) +\n  geom_density(aes(x = value, fill = variable), alpha = 0.4) +\n  geom_vline(xintercept = 1) +\n  xlim(0.9, 1.1) +\n  scale_fill_discrete(\n    name = \"Sample Size\",\n    labels = c(\"N=100 \", \"N=1,000 \", \"N=10,000\")\n  ) +\n  theme_lecture +\n  theme(\n    legend.position = \"bottom\"\n  )\n\ng_co_ex","id":3,"options":{"autorun":"false","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.7","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"6","fig-width":"10","label":"unnamed-chunk-3","message":"true","out-height":"","out-width":"100%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"#--- Preparation ---#\nB <- 1000 # the number of iterations\nN_list <- c(100, 1000, 10000) # sample size\nN_len <- length(N_list)\nestimate_storage <- matrix(0, B, N_len) # estimates storage\n\nfor (j in 1:N_len) {\n  temp_N <- N_list[j]\n  for (i in 1:B) {\n    #--- generate data ---#\n    mu <- rnorm(temp_N) # shared term between x and u #<<\n    x <- rnorm(temp_N) + 0.5 * mu # <<\n    u <- rnorm(temp_N) + 0.5 * mu # <<\n    y <- 1 + x + u # dependent variable\n    data <- data.frame(y = y, x = x)\n\n    #--- OLS ---#\n    reg <- lm(y ~ x, data = data) # OLS\n\n    #--- store coef estimates ---#\n    estimate_storage[i, j] <- reg$coef[2]\n  }\n}","id":4,"options":{"autorun":"false","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.7","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"6","fig-width":"10","label":"unnamed-chunk-4","message":"true","out-height":"","out-width":"100%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"#--- wide to long format ---#\nplot_data <- melt(as.data.table(estimate_storage), measure.vars = 1:N_len)\n\n#--- create a figure ---#\ng_inco_ex <- ggplot(data = plot_data) +\n  geom_density(aes(x = value, fill = variable), alpha = 0.4) +\n  geom_vline(xintercept = 1, linetype = \"dashed\") +\n  geom_vline(xintercept = 1.2) +\n  scale_fill_discrete(\n    name = \"Sample Size\",\n    labels = c(\"N=100 \", \"N=1,000 \", \"N=10,000\")\n  ) +\n  theme_lecture +\n  theme(\n    legend.position = \"bottom\"\n  )\n\ng_inco_ex","id":5,"options":{"autorun":"false","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.7","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"6","fig-width":"10","label":"unnamed-chunk-5","message":"true","out-height":"","out-width":"100%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"(\n  x <- rbinom(10, size = 1, prob = 0.3)\n)\n\nsqrt(10) * (mean(x) - 0.3)","id":6,"options":{"autorun":"true","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.7","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"6","fig-width":"10","label":"unnamed-chunk-6","message":"true","out-height":"","out-width":"100%","output":"true","read-only":"false","results":"markup","warning":"true"}}];
 
   </script>
   <script type="module">
@@ -2227,9 +2357,48 @@
   } 
 
   // Function to run the code using webR and parse the output
+  // How many characters of printed output fit across this cell's output box.
+  //
+  // Everything here is in CSS pixels, never getBoundingClientRect(): reveal
+  // scales the whole slide with a transform, so a rect is the scaled number
+  // while getComputedStyle and canvas.measureText are unscaled, and mixing the
+  // two gives a width out by the scale factor.
+  //
+  // The 80-character sample rather than one character because measureText
+  // rounds, and one rounded character multiplied by 124 is a visible error.
+  globalThis.qwebrOutputWidthChars = function (outputDiv) {
+      const DEFAULT_WIDTH = 80;
+      if (!outputDiv) return DEFAULT_WIDTH;
+      // The extension creates the output `pre` at load and keeps it hidden until
+      // the cell prints something, so its font is readable before the first run.
+      const probe = outputDiv.querySelector("pre") || outputDiv;
+      const usable = probe.clientWidth;  // content box: excludes the accent border
+      if (!usable) return DEFAULT_WIDTH;
+      const cs = getComputedStyle(probe);
+      const canvas = qwebrOutputWidthChars.canvas ||
+          (qwebrOutputWidthChars.canvas = document.createElement("canvas"));
+      const context = canvas.getContext("2d");
+      context.font = [cs.fontStyle, cs.fontWeight, cs.fontSize, cs.fontFamily]
+          .filter(Boolean).join(" ");
+      const perChar = context.measureText("0".repeat(80)).width / 80;
+      if (!perChar) return DEFAULT_WIDTH;
+      // qwebr-styling.css puts `margin: 1px 2px 1px 10px` on the div inside the
+      // pre, so 12px of the content box is never printable.
+      const chars = Math.floor((usable - 12) / perChar);
+      // Never NARROWER than R's own default. This only ever hands a cell more
+      // room than it had, so no slide that has already been read over prints
+      // differently unless its box was wider than 80 characters all along. A
+      // cell in a half-width `.column` measures about 60 and keeps 80, which is
+      // what it prints today: the tail scrolls, and trading that for a block
+      // two-thirds taller is not obviously the better deal on a slide.
+      // The ceiling is there because `options(width = )` is a hard limit in R,
+      // not a suggestion, and nothing on these decks wants a 300-character line.
+      return Math.max(DEFAULT_WIDTH, Math.min(200, chars));
+  };
+
   globalThis.qwebrComputeEngine = async function(
-      codeToRun, 
-      elements, 
+      codeToRun,
+      elements,
       options) {
 
       // Call into the R compute engine that persists within the document scope.
@@ -2291,6 +2460,19 @@
       // Store the code to run in history
       qwebrLogCodeToHistory(codeToRun, options);
 
+      // R wraps everything it prints at `getOption("width")` characters and webR
+      // leaves that at 80, whatever the box it is printing into. A full-width
+      // cell fits about 124 characters at the deck's code size, so a printed
+      // data frame stopped a third short of the right edge and R moved its last
+      // column into a second block underneath — which is how a six-column
+      // `st_join` result came out as five columns and then a lone `geometry`.
+      // Measure the box this cell actually got and let R use all of it.
+      //
+      // Safe to take at run time: webr-layout.html decides side-by-side versus
+      // stacked while the page loads and never revisits it (see assessOutput),
+      // so the width measured here is the width the output is printed into.
+      const widthFix = `options(width = ${qwebrOutputWidthChars(elements.outputCodeDiv)}); `;
+
       // webR's canvas draws text at the `pointsize` set above but still reports
       // its character metrics as if the font were 12pt. R sizes plot margins in
       // "lines" from those metrics, so on a 216 dpi canvas the margins come out
@@ -2307,7 +2489,7 @@
       // Evaluate the R code
       // Remove the active canvas silently
       const result = await mainWebRCodeShelter.captureR(
-          `${marginFix}${codeToRun}`,
+          `${widthFix}${marginFix}${codeToRun}`,
           captureOutputOptions
       );
 
@@ -2361,6 +2543,10 @@
 
           // Design an output object for messages
           const pre = document.createElement("pre");
+          // PATCHED: an `output: asis` cell hands back real HTML (a gt, kableExtra
+          // or tinytable table). It keeps the output box, but not the whitespace
+          // and font of a `pre`. See notebook.scss, and RULES.md section 7.
+          if (!showMarkup) { pre.classList.add("qwebr-output-asis"); }
           if (/\S/.test(out)) {
               // Display results as HTML elements to retain output styling
               const div = document.createElement("div");
@@ -2379,6 +2565,22 @@
           }
 
           elements.outputCodeDiv.appendChild(pre);
+
+          // PATCHED: HTML written by `output: asis` may carry its own <script>,
+          // which is how tinytable, modelsummary's default HTML output, fills its
+          // cells. innerHTML never runs a script, so the table arrived empty.
+          // Re-creating each script node runs it, and it must happen after the
+          // output is in the document or a detached node still does nothing.
+          if (!showMarkup) {
+              pre.querySelectorAll("script").forEach((original) => {
+                  const script = document.createElement("script");
+                  for (const attribute of original.attributes) {
+                      script.setAttribute(attribute.name, attribute.value);
+                  }
+                  script.textContent = original.textContent;
+                  original.replaceWith(script);
+              });
+          }
 
           // Determine if we have graphs to display
           if (result.images.length > 0) {
@@ -2595,6 +2797,16 @@ globalThis.qwebrCreateMonacoEditorInstance = function (cellData) {
       fontSize: qwebrScaledFontSize(editorDiv, qwebrOptions),         
       renderLineHighlight: "none",      // Disable current line highlighting
       hideCursorInOverviewRuler: true,  // Remove cursor indictor in right hand side scroll bar
+      // PATCHED, see RULES.md. Monaco reserves a strip at the right of the
+      // editor for the overview ruler — the map of marks beside a scrollbar —
+      // and draws a hairline border down its left side. Nothing in these decks
+      // puts a mark in it, so it is an empty ~14px band, and its border reads
+      // as the right edge of the code block: the block then looks narrower than
+      // the "Run Code" bar above it, which is the whole point of the bar being
+      // the editor's own width. No lanes, no border, and the code ground runs
+      // to the container edge.
+      overviewRulerLanes: 0,
+      overviewRulerBorder: false,
       // PATCHED, see RULES.md. Monaco's defaults reserve five characters of
       // number column (`lineNumbersMinChars: 5`) and a 10px decorations strip
       // beside it, which on a cell of at most a couple of dozen lines is a wide
@@ -2832,7 +3044,9 @@ globalThis.qwebrCreateMonacoEditorInstance = function (cellData) {
 <summary>
 Transcript
 </summary>
-<p>This lecture changes the question we ask about OLS. Everything so far has been a finite-sample statement: under the Gauss-Markov assumptions the estimator is unbiased and efficient at any sample size, however small. Asymptotic properties ask something different, namely what happens as the sample grows without bound. That may sound like a purely theoretical exercise, but it is the practical foundation for most applied work, because it is what lets us do inference when the normality assumption fails. Two results matter here: consistency, which concerns where the estimator settles, and asymptotic normality, which concerns the shape of its distribution.</p>
+<p>This lecture changes the question we ask about OLS. Look first at the two blocks on the slide. The large-sample block is about limiting behavior, meaning what happens to an estimator and its sampling distribution as the number of observations grows without bound. We never literally have an infinite sample. The value of the limit is that, when a sample is sufficiently large, the limiting result can be a useful approximation to the estimator’s actual finite-sample behavior. How large is sufficiently large depends on the data-generating process, so “large” is not one universal cutoff.</p>
+<p>The small-sample block recalls the results you already know. Under the relevant Gauss-Markov conditions, OLS is unbiased, so its conditional expectation equals the true coefficient, and it is efficient among linear unbiased estimators, so no other linear unbiased estimator has a smaller variance. Those are finite-sample properties. If their assumptions hold, the claims apply whether you have fifty observations or fifty thousand. “Small sample” here therefore means “a result proved for any finite sample,” not “a result that stops working when the sample becomes large.”</p>
+<p>We now add two different properties. Consistency asks where the estimator settles: as the sample grows, does it concentrate on the true parameter? Asymptotic normality asks about the shape and scale of the estimator’s sampling distribution around that truth. The distinction matters because an estimator can be centered correctly without concentrating, or it can concentrate very tightly on the wrong value. These limiting results are also the practical foundation for inference when the population error is not normally distributed. Later in the deck, you will see that a large-sample normal approximation replaces the exact finite-sample normality assumption. Keep the comparison on this opening slide in mind: exact finite-sample claims and approximate limiting claims answer related but different questions.</p>
 </details>
 <p><strong>Large Sample Properties of OLS</strong></p>
 <ul>
@@ -2863,7 +3077,10 @@ Transcript
 <summary>
 Transcript
 </summary>
-<p>Consistency is a statement about a sequence of estimators indexed by sample size. Fix any tolerance epsilon, however small. Consistency says the probability that the estimate lands within epsilon of the truth approaches one as n grows. Note what it does not say. It does not promise the estimator is unbiased at any particular n, and it does not promise that the estimate you have in hand is close to the truth. Unbiasedness and consistency are logically distinct: an estimator can be unbiased at every n yet inconsistent, and biased at every n yet consistent.</p>
+<p>Consistency is a statement about a sequence of estimators, one estimator for each possible sample size. In the notation on screen, theta is the fixed true population parameter, and theta hat sub n is the estimate computed from a sample of size n.&nbsp;The subscript matters because a new sample size gives us a new random estimator and therefore a new sampling distribution.</p>
+<p>Read the formal definition from the inside out. Epsilon is any positive tolerance you choose, however small. The absolute value of theta hat sub n minus theta is the estimation error measured without regard to sign. The event inside the probability says that this error is less than epsilon, or equivalently that the estimate lies in an interval extending epsilon below and epsilon above the truth. Consistency requires the probability of that event to approach one as n goes to infinity. It must work for every positive epsilon, not just for a conveniently wide interval. As the sample grows, therefore, the sampling distribution puts arbitrarily close to all of its mass in any fixed neighborhood of the truth.</p>
+<p>The notation on the last line, theta hat sub n converges in probability to theta, is the compact way to state exactly that definition. The superscript p over the arrow names the mode of convergence, convergence in probability. It does not say that every realized estimate moves monotonically toward theta as you add observations. A particular sample can still produce an estimate farther away. It says that such errors larger than any fixed tolerance become increasingly unlikely.</p>
+<p>Do not substitute unbiasedness for consistency. Unbiasedness asks whether the estimator’s expectation equals theta at a particular n.&nbsp;Consistency asks whether its probability mass collapses around theta as n grows. An estimator can be unbiased at every n but have a variance that never shrinks, making it inconsistent. It can also have a finite-sample bias that becomes smaller with n and still be consistent. Finally, consistency is not a guarantee that the one estimate in your current dataset is close to the truth. It is a property of the repeated-sampling sequence, and its practical value is that large samples make substantial estimation errors increasingly improbable when the assumptions supporting consistency hold.</p>
 </details>
 <p><strong>Verbally</strong></p>
 <p>An estimator is <span style="color: blue;">consistent</span> if it becomes arbitrarily close to the true parameter with probability approaching 1 as the sample size grows.</p>
@@ -2881,7 +3098,9 @@ Transcript
 <summary>
 Transcript
 </summary>
-<p>The simulation setup is deliberately minimal: one regressor, an intercept, and an error that satisfies the zero conditional mean assumption by construction. Because we generate the data ourselves, we know the true beta one is exactly one, and that is the whole advantage of a Monte Carlo experiment. In real data you never see the truth, so you can never check whether your estimator landed near it. Here we can, and we can watch what changes as the sample size grows.</p>
+<p>We will make the definition of consistency visible with a Monte Carlo experiment. The population model on screen is y sub i equals beta zero plus beta one times x sub i plus u sub i. The subscript i identifies an observation. Y is the dependent variable, x is the single explanatory variable, beta zero is the intercept, beta one is the population slope we want to estimate, and u collects all other determinants of y that are not included explicitly in the equation.</p>
+<p>The slide says that MLR dot 1 through MLR dot 4 are satisfied. In this simple setting, that means the model is linear in beta zero and beta one, the observations are randomly sampled from the same population, x has variation so there is no perfect collinearity, and the error has zero conditional mean given x. That last condition, expected u given x equals zero, is the key reason OLS can locate the true slope rather than a systematically shifted value.</p>
+<p>In the code behind the next tabs, the population equation will be y equals one plus x plus u. That makes both beta zero and beta one equal to one. The error is generated independently of x with mean zero, so zero conditional mean holds by construction. Because we generate the population process ourselves, we know the true slope before estimating anything. That is the special advantage of a Monte Carlo experiment. With real observational data, the true beta one is hidden, so you can study estimates and uncertainty but cannot directly check whether an estimate landed near the truth. Here we can compare every estimated slope with one and then see how that comparison changes as the sample size increases. Flip to the conceptual-steps tab before looking at the implementation.</p>
 </details>
 <p>Consider the OLS estimator of the coefficient on <span class="math inline">x</span> in the following model, with <span class="math inline">MLR.1</span> through <span class="math inline">MLR.4</span> satisfied:</p>
 <p><span class="math display">y_i = \beta_0 + \beta_1 x_i + u_i</span></p>
@@ -2891,7 +3110,10 @@ Transcript
 <summary>
 Transcript
 </summary>
-<p>The pseudo-code is worth reading before the R code. We draw a sample, estimate, and store one coefficient; then we repeat a thousand times to trace out the sampling distribution; and then we do the whole thing again at three different sample sizes. That last step is the one that reveals consistency. A single sampling distribution tells you nothing about limiting behavior. You need to see how the distribution changes as n grows.</p>
+<p>Read the pseudo-code as a repeated-sampling experiment. First, choose a sample size capital N and generate N independent observations from the population equation y sub i equals beta zero plus beta one x sub i plus u sub i. Because the data-generating process is fixed, the true beta one stays equal to one in every sample and at every sample size. Only the random draws of x and u change.</p>
+<p>Second, run the OLS regression with an intercept and save the estimated coefficient on x, beta one hat. One saved coefficient is one realization of the estimator. It does not reveal the estimator’s sampling distribution, just as one coin toss does not reveal a coin’s long-run behavior. Third, repeat the generate, estimate, and store sequence one thousand times. The resulting one thousand slope estimates approximate the sampling distribution of beta one hat for that particular N. A thousand is a simulation choice that makes the distribution reasonably smooth; it is not part of the definition of consistency.</p>
+<p>Fourth, repeat that entire experiment for several sample sizes. The code uses N equal to one hundred, one thousand, and ten thousand. This comparison is essential. A single sampling distribution, even one based on many Monte Carlo replications, tells you nothing by itself about a limit as N grows. We need to see how the distribution changes across sample sizes while the population model remains unchanged.</p>
+<p>The prediction at the bottom translates consistency into a visual test. Each distribution should be centered near the true value one, and its spread should shrink as N rises. Pick any fixed margin around one, such as one hundredth in either direction. Consistency means that the fraction of simulated estimates falling inside that margin approaches one as N grows. Do not reduce the claim to “the average estimate is one.” Centering is related to unbiasedness. Consistency additionally requires the distribution to concentrate. The R-code tab implements these four steps, and the Results tab will let you check the prediction.</p>
 </details>
 <ul>
 <li>Generate data according to <span class="math inline">y_i = \beta_0 + \beta_1 x_i + u_i</span></li>
@@ -2907,7 +3129,12 @@ Transcript
 <summary>
 Transcript
 </summary>
-<p>The nested loops implement exactly that. The outer loop walks through the sample sizes and the inner loop runs the thousand replications at each one. Note that we regenerate x and u inside the inner loop, so every replication is a genuinely fresh sample rather than a resampling of one dataset. The storage matrix has one column per sample size, which is the shape the plotting code on the next tab expects.</p>
+<p>This tab contains a one-time WebR setup cell followed by the Monte Carlo code. The setup cell has context set to setup, which means its objects and graphics settings are prepared for the later WebR cells in this deck. The lecture-theme function starts from theme B W, a white-background ggplot theme, with a base text size whose default is sixteen. Axis titles use the full base size; axis tick labels and both legend text and legend titles use ninety percent of it. The plot panel, overall plot, legend, and legend keys are then made transparent so the slide’s paper-colored background shows through. The panel grid is set to grey eighty-seven so it remains visible against that background.</p>
+<p>WebR draws at seventy-two dots per inch even though the deck requests two hundred sixteen. The variable WebR scale is therefore two hundred sixteen divided by seventy-two, which equals three. The two assign-in-namespace calls multiply ggplot’s internal point and stroke conversion constants by that factor so text, points, and line-based marks are sized correctly on the browser canvas. Theme lecture then calls the same theme at eighteen times the scale. Its line and rectangle widths are reset to eighteen over twenty-two, because leaving those widths tied to the tripled base size would make them far too thick. Theme set makes this corrected lecture theme the default for subsequent ggplots. These lines change presentation only, not the simulated estimates.</p>
+<p>Now look at the preparation block. Capital B is one thousand, the number of Monte Carlo replications at each sample size. N list is the vector one hundred, one thousand, ten thousand. N len uses length to count those three entries. Estimate storage is a matrix initially filled with zeros, with B rows and N len columns. A row will identify a replication, and a column will identify a sample size.</p>
+<p>The outer for loop lets j run from one through N len. Temp N takes the j-th entry of N list, so the first pass uses one hundred observations, the second one thousand, and the third ten thousand. Inside it, the i loop runs from one through B, producing one thousand fresh samples for the current size. R-norm with the single argument temp N draws temp N independent standard-normal values, so x has mean zero and variance one. A separate r-norm call generates a fresh standard-normal error and multiplication by zero point two gives u a standard deviation of zero point two and variance zero point zero four. Because the two calls are independent and both variables have mean zero, expected u given x is zero.</p>
+<p>The line y equals one plus x plus u implements a population intercept of one and slope of one. Data frame creates a two-column dataset with columns named y and x. Ell-em then estimates y tilde x using that dataset. The tilde formula includes an intercept automatically, so the fitted model matches the population equation. Reg dollar coef contains the intercept estimate first and the slope estimate second. Estimate storage bracket i comma j receives the second coefficient, putting replication i into the column for sample size j.</p>
+<p>The code does not set a random-number seed, so each run gives different individual estimates and a slightly different density plot. That variation is expected. The design, the true coefficient, and the pattern across sample sizes do not change. Also notice that x and u are regenerated inside the inner loop. Each replication is a genuinely new random sample, not repeated estimation on one dataset and not resampling a fixed set of observations. With the storage matrix filled, move to Results to see the three estimated sampling distributions.</p>
 </details>
 <div id="qwebr-insertion-location-1"></div>
 <noscript>Please enable JavaScript to experience the dynamic code cell content on this page.</noscript>
@@ -2919,7 +3146,11 @@ Transcript
 <summary>
 Transcript
 </summary>
-<p>Three densities, one per sample size, all centered on the true value of one. What changes is the spread: it tightens as n grows, and it keeps tightening without limit. You can read consistency directly off this picture. Pick any interval around one, however narrow, and the share of the distribution inside it approaches one as the sample grows. Notice also that unbiasedness alone would have given us three densities centered at one with no requirement that they narrow. Consistency is the extra statement about collapsing.</p>
+<p>The code first converts the storage matrix into a form ggplot can use. As-data-table turns the matrix into a data table, and melt with measure variables one through N len stacks its three sample-size columns. The resulting variable column records which original matrix column an estimate came from, and the value column contains the estimated slopes themselves.</p>
+<p>G-g-plot uses that long data as its source. Geom density maps value to the horizontal coordinate and variable to fill, so it estimates one density curve for each sample-size column and colors the groups separately. Alpha equal to zero point four makes each filled density partly transparent, allowing overlapping distributions to remain visible. Geom v-line places the vertical reference line at an x intercept of one, the true beta one. X-lim restricts the displayed horizontal range from zero point nine to one point one so you can inspect concentration near the truth. Scale fill discrete titles the legend “Sample Size” and replaces the matrix-column labels with N equals one hundred, one thousand, and ten thousand, in the same order as N list. Theme lecture applies the deck’s plotting style, and the final theme call puts the legend at the bottom. Saving the plot as g co ex lets the final line print it.</p>
+<p>Read the graph carefully. The horizontal axis is the estimated slope beta one hat, limited to zero point nine through one point one. The vertical axis is density, so height represents how concentrated the simulated sampling distribution is, not a count of replications. The three translucent filled curves correspond to the sample sizes in the legend, and the vertical line at one marks the population slope. All three curves are centered near one because the design satisfies zero conditional mean. What changes sharply is their spread. The N equals one hundred curve is the widest; one thousand is narrower; ten thousand is extremely concentrated and therefore taller. The area under each density is one, so a taller peak accompanies a narrower distribution.</p>
+<p>This is the definition of consistency in picture form. Choose a fixed interval around one, however narrow. As N rises, a larger share of the density lies inside that interval, and in the limit that share approaches one. Equivalently, the probability of an absolute estimation error larger than the chosen tolerance approaches zero. The shrinking occurs at the familiar root-N rate: multiplying the sample size by one hundred reduces a standard error by roughly a factor of ten when the other features of the design stay fixed.</p>
+<p>Do not confuse the center with the concentration. Unbiasedness alone would tell you that the mean of each sampling distribution is one. It would not require the curves to narrow at all. Consistency is the additional statement that the probability mass collapses onto one. The statement beneath the graph summarizes the econometric result: under MLR dot 1 through MLR dot 4, the OLS coefficient estimators are consistent. The next simulation will deliberately violate the fourth assumption and show why a large sample cannot replace it.</p>
 </details>
 <div id="qwebr-insertion-location-3"></div>
 <noscript>Please enable JavaScript to experience the dynamic code cell content on this page.</noscript>
@@ -2939,7 +3170,9 @@ Transcript
 <summary>
 Transcript
 </summary>
-<p>Now we break the key assumption on purpose and ask whether more data can rescue us. The question on this slide is one students often get wrong, because a good deal of informal advice suggests that large samples cure most problems. They do not cure this one. Commit to an answer before running the code, then check it against the picture.</p>
+<p>Now we repeat the Monte Carlo experiment after deliberately breaking the zero conditional mean assumption. The first pseudo-code bullet still uses the model y sub i equals beta zero plus beta one x sub i plus u sub i, and the true beta one will still be one. The crucial addition is expected u sub i given x sub i not equal to zero. This says that knowing x changes the expected value of the omitted factors collected in u. In econometric language, x is endogenous. OLS then attributes to x some systematic variation in y that actually belongs to the error, so the slope estimator has a persistent bias.</p>
+<p>The remaining steps match the valid experiment. For a chosen capital N, generate a fresh sample, estimate the intercept and slope, and store beta one hat. Repeat that process one thousand times to approximate the sampling distribution for that N, then compare distributions across sample sizes. Holding the data-generating process fixed while increasing N isolates what more observations actually accomplish.</p>
+<p>The question at the bottom is the point of the slide: does the bias disappear as N gets larger? Commit to an answer before running the code. Informal advice often treats a large dataset as a cure for any weakness, but sample size and identification solve different problems. More data reduce random sampling variation. They do not make an endogenous regressor exogenous, because the correlation between x and u is a population feature repeated in every observation. If OLS is converging to the wrong population value, a larger N will make it converge more precisely to that wrong value. On the next tab, look for the shared random component that creates the violation, then use the Results tab to see both narrowing and miscentering at once.</p>
 </details>
 <p><strong>Pseudo Code</strong></p>
 <ul>
@@ -2956,7 +3189,10 @@ Transcript
 <summary>
 Transcript
 </summary>
-<p>The mechanism is the shared component mu, which enters both x and u. That is what makes x endogenous: it carries information about the error term. Everything else about the simulation is unchanged from the consistent case. Because we built the correlation ourselves, we can compute exactly what the estimator converges to, which is what the results tab reports.</p>
+<p>The preparation and loop structure are the same as before. Capital B is one thousand replications, N list contains one hundred, one thousand, and ten thousand observations, N len counts the three sample sizes, and estimate storage is a one-thousand-by-three zero matrix. The outer j loop selects a sample size and assigns it to temp N. The inner i loop creates one thousand independent samples at that size. In each regression, ell-em estimates y tilde x with an intercept, and the second element of reg dollar coef, the slope on x, is stored in row i and column j.</p>
+<p>Focus on the three highlighted data-generation lines. R-norm of temp N creates mu, a fresh standard-normal variable with mean zero and variance one. Then x is another independent standard-normal draw plus zero point five times mu. The error u is yet another independent standard-normal draw plus the same zero point five times mu. The independent pieces of x and u do not covary, but their shared mu component does. Its contribution to the covariance is zero point five times zero point five times the variance of mu, which is zero point two five. Thus covariance of x and u is positive rather than zero.</p>
+<p>You can also see why expected u given x is not zero. A high x is evidence that the shared mu may be high, and a high mu raises u as well. Observing x therefore contains information about the expected error. This is the endogeneity that violates MLR dot 4. The variance of x is the variance of its independent standard-normal component, one, plus the variance of zero point five mu, zero point two five, for a total of one point two five.</p>
+<p>The line y equals one plus x plus u keeps the true population intercept and slope at one. Data frame again packages y and x for ell-em. Nothing in the regression command tells OLS that x and u share mu, because u is unobserved. OLS simply fits the observed association between y and x. In a simple regression with an intercept, the probability limit of the fitted slope is the true slope plus covariance of x and u divided by variance of x. Here that is one plus zero point two five divided by one point two five, or one point two. Because the correlation was built explicitly, we can calculate the wrong value to which OLS should converge before looking at the simulation. As in the earlier code, no seed is set, so individual curves vary between runs, but their limiting center does not.</p>
 </details>
 <div id="qwebr-insertion-location-4"></div>
 <noscript>Please enable JavaScript to experience the dynamic code cell content on this page.</noscript>
@@ -2966,7 +3202,11 @@ Transcript
 <summary>
 Transcript
 </summary>
-<p>The distributions narrow just as before, but they narrow around one point two rather than around one. The dashed line is the truth and the solid line is the probability limit, which works out to one plus the covariance of x and u over the variance of x, or one plus zero point two five over one point two five. This is the central lesson of the section: more data buys precision, not correctness. A large sample gives you a very tight confidence interval around the wrong number.</p>
+<p>The plotting code again converts the wide estimate-storage matrix to long form. As-data-table makes it a data table, and melt stacks columns one through N len into a variable column identifying sample size and a value column containing beta one hat. G-g-plot supplies that table to geom density. Value is mapped to the horizontal axis, variable is mapped to fill, and alpha equal to zero point four makes the three filled densities transparent enough to compare. Scale fill discrete gives the legend its “Sample Size” title and labels the groups N equals one hundred, one thousand, and ten thousand. Theme lecture supplies the common style, and the final theme call places the legend below the graph.</p>
+<p>Two vertical lines now carry different meanings. Geom v-line at an x intercept of one uses a dashed line. That is the true structural coefficient beta one in the equation for y. The second geom v-line is solid and sits at one point two. That is the probability limit of the OLS slope under this endogenous design. Unlike the earlier graph, there is no explicit x-lim call, so ggplot chooses a horizontal range that contains the simulated densities and both reference lines. The horizontal axis is still the estimated slope and the vertical axis is density.</p>
+<p>Look at both location and spread. As N increases, the density becomes narrower, just as it did in the consistent simulation. More observations still average away random sampling noise. But the curves are centered near the solid line at one point two, not the dashed truth at one. At N equal to ten thousand, the estimates are especially precise and especially clearly wrong. Precision means repeated estimates are close to one another; accuracy means they are close to the true parameter. This figure separates those ideas.</p>
+<p>Now read the probability-limit calculation below the graph one line at a time. P-lim of beta one hat means the value to which the estimator converges in probability. In simple regression, that limit is one plus covariance of x and u divided by variance of x. The one is the true beta one. The covariance is zero point two five because x and u each load on the same unit-variance mu with coefficient zero point five. The variance of x is one from its independent normal component plus zero point two five from the shared component, giving one point two five. Zero point two five divided by one point two five is zero point two, so the limit is one point two.</p>
+<p>The positive endogeneity therefore creates an asymptotic upward bias of zero point two. Increasing N does not change that covariance or variance, so it cannot remove the bias. It only shrinks the sampling distribution around the biased limit. A conventional interval based on this misspecified OLS model can consequently become very tight around one point two while failing to cover the true value one. That is the central lesson: more data buy precision, not correctness. Identification assumptions determine what value you are estimating; sample size determines how much sampling noise surrounds it.</p>
 </details>
 <div id="qwebr-insertion-location-5"></div>
 <noscript>Please enable JavaScript to experience the dynamic code cell content on this page.</noscript>
@@ -3007,7 +3247,10 @@ Transcript
 <summary>
 Transcript
 </summary>
-<p>Recall where MLR.6 was actually used. It was not needed for unbiasedness, and it was not needed for the Gauss-Markov theorem. It was needed to claim that the t-statistic follows an exact t distribution in a finite sample. Normality of the error is a strong assumption, and for outcomes such as wages or firm sales it is plainly false. So the question is whether inference survives without it. The answer is yes, asymptotically, and the central limit theorem is what delivers that.</p>
+<p>This tab recalls the normality assumption and separates what it was needed for from what it was not needed for. The assumption says that the population error u is independent of all explanatory variables x one through x k and is normally distributed with mean zero and variance sigma squared. Independence is stronger than merely having zero conditional mean. It means the entire distribution of u, not only its mean, does not change with the regressors. The notation u is distributed normal with zero and sigma squared names the bell-shaped distribution, its center zero, and its constant variance sigma squared.</p>
+<p>This is MLR dot 6. We did not need it to prove that OLS is unbiased under MLR dot 1 through MLR dot 5, and we did not need it for the Gauss-Markov efficiency theorem. We introduced it for exact finite-sample inference. If the errors are normal, an OLS coefficient centered at its true value and divided by its true conditional standard deviation is exactly standard normal. Once sigma is estimated, the corresponding statistic is exactly t with n minus k minus one degrees of freedom. The related joint statistic has an exact F distribution.</p>
+<p>Without MLR dot 6, those exact finite-sample distribution statements do not follow. A statistic can still be computed, but referring it to an exact t or F distribution is not justified solely by MLR dot 1 through MLR dot 5. This distinction matters for outcomes whose errors are skewed, heavy-tailed, discrete, or otherwise visibly nonnormal. Normality can be an implausibly strong description even when the regression’s conditional mean is correctly specified.</p>
+<p>The fortunate result in the bottom block is that exact error normality is not necessary for approximate large-sample inference. Under the assumptions developed on the next tabs, a properly centered and scaled OLS estimator becomes approximately normal as n grows. “Approximately” and “large enough” are the key phrases highlighted in blue. This is a limiting justification, not an exact claim at every n, and no universal sample-size threshold guarantees a good approximation. The central limit theorem supplies the mechanism. It lets sums of many independent contributions become normal in shape even when each contribution is not normal. We will state that theorem next, demonstrate it with a deliberately nonnormal Bernoulli variable, and then apply it to OLS.</p>
 </details>
 <p>When we talked about hypothesis testing, we made the following assumption:</p>
 <p><br></p>
@@ -3029,7 +3272,11 @@ Transcript
 <summary>
 Transcript
 </summary>
-<p>The central limit theorem says a suitably standardized sample mean converges in distribution to a normal, whatever the distribution of the underlying draws, provided the variance is finite. Both operations in the standardization matter. Centering at mu removes the location, and multiplying by root n counteracts the fact that the sample mean’s variance shrinks at rate one over n.&nbsp;Without the root n scaling, the distribution would simply collapse to a point and there would be no shape left to describe.</p>
+<p>The callout states one standard version of the central limit theorem. We begin with an infinite sequence x one, x two, and so on. Independent and identically distributed means that the draws do not influence one another and all come from the same population distribution. Each x sub i has expected value mu and variance sigma squared. The less-than-infinity condition on sigma squared is substantive: this version of the theorem requires a finite population variance. The underlying x values do not themselves need to be normally distributed.</p>
+<p>Inside the large parentheses, one over n times the sum from i equals one to n of x sub i is the sample mean, x bar. Subtracting mu centers that mean at its population expectation. Multiplying the centered difference by root n supplies the correct scale. The sample mean has variance sigma squared over n, so x bar minus mu shrinks toward zero at rate one over root n.&nbsp;Multiplication by root n offsets that shrinking variance. The transformed quantity has variance sigma squared rather than a variance that disappears.</p>
+<p>The d over the arrow means convergence in distribution. As n approaches infinity, the distribution of root n times x bar minus mu approaches the distribution written on the right, a normal random variable with mean zero and variance sigma squared. This does not say that the transformed statistic itself converges to zero. Its limiting distribution remains spread out. If you also divided the expression by sigma, the right side would be standard normal, with mean zero and variance one.</p>
+<p>Both centering and scaling matter. Without subtracting mu, the root-n multiplication would drive a nonzero mean away rather than produce a centered limit. Without multiplying by root n, x bar would converge in probability to mu and the distribution of x bar minus mu would collapse to a point at zero, leaving no nondegenerate shape for inference. The central limit theorem preserves the shrinking estimator’s local variation on a scale we can study.</p>
+<p>This is why the theorem matters for regression. An OLS estimation error can be written in terms of sample averages of regressor-error products. Under suitable sampling and moment conditions, a central limit theorem gives those averages an asymptotically normal shape. We can then use that shape to approximate probabilities, critical values, and confidence intervals even when the individual errors are not normal. The next tab uses Bernoulli draws to make the distinction between a nonnormal observation and a normal limiting distribution especially clear.</p>
 </details>
 <div title="Central Limit Theorem">
 <div class="callout callout-note no-icon callout-titled callout-style-default">
@@ -3057,7 +3304,11 @@ Transcript
 <summary>
 Transcript
 </summary>
-<p>Bernoulli draws make the point vividly, because nothing could look less normal than a variable taking only the values zero and one. The mean is p and the variance is p times one minus p, which is zero point two one here. Run the small cell to see ten draws and the transformed sample mean for a single replication. One number tells you nothing; the demonstration on the next tab repeats it five thousand times.</p>
+<p>This example starts with a Bernoulli random variable, one of the least normal-looking variables possible. Each x sub i can take only two values. It equals one, which we can call a success, with probability p equal to zero point three; it equals zero with probability zero point seven. The observations are independent draws from that same distribution. A single draw is discrete and asymmetric, so the central limit theorem is not relying on normality hidden in the original data.</p>
+<p>For a Bernoulli variable, the expected value is p, so mu equals zero point three. Its variance is p times one minus p.&nbsp;Here that is zero point three times zero point seven, which equals zero point two one. Sigma is therefore the square root of zero point two one. Those are the mean and variance inserted into the general central-limit result at the bottom of the slide.</p>
+<p>Now read the WebR cell in the right column. R-binom is asked for ten draws, with size equal to one and probability equal to zero point three. Size one makes each output a Bernoulli zero or one rather than a count from several trials. The assignment to x is wrapped in parentheses, so WebR both saves the ten values and prints them. Each run produces a new sequence, and the number of ones need not be exactly three. Three is the expected count over repeated samples, not a requirement for every group of ten.</p>
+<p>The second line computes root ten times the quantity mean of x minus zero point three. Mean of x is the sample proportion of ones, and zero point three is the population mean. Thus this is one realization of the centered and root-N-scaled sample mean in the theorem. With only ten Bernoulli observations, the result can take only discrete values because the number of successes is an integer. Do not interpret that single printed number as evidence for or against the theorem. The theorem concerns the sampling distribution across repeated samples.</p>
+<p>The “According to CLT” line gives the general expression: root n times the sample mean minus mu converges in distribution to a normal with mean zero and variance sigma squared. The “So” line substitutes this population’s actual values. Root n times the sample mean minus zero point three approaches a normal distribution with mean zero and variance zero point two one. Notice that the limiting variance is zero point two one, not zero point two one divided by n, because root n has already rescaled the shrinking sample mean. Flip to the Demonstration tab, where five thousand repetitions approximate this distribution and let you change n.</p>
 </details>
 <div class="columns">
 <div class="column" style="width:50%;">
@@ -3087,7 +3338,13 @@ Transcript
 <summary>
 Transcript
 </summary>
-<p>Move the sample size slider and watch the histogram. At very small N the transformed mean takes only a handful of discrete values and looks nothing like the red normal curve. As N grows, the gaps fill in and the histogram settles onto the limiting density. Notice that the limiting variance never changes with N; it stays fixed at zero point two one. Convergence here is about the shape of the distribution, not about it becoming narrower.</p>
+<p>This interactive application repeats the Bernoulli experiment enough times to display a sampling distribution. The prose above the app tells you exactly what is repeated: for the capital N you choose, each of five thousand iterations draws N Bernoulli observations with success probability zero point three and computes root N times x bar minus zero point three. The histogram collects those five thousand transformed means. The red curve is the theoretical limiting normal density with mean zero and variance zero point two one.</p>
+<p>The first three library calls load Shiny for interactivity, g-g-plot two for the graph, and B-S-lib for the sidebar page layout. Page sidebar builds the interface and titles it “CLT demonstration.” Inside the sidebar, numeric input creates the control whose internal name is n samples. Its displayed label is “Number of samples,” while the code uses its value as N, the number of observations within each Monte Carlo sample. The minimum is one, the maximum is one hundred thousand, the initial value is ten, and the step is ten. The line break adds space. Action button creates the “Simulate” button with the internal name simulate, and open equal to true makes the sidebar visible when the app loads. Plot output reserves a location named clt Plot for the graph.</p>
+<p>The server function connects those controls to the output. Observe event listens for a click on the simulate button, so changing N alone does not redraw the graph until you click Simulate. Render plot then constructs the graph. Capital N receives the numeric control’s current value. Capital B is fixed at five thousand repetitions, and p is fixed at zero point three. R-binom is called for B outputs, with size equal to N and probability p.&nbsp;Each output is therefore the number of successes in one N-observation sample. This is computationally equivalent to drawing N separate Bernoulli values and summing them, but much faster than storing all five thousand times N individual draws.</p>
+<p>Successes divided by N is the sample proportion, or x bar, in each replication. Storage is root N times successes over N minus p.&nbsp;It therefore contains five thousand realizations of the exact statistic in the central limit theorem. G-g-plot begins without a default dataset because the histogram and theoretical curve use different sources. Geom histogram receives a one-column data frame made from storage. Its aesthetic maps storage to the horizontal axis and after-stat density to the vertical axis. Density scaling is important: it makes the histogram’s total area one, so it can be compared directly with a probability density curve. Thirty bins group the simulated values; navy colors the bin outlines, and grey eighty fills them.</p>
+<p>Geom function overlays the limiting density. Fun equal to d-norm selects the normal density function. The arguments set its mean to zero and its standard deviation to the square root of p times one minus p, which is root zero point two one. The curve is red with line width one. X-lab writes root N times x bar minus zero point three on the horizontal axis, y-lab names the vertical axis Density, and theme B W with base size eighteen makes the standalone app readable. Shiny app finally joins the user interface and server.</p>
+<p>Use the control to compare small and large N, clicking Simulate after each change. At very small N, the transformed mean has only a handful of possible values, so the histogram is separated into discrete spikes and can look quite unlike the smooth red curve. As N grows, there are more possible sample proportions, the gaps fill in, and the histogram follows the red bell shape more closely. Random Monte Carlo noise remains because there are only five thousand repetitions.</p>
+<p>Pay attention to both axes and to what does not change. The horizontal axis is the centered, root-N-scaled statistic, not the unscaled sample mean. The vertical axis is density. Because of the root-N scaling, the limiting variance stays at zero point two one for every N. The histogram becomes more normal in shape, but it does not collapse to zero. If we graphed x bar itself, its variance would be zero point two one over N and the distribution would narrow. Here convergence in distribution is about the shape of the rescaled statistic. That is the same kind of scaling we will use for the OLS coefficient on the next tab.</p>
 </details>
 <p>In each of 5000 iterations, this application draws the number of observations you specify (<span class="math inline">N</span>) from <span class="math inline">x_i\sim\operatorname{Bernoulli}(0.3)</span> and calculates <span class="math inline">\sqrt{N}(\bar{x}-0.3)</span>. The histogram shows the resulting 5000 values; the red curve is the limiting <span class="math inline">N(0,0.21)</span> density.</p>
 <p><br></p>
@@ -3167,7 +3424,12 @@ Transcript
 <summary>
 Transcript
 </summary>
-<p>Here is the result applied to OLS. The scaled and centered estimator converges in distribution to a normal whose variance involves sigma squared over a term built from the part of x j that is unrelated to the other regressors. That residual variation term should look familiar: it is the same quantity that governs multicollinearity, which is why a regressor well explained by the others is estimated imprecisely. Crucially, MLR.6 appears nowhere in this result. Normality of the error has been replaced by a limiting argument.</p>
+<p>Now apply the same limiting logic to an OLS coefficient. The statement at the top says that under MLR dot 1 through MLR dot 5, OLS is asymptotically normal even if the population error itself is not normal. Those assumptions give us a model linear in its parameters, random sampling, no perfect collinearity, zero conditional mean, and homoskedastic errors. MLR dot 6 is absent. That is the key gain: normality of u has been replaced by a central-limit argument for the estimator.</p>
+<p>Read the displayed result symbol by symbol. Beta j is the true coefficient on explanatory variable x j, and beta j hat is its OLS estimate from n observations. Beta j hat minus beta j is the estimation error. Multiplication by root n prevents that error’s distribution from collapsing as the sample grows. The d over the arrow says that the distribution of this scaled error converges to the distribution on the right. That limiting distribution is normal with mean zero and variance sigma squared divided by alpha j squared. Sigma squared is the homoskedastic population error variance.</p>
+<p>Alpha j squared measures the population amount of x j variation that remains after accounting for the other regressors. To construct it, imagine an auxiliary regression of x j on an intercept and every other independent variable in the model. R sub i j is the residual for observation i from that regression. It is the part of x i j that cannot be linearly predicted by the other regressors. The expression one over n times the sum of r sub i j squared is its sample average squared residual, and p-lim asks for the value to which that average converges in probability. That limit is alpha j squared.</p>
+<p>The formula explains multicollinearity. If the other regressors explain almost all variation in x j, the residuals r i j are small, alpha j squared is small, and sigma squared divided by alpha j squared is large. There is little independent movement in x j with which to identify beta j, so the coefficient is imprecise. If x j has abundant variation unrelated to the other regressors, alpha j squared is larger and the asymptotic variance is smaller. Perfect collinearity would make this residual variation zero and prevent estimation entirely; near collinearity does not prevent estimation but raises uncertainty.</p>
+<p>Because the displayed limit is for root n times the error, the unscaled estimator’s variance is approximately sigma squared divided by n times alpha j squared in a large sample. Its standard error therefore shrinks at the root-N rate. The limiting mean zero is the local expression of consistency: the distribution is centered around the true beta j after scaling.</p>
+<p>The bottom block supplies the remaining unknown variance component. Sigma hat squared is defined as the sum of squared OLS residuals, u hat i squared, divided by n minus k minus one. Here k is the number of slope regressors, and the additional one accounts for the estimated intercept, so the denominator is the residual degrees of freedom. Under MLR dot 1 through MLR dot 5, this estimator converges in probability to sigma squared. That consistency lets us replace the unknown population variance in a standard error with its sample estimate without changing the limiting normal distribution. This replacement, together with an estimate of alpha j squared, produces the usual OLS standard error used in the studentized statistic on the next tab.</p>
 </details>
 <p>Under assumptions <span class="math inline">MLR.1</span> through <span class="math inline">MLR.5</span>, the OLS estimator is asymptotically normally distributed even when the error is not normally distributed.</p>
 <p><br></p>
@@ -3185,7 +3447,12 @@ Transcript
 <summary>
 Transcript
 </summary>
-<p>This slide is worth memorizing as a pair. In the top block, with the normality assumption, both statements are exact and hold at any sample size, and the second uses the t distribution because we had to estimate sigma. In the bottom block, without normality, both statements are limiting approximations and the t distribution has been replaced by the standard normal. The same formulas, but a different justification and a different scope.</p>
+<p>Read this slide as a top-and-bottom comparison. In both blocks, beta j hat is the estimated coefficient, beta j is its true population value, and the numerator beta j hat minus beta j is the estimation error. The difference is the assumptions, the denominator, and whether the stated distribution is exact or limiting.</p>
+<p>Start with the small-sample block. Under MLR dot 1 through MLR dot 5 plus MLR dot 6, the error is normal as well as independent of the regressors. In the first line, S-D of beta j hat given capital X is the true conditional standard deviation of the estimator when the entire regressor matrix X is held fixed. Subtracting beta j centers the estimate, and dividing by that true standard deviation scales it to variance one. The resulting statistic is exactly normal with mean zero and variance one. The tilde means “has this distribution,” not merely “is approximately distributed.” This claim holds at any sample size for which the model can be estimated.</p>
+<p>In practice sigma is unknown, so the true conditional standard deviation is unknown. The second small-sample line replaces it with the estimated standard error, S-E hat of beta j hat. Estimating sigma adds uncertainty. Under normal errors, the resulting ratio has an exact t distribution with n minus k minus one degrees of freedom. Capital N is the sample size, k is the number of slope regressors, and one more degree of freedom is used by the intercept. The t distribution has heavier tails than a standard normal, especially when those residual degrees of freedom are small.</p>
+<p>Now move to the large-sample block. We retain MLR dot 1 through MLR dot 5 but remove MLR dot 6. Without normal errors, neither exact finite-sample statement is available. The first standardized statistic instead converges in distribution to standard normal as n approaches infinity. The arrow with d makes the limiting scope explicit. The central limit theorem supplies the normal shape rather than an assumption that each error is normal.</p>
+<p>The second large-sample line again replaces the unknown true standard deviation with the estimated standard error. Because the default OLS variance estimator is consistent under MLR dot 1 through MLR dot 5, that replacement becomes negligible in large samples. The studentized statistic also converges in distribution to standard normal. This use of a consistent estimated scale is an application of Slutsky’s theorem.</p>
+<p>So memorize the pair for its logic, not just its appearance. With MLR dot 6, the first statistic is exactly standard normal and the statistic with an estimated standard error is exactly t in a finite sample. Without MLR dot 6, both statements are approximations justified as n grows, and the limiting reference distribution is standard normal. The formulas you compute look familiar, but the justification and scope differ. That difference determines how confidently you can use the approximation in a small or unusually distributed sample.</p>
 </details>
 <p><strong>Small sample (any sample size)</strong></p>
 <p>Under <span class="math inline">MLR.1</span> through <span class="math inline">MLR.5</span> <span style="color: blue;">and</span> <span class="math inline">MLR.6</span>,</p>
@@ -3219,7 +3486,10 @@ Transcript
 <summary>
 Transcript
 </summary>
-<p>The practical procedure is unchanged: form the t-statistic exactly as before and compare it with a critical value. What has changed is where the critical value comes from in principle. Asymptotic theory calls for a standard normal, whereas the finite-sample theory called for a t. The natural question is whether that difference matters in practice, and the next tab answers it.</p>
+<p>The practical testing recipe remains almost the same. Suppose the null hypothesis is H zero: beta j equals beta j comma zero. Beta j is the unknown population coefficient, and beta j comma zero is the particular value asserted by the null, often zero. The alternative for the test on this slide is two-sided, so it allows beta j to be either below or above the null value.</p>
+<p>First calculate t sub j. Its numerator is beta j hat minus beta j comma zero, the estimated distance from the null. Its denominator is the estimated standard error of beta j hat, which expresses that distance in units of estimated sampling uncertainty. A positive statistic means the estimate is above the null value, a negative statistic means it is below, and magnitude measures how many standard errors separate them. Although we continue to call this a t-statistic, under the large-sample argument its limiting reference distribution is standard normal.</p>
+<p>For a significance level alpha, a two-sided test allocates alpha over both tails, alpha over two in the lower tail and alpha over two in the upper tail. The positive critical value is therefore the one-minus-alpha-over-two quantile of the chosen reference distribution. Taking the absolute value of t j folds the two tails together. Reject H zero when that absolute value exceeds the critical value. At alpha equal to zero point zero five with a standard-normal reference, for example, the cutoff is approximately one point nine six. Equivalently, reject when the two-sided p-value is below alpha.</p>
+<p>The question at the bottom is exactly right: if asymptotic theory gives a standard normal limit, should the critical value come from normal zero one rather than a t distribution? In principle, yes. Exact finite-sample theory used a t critical value because sigma was estimated under normal errors; the large-sample theory yields a standard normal limit even after replacing unknown quantities consistently. In practice regression software commonly reports t-based values using n minus k minus one degrees of freedom. Flip to the next tab to see why that choice makes almost no difference once the residual degrees of freedom are large enough for the asymptotic approximation itself to be credible.</p>
 </details>
 <p><strong>It turns out,</strong></p>
 <p>For a two-sided test of <span class="math inline">H_0:\beta_j=\beta_{j,0}</span>, you can proceed much as before:</p>
@@ -3236,7 +3506,12 @@ Transcript
 <summary>
 Transcript
 </summary>
-<p>The figure answers it. At two degrees of freedom the t distribution has visibly fatter tails than the normal, but by thirty degrees of freedom the curves are nearly indistinguishable, and by fifty you cannot separate them by eye. So in any sample large enough for the asymptotic argument to be credible, the t critical value your software prints is effectively the normal one. In practice you simply read the p-values the software gives you.</p>
+<p>The code constructs a direct density comparison. Seq creates one thousand evenly spaced x values from negative three to positive three. D-norm evaluates the standard-normal density at those values. Each d-t call evaluates a t density at the same x values, with degrees of freedom set to two, ten, thirty, or fifty. Those degrees of freedom would correspond to n minus k minus one in the regression setting.</p>
+<p>Data table combines the common x grid and the five density vectors. The quoted column names are the labels that will appear in the legend: N zero one for the standard normal and t with its relevant degrees of freedom for each t curve. The pipe passes that wide table to melt. Id variable equal to x keeps the horizontal coordinate fixed, while the five density columns are stacked into a variable column identifying the distribution and a value column holding its density.</p>
+<p>G-g-plot uses this long table. Geom line maps x to the horizontal axis, value to the vertical axis, and variable to color, producing one colored curve per distribution. Scale color discrete removes the legend title by setting name to an empty string, and guide legend with n-row equal to two arranges the five entries across two rows. Theme lecture applies the deck style, and the last theme call puts the legend below the plot.</p>
+<p>On the graph, the horizontal axis is a possible value of the standardized test statistic from negative three through three. The vertical axis is probability density. All curves are symmetric around zero and have total area one. The standard normal has the highest center among the displayed curves. At only two degrees of freedom, the t curve is lower and flatter near zero and allocates more probability to values far from zero. Those heavier tails extend beyond the plotted range as well. This is why a small-degrees-of-freedom t test uses a much larger critical value than a normal test.</p>
+<p>As degrees of freedom increase, the uncertainty from estimating the scale becomes less important and the t distribution approaches standard normal. At ten degrees of freedom a difference remains visible. By thirty the curves are close, and by fifty they are difficult to separate by eye. The same convergence applies to critical values: for a five-percent two-sided test, the positive cutoff moves toward the standard-normal value of about one point nine six as the degrees of freedom grow.</p>
+<p>This answers the previous tab’s practical question. Asymptotic theory formally calls for a standard-normal critical value. Software may continue to use the corresponding t value with n minus k minus one degrees of freedom. In a sample large enough to make the asymptotic normal approximation persuasive, those two reference distributions and their p-values are usually very similar. You can therefore use the p-values reported by standard regression software, while remembering that the real large-sample justification comes from asymptotic normality, not from exact normal errors.</p>
 </details>
 <div class="cell">
 <div class="cell-output-display">
@@ -3255,7 +3530,11 @@ Transcript
 <summary>
 Transcript
 </summary>
-<p>One warning to close on. Asymptotics rescues you from the normality assumption, but not from the homoskedasticity assumption. The default variance estimator is built on MLR.5, and if the errors are heteroskedastic that estimator stays inconsistent no matter how much data you collect. This is not a small-sample problem that fades away; it is the wrong formula. So use heteroskedasticity-robust standard errors as your default, and cluster them when observations are dependent within groups.</p>
+<p>End with the warning in red. Large-sample theory lets us remove the normality assumption, MLR dot 6, but it does not automatically validate the default OLS variance estimator when MLR dot 5 fails. Homoskedasticity means that the conditional variance of u given all regressors is the same constant sigma squared for every observation. Heteroskedasticity means that conditional variance changes with the regressors or across observations.</p>
+<p>Under zero conditional mean and the other consistency conditions, heteroskedasticity does not by itself make the OLS coefficient estimates inconsistent. Beta hat can still converge to beta. What changes is the variance of that limiting distribution. The default homoskedastic OLS formula treats every observation as if it shared one common error variance. When the true variances differ, that is the wrong formula, and its estimated standard errors need not converge to the correct sampling standard deviations. The direction of the error is not fixed: default standard errors can be too small or too large depending on the pattern of heteroskedasticity.</p>
+<p>This problem does not fade as n grows. More observations can make beta hat concentrate, but they also make an inconsistent variance formula converge more precisely to the wrong variance quantity. The resulting t-statistics, p-values, and confidence intervals can remain invalid. Asymptotic normality is useful only when the statistic is divided by a standard error that consistently estimates the appropriate asymptotic variance.</p>
+<p>With independent observations, use heteroskedasticity-robust, or sandwich, standard errors. They keep the same OLS coefficient estimates but replace the homoskedastic variance formula with one that allows observation-specific squared residuals to contribute differently. If observations may be dependent within groups, such as repeated years for the same county or students within the same school, use standard errors clustered at the level where dependence can occur. Clustering allows arbitrary correlation within a cluster while relying on independence across clusters, so the clustering level must match the sampling and assignment structure.</p>
+<p>Robust or clustered standard errors repair an uncertainty formula; they do not repair an endogenous regressor, omitted-variable bias, or a misspecified conditional mean. Connect this warning to the earlier inconsistency simulation. Endogeneity made the coefficient converge to one point two instead of one, and no standard-error choice could restore consistency. Heteroskedasticity can leave the coefficient centered correctly while making its default reported uncertainty wrong. In applied work you must address both questions: do the identifying assumptions make the coefficient target the right parameter, and does the variance estimator reflect the dependence and heteroskedasticity in the data?</p>
 </details>
 <p>The consistency of the default estimator of <span class="math inline">Var(\widehat{\beta})</span> <span style="color: red;">does</span> require the homoskedasticity assumption (<span class="math inline">MLR.5</span>).</p>
 <p>In other words, using the default variance estimator under heteroskedasticity remains a problem even when the sample size is large.</p>

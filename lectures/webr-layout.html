@@ -201,7 +201,7 @@
     var available = Math.max(1, (area.clientWidth || 1005) - 16);
     var share = parseFloat(host.style.getPropertyValue("--webr-code-share")) / 100;
     if (!share) return;
-    if (available * (1 - share) < MIN_PLOT_PX) stack(host, false);
+    if (available * (1 - share) < MIN_PLOT_PX) stack(area, host, false);
   }
 
   function measureRenderedCode(area, host, code, attempt) {
@@ -289,7 +289,7 @@
     if (share >= MAX_CODE_SHARE || attempt > 40) {
       // Even at the widest permitted code column the line will not fit, so the
       // cell has no business being side by side at all.
-      stack(host, true);
+      stack(area, host, true);
       return;
     }
     setTracks(host, area, share + 0.02);
@@ -340,19 +340,20 @@
     // No measurement for this cell: it was added or edited since the last run of
     // measure-webr-output.R, or R could not evaluate it. Judge on the code alone
     // rather than refuse, so an unmeasured deck still behaves reasonably.
+    // An author-set split — `#| code-track:` or the wrapper's own CSS variables
+    // — is a decision, and EVERYTHING below here is the prediction it overrides.
+    // setTracks(), ensureNoWrap() and the plot floor all already stand aside for
+    // `webrCodeFixed`. This test used to sit under the two below instead, which
+    // meant a hand-set split was still thrown away when the cell's own font
+    // measurement said the output would not fit, and — more often — when the
+    // cell printed nothing at all. An author who types a number wants to SEE
+    // that number, including on a cell with an empty output column.
+    if (area.closest('[data-webr-code-fixed="true"]')) return true;
     if (!entry) return true;
     // Ran and printed nothing, and drew nothing. There is no right-hand content
     // to show, so the code keeps the full width rather than facing an empty
     // Output banner. A figure counts as content even though it prints no text.
     if (!entry.plot && (!entry.rows || !entry.cols)) return false;
-
-    // An author-set split — `#| code-track:` or the wrapper's own CSS variables
-    // — is a decision, and everything below here is the prediction it overrides.
-    // setTracks(), ensureNoWrap() and the plot floor all already stand aside for
-    // `webrCodeFixed`; this test did not, so it sized a code column from the
-    // font, found the output would not fit beside THAT column, and stacked the
-    // cell — throwing away a split that fitted in the column actually asked for.
-    if (area.closest('[data-webr-code-fixed="true"]')) return true;
 
     var available = Math.max(1, (area.clientWidth || 1005) - 16);
     var codePx = Math.max(MIN_CODE_PX,
@@ -401,13 +402,12 @@
   // The one remaining way out of the side-by-side layout, and it can only fire
   // during load: the code will not fit on one line even in the widest column
   // allowed. Nothing a cell does at RUN time reaches here.
-  function stack(host, force) {
+  function stack(area, host, force) {
     // `::: {.side-out}` is a REQUEST, not an override: it cannot make code fit
     // that does not fit. What the exemption buys is that ordinary measurement
     // noise will not tear a deliberate wrapper down.
     if (host.dataset.webrLayoutManual === "true" && !force) return;
-    host.classList.remove("side-out");
-    host.dataset.webrLayout = "stacked";
+    markStacked(area, host);
   }
 
   // Called whenever the cell's DOM changes, which in practice means "the cell
@@ -425,9 +425,84 @@
     requestAnimationFrame(function () { markGutter(area, host); });
   }
 
+  // EVERY path that decides a cell stays stacked must come through here, and
+  // the reason is the attribute on the AREA. custom.scss puts any cell that has
+  // drawn a figure side by side, keyed off
+  // `:has(.qwebr-output-graph-area canvas):not([data-webr-layout="stacked"])`,
+  // and that `:not()` matches the interactive area — not the wrapper this
+  // script mostly works with. Stamping only the wrapper leaves that rule free
+  // to fire, and it fires at the moment the plot appears.
+  //
+  // What that looked like, measured on `L05_vector_raster_interaction.html`:
+  // the cell sat stacked until its plot was drawn, then flipped to
+  // `display: grid` with columns `1021px 9px` — custom.scss asks for `1fr 1fr`,
+  // but a `1fr` track may not shrink below its item's min-content width and
+  // Monaco's is the full slide — and the figure landed in the 9px track, 0x0,
+  // off the right edge of the slide. "The plot never appears." Adding
+  // `#| layout: stacked` by hand fixed it only because that option came through
+  // this function and stamped the area.
+  function markStacked(area, host) {
+    area.dataset.webrLayout = "stacked";
+    host = host || area.closest(".side-out") || area.closest(".cell") ||
+      area.parentElement;
+    if (host) {
+      host.classList.remove("side-out");
+      host.dataset.webrLayout = "stacked";
+    }
+  }
+
+  // A control that folds a cell's output away, because long output pushes
+  // everything below it down the slide and a result that has been read is then
+  // just in the way. It goes where the cell already has a header strip: the
+  // Output banner on a side-by-side cell (layOut() moves it there), the
+  // editor toolbar on a stacked one. All it does is set a flag on the
+  // interactive area; notebook.scss does the hiding.
+  function addOutputToggle(area) {
+    var bar = area.querySelector(".qwebr-editor-toolbar-right-buttons");
+    if (!bar || area.querySelector(".webr-output-toggle")) return;
+    var btn = document.createElement("button");
+    btn.type = "button";
+    // The extension's own reset and copy buttons carry exactly these classes.
+    // Wearing them too is what makes this look like part of the toolbar rather
+    // than something bolted on, and it inherits their hover state for free.
+    btn.className = "btn btn-light btn-xs qwebr-button webr-output-toggle";
+    // An eye, matching the reset and copy buttons beside it in being icon-only.
+    // Font Awesome needs no loading of its own: those two are already
+    // `fa-solid fa-arrows-rotate` and `fa-regular fa-copy`. The icon names the
+    // ACTION, not the current state — a folded cell shows a plain eye, "click
+    // to show".
+    //
+    // An icon carries no accessible name, so title and aria-label carry the
+    // words the button no longer prints. Both, not either: the title is the
+    // hover tooltip, the aria-label is what a screen reader announces.
+    var setState = function (hidden) {
+      var words = hidden ? "Show this cell's output" : "Hide this cell's output";
+      btn.innerHTML = '<i class="fa-solid fa-eye' + (hidden ? "" : "-slash") +
+        '" aria-hidden="true"></i>';
+      btn.title = words;
+      btn.setAttribute("aria-label", words);
+      btn.setAttribute("aria-expanded", hidden ? "false" : "true");
+    };
+    setState(false);
+    btn.addEventListener("click", function () {
+      var hide = area.dataset.webrOutputHidden !== "true";
+      area.dataset.webrOutputHidden = hide ? "true" : "false";
+      setState(hide);
+    });
+    // reveal reads keys off the document and stands aside only for inputs and
+    // contenteditable, not for a <button>. Without this, Space on a focused
+    // toggle both presses it and advances the slide.
+    btn.addEventListener("keydown", function (e) {
+      if (e.key === " " || e.key === "Enter") e.stopPropagation();
+    });
+    bar.appendChild(btn);
+  }
+
   function configure(area) {
     if (area.dataset.webrLayoutChecked === "true") return;
     area.dataset.webrLayoutChecked = "true";
+
+    addOutputToggle(area);
 
     // `::: {.stacked}` is the manual OPT-OUT, and the mirror of `.side-out`:
     // this cell keeps the vertical stack whatever the measurements say. The two
@@ -435,12 +510,7 @@
     // has looked at the slide outranks the arithmetic in both. It is checked
     // FIRST, before any measuring, because there is nothing left to decide.
     if (area.closest(".stacked")) {
-      var forcedHost = area.closest(".side-out") || area.closest(".cell") ||
-        area.parentElement;
-      if (forcedHost) {
-        forcedHost.classList.remove("side-out");
-        forcedHost.dataset.webrLayout = "stacked";
-      }
+      markStacked(area);
       return;
     }
 
@@ -451,17 +521,41 @@
     // means the same thing. Checked here rather than with the wrapper only
     // because the options have to be read first; nothing has been measured yet.
     if (details.options["layout"] === "stacked") {
-      var optHost = area.closest(".side-out") || area.closest(".cell") ||
-        area.parentElement;
-      if (optHost) {
-        optHost.classList.remove("side-out");
-        optHost.dataset.webrLayout = "stacked";
-      }
+      markStacked(area);
       return;
     }
 
+    // `#| code-track: 0.55` is read HERE, above every automatic gate, because
+    // it is the one option that overrides all of them. It used to be read forty
+    // lines down, after the two `return`s below had already sent a long cell or
+    // a cell inside a `.column` back to the stack without ever looking at it —
+    // an override that silently did nothing, which is worse than no override.
+    var codeTrack = parseFloat(details.options["code-track"]);
+    var fixedSplit = codeTrack > 0 && codeTrack < 1;
+
     var metrics = codeMetrics(details.code);
-    if (!metrics.lines || metrics.lines > MAX_CODE_LINES || metrics.maxChars > 88) return;
+    if (!metrics.lines) return;
+    // Too many lines, or a line too long for any column: no automatic split.
+    //
+    // Walking away silently was not the same as saying stacked, and the
+    // difference was 36 cells across the two courses. custom.scss's figure rule
+    // takes any unstamped cell that has drawn a plot into two columns of its
+    // own, which is the very layout this gate refuses: the code is too wide for
+    // half a slide, so the editor wraps. Record the decision instead.
+    //
+    // Only the AREA is stamped, and only the stylesheet reads it. A
+    // `::: {.side-out}` wrapper in the markup is left alone, because
+    // custom.scss already stands aside inside one and notebook.scss lays that
+    // cell out from the class — an author who typed the wrapper still gets it.
+    // `classes: qwebr-side-by-side` is exempt for the same reason: it is the
+    // author asking for custom.scss's layout by name.
+    if (!fixedSplit &&
+      (metrics.lines > MAX_CODE_LINES || metrics.maxChars > 88)) {
+      if (!area.classList.contains("qwebr-side-by-side")) {
+        area.dataset.webrLayout = "stacked";
+      }
+      return;
+    }
 
     var existingWrapper = area.closest(".side-out");
 
@@ -473,11 +567,8 @@
     // the class is in the markup, so notebook.scss would lay the cell out in
     // two columns regardless of what this script decides, and the halved width
     // is not something the author who typed `::: {.side-out}` accounted for.
-    if (area.closest(".column")) {
-      if (existingWrapper) {
-        existingWrapper.classList.remove("side-out");
-        existingWrapper.dataset.webrLayout = "stacked";
-      }
+    if (area.closest(".column") && !fixedSplit) {
+      if (existingWrapper) markStacked(area, existingWrapper);
       return;
     }
 
@@ -507,14 +598,13 @@
     // than only setting the flags is what makes the option identical to the
     // wrapper: the fit tests below read the class, so the cell can override the
     // figure floor, and code that will not fit one line still stacks.
-    var codeTrack = parseFloat(details.options["code-track"]);
-    if (codeTrack > 0 && codeTrack < 1) {
+    if (fixedSplit) {
       host.style.setProperty("--webr-code-track", codeTrack + "fr");
       host.style.setProperty("--webr-output-track", (1 - codeTrack) + "fr");
       host.style.setProperty("--webr-code-share", (codeTrack * 100) + "%");
       host.dataset.webrCodeFixed = "true";
     }
-    if ((codeTrack > 0 && codeTrack < 1) || details.options["layout"] === "side") {
+    if (fixedSplit || details.options["layout"] === "side") {
       host.classList.add("side-out");
       host.dataset.webrLayoutManual = "true";
     }
@@ -530,7 +620,13 @@
       // therefore as silent, when what that cell actually prints is a four-line
       // syntax error — which is the whole point of the slide it sits on.
       // A measured cell is judged on what R really printed.
-      if (!entry && printsNothing(details.code)) {
+      if (!entry && printsNothing(details.code) &&
+        host.dataset.webrCodeFixed !== "true") {
+        // Not markStacked(): that also strips a `::: {.side-out}` wrapper, and
+        // this branch is a guess from the source rather than a measurement, so
+        // it must not tear an author's wrapper down. Only the two attributes,
+        // which is what keeps custom.scss's figure rule off the cell.
+        area.dataset.webrLayout = "stacked";
         host.dataset.webrLayout = "stacked";
         return;
       }
@@ -538,7 +634,7 @@
         // force: a `::: {.side-out}` wrapper is a request, and the class is in
         // the markup, so it must be REMOVED here or the stylesheet lays the cell
         // out in two columns whatever this script decided.
-        stack(host, true);
+        stack(area, host, true);
         return;
       }
       if (entry && entry.plot) host.dataset.webrPlot = "true";
@@ -550,6 +646,13 @@
   // Everything below runs only for a cell that IS side by side: size its code
   // column, keep Monaco from wrapping in it, and keep the gutter caret centred.
   function layOut(area, host, details, metrics) {
+    // The banner is the output's own header strip, so on a side-by-side cell
+    // the toggle belongs there rather than in the toolbar over the code.
+    // notebook.scss puts it in the `outbar` grid area, on top of the ::before
+    // that paints the banner.
+    var toggle = area.querySelector(".webr-output-toggle");
+    if (toggle) area.appendChild(toggle);
+
     // Estimate an initial split from the longest source line, in pixels against
     // the width this cell actually has. The old form was `(maxChars + 10) / 145`,
     // which assumed ~145 characters span the full width; the real figure is ~109,
@@ -584,8 +687,35 @@
     requestAnimationFrame(function () { assessOutput(area, host); });
   }
 
+  // `#| fig-max-height: 600`, or `#| fig-max-height: none` to lift the cap
+  // entirely for this cell. The 420px cap in notebook.scss is a floor plan for
+  // a slide that also carries a title, a tab bar and a couple of lines of text.
+  // Two things it cannot see: a slide with less on it than that, and a portrait
+  // figure, which gets nothing at all from the width it is handed and is held
+  // at whatever the cap allows in height. This writes the custom property the
+  // cap reads onto this cell only, so no other figure on the deck moves.
+  //
+  // Called from scan() rather than configure(), because configure() returns
+  // early for a setup cell, for `.stacked`, and for a cell inside a `.column`,
+  // and a figure in any of those is capped like every other.
+  function applyFigureCap(area) {
+    if (area.dataset.webrFigCap) return;
+    var details = detailsFor(area);
+    var raw = details && details.options && details.options["fig-max-height"];
+    if (!raw) return;
+    raw = String(raw).trim();
+    var value = raw === "none" ? "none"
+      : (parseFloat(raw) > 0 ? parseFloat(raw) + "px" : null);
+    if (!value) return;
+    area.dataset.webrFigCap = value;
+    area.style.setProperty("--webr-fig-max-height", value);
+  }
+
   function scan() {
-    document.querySelectorAll(".qwebr-interactive-area").forEach(configure);
+    document.querySelectorAll(".qwebr-interactive-area").forEach(function (area) {
+      applyFigureCap(area);
+      configure(area);
+    });
   }
 
   var pageObserver = new MutationObserver(scan);

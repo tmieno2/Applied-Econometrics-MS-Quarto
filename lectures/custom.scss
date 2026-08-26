@@ -215,7 +215,10 @@ details[open] {
 }
 
 .qwebr-interactive-area {
-  width: 90%;
+  // Paired with $nb-code-w in notebook.scss, which every other code block and
+  // output on the slide reads. Change both together or the two kinds of block
+  // stop matching.
+  width: 100%;
 }
 
 // Shinylive apps need a floor, or the iframe collapses before the app loads.
@@ -272,10 +275,17 @@ iframe.app-frame {
    inside that wrapper, installing this 5-row grid instead — and since it has
    no `outbar` area, notebook.scss's banner lands in an implicit track off the
    bottom-right corner and its caret points at nothing. */
-.reveal div.qwebr-interactive-area:has(.qwebr-output-graph-area canvas):not(.column *):not(.side-out *),
-.reveal div.qwebr-interactive-area.qwebr-side-by-side:not(.side-out *) {
+.reveal div.qwebr-interactive-area:has(.qwebr-output-graph-area canvas):not(.column *):not(.side-out *):not([data-webr-layout="stacked"]),
+.reveal div.qwebr-interactive-area.qwebr-side-by-side:not(.side-out *):not([data-webr-layout="stacked"]) {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  /* minmax(0, 1fr), NOT 1fr. A `1fr` track may not shrink below its item's
+     min-content width, and the item here is Monaco, whose min-content is the
+     full slide: the tracks resolved to `1021px 9px` and the figure was drawn
+     into the 9px one, 0x0 and off the right edge of the slide. Measured on
+     L05_vector_raster_interaction.html. The editor needs `min-width: 0` below
+     for the same reason — the track may shrink, but the item in it must be
+     allowed to as well. */
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
   /* Vertically centre the code against the figure.
 
      The toolbar and the editor are separate grid items, so centring the
@@ -302,8 +312,8 @@ iframe.app-frame {
   > .qwebr-console-area {
     display: contents;
 
-    > .qwebr-editor { grid-area: editor; }
-    > .qwebr-output-code-area { grid-area: output; }
+    > .qwebr-editor { grid-area: editor; min-width: 0; }
+    > .qwebr-output-code-area { grid-area: output; min-width: 0; }
   }
 
   > .qwebr-output-graph-area {
@@ -326,9 +336,9 @@ iframe.app-frame {
 
 /* Stack again on narrow screens, where two columns would be unreadable. */
 @media (max-width: 800px) {
-  .reveal div.qwebr-interactive-area:has(.qwebr-output-graph-area canvas):not(.column *):not(.side-out *),
-  .reveal div.qwebr-interactive-area.qwebr-side-by-side:not(.side-out *) {
-    grid-template-columns: 1fr;
+  .reveal div.qwebr-interactive-area:has(.qwebr-output-graph-area canvas):not(.column *):not(.side-out *):not([data-webr-layout="stacked"]),
+  .reveal div.qwebr-interactive-area.qwebr-side-by-side:not(.side-out *):not([data-webr-layout="stacked"]) {
+    grid-template-columns: minmax(0, 1fr);
     grid-template-areas: "toolbar" "editor" "output" "graph";
     grid-template-rows: auto auto auto auto;
   }

@@ -28,7 +28,7 @@
       vertical-align: middle;
     }
   </style>
-  <link rel="stylesheet" href="../../site_libs/revealjs/dist/theme/quarto-704fb9daa92384f3b8b33063c36f01da.css">
+  <link rel="stylesheet" href="../../site_libs/revealjs/dist/theme/quarto-5cbf9ce0bec82c5b0c7629bb4ee56cc4.css">
   <script defer="" src="https://cdn.jsdelivr.net/npm/katex@0.18.4/dist/katex.min.js"></script>
   <script>document.addEventListener("DOMContentLoaded", function () {
  var mathElements = document.getElementsByClassName("math");
@@ -515,7 +515,7 @@
       var available = Math.max(1, (area.clientWidth || 1005) - 16);
       var share = parseFloat(host.style.getPropertyValue("--webr-code-share")) / 100;
       if (!share) return;
-      if (available * (1 - share) < MIN_PLOT_PX) stack(host, false);
+      if (available * (1 - share) < MIN_PLOT_PX) stack(area, host, false);
     }
 
     function measureRenderedCode(area, host, code, attempt) {
@@ -603,7 +603,7 @@
       if (share >= MAX_CODE_SHARE || attempt > 40) {
         // Even at the widest permitted code column the line will not fit, so the
         // cell has no business being side by side at all.
-        stack(host, true);
+        stack(area, host, true);
         return;
       }
       setTracks(host, area, share + 0.02);
@@ -654,19 +654,20 @@
       // No measurement for this cell: it was added or edited since the last run of
       // measure-webr-output.R, or R could not evaluate it. Judge on the code alone
       // rather than refuse, so an unmeasured deck still behaves reasonably.
+      // An author-set split — `#| code-track:` or the wrapper's own CSS variables
+      // — is a decision, and EVERYTHING below here is the prediction it overrides.
+      // setTracks(), ensureNoWrap() and the plot floor all already stand aside for
+      // `webrCodeFixed`. This test used to sit under the two below instead, which
+      // meant a hand-set split was still thrown away when the cell's own font
+      // measurement said the output would not fit, and — more often — when the
+      // cell printed nothing at all. An author who types a number wants to SEE
+      // that number, including on a cell with an empty output column.
+      if (area.closest('[data-webr-code-fixed="true"]')) return true;
       if (!entry) return true;
       // Ran and printed nothing, and drew nothing. There is no right-hand content
       // to show, so the code keeps the full width rather than facing an empty
       // Output banner. A figure counts as content even though it prints no text.
       if (!entry.plot && (!entry.rows || !entry.cols)) return false;
-
-      // An author-set split — `#| code-track:` or the wrapper's own CSS variables
-      // — is a decision, and everything below here is the prediction it overrides.
-      // setTracks(), ensureNoWrap() and the plot floor all already stand aside for
-      // `webrCodeFixed`; this test did not, so it sized a code column from the
-      // font, found the output would not fit beside THAT column, and stacked the
-      // cell — throwing away a split that fitted in the column actually asked for.
-      if (area.closest('[data-webr-code-fixed="true"]')) return true;
 
       var available = Math.max(1, (area.clientWidth || 1005) - 16);
       var codePx = Math.max(MIN_CODE_PX,
@@ -715,13 +716,12 @@
     // The one remaining way out of the side-by-side layout, and it can only fire
     // during load: the code will not fit on one line even in the widest column
     // allowed. Nothing a cell does at RUN time reaches here.
-    function stack(host, force) {
+    function stack(area, host, force) {
       // `::: {.side-out}` is a REQUEST, not an override: it cannot make code fit
       // that does not fit. What the exemption buys is that ordinary measurement
       // noise will not tear a deliberate wrapper down.
       if (host.dataset.webrLayoutManual === "true" && !force) return;
-      host.classList.remove("side-out");
-      host.dataset.webrLayout = "stacked";
+      markStacked(area, host);
     }
 
     // Called whenever the cell's DOM changes, which in practice means "the cell
@@ -739,9 +739,84 @@
       requestAnimationFrame(function () { markGutter(area, host); });
     }
 
+    // EVERY path that decides a cell stays stacked must come through here, and
+    // the reason is the attribute on the AREA. custom.scss puts any cell that has
+    // drawn a figure side by side, keyed off
+    // `:has(.qwebr-output-graph-area canvas):not([data-webr-layout="stacked"])`,
+    // and that `:not()` matches the interactive area — not the wrapper this
+    // script mostly works with. Stamping only the wrapper leaves that rule free
+    // to fire, and it fires at the moment the plot appears.
+    //
+    // What that looked like, measured on `L05_vector_raster_interaction.html`:
+    // the cell sat stacked until its plot was drawn, then flipped to
+    // `display: grid` with columns `1021px 9px` — custom.scss asks for `1fr 1fr`,
+    // but a `1fr` track may not shrink below its item's min-content width and
+    // Monaco's is the full slide — and the figure landed in the 9px track, 0x0,
+    // off the right edge of the slide. "The plot never appears." Adding
+    // `#| layout: stacked` by hand fixed it only because that option came through
+    // this function and stamped the area.
+    function markStacked(area, host) {
+      area.dataset.webrLayout = "stacked";
+      host = host || area.closest(".side-out") || area.closest(".cell") ||
+        area.parentElement;
+      if (host) {
+        host.classList.remove("side-out");
+        host.dataset.webrLayout = "stacked";
+      }
+    }
+
+    // A control that folds a cell's output away, because long output pushes
+    // everything below it down the slide and a result that has been read is then
+    // just in the way. It goes where the cell already has a header strip: the
+    // Output banner on a side-by-side cell (layOut() moves it there), the
+    // editor toolbar on a stacked one. All it does is set a flag on the
+    // interactive area; notebook.scss does the hiding.
+    function addOutputToggle(area) {
+      var bar = area.querySelector(".qwebr-editor-toolbar-right-buttons");
+      if (!bar || area.querySelector(".webr-output-toggle")) return;
+      var btn = document.createElement("button");
+      btn.type = "button";
+      // The extension's own reset and copy buttons carry exactly these classes.
+      // Wearing them too is what makes this look like part of the toolbar rather
+      // than something bolted on, and it inherits their hover state for free.
+      btn.className = "btn btn-light btn-xs qwebr-button webr-output-toggle";
+      // An eye, matching the reset and copy buttons beside it in being icon-only.
+      // Font Awesome needs no loading of its own: those two are already
+      // `fa-solid fa-arrows-rotate` and `fa-regular fa-copy`. The icon names the
+      // ACTION, not the current state — a folded cell shows a plain eye, "click
+      // to show".
+      //
+      // An icon carries no accessible name, so title and aria-label carry the
+      // words the button no longer prints. Both, not either: the title is the
+      // hover tooltip, the aria-label is what a screen reader announces.
+      var setState = function (hidden) {
+        var words = hidden ? "Show this cell's output" : "Hide this cell's output";
+        btn.innerHTML = '<i class="fa-solid fa-eye' + (hidden ? "" : "-slash") +
+          '" aria-hidden="true"></i>';
+        btn.title = words;
+        btn.setAttribute("aria-label", words);
+        btn.setAttribute("aria-expanded", hidden ? "false" : "true");
+      };
+      setState(false);
+      btn.addEventListener("click", function () {
+        var hide = area.dataset.webrOutputHidden !== "true";
+        area.dataset.webrOutputHidden = hide ? "true" : "false";
+        setState(hide);
+      });
+      // reveal reads keys off the document and stands aside only for inputs and
+      // contenteditable, not for a <button>. Without this, Space on a focused
+      // toggle both presses it and advances the slide.
+      btn.addEventListener("keydown", function (e) {
+        if (e.key === " " || e.key === "Enter") e.stopPropagation();
+      });
+      bar.appendChild(btn);
+    }
+
     function configure(area) {
       if (area.dataset.webrLayoutChecked === "true") return;
       area.dataset.webrLayoutChecked = "true";
+
+      addOutputToggle(area);
 
       // `::: {.stacked}` is the manual OPT-OUT, and the mirror of `.side-out`:
       // this cell keeps the vertical stack whatever the measurements say. The two
@@ -749,12 +824,7 @@
       // has looked at the slide outranks the arithmetic in both. It is checked
       // FIRST, before any measuring, because there is nothing left to decide.
       if (area.closest(".stacked")) {
-        var forcedHost = area.closest(".side-out") || area.closest(".cell") ||
-          area.parentElement;
-        if (forcedHost) {
-          forcedHost.classList.remove("side-out");
-          forcedHost.dataset.webrLayout = "stacked";
-        }
+        markStacked(area);
         return;
       }
 
@@ -765,17 +835,41 @@
       // means the same thing. Checked here rather than with the wrapper only
       // because the options have to be read first; nothing has been measured yet.
       if (details.options["layout"] === "stacked") {
-        var optHost = area.closest(".side-out") || area.closest(".cell") ||
-          area.parentElement;
-        if (optHost) {
-          optHost.classList.remove("side-out");
-          optHost.dataset.webrLayout = "stacked";
-        }
+        markStacked(area);
         return;
       }
 
+      // `#| code-track: 0.55` is read HERE, above every automatic gate, because
+      // it is the one option that overrides all of them. It used to be read forty
+      // lines down, after the two `return`s below had already sent a long cell or
+      // a cell inside a `.column` back to the stack without ever looking at it —
+      // an override that silently did nothing, which is worse than no override.
+      var codeTrack = parseFloat(details.options["code-track"]);
+      var fixedSplit = codeTrack > 0 && codeTrack < 1;
+
       var metrics = codeMetrics(details.code);
-      if (!metrics.lines || metrics.lines > MAX_CODE_LINES || metrics.maxChars > 88) return;
+      if (!metrics.lines) return;
+      // Too many lines, or a line too long for any column: no automatic split.
+      //
+      // Walking away silently was not the same as saying stacked, and the
+      // difference was 36 cells across the two courses. custom.scss's figure rule
+      // takes any unstamped cell that has drawn a plot into two columns of its
+      // own, which is the very layout this gate refuses: the code is too wide for
+      // half a slide, so the editor wraps. Record the decision instead.
+      //
+      // Only the AREA is stamped, and only the stylesheet reads it. A
+      // `::: {.side-out}` wrapper in the markup is left alone, because
+      // custom.scss already stands aside inside one and notebook.scss lays that
+      // cell out from the class — an author who typed the wrapper still gets it.
+      // `classes: qwebr-side-by-side` is exempt for the same reason: it is the
+      // author asking for custom.scss's layout by name.
+      if (!fixedSplit &&
+        (metrics.lines > MAX_CODE_LINES || metrics.maxChars > 88)) {
+        if (!area.classList.contains("qwebr-side-by-side")) {
+          area.dataset.webrLayout = "stacked";
+        }
+        return;
+      }
 
       var existingWrapper = area.closest(".side-out");
 
@@ -787,11 +881,8 @@
       // the class is in the markup, so notebook.scss would lay the cell out in
       // two columns regardless of what this script decides, and the halved width
       // is not something the author who typed `::: {.side-out}` accounted for.
-      if (area.closest(".column")) {
-        if (existingWrapper) {
-          existingWrapper.classList.remove("side-out");
-          existingWrapper.dataset.webrLayout = "stacked";
-        }
+      if (area.closest(".column") && !fixedSplit) {
+        if (existingWrapper) markStacked(area, existingWrapper);
         return;
       }
 
@@ -821,14 +912,13 @@
       // than only setting the flags is what makes the option identical to the
       // wrapper: the fit tests below read the class, so the cell can override the
       // figure floor, and code that will not fit one line still stacks.
-      var codeTrack = parseFloat(details.options["code-track"]);
-      if (codeTrack > 0 && codeTrack < 1) {
+      if (fixedSplit) {
         host.style.setProperty("--webr-code-track", codeTrack + "fr");
         host.style.setProperty("--webr-output-track", (1 - codeTrack) + "fr");
         host.style.setProperty("--webr-code-share", (codeTrack * 100) + "%");
         host.dataset.webrCodeFixed = "true";
       }
-      if ((codeTrack > 0 && codeTrack < 1) || details.options["layout"] === "side") {
+      if (fixedSplit || details.options["layout"] === "side") {
         host.classList.add("side-out");
         host.dataset.webrLayoutManual = "true";
       }
@@ -844,7 +934,13 @@
         // therefore as silent, when what that cell actually prints is a four-line
         // syntax error — which is the whole point of the slide it sits on.
         // A measured cell is judged on what R really printed.
-        if (!entry && printsNothing(details.code)) {
+        if (!entry && printsNothing(details.code) &&
+          host.dataset.webrCodeFixed !== "true") {
+          // Not markStacked(): that also strips a `::: {.side-out}` wrapper, and
+          // this branch is a guess from the source rather than a measurement, so
+          // it must not tear an author's wrapper down. Only the two attributes,
+          // which is what keeps custom.scss's figure rule off the cell.
+          area.dataset.webrLayout = "stacked";
           host.dataset.webrLayout = "stacked";
           return;
         }
@@ -852,7 +948,7 @@
           // force: a `::: {.side-out}` wrapper is a request, and the class is in
           // the markup, so it must be REMOVED here or the stylesheet lays the cell
           // out in two columns whatever this script decided.
-          stack(host, true);
+          stack(area, host, true);
           return;
         }
         if (entry && entry.plot) host.dataset.webrPlot = "true";
@@ -864,6 +960,13 @@
     // Everything below runs only for a cell that IS side by side: size its code
     // column, keep Monaco from wrapping in it, and keep the gutter caret centred.
     function layOut(area, host, details, metrics) {
+      // The banner is the output's own header strip, so on a side-by-side cell
+      // the toggle belongs there rather than in the toolbar over the code.
+      // notebook.scss puts it in the `outbar` grid area, on top of the ::before
+      // that paints the banner.
+      var toggle = area.querySelector(".webr-output-toggle");
+      if (toggle) area.appendChild(toggle);
+
       // Estimate an initial split from the longest source line, in pixels against
       // the width this cell actually has. The old form was `(maxChars + 10) / 145`,
       // which assumed ~145 characters span the full width; the real figure is ~109,
@@ -898,8 +1001,35 @@
       requestAnimationFrame(function () { assessOutput(area, host); });
     }
 
+    // `#| fig-max-height: 600`, or `#| fig-max-height: none` to lift the cap
+    // entirely for this cell. The 420px cap in notebook.scss is a floor plan for
+    // a slide that also carries a title, a tab bar and a couple of lines of text.
+    // Two things it cannot see: a slide with less on it than that, and a portrait
+    // figure, which gets nothing at all from the width it is handed and is held
+    // at whatever the cap allows in height. This writes the custom property the
+    // cap reads onto this cell only, so no other figure on the deck moves.
+    //
+    // Called from scan() rather than configure(), because configure() returns
+    // early for a setup cell, for `.stacked`, and for a cell inside a `.column`,
+    // and a figure in any of those is capped like every other.
+    function applyFigureCap(area) {
+      if (area.dataset.webrFigCap) return;
+      var details = detailsFor(area);
+      var raw = details && details.options && details.options["fig-max-height"];
+      if (!raw) return;
+      raw = String(raw).trim();
+      var value = raw === "none" ? "none"
+        : (parseFloat(raw) > 0 ? parseFloat(raw) + "px" : null);
+      if (!value) return;
+      area.dataset.webrFigCap = value;
+      area.style.setProperty("--webr-fig-max-height", value);
+    }
+
     function scan() {
-      document.querySelectorAll(".qwebr-interactive-area").forEach(configure);
+      document.querySelectorAll(".qwebr-interactive-area").forEach(function (area) {
+        applyFigureCap(area);
+        configure(area);
+      });
     }
 
     var pageObserver = new MutationObserver(scan);
@@ -1213,7 +1343,7 @@
   };
 
   // Store cell data
-  globalThis.qwebrCellDetails = [{"code":"# NOTE: a webr setup cell renders a loading widget wherever it sits, so keep it\n# inside a content slide rather than on a section divider (or, worse, above the\n# first heading, where it becomes an untitled slide of its own).\n# Mirror of lecture_theme() in lectures/_lecture-theme.R — WebR cannot source\n# that file. Edit it first, then run `Rscript lectures/check-lecture-theme.R`,\n# which fails if this copy has drifted.\nlecture_theme <- function(base_size = 16) {\n  ggplot2::theme_bw(base_size = base_size) +\n    ggplot2::theme(\n      axis.text = ggplot2::element_text(size = base_size * 0.9),\n      axis.title = ggplot2::element_text(size = base_size),\n      legend.text = ggplot2::element_text(size = base_size * 0.9),\n      legend.title = ggplot2::element_text(size = base_size * 0.9),\n      plot.background = ggplot2::element_rect(fill = \"transparent\", colour = NA),\n      panel.background = ggplot2::element_rect(fill = \"transparent\", colour = NA),\n      legend.background = ggplot2::element_rect(fill = \"transparent\", colour = NA),\n      legend.key = ggplot2::element_rect(fill = \"transparent\", colour = NA),\n      # theme_bw's grey92 grid was chosen against a white panel and all but\n      # disappears on the warm paper once the panel stops being opaque.\n      panel.grid = ggplot2::element_line(colour = \"grey87\")\n    )\n}\n# The WebR canvas is 10x6in at out-width 100% of its output track\n# (lectures/_metadata.yml), the same canvas the knitr figures use. It asks for\n# the whole track because the 420px height cap in notebook.scss is what really\n# sizes it. 18pt rather than the 16pt knitr default: on a full slide both land\n# at 700x420, where 18pt reads at 17.5px and 16pt at 15.5px, and these decks\n# put figures in half-width columns where the smaller size gets hard to read.\n# webR draws its canvas at 72 dpi no matter what `dpi` says, so on a 216-dpi\n# canvas everything ggplot measures in points or mm comes out a third of its\n# size. Scale ggplot2's mm-to-point constants and the theme by the same\n# factor and the figure matches the knitr ones. Keep in step with `dpi` above.\nwebr_scale <- 216 / 72\nassignInNamespace(\".pt\", ggplot2::.pt * webr_scale, \"ggplot2\")\nassignInNamespace(\".stroke\", ggplot2::.stroke * webr_scale, \"ggplot2\")\ntheme_lecture <- lecture_theme(18 * webr_scale) +\n  # base_size also sets the theme line widths, which are in mm and already\n  # pass through the scaled .pt; pin them to what 18pt gives or they come\n  # out 9x thick.\n  ggplot2::theme(\n    line = ggplot2::element_line(linewidth = 18 / 22),\n    rect = ggplot2::element_rect(linewidth = 18 / 22)\n  )\nggplot2::theme_set(theme_lecture)","id":1,"options":{"autorun":"true","classes":"","comment":"","context":"setup","dpi":"216","editor-font-scale":"0.7","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"6","fig-width":"10","label":"unnamed-chunk-1","message":"true","out-height":"","out-width":"100%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"#--- set the number of observations ---#\nn <- 100\n\n#--- generate random values ---#\nx_seq <- rnorm(n) # Normal(mean=0,sd=1)\n\n#--- calculate the mean ---#\nmean(x_seq)","id":2,"options":{"autorun":"false","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.7","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"6","fig-width":"10","label":"unnamed-chunk-2","message":"true","out-height":"","out-width":"100%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"#--- set seed ---#\nset.seed(28394)\n\n#--- set the number of observations ---#\nn <- 100\nB <- 1000\nmean_st <- rep(0, B)\nfor (i in 1:B) {\n  #--- generate random values ---#\n  x_seq <- rnorm(n) # Normal(mean=0,sd=1)\n\n  #--- calculate the mean ---#\n  mean_st[i] <- mean(x_seq)\n}\n#--- the \"biased\" panel is the same draws shifted by 0.2, purely to show what\n#--- bias looks like: a sampling distribution centred away from the truth\nbias_size <- 0.2\nplot_data_1 <- data.table(x = mean_st, type = \"unbiased\")\nplot_data_2 <- data.table(x = mean_st + bias_size, type = paste0(\"biased (by \", bias_size, \")\"))\nplot_data <- rbind(plot_data_1, plot_data_2)\n\ng_biased <-\n  ggplot(data = plot_data) +\n  geom_histogram(\n    aes(x = x),\n    alpha = 0.5,\n    color = \"blue\"\n  ) +\n  geom_vline(xintercept = 0, color = \"red\") +\n  facet_grid(type ~ .) +\n  xlab(\"Sample Mean\") +\n  #--- name the line, so it is clear what the distributions are centred on ---#\n  annotate(\n    \"text\",\n    x = 0, y = Inf, label = \"true value\",\n    color = \"red\", vjust = 1.6, hjust = -0.1, size = 3.5\n  ) +\n  theme_lecture +\n  theme(legend.position = \"bottom\")\n\ng_biased","id":3,"options":{"autorun":"true","classes":"figure-slide","comment":"","context":"output","dpi":"216","editor-font-scale":"0.7","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"7","fig-width":"10","label":"unnamed-chunk-3","message":"false","out-height":"","out-width":"80%","output":"true","read-only":"false","results":"markup","warning":"false"}},{"code":"set.seed(9382)\n\nbeta_1_true <- 2\nB <- 1000\nn <- 100\nb1_st <- rep(0, B)\n\nfor (i in 1:B) {\n  x <- rnorm(n) * 3\n  u <- rnorm(n) * 5 # satisfies E[u|x] = 0 by construction\n  y <- 10 + beta_1_true * x + u\n  b1_st[i] <- coef(lm(y ~ x))[\"x\"]\n}\n\nggplot(data = data.table(b1 = b1_st)) +\n  geom_histogram(aes(x = b1), alpha = 0.5, color = \"blue\", bins = 40) +\n  geom_vline(xintercept = beta_1_true, color = \"red\", linewidth = 1) +\n  xlab(\"Estimate of beta_1\") +\n  theme_lecture","id":4,"options":{"autorun":"true","classes":"","comment":"","context":"output","dpi":"216","editor-font-scale":"0.7","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"6.1","fig-width":"9.5","label":"unnamed-chunk-4","message":"false","out-height":"","out-width":"75%","output":"true","read-only":"false","results":"markup","warning":"false"}},{"code":"set.seed(38495)\n\nB <- 1000\ntheta_smart <- rep(0, B)\ntheta_naive <- rep(0, B)\nfor (i in 1:B) {\n  x <- rnorm(1000)\n  theta_smart[i] <- mean(x)\n  theta_naive[i] <- mean(x[1:10])\n}\n\nsmart_data <- data.table(value = theta_smart, type = \"Smart\")\nnaive_data <- data.table(value = theta_naive, type = \"Naive\")\nplot_data <- rbind(smart_data, naive_data)\n\nggplot(data = plot_data) +\n  geom_density(aes(x = value, fill = type), alpha = 0.5, linewidth = 0.5) +\n  scale_fill_discrete(name = \"Estimator\") +\n  xlab(\"Sample Mean\") +\n  theme_lecture +\n  theme(\n    legend.position = \"bottom\"\n  )","id":5,"options":{"autorun":"true","classes":"","comment":"","context":"output","dpi":"216","editor-font-scale":"0.7","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"4.9","fig-width":"7.6","label":"unnamed-chunk-5","message":"false","out-height":"","out-width":"60%","output":"true","read-only":"false","results":"markup","warning":"false"}},{"code":"x_levels <- seq(40, 200, by = 10)\nx <- rep(x_levels, each = 200)\n\nu_homoske <- rnorm(200 * length(x_levels)) * 20\ny_homoske <- 100 + 0.5 * x + u_homoske\n\nu_hetero <- lapply(x_levels, function(x) rnorm(200, sd = x / 50) * 20) %>% unlist()\ny_hetero <- 100 + 0.5 * x + u_hetero\n\nplot_data_homo <-\n  data.table(\n    x = x,\n    y = y_homoske\n  ) %>%\n  .[, type := \"Homoskedastic\"]\n\nplot_data_hetero <-\n  data.table(\n    x = x,\n    y = y_hetero\n  ) %>%\n  .[, type := \"Heteroskedastic\"]\n\nplot_data <- rbind(plot_data_homo, plot_data_hetero)\n\ng_error_nature <- \n  ggplot(data = plot_data) +\n  geom_point(aes(y = y, x = x), size = 0.3) +\n  geom_abline(intercept = 100, slope = 0.5) +\n  geom_hline(yintercept = 0) +\n  geom_vline(xintercept = 0) +\n  facet_grid(type ~ .) +\n  theme_lecture\n\ng_error_nature","id":6,"options":{"autorun":"true","classes":"","comment":"","context":"output","dpi":"216","editor-font-scale":"0.7","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"6","fig-width":"10","label":"unnamed-chunk-6","message":"true","out-height":"","out-width":"100%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"data(HousePrices, package = \"AER\")\n\ng_hp <-\n  ggplot(data = HousePrices) +\n  geom_point(aes(y = price, x = lotsize), size = 0.6) +\n  ylab(\"House Price ($)\") +\n  xlab(\"Lot Size\") +\n  theme_lecture\n\ng_hp +\n  geom_smooth(aes(y = price, x = lotsize), method = \"lm\", se = F)","id":7,"options":{"autorun":"true","classes":"","comment":"","context":"output","dpi":"216","editor-font-scale":"0.7","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"6","fig-width":"10","label":"unnamed-chunk-7","message":"false","out-height":"","out-width":"100%","output":"true","read-only":"false","results":"markup","warning":"false"}},{"code":"#--- run OLS on the above model ---#\n# lm(dep_var ~ indep_var,data=data_name)\nuni_reg <- fixest::feols(price ~ lotsize, data = HousePrices)\n\nsummary(uni_reg)","id":8,"options":{"autorun":"false","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.7","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"6","fig-width":"10","label":"unnamed-chunk-8","message":"true","out-height":"","out-width":"100%","output":"true","read-only":"false","results":"markup","warning":"true"}}];
+  globalThis.qwebrCellDetails = [{"code":"# NOTE: a webr setup cell renders a loading widget wherever it sits, so keep it\n# inside a content slide rather than on a section divider (or, worse, above the\n# first heading, where it becomes an untitled slide of its own).\n# Mirror of lecture_theme() in lectures/_lecture-theme.R — WebR cannot source\n# that file. Edit it first, then run `Rscript lectures/check-lecture-theme.R`,\n# which fails if this copy has drifted.\nlecture_theme <- function(base_size = 16) {\n  ggplot2::theme_bw(base_size = base_size) +\n    ggplot2::theme(\n      axis.text = ggplot2::element_text(size = base_size * 0.9),\n      axis.title = ggplot2::element_text(size = base_size),\n      legend.text = ggplot2::element_text(size = base_size * 0.9),\n      legend.title = ggplot2::element_text(size = base_size * 0.9),\n      plot.background = ggplot2::element_rect(fill = \"transparent\", colour = NA),\n      panel.background = ggplot2::element_rect(fill = \"transparent\", colour = NA),\n      legend.background = ggplot2::element_rect(fill = \"transparent\", colour = NA),\n      legend.key = ggplot2::element_rect(fill = \"transparent\", colour = NA),\n      # theme_bw's grey92 grid was chosen against a white panel and all but\n      # disappears on the warm paper once the panel stops being opaque.\n      panel.grid = ggplot2::element_line(colour = \"grey87\")\n    )\n}\n# The WebR canvas is 10x6in at out-width 100% of its output track\n# (lectures/_metadata.yml), the same canvas the knitr figures use. It asks for\n# the whole track because the 420px height cap in notebook.scss is what really\n# sizes it. 18pt rather than the 16pt knitr default: on a full slide both land\n# at 700x420, where 18pt reads at 17.5px and 16pt at 15.5px, and these decks\n# put figures in half-width columns where the smaller size gets hard to read.\n# webR draws its canvas at 72 dpi no matter what `dpi` says, so on a 216-dpi\n# canvas everything ggplot measures in points or mm comes out a third of its\n# size. Scale ggplot2's mm-to-point constants and the theme by the same\n# factor and the figure matches the knitr ones. Keep in step with `dpi` above.\nwebr_scale <- 216 / 72\nassignInNamespace(\".pt\", ggplot2::.pt * webr_scale, \"ggplot2\")\nassignInNamespace(\".stroke\", ggplot2::.stroke * webr_scale, \"ggplot2\")\ntheme_lecture <- lecture_theme(18 * webr_scale) +\n  # base_size also sets the theme line widths, which are in mm and already\n  # pass through the scaled .pt; pin them to what 18pt gives or they come\n  # out 9x thick.\n  ggplot2::theme(\n    line = ggplot2::element_line(linewidth = 18 / 22),\n    rect = ggplot2::element_rect(linewidth = 18 / 22)\n  )\nggplot2::theme_set(theme_lecture)","id":1,"options":{"autorun":"true","classes":"","comment":"","context":"setup","dpi":"216","editor-font-scale":"0.7","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"6","fig-width":"10","label":"unnamed-chunk-1","message":"true","out-height":"","out-width":"100%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"#--- set the number of observations ---#\nn <- 100\n\n#--- generate random values ---#\nx_seq <- rnorm(n) # Normal(mean=0,sd=1)\n\n#--- calculate the mean ---#\nmean(x_seq)","id":2,"options":{"autorun":"false","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.7","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"6","fig-width":"10","label":"unnamed-chunk-2","message":"true","out-height":"","out-width":"100%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"#--- set seed ---#\nset.seed(28394)\n\n#--- set the number of observations ---#\nn <- 100\nB <- 1000\nmean_st <- rep(0, B)\nfor (i in 1:B) {\n  #--- generate random values ---#\n  x_seq <- rnorm(n) # Normal(mean=0,sd=1)\n\n  #--- calculate the mean ---#\n  mean_st[i] <- mean(x_seq)\n}\n#--- the \"biased\" panel is the same draws shifted by 0.2, purely to show what\n#--- bias looks like: a sampling distribution centred away from the truth\nbias_size <- 0.2\nplot_data_1 <- data.table(x = mean_st, type = \"unbiased\")\nplot_data_2 <- data.table(x = mean_st + bias_size, type = paste0(\"biased (by \", bias_size, \")\"))\nplot_data <- rbind(plot_data_1, plot_data_2)\n\ng_biased <-\n  ggplot(data = plot_data) +\n  geom_histogram(\n    aes(x = x),\n    alpha = 0.5,\n    color = \"blue\"\n  ) +\n  geom_vline(xintercept = 0, color = \"red\") +\n  facet_grid(type ~ .) +\n  xlab(\"Sample Mean\") +\n  #--- name the line, so it is clear what the distributions are centred on ---#\n  annotate(\n    \"text\",\n    x = 0, y = Inf, label = \"true value\",\n    color = \"red\", vjust = 1.6, hjust = -0.1, size = 3.5\n  ) +\n  theme_lecture +\n  theme(legend.position = \"bottom\")\n\ng_biased","id":3,"options":{"autorun":"true","classes":"figure-slide","comment":"","context":"output","dpi":"216","editor-font-scale":"0.7","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"7","fig-width":"10","label":"unnamed-chunk-3","message":"false","out-height":"","out-width":"80%","output":"true","read-only":"false","results":"markup","warning":"false"}},{"code":"set.seed(9382)\n\nbeta_1_true <- 2\nB <- 1000\nn <- 100\nb1_st <- rep(0, B)\n\nfor (i in 1:B) {\n  x <- rnorm(n) * 3\n  u <- rnorm(n) * 5 # satisfies E[u|x] = 0 by construction\n  y <- 10 + beta_1_true * x + u\n  b1_st[i] <- coef(lm(y ~ x))[\"x\"]\n}\n\nggplot(data = data.table(b1 = b1_st)) +\n  geom_histogram(aes(x = b1), alpha = 0.5, color = \"blue\", bins = 40) +\n  geom_vline(xintercept = beta_1_true, color = \"red\", linewidth = 1) +\n  xlab(\"Estimate of beta_1\") +\n  theme_lecture","id":4,"options":{"autorun":"true","classes":"","comment":"","context":"output","dpi":"216","editor-font-scale":"0.7","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"6.1","fig-width":"9.5","label":"unnamed-chunk-4","message":"false","out-height":"","out-width":"75%","output":"true","read-only":"false","results":"markup","warning":"false"}},{"code":"set.seed(38495)\n\nB <- 1000\ntheta_smart <- rep(0, B)\ntheta_naive <- rep(0, B)\nfor (i in 1:B) {\n  x <- rnorm(1000)\n  theta_smart[i] <- mean(x)\n  theta_naive[i] <- mean(x[1:10])\n}\n\nsmart_data <- data.table(value = theta_smart, type = \"Smart\")\nnaive_data <- data.table(value = theta_naive, type = \"Naive\")\nplot_data <- rbind(smart_data, naive_data)\n\nggplot(data = plot_data) +\n  geom_density(aes(x = value, fill = type), alpha = 0.5, linewidth = 0.5) +\n  scale_fill_discrete(name = \"Estimator\") +\n  xlab(\"Sample Mean\") +\n  theme_lecture +\n  theme(\n    legend.position = \"bottom\"\n  )","id":5,"options":{"autorun":"true","classes":"","comment":"","context":"output","dpi":"216","editor-font-scale":"0.7","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"4.9","fig-width":"7.6","label":"unnamed-chunk-5","message":"false","out-height":"","out-width":"60%","output":"true","read-only":"false","results":"markup","warning":"false"}},{"code":"x_levels <- seq(40, 200, by = 10)\nx <- rep(x_levels, each = 200)\n\nu_homoske <- rnorm(200 * length(x_levels)) * 20\ny_homoske <- 100 + 0.5 * x + u_homoske\n\nu_hetero <- lapply(x_levels, function(x) rnorm(200, sd = x / 50) * 20) %>% unlist()\ny_hetero <- 100 + 0.5 * x + u_hetero\n\nplot_data_homo <-\n  data.table(\n    x = x,\n    y = y_homoske\n  ) %>%\n  .[, type := \"Homoskedastic\"]\n\nplot_data_hetero <-\n  data.table(\n    x = x,\n    y = y_hetero\n  ) %>%\n  .[, type := \"Heteroskedastic\"]\n\nplot_data <- rbind(plot_data_homo, plot_data_hetero)\n\ng_error_nature <-\n  ggplot(data = plot_data) +\n  geom_point(aes(y = y, x = x), size = 0.3) +\n  geom_abline(intercept = 100, slope = 0.5) +\n  geom_hline(yintercept = 0) +\n  geom_vline(xintercept = 0) +\n  facet_grid(type ~ .) +\n  theme_lecture\n\ng_error_nature","id":6,"options":{"autorun":"true","classes":"","comment":"","context":"output","dpi":"216","editor-font-scale":"0.7","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"6","fig-width":"10","label":"unnamed-chunk-6","message":"true","out-height":"","out-width":"100%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"data(HousePrices, package = \"AER\")\n\ng_hp <-\n  ggplot(data = HousePrices) +\n  geom_point(aes(y = price, x = lotsize), size = 0.6) +\n  ylab(\"House Price ($)\") +\n  xlab(\"Lot Size\") +\n  theme_lecture\n\ng_hp +\n  geom_smooth(aes(y = price, x = lotsize), method = \"lm\", se = F)","id":7,"options":{"autorun":"true","classes":"","comment":"","context":"output","dpi":"216","editor-font-scale":"0.7","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"6","fig-width":"10","label":"unnamed-chunk-7","message":"false","out-height":"","out-width":"100%","output":"true","read-only":"false","results":"markup","warning":"false"}},{"code":"#--- run OLS on the above model ---#\n# lm(dep_var ~ indep_var,data=data_name)\nuni_reg <- fixest::feols(price ~ lotsize, data = HousePrices)\n\nsummary(uni_reg)","id":8,"options":{"autorun":"false","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.7","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"6","fig-width":"10","label":"unnamed-chunk-8","message":"true","out-height":"","out-width":"100%","output":"true","read-only":"false","results":"markup","warning":"true"}}];
 
   </script>
   <script type="module">
@@ -2156,9 +2286,48 @@
   } 
 
   // Function to run the code using webR and parse the output
+  // How many characters of printed output fit across this cell's output box.
+  //
+  // Everything here is in CSS pixels, never getBoundingClientRect(): reveal
+  // scales the whole slide with a transform, so a rect is the scaled number
+  // while getComputedStyle and canvas.measureText are unscaled, and mixing the
+  // two gives a width out by the scale factor.
+  //
+  // The 80-character sample rather than one character because measureText
+  // rounds, and one rounded character multiplied by 124 is a visible error.
+  globalThis.qwebrOutputWidthChars = function (outputDiv) {
+      const DEFAULT_WIDTH = 80;
+      if (!outputDiv) return DEFAULT_WIDTH;
+      // The extension creates the output `pre` at load and keeps it hidden until
+      // the cell prints something, so its font is readable before the first run.
+      const probe = outputDiv.querySelector("pre") || outputDiv;
+      const usable = probe.clientWidth;  // content box: excludes the accent border
+      if (!usable) return DEFAULT_WIDTH;
+      const cs = getComputedStyle(probe);
+      const canvas = qwebrOutputWidthChars.canvas ||
+          (qwebrOutputWidthChars.canvas = document.createElement("canvas"));
+      const context = canvas.getContext("2d");
+      context.font = [cs.fontStyle, cs.fontWeight, cs.fontSize, cs.fontFamily]
+          .filter(Boolean).join(" ");
+      const perChar = context.measureText("0".repeat(80)).width / 80;
+      if (!perChar) return DEFAULT_WIDTH;
+      // qwebr-styling.css puts `margin: 1px 2px 1px 10px` on the div inside the
+      // pre, so 12px of the content box is never printable.
+      const chars = Math.floor((usable - 12) / perChar);
+      // Never NARROWER than R's own default. This only ever hands a cell more
+      // room than it had, so no slide that has already been read over prints
+      // differently unless its box was wider than 80 characters all along. A
+      // cell in a half-width `.column` measures about 60 and keeps 80, which is
+      // what it prints today: the tail scrolls, and trading that for a block
+      // two-thirds taller is not obviously the better deal on a slide.
+      // The ceiling is there because `options(width = )` is a hard limit in R,
+      // not a suggestion, and nothing on these decks wants a 300-character line.
+      return Math.max(DEFAULT_WIDTH, Math.min(200, chars));
+  };
+
   globalThis.qwebrComputeEngine = async function(
-      codeToRun, 
-      elements, 
+      codeToRun,
+      elements,
       options) {
 
       // Call into the R compute engine that persists within the document scope.
@@ -2220,6 +2389,19 @@
       // Store the code to run in history
       qwebrLogCodeToHistory(codeToRun, options);
 
+      // R wraps everything it prints at `getOption("width")` characters and webR
+      // leaves that at 80, whatever the box it is printing into. A full-width
+      // cell fits about 124 characters at the deck's code size, so a printed
+      // data frame stopped a third short of the right edge and R moved its last
+      // column into a second block underneath — which is how a six-column
+      // `st_join` result came out as five columns and then a lone `geometry`.
+      // Measure the box this cell actually got and let R use all of it.
+      //
+      // Safe to take at run time: webr-layout.html decides side-by-side versus
+      // stacked while the page loads and never revisits it (see assessOutput),
+      // so the width measured here is the width the output is printed into.
+      const widthFix = `options(width = ${qwebrOutputWidthChars(elements.outputCodeDiv)}); `;
+
       // webR's canvas draws text at the `pointsize` set above but still reports
       // its character metrics as if the font were 12pt. R sizes plot margins in
       // "lines" from those metrics, so on a 216 dpi canvas the margins come out
@@ -2236,7 +2418,7 @@
       // Evaluate the R code
       // Remove the active canvas silently
       const result = await mainWebRCodeShelter.captureR(
-          `${marginFix}${codeToRun}`,
+          `${widthFix}${marginFix}${codeToRun}`,
           captureOutputOptions
       );
 
@@ -2290,6 +2472,10 @@
 
           // Design an output object for messages
           const pre = document.createElement("pre");
+          // PATCHED: an `output: asis` cell hands back real HTML (a gt, kableExtra
+          // or tinytable table). It keeps the output box, but not the whitespace
+          // and font of a `pre`. See notebook.scss, and RULES.md section 7.
+          if (!showMarkup) { pre.classList.add("qwebr-output-asis"); }
           if (/\S/.test(out)) {
               // Display results as HTML elements to retain output styling
               const div = document.createElement("div");
@@ -2308,6 +2494,22 @@
           }
 
           elements.outputCodeDiv.appendChild(pre);
+
+          // PATCHED: HTML written by `output: asis` may carry its own <script>,
+          // which is how tinytable, modelsummary's default HTML output, fills its
+          // cells. innerHTML never runs a script, so the table arrived empty.
+          // Re-creating each script node runs it, and it must happen after the
+          // output is in the document or a detached node still does nothing.
+          if (!showMarkup) {
+              pre.querySelectorAll("script").forEach((original) => {
+                  const script = document.createElement("script");
+                  for (const attribute of original.attributes) {
+                      script.setAttribute(attribute.name, attribute.value);
+                  }
+                  script.textContent = original.textContent;
+                  original.replaceWith(script);
+              });
+          }
 
           // Determine if we have graphs to display
           if (result.images.length > 0) {
@@ -2524,6 +2726,16 @@ globalThis.qwebrCreateMonacoEditorInstance = function (cellData) {
       fontSize: qwebrScaledFontSize(editorDiv, qwebrOptions),         
       renderLineHighlight: "none",      // Disable current line highlighting
       hideCursorInOverviewRuler: true,  // Remove cursor indictor in right hand side scroll bar
+      // PATCHED, see RULES.md. Monaco reserves a strip at the right of the
+      // editor for the overview ruler — the map of marks beside a scrollbar —
+      // and draws a hairline border down its left side. Nothing in these decks
+      // puts a mark in it, so it is an empty ~14px band, and its border reads
+      // as the right edge of the code block: the block then looks narrower than
+      // the "Run Code" bar above it, which is the whole point of the bar being
+      // the editor's own width. No lanes, no border, and the code ground runs
+      // to the container edge.
+      overviewRulerLanes: 0,
+      overviewRulerBorder: false,
       // PATCHED, see RULES.md. Monaco's defaults reserve five characters of
       // number column (`lineNumbersMinChars: 5`) and a 10px decorations strip
       // beside it, which on a cell of at most a couple of dozen lines is a wide
@@ -2777,7 +2989,9 @@ globalThis.qwebrCreateMonacoEditorInstance = function (cellData) {
 <summary>
 Transcript
 </summary>
-<p>Let’s set up what this lecture is asking. An estimator is a function of data: hand it a sample, it hands you back a number. A small sample property is something you can say about that estimator before you have any data at all. That is a strange idea at first, so sit with it. We are not asking whether one particular estimate is right, because we can never know that. We are asking what kind of behaviour the rule has across all the samples you might have drawn. And the word small is misleading: these properties hold at any sample size.</p>
+<p>Let’s set up exactly what this lecture is asking. An estimator is a rule, or a function, that takes sample data as its input and produces an estimate, an actual number, as its output. Look at the OLS slope estimator on screen. Beta-one-hat is the estimate of the unknown population slope beta one. In the numerator, we sum, from observation i equals one through n, the product of each x value’s deviation from x-bar and each y value’s deviation from y-bar. Here x-bar and y-bar are the two sample means. In the denominator, we sum the squared deviations of x from x-bar. Once you insert the observed x’s and y’s, this formula returns one number.</p>
+<p>A small-sample property describes the behavior of that rule before we see a particular dataset or calculate a particular estimate. Imagine repeatedly drawing samples from the same population and applying the rule each time. The estimates form a sampling distribution. A property such as unbiasedness or variance tells us something about that distribution. The red phrase, “prior to,” is essential. A small-sample property does not inspect one realized estimate and certify that it is close to the truth. It tells you what to expect from the estimator across all possible samples under stated assumptions.</p>
+<p>The word “small” can be misleading. These are finite-sample results, so they hold for a sample of any fixed size, small or large. That contrasts with asymptotic properties, which describe what happens as n grows without bound. It also differs from the algebraic properties from the earlier lecture. An algebraic property, such as the OLS residuals summing to zero when an intercept is included, holds mechanically in the sample you actually have. A statistical small-sample property concerns repeated hypothetical samples and depends on assumptions about how the data were generated. With that distinction in place, flip to the OLS tab and ask which statistical properties make this particular rule attractive.</p>
 </details>
 <p><strong>What is an estimator?</strong></p>
 <ul>
@@ -2797,7 +3011,9 @@ Transcript
 <summary>
 Transcript
 </summary>
-<p>Here is the question that motivates the whole lecture. OLS is just one way of turning data into estimates. I could invent a dozen others by lunchtime. So why this one? What makes it worth teaching, and worth being the default in every statistical package on earth? The answer comes in two parts, which are the two bullets on screen. Unbiasedness, which is about whether the estimator is centred on the truth. And efficiency, which is about how tightly it clusters. We take each in turn, and the verdict is favourable.</p>
+<p>Here is the question that motivates the whole lecture. OLS is only one possible rule for turning the information in a sample into estimates of beta zero and beta one. The red “a” is there to stop you from treating OLS as inevitable. We could invent other rules, use only part of the sample, assign different weights to observations, or deliberately trade a little bias for less variability. So we need a reason to prefer OLS.</p>
+<p>The two bullets give us the criteria we will use. Unbiasedness asks about the center of the estimator’s sampling distribution. If we could repeat the sampling process indefinitely, would the average OLS estimate equal the true population parameter? Efficiency asks about the spread of that distribution. Among estimators that are comparable in the relevant sense, does OLS produce estimates that vary relatively little from sample to sample? An estimator can be centered correctly but very imprecise, so these are separate virtues.</p>
+<p>The favorable verdict at the bottom is conditional, not unconditional. OLS is unbiased under assumptions that we will state explicitly, and it has the Gauss-Markov efficiency property under one additional assumption. The purpose of this lecture is to identify those assumptions, show where they enter the argument, and clarify what the conclusions do and do not let you say about the estimate from the one sample you actually observe.</p>
 </details>
 <p>OLS is just <span style="color: red;"> a </span> way of using available information to obtain estimates. Does it have desirable properties? Why are we using it?</p>
 <ul>
@@ -2820,7 +3036,9 @@ Transcript
 <summary>
 Transcript
 </summary>
-<p>Before doing this for OLS, let’s do it somewhere simpler, where you already have intuition. Suppose you only want the expected value of a variable, and your estimator is the sample mean. The code draws a hundred numbers from a standard normal, whose true mean is zero, and averages them. Now do what the direction box says and run it several times. You will not get zero. You will get zero point one, then minus zero point zero four, then zero point zero eight. That scatter is the point. No single run gives you the truth, and yet the sample mean is still a good estimator.</p>
+<p>Before doing this for OLS, let’s build the idea somewhere simpler. Suppose the parameter of interest is the population expected value of a random variable x. The estimator on screen is the sample mean: one over n times the sum of x-i from i equals one through n.&nbsp;It uses every observation and returns their arithmetic average. Under random sampling, its expected value equals the population mean, so it is an unbiased estimator even though an individual sample mean will almost never equal that parameter exactly.</p>
+<p>Now read the code from top to bottom. The first assignment sets n, the number of observations, to one hundred. The call “r norm of n” then generates one hundred independent draws from a normal distribution. Because the mean and standard-deviation arguments are omitted, R uses its defaults, mean zero and standard deviation one. The comment records that this is a standard normal population, so the true mean we are trying to estimate is zero. Those simulated values are stored in x-seq. Finally, “mean of x-seq” adds the one hundred values and divides by one hundred, which is exactly the estimator displayed above the code.</p>
+<p>Follow the direction in the callout and run the cell several times. Each run generates a fresh random sample, so the printed sample mean changes. It should usually be fairly near zero with one hundred observations, but it need not be zero, and occasionally it will be farther away. That sample-to-sample movement is not evidence that the estimator is biased. Bias is not the error in one run. To assess bias, we need the distribution produced by many runs and must ask where that entire distribution is centered. The next tab makes that repeated-sampling thought experiment visible.</p>
 </details>
 <p>What does <span style="color: blue;"> unbiased </span> even mean?</p>
 <p>Let’s first look at a simple problem of estimating the expected value of a single variable (<span class="math inline">x</span>) as a start.</p>
@@ -2849,7 +3067,9 @@ Transcript
 <summary>
 Transcript
 </summary>
-<p>Here is what running it a thousand times looks like. The top panel is our sample mean, and the whole distribution of estimates piles up around the red line, which is the true value of zero. That is unbiasedness: not that any one estimate is right, but that the distribution is centred on the truth. The bottom panel is what bias looks like, the same spread shifted across by zero point two. And notice that a biased estimator is not a noisier one. It can be beautifully precise and still systematically wrong, which is the more dangerous failure, because tight results look convincing.</p>
+<p>Here is what the repeated-sampling experiment looks like when we perform it one thousand times. In every repetition, we draw one hundred observations from the same standard normal population and calculate their sample mean. The horizontal axis is the resulting sample mean, our estimate in that repetition. The vertical height of each histogram bar records how many of the one thousand estimates fall in that interval. The red vertical line at zero marks the true population mean.</p>
+<p>Start with the top panel, labeled “unbiased.” The estimates are not all zero. They form a distribution because each random sample is different. But the pile is centered at the red truth line: estimates above zero balance estimates below zero in repeated samples. That is what unbiased means. In notation, if theta-hat denotes the estimator and theta denotes the true parameter, unbiasedness is the statement that the expected value of theta-hat equals theta. It is not the statement that theta-hat equals theta in every sample.</p>
+<p>The bottom panel is constructed from exactly the same estimates after adding zero point two to every one. Its label therefore says “biased by zero point two.” The red line still marks the truth at zero, but the sampling distribution is now centered around zero point two. Notice that its shape and width are essentially the same as the unbiased distribution. Bias and variance are different dimensions: bias is displacement of the center from the truth, while variance is spread around the estimator’s own center. A biased estimator can be tightly clustered and look very convincing while being systematically wrong. We will return to the width of these distributions when we discuss efficiency.</p>
 </details>
 <div id="qwebr-insertion-location-3"></div>
 <noscript>Please enable JavaScript to experience the dynamic code cell content on this page.</noscript>
@@ -2859,7 +3079,9 @@ Transcript
 <summary>
 Transcript
 </summary>
-<p>Now the claim for OLS itself, and it is the same statement in symbols. The expected value of beta-one-hat equals beta-one. Take the expectation across all the samples you might have drawn, and you land on the truth. But note the phrase in blue: under certain conditions. This is not automatic, and those conditions are two tabs away. The parenthetical is worth reading too. We say nothing about the intercept, because almost nobody has ever cared about the intercept, and our time is short.</p>
+<p>Now translate that definition from the sample mean to the OLS slope estimator. Beta one is the true slope in the population model, and beta-one-hat is the slope calculated from a sample. The long expression inside the expectation is the OLS formula: in the numerator, sum each x deviation from x-bar times the corresponding y deviation from y-bar; in the denominator, sum each squared x deviation. The expectation operator asks for the average value that this formula would produce across repeated samples drawn by the same process.</p>
+<p>The equality on the far right is the claim of unbiasedness: the expected value of beta-one-hat equals the true beta one. It does not claim that the ratio of two expectations is being taken, and it does not say the estimate from any particular sample equals beta one. The expectation applies to the entire random estimator, including all of the sample x’s, y’s, and sample means inside it.</p>
+<p>Now focus on the blue phrase, “under certain conditions.” Unbiasedness is not an automatic algebraic feature of OLS. It is a statistical result that follows from assumptions about the population relationship and the sampling process. We state four such conditions in the Conditions tab and then show in the proof exactly which one removes the bias term. We concentrate on the slope because it is normally the economically meaningful parameter, the change in y associated with a one-unit change in x. The intercept also has an unbiasedness result under the same assumptions, but the slide deliberately sets it aside because intercepts are often not substantively interesting and our limited time is better spent on the slope.</p>
 </details>
 <p>Under <span style="color: blue;"> certain conditions </span>, OLS estimators are unbiased. That is,</p>
 <p><span class="math display">
@@ -2873,7 +3095,9 @@ E[\widehat{\beta}_1]=E\Big[\frac{\sumn (x_i-\bar{x})(y_i-\bar{y})}{\sumn  (x_i-\
 <summary>
 Transcript
 </summary>
-<p>Let’s not take the algebra on faith. This does for OLS exactly what we did for the sample mean. I build a world where the true beta-one is two, draw a hundred observations, run the regression, keep the estimate, then repeat a thousand times. What you see is the resulting pile of estimates. Look at the spread: plenty of runs come back at one point seven, or two point three. Any one of them, on its own, is wrong. Now read the callout, because it is the whole idea. Unbiasedness is a claim about where the red line sits relative to the pile, not about any single estimate.</p>
+<p>Let’s make the OLS claim visible before proving it. The simulation creates a population relationship in which the true intercept is ten and the true slope beta one is two. In each repetition, it draws n equals one hundred x values with substantial variation, draws independent mean-zero errors, constructs y as ten plus two times x plus u, runs the regression of y on x, and stores the estimated slope. Independence of x and u is built into this artificial world, so zero conditional mean holds by construction. The entire process is repeated B equals one thousand times.</p>
+<p>The histogram collects those one thousand values of beta-one-hat. The horizontal axis is labeled “Estimate of beta one,” so moving right means a larger estimated slope. The vertical axis is the number of simulation repetitions falling into each of the forty bins. The blue outlines distinguish the histogram bars, and the red vertical line is placed at the true beta one, which is two. With the seed used on this slide, the estimates range roughly from one point four six to two point five three, and their average is about two point zero one. The exact collection is a simulation outcome, but the important visual feature is that the pile is centered at the red line.</p>
+<p>Read the callout carefully. Individual estimates land on both sides of two, sometimes quite far from it. Any one of those values could have been the estimate from our only observed dataset. Unbiasedness does not promise that a particular estimate is correct or even close. It says that the estimation rule has no systematic tendency to miss in one direction across repeated samples. Now flip to Conditions, because that center-at-two result was engineered by assumptions, especially the way we generated u relative to x.</p>
 </details>
 <p>We did this for the sample mean two tabs ago. Here it is for the estimator this lecture is actually about: draw a fresh sample, run OLS, keep <span class="math inline">\widehat{\beta}_1</span>, and repeat 1,000 times. The true <span class="math inline">\beta_1</span> is <span class="math inline">2</span>.</p>
 <div id="qwebr-insertion-location-4"></div>
@@ -2900,7 +3124,9 @@ Transcript
 <summary>
 Transcript
 </summary>
-<p>Four conditions buy us unbiasedness, and here is the first. Linear in parameters: in the population, y really is beta-zero plus beta-one x plus u. Notice what this is and is not saying. It is an assumption about the world, not about your data or your method. And the word linear refers to the parameters, not to x. You are allowed to put x squared or log x on the right-hand side and still be linear in this sense, which is lecture seven. If the world genuinely is not of this form, everything downstream is estimating something that does not exist.</p>
+<p>Four conditions give us the finite-sample unbiasedness result, and this tab states SLR point one, linear in parameters. The population model says y equals beta zero plus beta one times x plus u. Here y is the dependent variable we want to explain, x is the explanatory variable, beta zero is the population intercept, beta one is the population slope, and u is the error or disturbance. The error collects every determinant of y that is not represented by the systematic part beta zero plus beta one x.</p>
+<p>This is an assumption about the population relationship that generated the data, not a statement that the plotted sample points must lie exactly on a line. The points generally do not lie on the line because u differs across observations. The slope beta one says how the systematic part of y changes when x rises by one unit. The intercept beta zero is that systematic value when x equals zero, whether or not zero is meaningful in the application.</p>
+<p>Also be precise about the phrase “linear in parameters.” Beta zero and beta one enter as coefficients without being squared, logged, or otherwise transformed. The explanatory variable itself can later appear as x squared, log x, or another known transformation and the model can still be linear in its parameters. That extension comes later in the course. For this simple-regression lecture, the maintained population model has one x and one slope. If this representation is not appropriate, the beta one whose unbiased estimation we are about to prove may not describe the relationship you intend to study. The note at the bottom simply tells you that SLR point one and the numbering used here follow Wooldridge’s textbook.</p>
 </details>
 <div title="Linear in Parameters">
 <div class="callout callout-note no-icon callout-titled callout-style-default">
@@ -2924,7 +3150,9 @@ y=\beta_0+\beta_1 x+u
 <summary>
 Transcript
 </summary>
-<p>Second, random sampling. Your n observations have to be drawn at random from the population you claim to be studying. The example on screen is the classic failure: you observe income and education only for people earning above twenty-five thousand. You have not sampled the population, you have sampled a slice of it, chosen using the very outcome you are studying. The distinction in red is worth keeping. Sampling on something unrelated to your question is largely harmless, which is what exogenous means here. Sampling on the outcome, or on the error, is endogenous, and it will bias you.</p>
+<p>SLR point two concerns how observations enter the sample. The notation in the callout describes n observed pairs, x-i and y-i, indexed from i equals one through n, that follow the same population model. A random sample means the observations are independently drawn from the target population and each draw follows that same distribution. This lets us connect sample averages and repeated-sample expectations to population quantities, and it lets the zero-conditional-mean condition for one population draw carry over observation by observation.</p>
+<p>The income and education example shows why the target population matters. If your target is all workers but you observe only people with income above twenty-five thousand dollars, inclusion depends directly on y, the outcome. The low-income part of the population is absent by design. The relationship between education and income within that selected group need not equal the relationship in the full population, so you cannot casually interpret the selected sample as random from all workers.</p>
+<p>The two red terms distinguish kinds of non-random sampling. Exogenous sampling means selection is unrelated to the unobserved determinants of the outcome once the relevant explanatory variables are accounted for. Such a design may still change which population your conclusions describe, but it need not bias the conditional slope for that population. Endogenous sampling means inclusion is related to the outcome or to the unobserved error in a way that distorts the relationship we want. Sampling only above an income threshold is the warning example. The exact consequences depend on the selection rule, so we will treat sampling problems more carefully later. For now, do not reduce “I have many observations” to “I have a random sample.” Sample size cannot repair systematic selection.</p>
 </details>
 <div title="Random sampling">
 <div class="callout callout-note no-icon callout-titled callout-style-default">
@@ -2954,7 +3182,9 @@ Transcript
 <summary>
 Transcript
 </summary>
-<p>Third, and this is the gentlest of the four: x cannot take the same value for everybody. Look back at the formula for beta-one-hat and you will see why immediately. The denominator is the sum of squared deviations of x from its mean. If every x is identical, that denominator is zero and you are dividing by nothing. Intuitively it is even more obvious. If nobody in your sample differs in x, the data contains no information at all about what happens when x changes. R will simply refuse, which makes this the friendliest condition to check.</p>
+<p>SLR point three requires variation in the explanatory variable. The notation in the callout means that the observed values x-one through x-n are not all identical. This is the gentlest assumption because you can check it directly in the data, and because its failure makes estimation impossible rather than silently misleading.</p>
+<p>Look back at the OLS slope formula. Its denominator is the sum, over i, of x-i minus x-bar squared. We call that quantity SST-x. If every observation has the same x value, then that common value is also x-bar. Every deviation is zero, SST-x is zero, and beta-one-hat would require division by zero. There is no finite slope estimate.</p>
+<p>The intuition is the same as the algebra. A slope describes how y changes as x changes. If x never changes in your sample, no comparison in the data reveals that relationship. For example, if every field received exactly the same fertilizer rate, that sample cannot tell you how yield responds to fertilizer, no matter how many fields you observed. Software will normally mark the slope as unidentified or remove the constant regressor. Later, when we study variance, you will see a graded version of this issue: even if x is not perfectly constant, very little variation in x makes the slope estimate imprecise.</p>
 </details>
 <div title="Variation in covariates">
 <div class="callout callout-note no-icon callout-titled callout-style-default">
@@ -2974,7 +3204,10 @@ Transcript
 <summary>
 Transcript
 </summary>
-<p>Fourth, and this is the one that will occupy the rest of your career: zero conditional mean. The expected value of u given x is zero, so whatever value of x you look at, the unobservables average out to the same thing. You met this last lecture. Combined with random sampling it applies observation by observation, which is the second equation. Zero conditional mean implies that x and u are uncorrelated, but the reverse is not generally true. Of the four conditions, three are comparatively easy to check or satisfy. This one cannot be verified from the observed data alone, and it is where the rest of this course lives.</p>
+<p>SLR point four is zero conditional mean, and it is the crucial identifying assumption. The first equation says the expected value of u conditional on x equals zero. In spoken terms, take all population units with any particular value of x and average the omitted influences collected in u. That average must be zero for every x value. Equivalently, knowing x must not give you a systematic prediction about whether the error is positive or negative. This allows the conditional mean of y given x to be beta zero plus beta one x.</p>
+<p>Under random sampling, each observed pair follows that population condition, giving the second equation, expected u-i given x-i equals zero. For the proof, we condition on the full set of sample x values, bold x. Independence across randomly sampled observations means the other observations’ x values add no information about u-i, so expected u-i given bold x is also zero. That is the expectation we will use to make the error term disappear.</p>
+<p>The important callout separates zero conditional mean from zero correlation. If expected u given x is zero at every x, then the covariance between x and u is zero, so x and u are uncorrelated. The reverse need not hold. Correlation measures only linear association. U can depend systematically on x in a nonlinear way while having zero covariance, in which case expected u given x is not zero. Therefore checking a sample correlation, even if u were observable, would not establish SLR point four.</p>
+<p>Substantively, this assumption rules out omitted determinants of y that are systematically related to x, reverse causality that makes x respond to y, and some forms of measurement error and selection. Unlike variation in x, it cannot be verified from the observed x and y alone because u is unobserved. You must defend it using knowledge of how the data and treatment were generated. That is why this condition, and methods for dealing with its failure, occupy so much of econometrics.</p>
 </details>
 <div title="Zero conditional mean">
 <div class="callout callout-note no-icon callout-titled callout-style-default">
@@ -3021,7 +3254,10 @@ E[u_i|x_i]=0
 <summary>
 Transcript
 </summary>
-<p>This is the proof, in three steps, and it is worth following once. We start from the OLS formula and clean it up. The first move drops y-bar out of the numerator, which is legitimate because the sum of x-i minus x-bar is zero, so anything multiplied by it disappears. Then we name the denominator SST-x, purely to keep the writing short. Then comes the substitution that matters: replace y-i with what the model says it is, beta-zero plus beta-one x-i plus u-i. That is the step where the truth enters the algebra.</p>
+<p>This proof shows exactly why OLS is unbiased, so follow each equality rather than memorizing the final statement. The first line is the usual OLS slope estimator. Beta-one-hat equals the sum, from i equals one to n, of x-i minus x-bar times y-i minus y-bar, divided by the sum of x-i minus x-bar squared.</p>
+<p>On the second line, y-bar disappears from the numerator. To see why, distribute x-i minus x-bar across y-i minus y-bar. One term is the sum of x-i minus x-bar times y-i. The other is minus y-bar times the sum of x-i minus x-bar. The deviations from a sample mean always sum to zero, so that second term is zero. This is an algebraic identity in every sample, not an assumption.</p>
+<p>The third line introduces the abbreviation SST-x for the denominator, the total sum of squares of x: the sum of all squared deviations from x-bar. No mathematics changes there; the new name only makes the remaining lines readable.</p>
+<p>On the fourth line, replace each observed y-i with beta zero plus beta one x-i plus u-i. That substitution comes from SLR point one, the population model. This is where the true parameters and the unobserved error enter the estimator’s formula. Finally, the fifth line distributes x-i minus x-bar across the three terms and splits one sum into three sums. Because beta zero and beta one are population constants, they can be placed inside or outside their respective sums. We now have an intercept component, a slope component, and an error component. Flip to Step 2 to simplify each of them.</p>
 </details>
 <p><span class="math display">
 \def\sumn{\sum_{i=1}^{n}}
@@ -3039,7 +3275,10 @@ Transcript
 <summary>
 Transcript
 </summary>
-<p>Now we tidy up the three pieces. The first has beta-zero multiplied by the sum of x-i minus x-bar, and we just said that sum is zero, so the whole term vanishes. The second contains the sum of x-i minus x-bar times x-i, and there is a small identity worth knowing: that equals the sum of squared deviations, which is SST-x itself. So the second term collapses to beta-one times SST-x over SST-x, which is simply beta-one. Everything has cancelled except beta-one and one remaining term built out of the errors.</p>
+<p>Step 2 simplifies the three numerator pieces from the previous tab. Start with the first displayed line. The intercept component is beta zero times the sum of x-i minus x-bar. Since deviations from the sample mean sum to zero, that entire component vanishes.</p>
+<p>The second displayed equation gives the identity needed for the slope component. We want to simplify the sum of x-i minus x-bar times x-i. Write x-i as x-i minus x-bar plus x-bar. Multiplying gives x-i minus x-bar squared, plus x-bar times x-i minus x-bar. When we sum over i, the second part is x-bar times a sum of deviations, so it is zero. The part that remains is the sum of squared deviations, exactly SST-x. This identity is again pure sample algebra.</p>
+<p>Substitute both results into the final display. The numerator becomes beta one times SST-x plus the sum of x-i minus x-bar times u-i. Dividing every term by SST-x makes the first fraction beta one, because SST-x cancels. SLR point three guarantees that SST-x is not zero, so this division is legitimate.</p>
+<p>We have now reached the key decomposition: beta-one-hat equals the true beta one plus one over SST-x times the sum of x deviations multiplied by their errors. The estimation error, beta-one-hat minus beta one, is therefore a weighted combination of the u-i’s, with weights determined by where each x-i lies relative to x-bar. All of the possible bias must come from the average behavior of that remaining error component. Step 3 takes its expectation.</p>
 </details>
 <p><span class="math display">
 \def\sumn{\sum_{i=1}^{n}}
@@ -3067,7 +3306,11 @@ Transcript
 <summary>
 Transcript
 </summary>
-<p>And here is the punchline, on a single line. Beta-one-hat equals beta-one, plus a term made entirely out of the error terms. The estimator is the truth plus contamination. So take expectations conditional on the x values. Beta-one is a constant and passes through untouched. The second term survives only through the expected value of u-i given x. Set that to zero, which is exactly condition four, and it vanishes, leaving beta-one. Read the note: when there is bias, it is precisely that surviving term. This algebra is behind every warning I will give you this semester.</p>
+<p>The first line repeats the decomposition we just derived: beta-one-hat is the true beta one plus one over SST-x times the sum of x-i minus x-bar times u-i. Think of it as truth plus a sample-dependent error term. To establish unbiasedness, we must show that this second term has expected value zero.</p>
+<p>The next display takes an expectation conditional on bold x, meaning the full collection x-one through x-n observed in the sample. Conditional on those x values, x-bar and SST-x are fixed numbers, as are all the weights x-i minus x-bar. Beta one is a fixed population parameter, so its conditional expectation is just beta one. Linearity of expectation lets us move one over SST-x outside the expectation, split the expectation across the sum, and leave only expected u-i given bold x inside. That justifies the move from the first conditional-expectation line to the second.</p>
+<p>Now SLR point four does the decisive work. Together with random sampling, it gives expected u-i conditional on bold x equals zero for every observation. Replace each conditional error expectation by zero and the entire weighted sum vanishes. What remains is expected beta-one-hat given bold x equals beta one. This is conditional unbiasedness: for any admissible set of x values, repeated realizations of the errors center the slope estimator on the truth.</p>
+<p>The last line applies the law of iterated expectations. First take the expected conditional expectation over the possible bold-x samples. Since the inner expectation is always beta one, the unconditional expectation of beta-one-hat is also beta one. That is the desired small-sample result.</p>
+<p>The callout tells you what to remember when the proof is no longer in front of you. SLR point four makes the bias term disappear. If zero conditional mean fails, expected u-i given bold x need not be zero, so the weighted error component can survive in expectation. Its sign and size then determine the bias. This decomposition is the foundation for later discussions of omitted-variable bias, endogeneity, and strategies that restore credible identification.</p>
 </details>
 <p><span class="math display">
 \def\sumn{\sum_{i=1}^{n}}
@@ -3117,7 +3360,9 @@ E[\widehat{\beta}_1|\mathbf{x}] = &amp; \beta_1 \\\\
 <summary>
 Transcript
 </summary>
-<p>So what does all this mean for you, as somebody who will actually run these regressions? Three things, and not one of them is mathematical. You have to be able to judge whether those four conditions hold in your particular setting, because nobody else can do it for you; it depends on the institutions and the behaviour that generated your data. You have to know what to do when one of them fails. And underneath both, you have to know your context well enough to make the call. That is why economists specialise in fields rather than in estimators.</p>
+<p>So what does the proof require from you as an applied researcher? The three bullets describe connected skills. First, you must judge whether the assumptions are credible in the particular setting. SLR point three can be checked from the observed variation in x, but random sampling and especially zero conditional mean require an argument about who entered the data, how x was determined, and what relevant forces sit in u. A regression command cannot make that judgment for you.</p>
+<p>Second, when an assumption fails, you need to understand the consequence and choose a correction when one exists. A lack of x variation may require a different sample or research design. Non-random selection may require redefining the target population or modeling selection. Failure of zero conditional mean may require additional controls, a randomized experiment, fixed effects, instrumental variables, or another design we will study later. Different violations require different responses; there is no universal “fix regression” button.</p>
+<p>Third, both tasks depend on substantive knowledge. You need to know the institutions, timing, incentives, measurement process, and behavior that generated the variables. That knowledge tells you which omitted factors are plausible, whether they are related to x, and whether a proposed remedy is believable. This is why good empiricists are not merely good at algebra or software, and why economists specialize in fields. The estimator supplies a conditional guarantee. Your contextual reasoning determines whether its conditions describe the application.</p>
 </details>
 <p>Good empiricists</p>
 <ul>
@@ -3131,7 +3376,9 @@ Transcript
 <summary>
 Transcript
 </summary>
-<p>Let’s practise that judgement on the regression from last lecture. Price on lot size, with u holding everything else. Take the two questions seriously. What is in u? Location, above all, but also the number of bedrooms, the condition of the house, whether there is a garage. Now the second question, which decides whether your estimate means anything at all. Is any of that correlated with lot size? Think about where the large lots are. They are in the suburbs, and suburban houses differ from downtown houses in a dozen ways at once. So no, I do not believe this one.</p>
+<p>Let’s practice that judgment on the simple house-price regression. The equation says price equals beta zero plus beta one times lot size plus u. Price is measured in dollars and is the dependent variable. Lot size is the explanatory variable. Beta one is the population change in predicted house price associated with one additional unit of lot size under this model. Beta zero is the predicted price at a lot size of zero, which is needed to position the line even though that intercept may have little economic meaning. The error u contains every determinant of price omitted from this one-variable equation.</p>
+<p>The first question asks you to make that error concrete. It could include location and school district, floor area, bedrooms and bathrooms, age, physical condition, renovations, garage space, neighborhood amenities, local taxes, and the timing of the sale. It also includes measurement error and idiosyncratic bargaining or seller circumstances. Saying “everything else” is mathematically compact, but an assumption can only be evaluated after you name the important pieces.</p>
+<p>The second question is whether the conditional mean of that collection is zero at every lot size. The slide gives the rough correlation version to build intuition, but remember that zero conditional mean is stronger than zero correlation. Large lots may be concentrated in suburbs or wealthier neighborhoods; they may also accompany larger, newer, or higher-quality houses. If those omitted price determinants systematically rise or fall with lot size, expected u given lot size is not zero. Then the simple OLS slope mixes the effect associated with lot size with the effects of those omitted characteristics, and the unbiasedness proof no longer goes through. The regression still produces a number. What fails is the causal or structural interpretation you hoped beta one would have. This is the practical reason we spent time on SLR point four.</p>
 </details>
 <p><strong>Reconsider the following example</strong></p>
 <p><span class="math display">
@@ -3153,7 +3400,9 @@ price=\beta_0+\beta_1\times lotsize + u
 <summary>
 Transcript
 </summary>
-<p>I want to close this section by being blunt about what unbiasedness does not give you. It says nothing whatever about the estimate sitting in front of you. Go back to that pile of simulated estimates: the estimator there was perfectly unbiased, and there were still runs that came back badly wrong. Yours could be one of them, and no diagnostic will tell you. What unbiasedness buys is a guarantee about the procedure, not about the result. That is genuinely worth having, but it is weaker than most people assume when they report a coefficient.</p>
+<p>I want to close this section by being precise about what unbiasedness does not give you. The first bullet says it tells you nothing definitive about the numerical estimate from the one sample in front of you. Unbiasedness is the equation expected beta-one-hat equals beta one across repeated samples. It is not the equation beta-one-hat equals beta one in this sample, and it does not let you recover the realized estimation error beta-one-hat minus beta one because beta one is unknown.</p>
+<p>The second bullet follows directly. Even when every assumption holds and the estimator is perfectly unbiased, random sampling can produce an unlucky dataset whose slope estimate lies far from the true slope. The simulation pile showed exactly that: estimates on both sides of two, including some much farther away, all generated by the same unbiased procedure. Our actual sample could correspond to any one draw from such a distribution. We cannot rerun history to see where it sits, and there is no diagnostic that certifies this particular coefficient is close to beta one.</p>
+<p>What unbiasedness buys is a guarantee against systematic overestimation or underestimation by the procedure. That is valuable, but incomplete. We also want to know how widely estimates tend to scatter, because a narrow unbiased distribution makes a large miss less likely than a wide unbiased distribution. That leads directly to the variance of the OLS estimator on the next slide.</p>
 </details>
 <ul>
 <li><p>Unbiasedness property of OLS estimators says <span style="color: blue;"> nothing </span> about the estimate that we obtain for a given sample</p></li>
@@ -3174,7 +3423,9 @@ Transcript
 <summary>
 Transcript
 </summary>
-<p>That brings us to the second property, and to the natural next question. If estimates scatter, how much do they scatter? OLS estimators are random variables, not because there is anything mystical about them, but simply because they are computed from data, and a different sample gives a different number. The variance of an OLS estimator measures how wide that pile of estimates is. Unbiasedness told us where the pile is centred. Variance tells us how tightly it is packed. You want both: centred on the truth, and narrow.</p>
+<p>That brings us to the second property and the natural next question. If OLS estimates change from sample to sample, how much do they change? The first bullet calls the estimators random variables because beta-zero-hat and beta-one-hat are functions of random sample data. Before the sample arrives, y, x, and the unobserved disturbances u can take different realized values, so the estimates calculated from them are not yet known. After we observe one sample, each estimate becomes a fixed number, but it is still one realization of a random estimator.</p>
+<p>The variance of an estimator measures its repeated-sampling spread around its own expected value. A small variance means different samples tend to produce similar estimates. A large variance means the estimate is sensitive to which observations happened to be drawn. Connect this to the last section: unbiasedness tells us whether the sampling distribution is centered at the true parameter; variance tells us how tightly or loosely the distribution is packed around that center. We prefer an estimator that is both centered on the truth and tightly concentrated, but one property does not imply the other.</p>
+<p>The notation in the third bullet, variance of beta-hat OLS, can refer to the variance of either OLS coefficient estimator, beta-zero-hat or beta-one-hat. This lecture will focus on the slope. We will first compare two familiar estimators to see why spread matters, then derive the slope-variance formula and ask what features of the data make that variance larger or smaller.</p>
 </details>
 <ul>
 <li><p>OLS estimators are random variables because <span class="math inline">y</span>, <span class="math inline">x</span>, and <span class="math inline">u</span> are random variables (this just means that you do not know the estimates until you get samples).</p></li>
@@ -3187,7 +3438,9 @@ Transcript
 <summary>
 Transcript
 </summary>
-<p>Here is why variance matters even when bias does not. Two estimators of the same expected value. The smart one averages all thousand observations. The naive one averages the first ten and throws the other nine hundred and ninety away. Both are unbiased, as the line above the figure says, so on the criterion we spent the last section on they are tied. Now look at the picture. The smart estimator’s distribution is a narrow spike; the naive one is a wide hill. Same centre, wildly different reliability. Unbiasedness on its own would happily let you pick the bad one.</p>
+<p>Here is why variance matters even when two estimators have exactly the same bias. Both displayed formulas estimate the population expected value of x. Theta-smart is one over n times the sum of all x-i from i equals one through n, with n equal to one thousand. It is the ordinary sample mean using every observation. Theta-naive is one tenth times the sum of only x-one through x-ten. It ignores observations eleven through one thousand even though they are available.</p>
+<p>Under random sampling, both estimators are unbiased. Each observation has expected value equal to the population mean, so averaging either one thousand observations or ten observations leaves that same expectation. Unbiasedness therefore cannot distinguish them. Their variances can. If each x has variance sigma-x-squared and the observations are independent, theta-smart has variance sigma-x-squared over one thousand, while theta-naive has variance sigma-x-squared over ten. The naive estimator’s variance is one hundred times as large, and its standard deviation is ten times as large.</p>
+<p>The figure shows that difference using one thousand simulated samples from a standard normal population. The horizontal axis is the sample-mean estimate. The vertical axis is density, so each filled curve has total area one rather than showing a raw count. Use the legend at the bottom to match each fill to the Smart and Naive estimators. Both distributions are centered near the true mean of zero, confirming that both rules are unbiased. But the Smart curve is a narrow, tall spike near zero, while the Naive curve is a much wider, flatter hill. In this run their simulated standard deviations are about zero point zero three one and zero point three one two, almost exactly the ten-to-one theoretical ratio. Using more independent information makes the estimator much more precise. That is the sense in which one unbiased estimator can be better than another.</p>
 </details>
 <p>Consider two estimators of <span class="math inline">E[x]</span>:</p>
 <span class="math display">\begin{align*}
@@ -3204,7 +3457,10 @@ Transcript
 <summary>
 Transcript
 </summary>
-<p>Here is the formula, and it is simple enough to memorise. The variance of beta-one-hat is sigma squared over SST-x. Sigma squared is the variance of the error term; SST-x is the total variation in your explanatory variable. Note the condition attached at the top: this requires the variance of u given x to be constant, which has a name we meet shortly. Below is the standard error, which is just the square root of the variance. Standard error is the phrase you will actually see in output, and it is the number that decides whether anyone believes your coefficient.</p>
+<p>Now look at the true sampling variance of the OLS slope. The statement above the formula gives all of its conditions. We retain SLR point one through SLR point four from the unbiasedness result, and we add that the conditional variance of u given x equals sigma squared. Sigma squared is one constant positive number, so the spread of the error is assumed to be the same at every x. We will name and visualize that assumption in the next section.</p>
+<p>Conditional on the sample x values, the variance of beta-one-hat is sigma squared divided by the sum, from i equals one through n, of x-i minus x-bar squared. The denominator is SST-x, the total sample variation in the explanatory variable. The formula is written without the conditioning bar on this slide, but the x values in SST-x are treated as fixed when we derive and use this expression. “True” means the formula contains the population error variance sigma squared, not an estimate of it.</p>
+<p>The second display defines the standard error. Here standard error means the standard deviation of the estimator’s sampling distribution. Taking the square root of sigma squared over SST-x gives sigma over the square root of SST-x. Sigma is the standard deviation of the population error, and root SST-x scales it by the amount of identifying variation in x. Variance is measured in squared coefficient units; the standard error is in the same units as beta-one-hat, which makes it easier to compare with the estimated coefficient.</p>
+<p>Do not confuse this true standard error with the number software prints. Sigma is unknown because u is unobserved, so the true quantity cannot be calculated directly. Later on this slide deck we replace sigma squared with an estimator and obtain an estimated standard error. That estimated standard error is the key input to confidence intervals and hypothesis tests, so the distinction between a coefficient’s sampling uncertainty and the coefficient itself will matter throughout the course.</p>
 </details>
 <p><strong>(True) Variance of the OLS Estimator</strong></p>
 <p>If <span class="math inline">Var(u|x)=\sigma^2</span> and the four conditions (we used to prove unbiasedness of the OLS estimator) are satisfied,</p>
@@ -3228,7 +3484,9 @@ Transcript
 <summary>
 Transcript
 </summary>
-<p>Two lessons come straight out of that formula, and both are practical. First, the noisier the world, meaning a bigger sigma squared, the less precise your estimate. That one you can rarely do anything about. Second, and this is the useful one, the more your x varies, the smaller the variance. Look at where SST-x sits: in the denominator. So if you are designing an experiment, spread your treatment values as widely as you can. Do not test nitrogen rates of a hundred and a hundred and ten. And as the last bullet admits, most of the time you inherit your data and have no such luxury.</p>
+<p>This slide reads the comparative statics directly from variance of beta-one-hat conditional on x equals sigma squared over SST-x. Start with the numerator. Sigma squared is the conditional variance of u, the collection of influences on y that our model does not explain. Holding the x values fixed, a larger sigma squared makes the slope variance larger in the same proportion. The data cloud is noisier around the population line, so different samples can support more different fitted slopes. A smaller error variance makes the relationship easier to estimate precisely.</p>
+<p>Now look at the denominator. SST-x is the sum of squared distances between each x-i and x-bar. When the x values are more spread out, SST-x is larger and the variance of beta-one-hat is smaller. Observations far apart in x give us a clearer comparison of how y changes with x. When all x values cluster tightly together, many different slopes can fit nearly equally well, so the slope estimate is less precise. At the extreme of no variation, SST-x is zero and SLR point three fails.</p>
+<p>The experiment bullet turns that result into design advice. If you can assign treatment levels, using well-separated values of x can reveal the response slope more precisely than concentrating every treatment near the same value, subject to scientific, ethical, and practical constraints. Increasing the number of observations also tends to increase SST-x when new observations add genuine x variation. But the last bullet is realistic: with observational data, you usually inherit the support and distribution of x and cannot spread it yourself. Also remember that changing x’s measurement units changes both SST-x and the numerical units of the slope, so a smaller numerical variance after rescaling is not free information. The meaningful lesson is more independent variation in the underlying explanatory variable.</p>
 </details>
 <p><strong>Variance of the OLS estimators</strong></p>
 <p><span class="math display">Var(\widehat{\beta}_1|x) = \sigma^2/SST_x</span></p>
@@ -3257,7 +3515,9 @@ Transcript
 <summary>
 Transcript
 </summary>
-<p>Two words you will hear constantly, so let’s define them precisely. Homoskedasticity: the variance of the error term is the same at every value of x, so the spread of the unobservables does not depend on where you are along the x axis. Heteroskedasticity: it does depend on x, so the variance is some function of x. That is the entire distinction. And notice that neither says anything about the average of the error; that was condition four, and it is a separate matter. This is about spread, not centre, and the next tab draws both.</p>
+<p>These two terms describe the conditional variance of the error. Homoskedasticity means variance of u given x equals the same constant sigma squared for every possible x. If you group otherwise comparable observations by x, the unobserved influences on y have the same spread in every group. The “homo” part means same, and “skedasticity” refers to variance or dispersion.</p>
+<p>Heteroskedasticity means that conditional spread changes with x. The slide writes variance of u given x equals f of x, meaning some function of x rather than one constant. The variance might rise with x, fall with x, or change in a more complicated pattern. We do not need to know the exact function to say the errors are heteroskedastic.</p>
+<p>Keep this separate from SLR point four. Zero conditional mean concerns the center of the error distribution: expected u given x equals zero. Homoskedasticity concerns its spread around that center. Errors can have mean zero at every x while their variance changes with x. They can also have constant variance while their conditional mean is wrong. Homoskedasticity does not require u to be normally distributed, either. Under zero conditional mean, heteroskedasticity does not by itself bias the OLS coefficients, but it changes their variance and invalidates the homoskedastic standard-error formula. Flip to Visualization to see the distinction as a change in the thickness of the data cloud.</p>
 </details>
 <p><strong>Homoskedasticity</strong></p>
 <p>The error <span class="math inline">u</span> has the same variance given any value of the covariate <span class="math inline">x</span> <span class="math inline">(Var(u|x)=\sigma^2)</span></p>
@@ -3270,7 +3530,10 @@ Transcript
 <summary>
 Transcript
 </summary>
-<p>Here they are side by side, both generated from the same true line. In the top panel the cloud has a constant thickness: the band of points is as wide at x equals fifty as it is at x equals two hundred. That is homoskedastic. In the bottom panel the cloud fans out; at low x the points hug the line, at high x they scatter far above and below. That is heteroskedastic. Now look at the line itself in both panels. It is the same line, correctly placed. Heteroskedasticity does not move your estimate. It changes how confident you are entitled to be about it.</p>
+<p>This figure puts the two error structures into otherwise identical data-generating processes. The horizontal axis is x, taking values from forty through two hundred. The vertical axis is y. In both panels, the systematic population relationship is y equals one hundred plus zero point five times x, shown by the same upward-sloping black line. For every x value, the simulation adds many mean-zero normal errors, so the center of the point cloud remains on that line in both panels.</p>
+<p>Look first at the top facet labeled Homoskedastic. The error standard deviation is twenty at every x. As you move from left to right, the vertical band of points stays approximately the same thickness. Some observations lie above the line and some below, but their typical distance from it does not systematically depend on x. That is variance of u given x equals a constant.</p>
+<p>Now look at the lower Heteroskedastic facet. Here the error standard deviation increases with x. At x equals forty it is sixteen, while at x equals two hundred it is eighty. The points therefore hug the population line more closely on the left and fan farther above and below it on the right. The conditional mean is still zero, so the fan remains centered on the same line. The horizontal and vertical reference lines at zero simply mark the coordinate origins; the displayed x values are positive, so the vertical origin may lie outside the visible data region.</p>
+<p>The visual lesson is about spread, not center. Under the other simple-regression assumptions, heteroskedasticity alone does not systematically move the OLS slope away from beta one. It does mean that observations carry different amounts of noise, that the simple sigma-squared-over-SST-x variance formula is no longer correct, and that OLS no longer has the same Gauss-Markov efficiency claim. The next tab shows the same fan shape in actual house-price data.</p>
 </details>
 <div id="qwebr-insertion-location-6"></div>
 <noscript>Please enable JavaScript to experience the dynamic code cell content on this page.</noscript>
@@ -3280,7 +3543,10 @@ Transcript
 <summary>
 Transcript
 </summary>
-<p>And here is the same thing in data nobody manufactured. Look at the left-hand side of the cloud, at the small lot sizes: those prices sit inside a fairly narrow band. Now look at the right, at the large lots, where prices are scattered enormously, from quite cheap to very expensive. That fanning shape is heteroskedasticity in the wild, and it is what you should expect to find. It makes sense, too: big lots come in far more varieties than small ones. The lesson to carry forward is that homoskedasticity is the unusual case, not the default.</p>
+<p>The previous tab used simulated points whose variance pattern we chose. This figure uses the HousePrices data, so now the horizontal axis is observed lot size and the vertical axis is house price in dollars. Each point is one house sale. The data contain five hundred forty-six observations, with lot sizes ranging from about one thousand six hundred fifty to sixteen thousand two hundred and prices from twenty-five thousand to one hundred ninety thousand dollars.</p>
+<p>The smooth black line is the fitted OLS regression of price on lot size. It summarizes the positive association in the sample: larger lots tend to be attached to more expensive houses. The code suppresses the confidence band, so the line itself, not a shaded interval, is what you see. Do not read that line as a causal effect without revisiting the omitted-variable concerns from the earlier house-price slide.</p>
+<p>For heteroskedasticity, focus on vertical spread around the line. On the left, where lots are small, observed prices occupy a relatively narrow vertical band. As lot size increases, the cloud opens up. Houses with large lots include both moderately priced and very expensive properties, so their vertical deviations from the fitted relationship are much more dispersed. That widening fan is evidence that variance of u given lot size is unlikely to be one constant.</p>
+<p>The pattern is economically plausible because scale often increases the range of possible outcomes: large-lot properties can differ greatly in floor area, location, quality, and amenities. Similar variance patterns appear with income, firm size, expenditure, and many other economic variables. That is why the red word “widens” and the final sentence matter. Homoskedasticity is a useful benchmark for deriving formulas, but heteroskedasticity is common in real data, so later we will use standard errors designed to remain valid when the conditional variance changes.</p>
 </details>
 <p>The previous tab was manufactured. Here is the same thing in real data: look at how the vertical spread of the points <span style="color: red;"> widens </span> as lot size grows. Small lots sell within a narrow band; large lots are all over the place. That is heteroskedasticity, and it is the normal case, not the exception.</p>
 <div id="qwebr-insertion-location-7"></div>
@@ -3291,7 +3557,9 @@ Transcript
 <summary>
 Transcript
 </summary>
-<p>This theorem is the formal answer to why we use OLS. Under the four conditions plus homoskedasticity, which gets called SLR point five, OLS is the best linear unbiased estimator, BLUE. But read the qualifiers box, because that sentence gets quoted far too loosely. Best means smallest variance. And it holds only within the class of estimators that are linear in y and unbiased. It is not a claim that nothing beats OLS. Give up the unbiasedness requirement and estimators with smaller variance do exist, which is a trade more advanced methods are happy to make.</p>
+<p>The Gauss-Markov theorem gives the formal efficiency result behind the claim that OLS is a good way to use the available information. The first callout lists the assumptions: SLR point one through SLR point four, which gave us unbiasedness, plus SLR point five, homoskedasticity. Under those conditions, the OLS coefficient estimators are BLUE, the best linear unbiased estimators.</p>
+<p>Each word limits the conclusion. “Unbiased” means the estimator’s expectation equals the true coefficient. “Linear” here means the estimator can be written as a linear function, a weighted sum, of the observed y values, with weights that may depend on the x values. It does not merely mean that the population regression line is linear in x. “Best” means smallest conditional variance among estimators in that linear-and-unbiased class. For the slope, no other linear unbiased rule has a lower variance than beta-one-hat for the same x values. This is an efficiency comparison, not a statement that the estimate is correct in the realized sample.</p>
+<p>Now read the second callout, because BLUE is often repeated without its qualifiers. The theorem does not say OLS beats every imaginable estimator under every loss criterion. An estimator that permits some bias can have smaller variance and potentially smaller mean squared error, which combines squared bias and variance. Nor does the theorem say OLS remains efficient when homoskedasticity fails. With heteroskedastic errors, OLS can remain unbiased under SLR point one through four, but another appropriately weighted linear unbiased estimator may be more efficient. The value of the theorem is precise: under its assumptions, you cannot improve variance within the stated class while retaining linearity and unbiasedness.</p>
 </details>
 <div title="Gauss-Markov Theorem">
 <div class="callout callout-note no-icon callout-titled callout-style-default">
@@ -3326,7 +3594,9 @@ Transcript
 <summary>
 Transcript
 </summary>
-<p>Two things to keep straight, because they get conflated constantly. First, homoskedasticity is not needed for unbiasedness. Go back through the proof and you will see only condition four did any work there, so heteroskedasticity does not bias your coefficients. Second, and this is why we care, in most real applications homoskedasticity fails; you just saw it in the house price scatter. What that breaks is the variance formula, and therefore the standard errors, and therefore every test you run. Your estimate is fine. Your confidence in it is not. Lecture six is entirely about this.</p>
+<p>This tab separates two consequences that are often conflated. First, we do not need homoskedasticity to prove that OLS is unbiased. Go back to the three-step proof: after rewriting beta-one-hat as beta one plus a weighted sum of errors, zero conditional mean made the expectation of that sum vanish. Nowhere did we require the errors to have equal variance. Therefore heteroskedasticity by itself does not create coefficient bias when SLR point one through four still hold.</p>
+<p>Second, homoskedasticity does matter for the variance and standard-error formula used on the previous slide. If variance of u given x changes with x, the true variance of beta-one-hat is not simply sigma squared over SST-x because there is no single conditional sigma squared to place in the numerator. Using that formula anyway generally produces the wrong standard error. Since a significance test compares an estimate with its estimated sampling uncertainty, a wrong standard error can produce misleading t statistics, p-values, and confidence intervals.</p>
+<p>That is why the lower bullets say heteroskedasticity has important implications for estimating variance and for significance testing. The point estimate from OLS can still be centered correctly, while our conventional measure of confidence in it is wrong. In most economic applications, constant error variance is not a plausible default, as the house-price fan just illustrated. Later in the course we will derive and use heteroskedasticity-robust standard errors, which change the estimated uncertainty without changing the OLS coefficient itself.</p>
 </details>
 <ul>
 <li><p>We do <span style="color: red;"> NOT </span> need the homoskedasticity condition to prove that OLS estimators are unbiased</p></li>
@@ -3352,7 +3622,8 @@ Transcript
 <summary>
 Transcript
 </summary>
-<p>A short tab with a large motivation behind it. We have a formula for the variance of beta-one-hat, but it contains sigma squared, which is a feature of the population and therefore unknown. So we need to estimate it. And the reason we bother is right there on the screen: once you can estimate that variance, you can test whether beta-one is statistically distinguishable from zero. Every p-value you have ever seen in a regression table runs through this quantity. So the next few tabs are the plumbing behind the most-read column of every results table in economics.</p>
+<p>This is a short tab, but it supplies the motivation for everything that follows. We derived the conditional variance of beta-one-hat as sigma squared over SST-x under homoskedasticity. SST-x can be calculated from observed x values, but sigma squared is the variance of the unobserved population error, so the true variance and true standard error of the slope are unknown. We need sample-based estimates of them.</p>
+<p>The line on screen tells you why. Once we can estimate the variance of beta-one-hat, we can quantify how much the slope estimate would vary across samples and test hypotheses about beta one. A common null hypothesis is beta one equals zero, meaning no population linear relationship. We compare beta-one-hat’s distance from that null value with its estimated standard error. The resulting t statistic and its reference distribution produce a p-value, and the same estimated uncertainty produces confidence intervals. Formal testing comes later, but the plumbing begins here: estimate sigma squared, insert it into the slope-variance formula, and take a square root to obtain the estimated standard error printed beside a regression coefficient.</p>
 </details>
 <p>Once you estimate <span class="math inline">Var(\widehat{\beta}_1|x)</span>, you can test the statistical significance of <span class="math inline">\widehat{\beta}_1</span> (More on this later)</p>
 </div>
@@ -3361,8 +3632,11 @@ Transcript
 <summary>
 Transcript
 </summary>
-<p>Here is the obstacle, laid out in steps. We know the variance of beta-one-hat is sigma squared over SST-x. SST-x is fine, because it is built from x, which you observe. So everything hinges on sigma squared, the variance of the error. And there is a natural estimator for that: since the error has mean zero, its variance is the expected value of u squared, so you would just average the squared errors. The logic is sound line by line. Then the last bullet pulls the rug out. We never observe u. But we do observe the residuals.</p>
-<p>So the obvious move is to substitute what we have for what we want, and use u-hat, the residual, wherever the formula asks for u, the error. It is not an unreasonable move, because the expected difference between a residual and its error is zero; the proof is in the last tab of this slide if you want it. So the proposal is to average the squared residuals. Then read the final line, which is the twist: that estimator is biased. Not fatally, and not mysteriously. The next tab explains exactly where the problem comes from.</p>
+<p>The problem is laid out one step at a time. First, under homoskedasticity, variance of beta-one-hat conditional on x equals sigma squared over SST-x. We observe every x-i, so we can calculate x-bar, each squared deviation, and SST-x. If sigma squared were known, the slope variance would therefore be known too.</p>
+<p>Second, sigma squared is variance of u-i. By definition, variance of u-i equals expected u-i squared minus expected u-i, all squared. Zero conditional mean implies zero unconditional mean, so the second part is zero and sigma squared equals expected u-i squared. If we could observe the errors, one over n times the sum of u-i squared would average n identically distributed quantities whose expectation is sigma squared. Under the stated sampling and homoskedasticity assumptions, it would be an unbiased estimator of the error variance.</p>
+<p>The obstacle in the fourth bullet is that an error is not observed. U-i is the difference between y-i and the true population regression line, and the true beta zero and beta one are unknown. What we do observe after fitting OLS is the residual u-hat-i, the difference between y-i and the fitted sample line. Open the first fragment and the callout asks whether residuals can stand in for errors.</p>
+<p>The proposal uses the result referenced in blue and proved on the final tab: conditional on the x values, the expected difference between u-hat-i and u-i is zero under OLS unbiasedness. That makes substitution sound tempting. The next fragment proposes one over n times the sum of squared residuals as an estimator of sigma squared.</p>
+<p>But the final fragment gives the catch. An expected difference of zero in levels does not imply equal expected squares. Residuals are created by fitting the same sample, and OLS chooses the intercept and slope specifically to make their squared sum as small as possible. They are therefore constrained and, on average, have too little squared magnitude to treat all n of them as free errors. Dividing their squared sum by n biases the estimate of sigma squared downward. The next tab identifies the two constraints, and the following tab supplies the exact correction.</p>
 </details>
 <p><strong>The problem</strong></p>
 <ul>
@@ -3417,7 +3691,9 @@ Transcript
 <summary>
 Transcript
 </summary>
-<p>Here is the reason, and it goes back to the first-order conditions we derived last lecture. OLS guarantees two equations always hold: the residuals sum to zero, and x times the residuals sums to zero. Now think about what that means as bookkeeping. If I tell you n minus two of the residuals, you can solve those two equations for the remaining two. They are not free to be anything at all. So although you appear to have n residuals in front of you, only n minus two of them carry independent information. Two were spent estimating the intercept and the slope.</p>
+<p>The reason for the correction comes from the first-order conditions of the least-squares minimization problem. OLS chooses beta-zero-hat and beta-one-hat to minimize the sum of squared residuals. Differentiating that objective with respect to the intercept gives the first equation: the sum of u-hat-i from i equals one through n is zero. Differentiating with respect to the slope gives the second: the sum of x-i times u-hat-i is zero. These are algebraic properties of the fitted OLS residuals whenever the model includes an intercept.</p>
+<p>Those two equations are two linear restrictions on the n residual values. Subject to variation in x, if you know n minus two suitably chosen residuals, the two restrictions determine the remaining two. So the residuals cannot vary as n unconstrained pieces of information. Their sum must be zero, and their x-weighted sum must also be zero.</p>
+<p>The degrees-of-freedom language summarizes this bookkeeping. We began with n outcome observations, then used the sample to estimate two regression parameters, the intercept and the slope. Each estimated parameter consumes one degree of freedom, leaving n minus two residual degrees of freedom. That is why treating the residual sum of squares as though it contained n free error realizations makes its average too small. In a regression with k estimated coefficients including the intercept, the same logic leaves n minus k residual degrees of freedom. Here k equals two, so the correct denominator will be n minus two.</p>
 </details>
 <p><strong>FOCs of the minimization problem OLS solves</strong></p>
 <span class="math display">\begin{align*}
@@ -3433,7 +3709,10 @@ Transcript
 <summary>
 Transcript
 </summary>
-<p>And that is the fix: divide by n minus two rather than by n.&nbsp;That single change makes the estimator unbiased, compensating exactly for the two degrees of freedom you spent. From there it is bookkeeping. Put sigma-hat squared into the variance formula and you have the estimated variance of beta-one-hat; take its square root and you have the estimated standard error, which is the quantity printed in every regression table you will ever read. Notice the hats piling up. It is an estimate of the standard deviation of an estimator. Keep that sentence, because that is what a standard error is.</p>
+<p>The callout gives the corrected estimator of the error variance. Sigma-hat squared equals one over n minus two times the sum, from i equals one through n, of u-hat-i squared. The numerator is the residual sum of squares. The denominator is the residual degrees of freedom after estimating beta zero and beta one. Under SLR point one through five, the expected residual sum of squares conditional on x is n minus two times sigma squared. Dividing by n minus two therefore gives expected sigma-hat squared equal to sigma squared, which is the unbiasedness statement shown in parentheses.</p>
+<p>The next display inserts that estimate into the true slope-variance formula. The estimated variance of beta-one-hat, indicated by the outer hat, equals sigma-hat squared over SST-x. Keep the levels of uncertainty distinct: beta-one-hat estimates the population slope beta one, while the hatted variance estimates how beta-one-hat would vary across repeated samples.</p>
+<p>The following display moves from variance to standard error. The true standard error is sigma over root SST-x. Because sigma is unknown, replace it with the square root of sigma-hat squared. Thus the estimated standard error of beta-one-hat equals root sigma-hat squared divided by root SST-x. This is an estimate of the standard deviation of an estimator, and it is expressed in the same units as the slope coefficient.</p>
+<p>The last callout previews its use. Testing will compare beta-one-hat with a hypothesized beta one after scaling their difference by this estimated standard error. Every formula on this tab uses the homoskedastic variance assumption. When that assumption fails, the n-minus-two estimate still summarizes an average residual variance, but sigma-hat squared over SST-x is not the generally valid sampling variance of the slope. That is why robust standard errors become important later.</p>
 </details>
 <div title="Unbiased estimator of $\sigma^2$">
 <div class="callout callout-note no-icon callout-titled callout-style-default">
@@ -3473,7 +3752,10 @@ Transcript
 <summary>
 Transcript
 </summary>
-<p>And here it is in practice. Run the regression with feols, call summary, and look at the column labelled standard error. That number is the sigma-hat over root SST-x we have just built, computed for you. Everything from the last twenty minutes sits behind that one column. Two things to notice. It sits right beside the estimate, and the ratio of the two is the t-value in the next column, which is the whole of lecture five. And by default this standard error assumes homoskedasticity, which we agreed two slides ago is usually false.</p>
+<p>Here is how the calculation appears in R. The commented line at the top gives the generic base-R pattern: “ell-em, open parenthesis, dependent variable tilde independent variable, comma data equals data-name.” The tilde separates the outcome on the left from the explanatory variables on the right, and the data argument tells R which data frame contains those variable names.</p>
+<p>The live code uses the fixest package explicitly. Read the first call as “fix-est colon colon fee-ols.” The double-colon notation selects the feols function from fixest without attaching the whole package. Inside the function, “price tilde lot-size” requests an OLS regression with price as the dependent variable, lot size as the single explanatory variable, and an intercept included by default. “Data equals HousePrices” tells the function to find both columns in the HousePrices dataset. The fitted model object, including coefficients, residuals, and the information needed for inference, is stored as uni-reg.</p>
+<p>The next line calls “summary of uni-reg,” which prints the regression table. In the executed output there are five hundred forty-six observations. The lot-size coefficient estimate is about six point five nine nine, and its IID standard error is about zero point four four six. “IID” tells you this default calculation uses the independent, identically distributed, homoskedastic formula developed on these slides. The intercept estimate and its standard error appear on the row above.</p>
+<p>Look across the lot-size row. The Estimate column is beta-one-hat. The Std. Error column is the estimated standard error we just derived. The t value, about fourteen point eight, is the estimate divided by its standard error for the null hypothesis beta one equals zero. The very small p-value in the next column is based on that statistic. We will explain that test formally later. For now, recognize that the standard-error column condenses the residual sum of squares, the n-minus-two correction, and the variation in lot size into one measure of sampling uncertainty. Also remember the warning from the previous slide: the house-price plot looked heteroskedastic, so an IID standard error is a teaching benchmark, not the inferential choice we will ultimately prefer.</p>
 </details>
 <div id="qwebr-insertion-location-8"></div>
 <noscript>Please enable JavaScript to experience the dynamic code cell content on this page.</noscript>
@@ -3483,7 +3765,10 @@ Transcript
 <summary>
 Transcript
 </summary>
-<p>This is the proof I promised back on the Proposal tab, and the conditioning matters. Write the same y two ways: once with the true parameters and the error, once with the estimated parameters and the residual. Set them equal and rearrange. Conditional on the full set of observed x values, OLS is unbiased and each x-i is fixed, so both coefficient-estimation errors have conditional expectation zero. Therefore the residual minus the error also has conditional expectation zero. This does not mean their squares have the same expectation; that is why the degrees-of-freedom correction was necessary.</p>
+<p>This final tab proves the statement used on the Proposal tab, and it also clarifies the difference between an error and a residual. The first pair of equations writes the same observed y-i in two ways. The population equation is y-i equals beta zero plus beta one x-i plus u-i. Beta zero and beta one are the true, unknown parameters, and u-i is the unobserved population error. The fitted-sample equation is y-i equals beta-zero-hat plus beta-one-hat x-i plus u-hat-i. The hats mark quantities calculated from the sample, and u-hat-i is the observable residual once the regression is fitted.</p>
+<p>Now follow the algebra in the second display. The first line solves the fitted equation for the residual: u-hat-i equals y-i minus beta-zero-hat minus beta-one-hat x-i. The second line substitutes the population expression beta zero plus beta one x-i plus u-i for y-i. Subtract u-i from both sides and group like terms. That gives u-hat-i minus u-i equals beta zero minus beta-zero-hat plus beta one minus beta-one-hat, all times x-i for the slope part. In words, the difference between residual and error comes entirely from using the estimated line instead of the unknown population line.</p>
+<p>The last line takes expectations conditional on bold x, the complete set of sample x values. Conditional on bold x, each x-i is fixed. Under the assumptions used earlier, both OLS coefficient estimators are conditionally unbiased: expected beta-zero-hat given bold x equals beta zero and expected beta-one-hat given bold x equals beta one. Therefore each coefficient-estimation difference has conditional expectation zero, and expected u-hat-i minus u-i given bold x equals zero.</p>
+<p>This is a statement about the difference in levels, not equality observation by observation. A residual generally is not the corresponding error because the fitted coefficients generally differ from the true coefficients. It is also not a statement that their squares have equal expectations. OLS fitting imposes two restrictions and shrinks the residual sum of squares relative to the unobserved error sum of squares. That is exactly why replacing u-i with u-hat-i and dividing by n was biased, and why the n-minus-two degrees-of-freedom correction on the Unbiased estimator tab was necessary.</p>
 </details>
 <p><strong>Error and Residual</strong></p>
 <span class="math display">\begin{align*}

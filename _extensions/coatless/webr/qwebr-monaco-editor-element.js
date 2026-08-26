@@ -35,6 +35,16 @@ globalThis.qwebrCreateMonacoEditorInstance = function (cellData) {
       fontSize: qwebrScaledFontSize(editorDiv, qwebrOptions),         
       renderLineHighlight: "none",      // Disable current line highlighting
       hideCursorInOverviewRuler: true,  // Remove cursor indictor in right hand side scroll bar
+      // PATCHED, see RULES.md. Monaco reserves a strip at the right of the
+      // editor for the overview ruler — the map of marks beside a scrollbar —
+      // and draws a hairline border down its left side. Nothing in these decks
+      // puts a mark in it, so it is an empty ~14px band, and its border reads
+      // as the right edge of the code block: the block then looks narrower than
+      // the "Run Code" bar above it, which is the whole point of the bar being
+      // the editor's own width. No lanes, no border, and the code ground runs
+      // to the container edge.
+      overviewRulerLanes: 0,
+      overviewRulerBorder: false,
       // PATCHED, see RULES.md. Monaco's defaults reserve five characters of
       // number column (`lineNumbersMinChars: 5`) and a 10px decorations strip
       // beside it, which on a cell of at most a couple of dozen lines is a wide

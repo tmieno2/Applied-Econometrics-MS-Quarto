@@ -27,8 +27,15 @@
 # — simply falls back to the code-only rule, so a stale file degrades, it does
 # not break.
 #
-# WebR leaves `options(width = 80)` alone, so the child process below does too:
-# the character counts measured here are the ones the student's browser prints.
+# The child below prints at `options(width = 80)`, which is R's default and no
+# longer what the browser uses: qwebr-compute-engine.js measures each cell's
+# output box and sets the width to whatever fits it, so a full-width cell
+# prints at about 124 characters. Keep 80 here anyway. It is the same number
+# for every cell, which is what a render-time measurement needs — the box a
+# cell will get is a browser fact, not a render-time one — and it is the
+# conservative direction: 80 columns of a wide print measures narrower and
+# taller than the browser will draw it, so a cell judged to fit side by side
+# still fits, and one judged too wide was too wide either way.
 
 # Quarto calls this as a pre-render script with NO arguments, from the course
 # directory, so that is the default. A course directory can also be named

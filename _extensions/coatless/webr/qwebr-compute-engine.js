@@ -82,9 +82,48 @@ globalThis.qwebrParseTypePager = async function (msg) {
 } 
 
 // Function to run the code using webR and parse the output
+// How many characters of printed output fit across this cell's output box.
+//
+// Everything here is in CSS pixels, never getBoundingClientRect(): reveal
+// scales the whole slide with a transform, so a rect is the scaled number
+// while getComputedStyle and canvas.measureText are unscaled, and mixing the
+// two gives a width out by the scale factor.
+//
+// The 80-character sample rather than one character because measureText
+// rounds, and one rounded character multiplied by 124 is a visible error.
+globalThis.qwebrOutputWidthChars = function (outputDiv) {
+    const DEFAULT_WIDTH = 80;
+    if (!outputDiv) return DEFAULT_WIDTH;
+    // The extension creates the output `pre` at load and keeps it hidden until
+    // the cell prints something, so its font is readable before the first run.
+    const probe = outputDiv.querySelector("pre") || outputDiv;
+    const usable = probe.clientWidth;  // content box: excludes the accent border
+    if (!usable) return DEFAULT_WIDTH;
+    const cs = getComputedStyle(probe);
+    const canvas = qwebrOutputWidthChars.canvas ||
+        (qwebrOutputWidthChars.canvas = document.createElement("canvas"));
+    const context = canvas.getContext("2d");
+    context.font = [cs.fontStyle, cs.fontWeight, cs.fontSize, cs.fontFamily]
+        .filter(Boolean).join(" ");
+    const perChar = context.measureText("0".repeat(80)).width / 80;
+    if (!perChar) return DEFAULT_WIDTH;
+    // qwebr-styling.css puts `margin: 1px 2px 1px 10px` on the div inside the
+    // pre, so 12px of the content box is never printable.
+    const chars = Math.floor((usable - 12) / perChar);
+    // Never NARROWER than R's own default. This only ever hands a cell more
+    // room than it had, so no slide that has already been read over prints
+    // differently unless its box was wider than 80 characters all along. A
+    // cell in a half-width `.column` measures about 60 and keeps 80, which is
+    // what it prints today: the tail scrolls, and trading that for a block
+    // two-thirds taller is not obviously the better deal on a slide.
+    // The ceiling is there because `options(width = )` is a hard limit in R,
+    // not a suggestion, and nothing on these decks wants a 300-character line.
+    return Math.max(DEFAULT_WIDTH, Math.min(200, chars));
+};
+
 globalThis.qwebrComputeEngine = async function(
-    codeToRun, 
-    elements, 
+    codeToRun,
+    elements,
     options) {
 
     // Call into the R compute engine that persists within the document scope.
@@ -146,6 +185,19 @@ globalThis.qwebrComputeEngine = async function(
     // Store the code to run in history
     qwebrLogCodeToHistory(codeToRun, options);
 
+    // R wraps everything it prints at `getOption("width")` characters and webR
+    // leaves that at 80, whatever the box it is printing into. A full-width
+    // cell fits about 124 characters at the deck's code size, so a printed
+    // data frame stopped a third short of the right edge and R moved its last
+    // column into a second block underneath — which is how a six-column
+    // `st_join` result came out as five columns and then a lone `geometry`.
+    // Measure the box this cell actually got and let R use all of it.
+    //
+    // Safe to take at run time: webr-layout.html decides side-by-side versus
+    // stacked while the page loads and never revisits it (see assessOutput),
+    // so the width measured here is the width the output is printed into.
+    const widthFix = `options(width = ${qwebrOutputWidthChars(elements.outputCodeDiv)}); `;
+
     // webR's canvas draws text at the `pointsize` set above but still reports
     // its character metrics as if the font were 12pt. R sizes plot margins in
     // "lines" from those metrics, so on a 216 dpi canvas the margins come out
@@ -162,7 +214,7 @@ globalThis.qwebrComputeEngine = async function(
     // Evaluate the R code
     // Remove the active canvas silently
     const result = await mainWebRCodeShelter.captureR(
-        `${marginFix}${codeToRun}`,
+        `${widthFix}${marginFix}${codeToRun}`,
         captureOutputOptions
     );
 
@@ -216,6 +268,10 @@ globalThis.qwebrComputeEngine = async function(
 
         // Design an output object for messages
         const pre = document.createElement("pre");
+        // PATCHED: an `output: asis` cell hands back real HTML (a gt, kableExtra
+        // or tinytable table). It keeps the output box, but not the whitespace
+        // and font of a `pre`. See notebook.scss, and RULES.md section 7.
+        if (!showMarkup) { pre.classList.add("qwebr-output-asis"); }
         if (/\S/.test(out)) {
             // Display results as HTML elements to retain output styling
             const div = document.createElement("div");
@@ -234,6 +290,22 @@ globalThis.qwebrComputeEngine = async function(
         }
 
         elements.outputCodeDiv.appendChild(pre);
+
+        // PATCHED: HTML written by `output: asis` may carry its own <script>,
+        // which is how tinytable, modelsummary's default HTML output, fills its
+        // cells. innerHTML never runs a script, so the table arrived empty.
+        // Re-creating each script node runs it, and it must happen after the
+        // output is in the document or a detached node still does nothing.
+        if (!showMarkup) {
+            pre.querySelectorAll("script").forEach((original) => {
+                const script = document.createElement("script");
+                for (const attribute of original.attributes) {
+                    script.setAttribute(attribute.name, attribute.value);
+                }
+                script.textContent = original.textContent;
+                original.replaceWith(script);
+            });
+        }
 
         // Determine if we have graphs to display
         if (result.images.length > 0) {

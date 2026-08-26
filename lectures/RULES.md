@@ -27,6 +27,7 @@ overwrites it. Edit `_lecture-shared/notebook.scss` and sync.
 
 | File | What it does |
 |---|---|
+| `CELL-OPTIONS.html` | **The manual for writing cells.** Every `#|` option, what it controls, and which one to reach for. Open it in a browser — one self-contained file, so a double-click works. This file, `RULES.md`, is the reasoning behind the defaults; that one is how to use them |
 | `custom.scss` | Headings, tabs, callouts, code colours, the automatic two-column layout for WebR plot cells |
 | `notebook.scss` | The notebook look, code and output sizes and widths, the side-by-side grid, the figure height cap |
 | `webr-layout.html` | Measures each WebR cell and decides whether it goes side by side |
@@ -110,7 +111,11 @@ A code block's width is a property of the slide, not of its content or its
 state. It must not change because a cell was run, because output arrived,
 because the cell went side by side, or because the code in it is short. Every
 code block on a slide is the same width as every other one, `$nb-code-w`,
-currently 90%.
+currently 100%, which is the width of the prose above it. It was 90% until
+2026-08-22: inside a Quarto column the reductions compound, and a cell in a 55%
+column held 49% of the slide with a tenth of the slide left blank beside it. The
+token lives in `notebook.scss`, paired with the literal in `custom.scss` that
+sizes `.qwebr-interactive-area`; the two must move together.
 
 Going side by side changes how a cell is **divided**, never how wide it is.
 Two violations have been fixed and must not come back: `notebook.scss` once
@@ -125,19 +130,37 @@ body text is exactly 13.44px. Change one and change the other, or a WebR cell
 and a knitr block on the same slide stop matching.
 
 **The line-number margin has three parts, and each lives in a different file.**
-Left to right: 7px of padding on `.qwebr-editor` (`notebook.scss`), the digits
+Left to right: an 8px left border on `.qwebr-editor` painted in the gutter
+colour (`notebook.scss`), the digits
 themselves, sized by Monaco from the code font and asked for with
 `lineNumbersMinChars: 1`, and a 9px gap before the code
 (`lineDecorationsWidth`, both in the vendored
 `qwebr-monaco-editor-element.js`). Monaco's defaults gave a ~75px band that read
-as part of the code; this is ~25px on a ten-line cell. The padding is on the
+as part of the code; this is ~25px on a ten-line cell. The band is on the
 container on purpose: Monaco's number column is right-aligned, so width added
-there appears between the number and the code, never before it. The margin is
+there appears between the number and the code, never before it. It must stay a
+BORDER and never become padding. Monaco lays itself out from the container's
+`clientWidth`, which counts padding but not borders, so as padding it gave the
+editor 7px more room than it had and the code ground painted 7px past its own
+box, past the "Run Code" bar and past the output beneath it. Measured on
+2026-08-22: 3 of 78 editors in one deck, all of them cells revealed by opening a
+tab, which is the path that lays out from `clientWidth` rather than from the
+resize observer's content box. It was invisible while blocks stopped at 90% of
+the slide and had a margin to bleed into. The margin is
 also painted a shade deeper than the code with a hairline against it, and its
 figures are grey rather than syntax blue, so a lone "1" on an empty cell reads
 as furniture. `EDITOR_CHROME` in `webr-layout.html` (45) must follow this
 geometry: it is the margin plus the vertical scrollbar, and the code column is
 sized with it.
+
+**The right edge has to be empty, for the same reason.** A code block and the
+"Run Code" bar above it are one object and must end at the same x. They are the
+same grid column, so the boxes always do; what breaks the look is anything
+painted inside the editor near that edge. Monaco reserves ~14px there for the
+overview ruler and draws a hairline down its left side, and since nothing in
+these decks marks that ruler, the band is empty and its hairline reads as the
+end of the code block, about 14px short of the bar. `overviewRulerLanes: 0` and
+`overviewRulerBorder: false` in `qwebr-monaco-editor-element.js` remove both.
 
 ## 3. WebR code and output, side by side
 
@@ -242,11 +265,69 @@ sized with it.
 
   The options are read from the cell's `#|` block, which qwebr passes through
   untouched and `measure-webr-output.R` strips, so adding one does not change
-  the key a cell is measured under. `layout: side` and `code-track` are ignored
-  on a cell the script skips outright — more than `MAX_CODE_LINES` lines, or a
-  line over 88 characters. Those never go side by side, and `::: {.side-out}`,
-  which works through the stylesheet rather than this script, is the only way to
-  overrule that. `layout: stacked` is read before that point and always applies.
+  the key a cell is measured under.
+
+  **`code-track` beats every automatic gate**, which is the point of typing a
+  number: an override that quietly does nothing is worse than no override. It is
+  read before any of them and stands aside from all four —
+
+  - more than `MAX_CODE_LINES` lines, or a line over 88 characters;
+  - a cell inside a reveal `.column`, which normally refuses to be halved again;
+  - a cell measured as printing nothing and drawing nothing, and the
+    `printsNothing()` guess that stands in when a cell has no measurement;
+  - the width, height and plot-floor tests in `sideBySideFits()`.
+
+  So a `code-track` cell whose output column stays empty still opens at the
+  split that was asked for. `layout: side` gets none of this: it is a request,
+  and a cell the script skips outright ignores it.
+
+  **`layout: stacked` beats the stylesheet too.** It is read first of all, but
+  reading it first was not enough on its own: `custom.scss` puts any cell that
+  has drawn a figure side by side, keyed off
+  `:has(.qwebr-output-graph-area canvas)`, and that rule knows nothing about
+  what `webr-layout.html` decided. A stacked plot cell therefore obeyed the
+  option right up until the plot appeared, then reflowed into two columns. Both
+  stacked forms now stamp `data-webr-layout="stacked"` on the
+  `.qwebr-interactive-area` itself — the element that selector matches — and
+  the selector carries `:not([data-webr-layout="stacked"])` so it stands aside.
+  Anything else that lays a cell out from CSS alone has to carry that
+  `:not()` as well, or the option goes quiet again the moment a plot lands.
+
+  **EVERY path that stacks a cell must stamp the area, not just the two
+  explicit ones.** This was half-done until 2026-08-26 and it cost 82 of the 219
+  measured plot cells across the two courses their output. `stack()` — the
+  automatic refusal, which is what a plot cell gets whenever its longest line is
+  52 characters or more — wrote the attribute only on the wrapper. custom.scss's
+  `:not()` reads the area, so the rule fired anyway the moment the plot was
+  drawn, and the cell flipped from `display: block` to `display: grid`. Measured
+  on `L05_vector_raster_interaction.html`: the tracks resolved to `1021px 9px`
+  and the figure landed in the 9px one at 0x0, off the right edge of the slide.
+  From the room that looks exactly like a cell that ran and drew nothing, and
+  `#| layout: stacked` "fixed" it only because that option went through
+  `markStacked()`, which did stamp the area. `stack()` and the `.column` branch
+  both route through `markStacked()` now, and the measured-as-silent branch sets
+  both attributes inline (it must not strip an author's `.side-out` wrapper, so
+  it cannot use `markStacked()`).
+
+  **Walking away from a cell is a decision too, so it is stamped as well.** The
+  gate that refuses an automatic split to code over `MAX_CODE_LINES` lines or
+  wider than 88 characters used to just `return`, which left custom.scss's
+  figure rule to lay the cell out on its own the moment a plot appeared — into
+  two columns, which is the exact layout that gate exists to refuse, since code
+  that wide wraps in half a slide. 36 cells across the two courses. It stamps
+  the AREA now and nothing else: an author's `::: {.side-out}` wrapper is left
+  in place (custom.scss already stands aside inside one, and notebook.scss lays
+  that cell out from the class), `#| code-track:` skips the gate entirely as it
+  always did, and `classes: qwebr-side-by-side` is exempt because it is the
+  author asking for custom.scss's layout by name.
+
+  **A `1fr` track will not shrink below its item's min-content width.** The
+  other half of that bug, and the reason the figure track was 9px rather than
+  half the slide: custom.scss asked for `grid-template-columns: 1fr 1fr`, and
+  the item in the first track is Monaco, whose min-content is the full slide.
+  Both tracks are `minmax(0, 1fr)` now and the editor carries `min-width: 0`,
+  which is what `notebook.scss` had been doing all along for its own grid. Any
+  new column that holds an editor or a `pre` needs both.
 
 **Window width must never decide the layout.** reveal scales the whole 1050px
 slide to fit the window, so a narrow window makes the slide smaller, not
@@ -256,6 +337,42 @@ full-width editor and a stray "Output" chip floating beside it. It is `@media
 print` now. And any rule that re-declares `grid-template-areas` for the cell
 must keep naming `outbar`: that is the ::before "Output" banner, and a grid item
 whose named area is missing is auto-placed into an invented column.
+
+**Folding the output away.** Every interactive cell gets a "hide output" button
+that hides its own output, because long output pushes everything below it down
+the slide. It is a Font Awesome eye — `fa-solid fa-eye-slash`, flipping to
+`fa-eye` — icon-only, like the reset and copy buttons beside it. Font Awesome
+needs no loading of its own: those two are already `fa-solid fa-arrows-rotate`
+and `fa-regular fa-copy`. The icon names the ACTION, not the current state, so a
+folded cell shows a plain eye meaning "click to show". An icon carries no
+accessible name, so `title` and `aria-label` carry the words the button does not
+print — both, since the title is the hover tooltip and the aria-label is what a
+screen reader announces. The button wears the extension's own
+`.qwebr-button` class, so its size, radius, background and hover highlight all
+come from `qwebr-styling.css` and it cannot drift from the reset and copy
+buttons beside it. `webr-layout.html` creates it in the editor toolbar's right-hand
+button group and `layOut()` then moves it into the `outbar` grid area on a cell
+that goes side by side, so it sits at the right end of the Output banner — the
+two places a cell already has a header strip, and therefore the two places a
+control can go without costing a row of height. In the banner it shares one grid
+area with the ::before that paints the bar; two grid items in one area overlap by
+design there, the pseudo-element painting the label and the button painting over
+the empty right end.
+
+Clicking it only sets `data-webr-output-hidden="true"` on the
+`.qwebr-interactive-area`; `notebook.scss` does the hiding with `display: none`
+on `.qwebr-output-code-area` and `.qwebr-output-graph-area`. The banner stays, so
+a folded cell still says "Output" and still carries the control that brings it
+back. Measured in Chrome on `01-Introduction.html`: a stacked cell with ten lines
+of output goes from 331px to 119px. A side-by-side cell usually saves nothing —
+its height is set by whichever column is taller, and that is normally the code —
+so this is mostly a stacked-cell feature that the banner happens to be the right
+home for.
+
+The keydown listener on the button is not optional: reveal reads keys off the
+document and stands aside only for inputs and contenteditable, not for a
+`<button>`, so without it Space on a focused toggle would both press the button
+and advance the slide.
 
 Two measurement traps, both of which have cost time:
 
@@ -302,6 +419,36 @@ headless Chrome (`--headless=new --dump-dom`, then grep `data-webr-layout`): the
 same deck and cell that read `side` under `file://` with the old fetch reads
 `stacked` under both `file://` and `http://` now.
 
+**R prints at the width of the box, not at 80.** R wraps everything it prints at
+`getOption("width")`, and webR leaves that at R's default of 80 whatever it is
+printing into. A full-width cell fits about 124 characters at the deck's code
+size, so a printed data frame stopped a third short of the right edge and R
+moved the columns that did not fit into a second block underneath — which is
+how a six-column `st_join` result was published as five columns and then a lone
+`geometry`. `qwebr-compute-engine.js` now measures the cell's own output box
+(`qwebrOutputWidthChars()`) and prepends `options(width = N)` to the code it
+runs, so each cell prints at the width it has. Measured in Chrome on
+`L04_2_vector_spatial_join.html`: the box is 1198.7px, identical to the editor
+above it, and 80 characters of the output font occupy 759.9px of it — 63%.
+
+Two things make this safe to take at run time rather than at load. The layout is
+decided while the page loads and never revisited, so the box measured when the
+student clicks Run is the box the output lands in. And the measurement is in CSS
+pixels throughout — `clientWidth` and `measureText`, never
+`getBoundingClientRect()`, which reports the scaled number because reveal
+transforms the whole slide and would give a width out by the scale factor.
+
+80 is a floor, not just a default: the measured width is only ever used when it
+is wider than R's own. A cell in a half-width `.column` measures about 60, and
+wrapping it there would trade a scrolled tail for a block two-thirds taller,
+which is the wrong trade on a slide. Measured on `L04_2_vector_spatial_join`:
+124 characters for a full-width stacked cell, 85 for the output column of a
+side-by-side one, 80 for everything narrower.
+
+`measure-webr-output.R` still measures at 80 and the split is still chosen from
+those numbers; see the comment there for why the mismatch is the harmless
+direction.
+
 When changing any of this, test scalar, data-frame, regression and plot outputs
 in a real browser. The layout is chosen by JavaScript after a cell runs, so a
 clean `quarto render` proves nothing. Serve over HTTP, because `file://` shows
@@ -347,6 +494,25 @@ title, a tab bar and a callout leave roughly 420px, which is the cap. It was
 lines of text, a plot — were being scaled down for room that was not needed. Do not
 work around it per slide with `fig-height` or `out-width`. If a capped figure
 is too small to read, the slide has too much on it and should be split.
+
+**Overriding the cap on one cell.** When splitting the slide is not the answer,
+`#| fig-max-height: 600` raises the cap for that cell alone, and
+`#| fig-max-height: none` removes it. The cap is written as the custom property
+`--webr-fig-max-height`, defaulting to 420px; `webr-layout.html` reads the
+option and sets the property on that cell's `.qwebr-interactive-area`, so cell
+beats slide beats default and nothing else on the deck moves. Use it when the
+cap is measuring the wrong thing rather than to buy back room a slide does not
+have — the reason it exists is still that a figure must not make a slide
+scroll, and nothing checks that for you once you have overridden it.
+
+**A portrait figure is the case the cap gets wrong.** The cap limits height,
+and `out-width` limits width, so a landscape figure is sized by one and a
+portrait one by the other. Worse, `coord_sf()` fixes the panel's aspect ratio,
+so a portrait map inside a landscape canvas is centred with blank canvas either
+side of it — the figure is being drawn small inside an image that is mostly
+empty, which no cap or width setting can recover. Match the canvas to the
+figure with `#| fig-width` and `#| fig-height` on the cell first; reach for
+`fig-max-height` only after the canvas is the right shape.
 
 **Why WebR figures ask for 100% of their track.** The cap is what actually
 sizes them, so there is nothing for a percentage to add. At `out-width: 100%`
@@ -445,7 +611,7 @@ command. A correctly rendered formula never contains a backslash.
 
 ## 7. The WebR extension is vendored and patched
 
-`_extensions/coatless/webr/qwebr-compute-engine.js` carries three edits that
+`_extensions/coatless/webr/qwebr-compute-engine.js` carries four edits that
 must be re-applied if the extension is ever updated:
 
 1. the canvas background is transparent, not white, so a figure sits on the
@@ -455,6 +621,37 @@ must be re-applied if the extension is ever updated:
 3. any stderr line starting with `Error` is kept even though the decks set
    `message: false, warning: false`. Upstream drops errors with the rest, so a
    failing line printed nothing and looked to a student as though it had run.
+4. output from a cell marked `#| output: asis` is marked `qwebr-output-asis` on
+   its output box, and any `<script>` it contains is re-created so that it runs.
+
+The fourth one is what makes an HTML table usable in a WebR cell. Upstream
+already stops escaping the output when a cell says `output: asis`, so the HTML
+reaches the page, but two things then went wrong with it:
+
+- **The table arrived empty.** `tinytable`, which is what `modelsummary()`
+  returns by default, writes its values into the cells from a `<script>` that
+  ships with the table. The output is inserted with `innerHTML`, and that never
+  runs a script. Re-creating each script node runs it. It has to happen after
+  the output is in the document, because a script node in a detached element
+  still does nothing.
+- **The table was pushed to the bottom of a tall empty box.** The output box is
+  a `pre`, so every newline in the HTML source was rendered as blank space.
+  `notebook.scss` gives `pre.qwebr-output-asis` `white-space: normal`, reveal's
+  body font instead of the code font, and a content-sized rather than
+  full-width table.
+
+Three things to know before using it on a deck.
+
+- `output: asis` stops the escaping for everything the cell prints, not just the
+  table, so put it only on cells whose whole job is a table.
+- `modelsummary` must be told to produce HTML: `output = "html"` is the one to
+  teach, since that is its own default table engine and needs no other package.
+  `output = "gt"` and `output = "kableExtra"` work too, and kableExtra also
+  wants `escape = FALSE`, because the model column names are padded with
+  `&nbsp;` and kableExtra escapes the ampersand into visible text.
+- `options(tinytable_print_output = "html")` looks like a way to skip that
+  argument, but it makes printing return a whole standalone HTML document
+  rather than a fragment. Pass `output = "html"` per call instead.
 
 `_extensions/coatless/webr/qwebr-monaco-editor-element.js` carries two more,
 each marked `PATCHED` at the line it changes:

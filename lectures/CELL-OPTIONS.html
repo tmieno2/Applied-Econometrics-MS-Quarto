@@ -1,0 +1,613 @@
+<!doctype html>
+<!--
+  The WebR cell-option manual. Open it in a browser; it is one self-contained
+  file with no assets to fetch, so a double-click works.
+
+  Edited HERE, in _lecture-shared/, like everything else in this folder.
+  ./sync-lecture-shared.sh copies it into each course's lectures/ folder, so a
+  copy sitting beside the decks is generated and the next sync overwrites it.
+
+  It is also published as a Claude artifact. To republish after editing, strip
+  everything down to the first <title> and everything from </div> at the end,
+  i.e. hand over this file WITHOUT the doctype/head/body wrapper — the artifact
+  host supplies its own.
+-->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>WebR Cell Options</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;600;700&family=Source+Serif+4:opsz,wght@8..60,400;8..60,600&family=JetBrains+Mono:wght@400;500;700&display=swap">
+
+<style>
+  :root {
+    --ground:    #F6F6F3;
+    --surface:   #FFFFFF;
+    --sunk:      #EEEEE9;
+    --ink:       #191C1F;
+    --ink-soft:  #5C6369;
+    --ink-faint: #878E93;
+    --rule:      #E0E0DB;
+    --accent:    #186A56;
+    --accent-bg: #E4F0EB;
+    --warn:      #9C5316;
+    --warn-bg:   #F6EBE0;
+
+    --display: "Archivo", "Helvetica Neue", Arial, sans-serif;
+    --body: "Source Serif 4", Georgia, "Times New Roman", serif;
+    --mono: "JetBrains Mono", ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --ground:    #131619;
+      --surface:   #1A1E22;
+      --sunk:      #101315;
+      --ink:       #E7E8E4;
+      --ink-soft:  #98A0A6;
+      --ink-faint: #6E767C;
+      --rule:      #2A3036;
+      --accent:    #52C2A2;
+      --accent-bg: #16302A;
+      --warn:      #D48C4E;
+      --warn-bg:   #2E2318;
+    }
+  }
+
+  :root[data-theme="dark"] {
+    --ground:    #131619;
+    --surface:   #1A1E22;
+    --sunk:      #101315;
+    --ink:       #E7E8E4;
+    --ink-soft:  #98A0A6;
+    --ink-faint: #6E767C;
+    --rule:      #2A3036;
+    --accent:    #52C2A2;
+    --accent-bg: #16302A;
+    --warn:      #D48C4E;
+    --warn-bg:   #2E2318;
+  }
+
+  body {
+    background: var(--ground);
+    color: var(--ink);
+    font-family: var(--body);
+    font-size: 17px;
+    line-height: 1.62;
+    margin: 0;
+    padding: 0 24px 120px;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .wrap { max-width: 860px; margin: 0 auto; }
+  .prose { max-width: 68ch; }
+
+  /* ---- masthead ---- */
+  header.masthead {
+    padding: 72px 0 36px;
+    border-bottom: 2px solid var(--ink);
+    margin-bottom: 8px;
+  }
+  .eyebrow {
+    font-family: var(--mono);
+    font-size: 11px;
+    font-weight: 500;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--ink-faint);
+    margin: 0 0 18px;
+  }
+  h1 {
+    font-family: var(--display);
+    font-weight: 700;
+    font-size: clamp(34px, 6vw, 52px);
+    line-height: 1.04;
+    letter-spacing: -0.02em;
+    margin: 0 0 18px;
+    text-wrap: balance;
+  }
+  .standfirst {
+    font-size: 19px;
+    color: var(--ink-soft);
+    margin: 0;
+    max-width: 60ch;
+  }
+
+  /* ---- sections ---- */
+  section { padding-top: 56px; }
+  .sec-label {
+    font-family: var(--mono);
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: var(--accent);
+    margin: 0 0 10px;
+  }
+  h2 {
+    font-family: var(--display);
+    font-weight: 600;
+    font-size: clamp(24px, 3.4vw, 31px);
+    line-height: 1.15;
+    letter-spacing: -0.015em;
+    margin: 0 0 8px;
+    text-wrap: balance;
+  }
+  h3 {
+    font-family: var(--display);
+    font-weight: 600;
+    font-size: 19px;
+    letter-spacing: -0.01em;
+    margin: 34px 0 6px;
+  }
+  p { margin: 0 0 16px; }
+  a { color: var(--accent); }
+
+  code, .mono { font-family: var(--mono); font-size: 0.87em; }
+  p code, li code, td code, dd code {
+    background: var(--sunk);
+    border-radius: 3px;
+    padding: 1px 5px;
+    white-space: nowrap;
+  }
+
+  pre {
+    font-family: var(--mono);
+    font-size: 13.5px;
+    line-height: 1.6;
+    background: var(--sunk);
+    border-left: 3px solid var(--accent);
+    border-radius: 0 4px 4px 0;
+    padding: 14px 18px;
+    margin: 0 0 18px;
+    overflow-x: auto;
+  }
+  pre .c { color: var(--ink-faint); }
+  pre .k { color: var(--accent); font-weight: 500; }
+
+  /* ---- the three-knob spine ---- */
+  .spine {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
+    gap: 2px;
+    background: var(--rule);
+    border: 1px solid var(--rule);
+    border-radius: 5px;
+    overflow: hidden;
+    margin: 28px 0 0;
+  }
+  .spine > div { background: var(--surface); padding: 20px 22px; }
+  .spine dt {
+    font-family: var(--mono);
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--accent);
+    margin: 0 0 8px;
+  }
+  .spine .q {
+    font-family: var(--display);
+    font-weight: 600;
+    font-size: 16px;
+    line-height: 1.3;
+    margin: 0 0 8px;
+    color: var(--ink);
+  }
+  .spine p { font-size: 15px; color: var(--ink-soft); margin: 0; }
+
+  /* ---- tables ---- */
+  .tablewrap { overflow-x: auto; margin: 22px 0 8px; }
+  table {
+    border-collapse: collapse;
+    width: 100%;
+    min-width: 640px;
+    font-size: 15px;
+    font-variant-numeric: tabular-nums;
+  }
+  caption {
+    text-align: left;
+    font-family: var(--mono);
+    font-size: 11px;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--ink-faint);
+    padding-bottom: 10px;
+  }
+  th {
+    text-align: left;
+    font-family: var(--display);
+    font-weight: 600;
+    font-size: 13px;
+    letter-spacing: 0.02em;
+    color: var(--ink-soft);
+    border-bottom: 1.5px solid var(--ink);
+    padding: 0 14px 7px 0;
+    white-space: nowrap;
+  }
+  td {
+    border-bottom: 1px solid var(--rule);
+    padding: 11px 14px 11px 0;
+    vertical-align: top;
+    color: var(--ink-soft);
+  }
+  td:first-child { color: var(--ink); white-space: nowrap; }
+  td.num { font-family: var(--mono); font-size: 13px; white-space: nowrap; }
+  tr:last-child td { border-bottom: none; }
+
+  /* ---- option entries ---- */
+  .opt {
+    background: var(--surface);
+    border: 1px solid var(--rule);
+    border-radius: 5px;
+    padding: 22px 24px;
+    margin: 0 0 14px;
+  }
+  .opt-head {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 10px 14px;
+    margin-bottom: 12px;
+  }
+  .opt-name {
+    font-family: var(--mono);
+    font-weight: 700;
+    font-size: 16px;
+    color: var(--ink);
+  }
+  .pill {
+    font-family: var(--mono);
+    font-size: 10.5px;
+    font-weight: 500;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    padding: 3px 8px;
+    border-radius: 3px;
+    background: var(--sunk);
+    color: var(--ink-faint);
+    white-space: nowrap;
+  }
+  .pill.new { background: var(--accent-bg); color: var(--accent); }
+  .opt p:last-child, .opt pre:last-child { margin-bottom: 0; }
+  .opt p { font-size: 16px; }
+
+  /* ---- callouts ---- */
+  .note {
+    border-left: 3px solid var(--warn);
+    background: var(--warn-bg);
+    border-radius: 0 4px 4px 0;
+    padding: 16px 20px;
+    margin: 24px 0;
+  }
+  .note p { margin: 0; font-size: 16px; }
+  .note p + p { margin-top: 12px; }
+  .note strong { color: var(--warn); }
+
+  ul.tight { margin: 0 0 16px; padding-left: 22px; }
+  ul.tight li { margin-bottom: 7px; }
+
+  /* ---- worked example ---- */
+  .worked {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+    gap: 18px;
+    margin: 20px 0 8px;
+  }
+  .worked > figure {
+    margin: 0;
+    background: var(--surface);
+    border: 1px solid var(--rule);
+    border-radius: 5px;
+    padding: 18px 20px;
+  }
+  .worked figcaption {
+    font-family: var(--mono);
+    font-size: 11px;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--ink-faint);
+    margin-bottom: 12px;
+  }
+  .stat {
+    display: flex;
+    justify-content: space-between;
+    gap: 14px;
+    font-size: 15px;
+    padding: 6px 0;
+    border-bottom: 1px solid var(--rule);
+  }
+  .stat:last-child { border-bottom: none; }
+  .stat span:first-child { color: var(--ink-soft); }
+  .stat span:last-child { font-family: var(--mono); font-size: 13.5px; font-variant-numeric: tabular-nums; }
+  .stat.good span:last-child { color: var(--accent); font-weight: 700; }
+
+  footer {
+    margin-top: 72px;
+    padding-top: 22px;
+    border-top: 1px solid var(--rule);
+    font-size: 14px;
+    color: var(--ink-faint);
+  }
+  footer p { margin: 0 0 8px; }
+
+  :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  @media (prefers-reduced-motion: reduce) { * { animation: none !important; transition: none !important; } }
+</style>
+</head>
+<body>
+
+
+<div class="wrap">
+
+<header class="masthead">
+  <p class="eyebrow">Teaching / _lecture-shared</p>
+  <h1>WebR Cell Options</h1>
+  <p class="standfirst">Everything you can write after <code>#|</code> in a <code>{webr-r}</code> cell, what each one actually controls, and which one to reach for when a figure looks wrong.</p>
+</header>
+
+<section>
+  <p class="sec-label">Start here</p>
+  <h2>Three knobs, three different jobs</h2>
+  <div class="prose">
+    <p>No, <code>fig-max-height</code> is not something you add alongside <code>fig-width</code>. They are independent, and they fix different problems. Work out which problem you have first.</p>
+  </div>
+
+  <div class="spine">
+    <div>
+      <dt>fig-width / fig-height</dt>
+      <p class="q">Is there blank space inside the picture?</p>
+      <p>Sets the shape of the canvas ggplot draws on. Fixes empty margins baked into the image. Does not change how big the figure is drawn.</p>
+    </div>
+    <div>
+      <dt>fig-max-height</dt>
+      <p class="q">Is the figure too small on the slide?</p>
+      <p>Sets how tall the figure may be drawn. Fixes a figure held back by the global 420px cap. Does not remove blank space.</p>
+    </div>
+    <div>
+      <dt>layout / code-track</dt>
+      <p class="q">Is the output cramped next to the code?</p>
+      <p>Sets where the code and the output sit relative to each other, and how the width is divided between them.</p>
+    </div>
+  </div>
+
+  <div class="note">
+    <p><strong>Why you often need two of them.</strong> Fixing the canvas shape frees width, and the height cap then becomes what limits the figure. Measured on the map cell in <code>L05_vector_raster_interaction.qmd</code>: <code>fig-width: 3</code> took the blank space from 44% of the image down to 6.9%, and the map came out at the same 206 × 382 px it was before. Adding <code>fig-max-height: 600</code> is what took it to 294 × 546.</p>
+  </div>
+</section>
+
+<section>
+  <p class="sec-label">Figures</p>
+  <h2>Sizing a figure</h2>
+
+  <div class="opt">
+    <div class="opt-head">
+      <span class="opt-name">fig-width</span>
+      <span class="opt-name">fig-height</span>
+      <span class="pill">inches</span>
+      <span class="pill">default 10 &times; 6</span>
+    </div>
+    <p>The canvas ggplot draws on, in inches. This is the fix for blank space inside the image, and nothing else fixes it.</p>
+    <p>Blank space appears when the shape of your plot does not match the shape of the canvas. It is worst with maps: <code>geom_sf()</code> and <code>geom_spatraster()</code> bring in <code>coord_sf()</code>, which locks the width-to-height ratio so the map is not stretched. ggplot then draws the plot as large as the canvas allows without breaking that ratio, centres it, and leaves the rest of the canvas empty. A tall field on a wide canvas can lose nearly half the image to blank margin.</p>
+    <p>Aim the canvas at the shape of the content, plus room for the legend.</p>
+<pre><span class="c">#| fig-width: 3</span></pre>
+  </div>
+
+  <div class="opt">
+    <div class="opt-head">
+      <span class="opt-name">fig-max-height</span>
+      <span class="pill new">new</span>
+      <span class="pill">pixels, or <code>none</code></span>
+      <span class="pill">default 420</span>
+    </div>
+    <p>How tall the figure may be drawn on the slide. This is the per-cell override of the global cap, and the only way to make a figure bigger than every other figure on the site.</p>
+    <p>The cap exists because nothing else in the chain looks at how much room is left on a slide. A figure asks for the full width of its column and its height follows from the canvas ratio; a 10 &times; 6 canvas on a full-width slide comes out 603px tall, and a slide is 700px including its title. The cap is what stops a figure pushing its own bottom off the slide.</p>
+    <p><code>none</code> removes the limit entirely for that cell.</p>
+<pre><span class="c">#| fig-max-height: 600</span>
+<span class="c">#| fig-max-height: none</span></pre>
+    <p style="color:var(--ink-faint);font-size:15px">Nothing checks the slide still fits once you have overridden it. Look at the slide afterwards.</p>
+  </div>
+
+  <div class="opt">
+    <div class="opt-head">
+      <span class="opt-name">out-width</span>
+      <span class="pill">percentage</span>
+      <span class="pill">default 100%</span>
+    </div>
+    <p>How much of its column the figure asks for. Leave it at 100%. The height cap is what actually sizes these figures, so a percentage below 100% only ever makes the figure smaller than the cap would have allowed.</p>
+  </div>
+
+  <div class="opt">
+    <div class="opt-head">
+      <span class="opt-name">dpi</span>
+      <span class="pill">number</span>
+      <span class="pill">default 216</span>
+    </div>
+    <p>Canvas resolution. Set once in the deck header and best left alone: the theme block in the deck's setup cell scales ggplot's point and millimetre constants by <code>dpi / 72</code> to match, and the two have to move together or every line and label comes out the wrong size.</p>
+  </div>
+</section>
+
+<section>
+  <p class="sec-label">Layout</p>
+  <h2>Where the code and the output sit</h2>
+  <div class="prose">
+    <p>Every cell is either <em>stacked</em>, with the output below the code, or <em>side by side</em>, with the output to the right under an Output banner. The choice is made while the page loads and is never revisited, so running a cell can never make the slide reshape itself under a reader.</p>
+  </div>
+
+  <div class="opt">
+    <div class="opt-head">
+      <span class="opt-name">layout</span>
+      <span class="pill">stacked | side</span>
+      <span class="pill">default automatic</span>
+    </div>
+    <p><code>stacked</code> keeps the output below the code whatever the measurements say, which is how you give a wide printout or a figure the full width of the slide. <code>side</code> asks for two columns.</p>
+    <p><code>side</code> is a request, not a command: it cannot make code fit a column that is too narrow for it. <code>stacked</code> always wins, and it is the one to use on a plot cell you want full width, because plot cells are put side by side automatically.</p>
+<pre><span class="c">#| layout: stacked</span></pre>
+  </div>
+
+  <div class="opt">
+    <div class="opt-head">
+      <span class="opt-name">code-track</span>
+      <span class="pill">0.18 &ndash; 0.70</span>
+      <span class="pill">default automatic</span>
+    </div>
+    <p>The fraction of the width the code column takes, with the rest going to the output. Setting it also forces the cell side by side, and turns off every automatic adjustment: the estimate, the re-measurement once the editor has rendered, and the widening that stops a line of code wrapping.</p>
+    <p>Values are clamped to 0.18&ndash;0.70, and the code column never goes below 320px whatever you ask for.</p>
+<pre><span class="c">#| code-track: 0.3</span></pre>
+  </div>
+
+  <h3>What happens without any option</h3>
+  <div class="prose">
+    <p>Left alone, a cell goes side by side only if all of these hold:</p>
+    <ul class="tight">
+      <li>the code is 12 lines or fewer, and no line is longer than 88 characters;</li>
+      <li>the cell is not inside a Quarto <code>.column</code>, which would leave the code a quarter of the slide;</li>
+      <li>the code actually prints something &mdash; a cell that only assigns never opens an Output panel that will stay empty;</li>
+      <li>the output measured at render time fits comfortably beside it, and splitting saves enough height to be worth halving the slide.</li>
+    </ul>
+    <p>A cell that draws a plot is put side by side automatically, and a plot in a side column is kept at least 380px wide.</p>
+  </div>
+</section>
+
+<section>
+  <p class="sec-label">Slides and blocks</p>
+  <h2>Options that live outside the cell</h2>
+
+  <div class="tablewrap">
+    <table>
+      <caption>Written on the slide heading or on a fenced div, not after <code>#|</code></caption>
+      <thead>
+        <tr><th>Write this</th><th>Where</th><th>What it does</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td class="num">{.figure-slide}</td>
+          <td>slide heading</td>
+          <td>Raises the figure cap from 420px to 540px for every figure on that slide. For a slide carrying nothing but a figure, where there is no tab bar and the title is one line.</td>
+        </tr>
+        <tr>
+          <td class="num">::: {.stacked}</td>
+          <td>around a cell</td>
+          <td>Same as <code>#| layout: stacked</code>, written as a wrapper.</td>
+        </tr>
+        <tr>
+          <td class="num">::: {.side-out}</td>
+          <td>around a cell</td>
+          <td>Same as <code>#| layout: side</code>. Also marks the cell as deliberately split, so ordinary measurement noise will not tear the wrapper down.</td>
+        </tr>
+        <tr>
+          <td class="num">::: {.side-out style="--webr-code-track: 0.45fr; --webr-output-track: 0.55fr"}</td>
+          <td>around a cell</td>
+          <td>Hand-set the split. Beats every automatic adjustment, same as <code>code-track</code>.</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<section>
+  <p class="sec-label">Everything else</p>
+  <h2>The rest of the cell options</h2>
+  <div class="prose">
+    <p>These come from the WebR extension rather than from the lecture styling, and are unchanged from its defaults except where the deck header sets them.</p>
+  </div>
+
+  <div class="tablewrap">
+    <table>
+      <thead>
+        <tr><th>Option</th><th>Values</th><th>Default</th><th>What it does</th></tr>
+      </thead>
+      <tbody>
+        <tr><td class="num">context</td><td class="num">interactive<br>setup<br>output</td><td class="num">interactive</td><td><code>setup</code> runs hidden when the page loads and is where shared objects and the theme block go. <code>output</code> runs on load and shows only the result, with no editor.</td></tr>
+        <tr><td class="num">autorun</td><td class="num">true</td><td class="num">&mdash;</td><td>Runs the cell as soon as WebR is ready, without waiting for a click.</td></tr>
+        <tr><td class="num">read-only</td><td class="num">true / false</td><td class="num">false</td><td>Locks the editor so the code cannot be changed.</td></tr>
+        <tr><td class="num">output</td><td class="num">true / false / asis</td><td class="num">true</td><td><code>asis</code> is for a cell that returns real HTML, such as a <code>gt</code> or <code>kableExtra</code> table; the styling then sets it in the slide font rather than the code font.</td></tr>
+        <tr><td class="num">results</td><td class="num">markup / hide</td><td class="num">markup</td><td><code>hide</code> runs the code and shows nothing.</td></tr>
+        <tr><td class="num">warning</td><td class="num">true / false</td><td class="num">true</td><td>Whether warnings reach the output box.</td></tr>
+        <tr><td class="num">message</td><td class="num">true / false</td><td class="num">true</td><td>Whether messages reach the output box.</td></tr>
+        <tr><td class="num">fig-cap</td><td class="num">text</td><td class="num">&mdash;</td><td>Caption under the figure.</td></tr>
+        <tr><td class="num">editor-font-scale</td><td class="num">number</td><td class="num">0.7</td><td>Editor text size as a fraction of body text. Paired with the code size in the stylesheet; change one and change the other, or WebR cells and knitr blocks on the same slide stop matching.</td></tr>
+        <tr><td class="num">editor-max-height</td><td class="num">pixels</td><td class="num">&mdash;</td><td>Caps the editor height and lets it scroll.</td></tr>
+        <tr><td class="num">editor-word-wrap</td><td class="num">true / false</td><td class="num">true</td><td>Whether long lines wrap in the editor.</td></tr>
+        <tr><td class="num">label</td><td class="num">text</td><td class="num">&mdash;</td><td>Cell name.</td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<section>
+  <p class="sec-label">Worked example</p>
+  <h2>A portrait map that was mostly blank</h2>
+  <div class="prose">
+    <p>The map cell on the cropping-and-masking slide of <code>L05_vector_raster_interaction.qmd</code>, drawn on the deck's 5 &times; 4.5 inch canvas. The field is about twice as tall as it is wide, so <code>coord_sf()</code> held the map to a narrow strip and the rest of the canvas was empty.</p>
+  </div>
+
+  <div class="worked">
+    <figure>
+      <figcaption>Before &mdash; fig-width: 5</figcaption>
+      <div class="stat"><span>Blank at the two edges</span><span>44%</span></div>
+      <div class="stat"><span>Map on screen</span><span>206 &times; 382</span></div>
+      <div class="stat"><span>Height cap in use</span><span>420px</span></div>
+      <div class="stat"><span>Slide scrolls by</span><span>281px</span></div>
+    </figure>
+    <figure>
+      <figcaption>fig-width: 3</figcaption>
+      <div class="stat good"><span>Blank at the two edges</span><span>6.9%</span></div>
+      <div class="stat"><span>Map on screen</span><span>206 &times; 382</span></div>
+      <div class="stat"><span>Height cap in use</span><span>420px</span></div>
+      <div class="stat"><span>Slide scrolls by</span><span>281px</span></div>
+    </figure>
+    <figure>
+      <figcaption>&hellip; plus fig-max-height: 600</figcaption>
+      <div class="stat good"><span>Blank at the two edges</span><span>6.9%</span></div>
+      <div class="stat good"><span>Map on screen</span><span>294 &times; 546</span></div>
+      <div class="stat"><span>Height cap in use</span><span>600px</span></div>
+      <div class="stat"><span>Slide scrolls by</span><span>437px</span></div>
+    </figure>
+  </div>
+
+  <div class="prose">
+    <p>The middle column is the point worth keeping. Removing the blank space did not make the map one pixel bigger, because once the canvas stopped being wide the 420px cap became what limited it. The two options do genuinely separate jobs.</p>
+  </div>
+
+<pre><span class="c">```{webr-r}</span>
+<span class="c">#| fig-width: 3</span>
+<span class="c">#| fig-max-height: 600</span>
+<span class="c">#| code-track: 0.3</span>
+ggplot() +
+  geom_spatraster(data = NDRE, alpha = 0.4) +
+  geom_sf(data = corn_yield, aes(color = yield), size = 0.05) +
+  geom_sf(data = treatment_blocks, color = "red", fill = NA) +
+  theme_void()
+<span class="c">```</span></pre>
+</section>
+
+<section>
+  <p class="sec-label">Reference</p>
+  <h2>Quick table</h2>
+  <div class="tablewrap">
+    <table>
+      <thead>
+        <tr><th>Option</th><th>Default</th><th>Reach for it when</th></tr>
+      </thead>
+      <tbody>
+        <tr><td class="num">fig-width / fig-height</td><td class="num">10 &times; 6 in</td><td>There is blank space inside the image.</td></tr>
+        <tr><td class="num">fig-max-height</td><td class="num">420px</td><td>The figure is too small and there is no blank space left to reclaim.</td></tr>
+        <tr><td class="num">out-width</td><td class="num">100%</td><td>Almost never. The cap does the sizing.</td></tr>
+        <tr><td class="num">layout</td><td class="num">automatic</td><td>You want a wide printout or a plot at the full width of the slide.</td></tr>
+        <tr><td class="num">code-track</td><td class="num">automatic</td><td>The automatic split gives the output too little room.</td></tr>
+        <tr><td class="num">context</td><td class="num">interactive</td><td>The cell defines objects other cells need, or should show output with no editor.</td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<footer>
+  <p>The rationale behind every default here, and what happens if you change one, is in <code>_lecture-shared/RULES.md</code>. The files themselves are edited only in <code>_lecture-shared/</code> and copied into each course by <code>./sync-lecture-shared.sh</code>.</p>
+  <p>Figures measured in Chrome against the rendered deck, not estimated.</p>
+</footer>
+
+</div>
+
+</body>
+</html>

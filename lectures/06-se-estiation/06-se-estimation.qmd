@@ -62,7 +62,11 @@ source(here::here("lectures/_lecture-theme.R"))
 <details class="transcript">
 <summary>Transcript</summary>
 
-Two definitions, and the whole lecture turns on the difference between them. Homoskedasticity says the variance of the error, conditional on x, is a constant: the same number wherever you look. Heteroskedasticity says it is a function of x, so the spread of the errors changes as x changes. Read the three bullets underneath, because they tell you where this fits. This is MLR five, the assumption every standard error in lecture 05 rested on, and it also came free with the normality assumption there. Today we ask what breaks when it fails.
+Two definitions, and the whole lecture turns on the difference between them. Start with the blue callout. Homoskedasticity says the variance of the error, conditional on x, equals sigma squared. Here, u is the unobserved error, x represents the explanatory variables we condition on, variance measures the spread of u around its conditional mean, and sigma squared is one constant positive number. The blue phrase underneath is the key: wherever you look in the x distribution, the conditional spread of the errors is the same.
+
+Now compare the red callout. Under heteroskedasticity, that conditional variance is f of x. The letter f does not impose a particular formula. It simply says the error variance can change with x. For example, income prediction errors may spread out as education or experience rises. Heteroskedasticity concerns the variance, not the conditional mean. We can still have expected u given x equal to zero while the size of typical positive and negative errors changes.
+
+Read the three bullets at the bottom for why this matters now. Constant conditional variance is MLR five, and every standard error, t-test, F-test, p-value, and confidence interval in lecture 05 used it. Normality gave it to us there because independence of u from x means the entire conditional distribution of u, including its variance, does not change with x. This lecture removes that protection. We will keep asking two separate questions: whether OLS coefficients survive, and whether the usual testing machinery survives.
 
 </details>
 
@@ -89,7 +93,11 @@ Read the difference: under homoskedasticity the spread of the error is the <span
 <details class="transcript inline">
 <summary>Transcript</summary>
 
-Two panels of simulated data, both from the same true line. On the left, homoskedastic errors: the cloud of points has the same vertical thickness at every value of x. On the right, heteroskedastic: it fans out, narrow on the left and wide on the right. Both fitted lines run through the middle of their clouds, and that is the first thing to notice. Heteroskedasticity does not tilt the line. What it changes is how confident you should be about where the line sits, and that is a statement about standard errors, not coefficients.
+Look at the two panels. The horizontal axis is x, running from zero to one. The vertical axis is y, and each dot is one of one thousand simulated observations. Both panels were generated from the same conditional mean, one plus three times x, so the true intercept is one and the true slope is three. The blue line in each panel is the fitted OLS line through its cloud.
+
+On the left, labeled Homoskedastic, the cloud has roughly the same vertical thickness at low, middle, and high values of x. The code generates those errors with a constant standard deviation of one point five, which is three times zero point five. On the right, labeled Heteroskedastic, the error standard deviation is three times x. Near x equals zero, the errors are therefore close to zero and the points hug the line. As x rises toward one, their standard deviation rises toward three, so the cloud opens into a fan. The upper and lower edges spread apart even though the middle stays on the same line.
+
+That last comparison is the main lesson. Heteroskedasticity does not automatically tilt the fitted line or move the true coefficients, because the positive and negative errors can still average to zero at every x. It changes how much information observations at different x values carry, and therefore how uncertain the fitted line is. That is why the repair later in this lecture changes the estimated standard errors, not the coefficient estimates.
 
 </details>
 
@@ -101,23 +109,24 @@ set.seed(10384)
 N <- 1000
 
 #--- generate data ---#
-x <- runif(N,0,1) # x
-het_u <- 3*rnorm(N,mean=0,sd=x) # heteroskedastic error
-y_het <- 1 + 3*x + het_u # y
-hom_u <- 3*rnorm(N,mean=0,sd=0.5) # homoskedastic error
-y_hom <- 1 + 3*x + hom_u # y
+x <- runif(N, 0, 1) # x
+het_u <- 3 * rnorm(N, mean = 0, sd = x) # heteroskedastic error
+y_het <- 1 + 3 * x + het_u # y
+hom_u <- 3 * rnorm(N, mean = 0, sd = 0.5) # homoskedastic error
+y_hom <- 1 + 3 * x + hom_u # y
 data <- data.table(
-  'Heteroskedastic'=y_het,
-  'Homoskedastic'=y_hom,
-  x=x) %>%
-melt(id.var='x')
-data[,type:=factor(variable,levels=c('Homoskedastic','Heteroskedastic'))]
+  "Heteroskedastic" = y_het,
+  "Homoskedastic" = y_hom,
+  x = x
+) %>%
+  melt(id.var = "x")
+data[, type := factor(variable, levels = c("Homoskedastic", "Heteroskedastic"))]
 
 #--- figure ---#
-ggplot(data=data) +
-  geom_point(aes(y=value,x=x),size=0.6) +
-  geom_smooth(aes(y=value,x=x),method='lm',se=FALSE) +
-  facet_grid(.~type) +
+ggplot(data = data) +
+  geom_point(aes(y = value, x = x), size = 0.6) +
+  geom_smooth(aes(y = value, x = x), method = "lm", se = FALSE) +
+  facet_grid(. ~ type) +
   ylab("") +
   xlab("") +
   scale_x_continuous(breaks = c(0, 0.5, 1)) +
@@ -129,7 +138,13 @@ ggplot(data=data) +
 <details class="transcript">
 <summary>Transcript</summary>
 
-Two questions, and it matters that we ask them separately, because they get different answers. Does heteroskedasticity break your coefficient estimates? Does it break your estimate of how uncertain those coefficients are? People often lump these together and assume that if an assumption fails, everything downstream is ruined. That is not what happens here. Keep the two apart in your head as we go, because the practical advice at the end of the lecture depends entirely on one of them being fine and the other not.
+This slide states the problem we are going to solve. Suppose reality is heteroskedastic, so the conditional error variance changes with x, but you proceed as if the errors were homoskedastic. There are two consequences to examine, and you must keep them separate.
+
+The first bullet asks about estimating beta j itself. Beta hat j is an OLS coefficient estimate, such as the estimated slope on x. We want to know whether heteroskedasticity changes its expected value, creates bias, or otherwise invalidates OLS as a way to estimate the conditional mean relationship. That is a question about the center of the estimator's sampling distribution.
+
+The second bullet asks about estimating the variance of beta hat j. That variance describes how beta hat j would move across repeated samples. Its square root is the standard error, which is the denominator of a t-statistic and therefore feeds directly into p-values and confidence intervals. This is a question about the spread of the sampling distribution.
+
+People often hear that an OLS assumption has failed and conclude that everything is unusable. Here the two questions receive different answers. The coefficients remain centered correctly under the assumptions used for unbiasedness, but the default measure of their uncertainty does not. That distinction is why the solution later is to keep OLS and replace the variance estimator.
 
 </details>
 
@@ -147,7 +162,11 @@ What are the consequences of assuming the error is homoskedastic when it is hete
 <details class="transcript">
 <summary>Transcript</summary>
 
-Take the first question on its own. Are the OLS estimators of the coefficients unbiased when the error is heteroskedastic? Think back to lecture 01-3, where we actually proved unbiasedness, and ask which assumptions that proof used. Go through them: the model is linear in parameters, the sample is random, there is variation in x, and the expected value of u given x is zero. Was homoskedasticity anywhere in that argument? Answer before you click, because the answer is the reason this lecture is a repair job rather than a demolition.
+Take the first of the two central questions on its own. The screen asks whether OLS coefficient estimators remain unbiased when the error is heteroskedastic. Unbiased means that, over repeated random samples generated by the same process, the average value of beta hat j equals the true beta j.
+
+Think back to the unbiasedness proof from lecture 01-3. In the simple regression case, beta hat one can be written as beta one plus a weighted sum of the errors. Conditional on the observed x values, the weights are fixed. If expected u given x is zero, then the expected value of that weighted error term is zero, leaving expected beta hat one given x equal to beta one. The multiple-regression argument has the same logic.
+
+Now ask exactly where a constant error variance entered that proof. It did not. We needed the model to be linear in its parameters, random sampling, no perfect collinearity so the coefficient exists, and zero conditional mean so x is not systematically related to the error. Heteroskedasticity changes the size of the errors across x, but it need not change their conditional mean. Decide on that basis before you open the Answer tab.
 
 </details>
 
@@ -158,7 +177,11 @@ Are OLS estimators unbiased when error is heteroskedastic?
 <details class="transcript">
 <summary>Transcript</summary>
 
-Yes, still unbiased, and read the reason: the proof never used homoskedasticity. MLR five came in later, only when we wanted a formula for the variance. So heteroskedasticity leaves your coefficient estimates exactly where they were. That is genuinely good news, and it shapes everything that follows. Nothing in this lecture will ask you to change a coefficient. The entire fix is about the second question, and specifically about replacing one formula for the standard error with another.
+Yes. The OLS coefficient estimator is still unbiased in the presence of heteroskedasticity, provided the assumptions that actually deliver unbiasedness, especially expected u given x equals zero, continue to hold. The sentence on screen gives the decisive reason: the proof of unbiasedness never used the homoskedasticity assumption.
+
+Be precise about what this answer does and does not claim. It says heteroskedasticity by itself does not move the center of the sampling distribution of beta hat j away from beta j. It does not say every regression with heteroskedastic errors is automatically unbiased. If x is correlated with an omitted variable in u, zero conditional mean fails and OLS can still be biased. That is a different problem.
+
+MLR five entered only when we derived the familiar variance formula for beta hat j. So keep every OLS coefficient estimate exactly as it is. The fitted values and residuals are also obtained in the ordinary way. The repair in this lecture concerns the second central question: how to estimate the variance and standard error of those unchanged coefficients. Flip forward with that distinction firmly in mind.
 
 </details>
 
@@ -176,7 +199,11 @@ Yes. We do not need to use the homoskedasticity assumption to prove that the OLS
 <details class="transcript">
 <summary>Transcript</summary>
 
-Here is the variance formula we have been carrying since lecture 02, and the estimator we built from it in lecture 05: replace the unknown sigma squared with sigma-hat squared, the average squared residual. Now read the callout, because it is the practical fact that makes this lecture necessary. This is what R gives you by default. Every standard error you have seen printed in a regression table so far came from this formula, and this formula is only correct when the errors are homoskedastic.
+This tab reviews the familiar variance formula under homoskedasticity. On the first line, the variance of beta hat j equals sigma squared divided by S S T x times one minus R j squared. Sigma squared is the common conditional variance of the error. S S T x is the total sum of squares for the explanatory variable x j, so more sample variation in x j gives more information and lowers the coefficient variance. R j squared comes from the auxiliary regression of x j on all the other explanatory variables. When x j is highly explained by those variables, one minus R j squared is small, the denominator shrinks, and multicollinearity raises the variance of beta hat j.
+
+Sigma squared is unknown, so the second line replaces it with sigma hat squared. Look at its definition: add the squared OLS residuals u hat i from observation one through N, then divide by N minus k minus one. N is the sample size, k is the number of slope regressors, and the additional one accounts for the intercept. Those lost degrees of freedom correct for estimating k plus one coefficients before measuring the remaining error variation.
+
+The blue phrase in the callout is the operational point. R and other software use this homoskedastic formula by default. The reported standard error is the square root of the resulting estimated variance. Every default t-statistic, p-value, and confidence interval then inherits this assumption. If the errors are actually heteroskedastic, sigma squared is not one common number, so this particular shortcut is no longer the correct variance formula.
 
 </details>
 
@@ -208,7 +235,11 @@ $Var(\widehat{\beta}_j) \ne \frac{\sigma^2}{SST_x(1-R^2_j)}$
 <details class="transcript">
 <summary>Transcript</summary>
 
-The precise question, written formally. If we keep using the default estimator when the errors are actually heteroskedastic, does it still get the right answer on average? That is what the expression asks: is the expected value of the default variance estimator equal to the true variance of beta-hat? Notice how carefully this is posed. We are not asking whether the formula looks wrong, we are asking whether it is unbiased for the thing we want, which is the only question that matters for testing.
+Under heteroskedasticity, the line above this question tells you that the true variance of beta hat j is not sigma squared divided by S S T x times one minus R j squared. There is no single sigma squared that describes every observation's conditional error variance. The question now asks whether the estimator built from that formula might nevertheless work on average.
+
+Read the expression from left to right. Var hat of beta hat j, subscript default, denotes the variance estimate produced by the conventional homoskedastic formula. The triple-bar definition says that this object is sigma hat squared divided by S S T x times one minus R j squared. The outer expectation asks for the average value of that default estimator across repeated samples. On the right is the actual sampling variance of beta hat j.
+
+So the equality asks whether the default estimator is unbiased for the true coefficient variance when errors are heteroskedastic. This is not the same as asking whether beta hat j itself is unbiased. We already answered that question yes. Here we are testing whether the estimated spread around that correctly centered coefficient is itself correct. Answer before opening the next tab, because all of the hypothesis-testing consequences follow from this equality failing.
 
 </details>
    
@@ -219,7 +250,11 @@ Is $E[\widehat{Var(\widehat{\beta}_j)}_{default}] \equiv E\Big[\frac{\widehat{\s
 <details class="transcript">
 <summary>Transcript</summary>
 
-No. The default estimator is not unbiased for the true variance once the errors are heteroskedastic, and that is the whole problem. Note what the answer does not say: it does not say the estimator is too big or too small. The direction depends on how the variance of the error relates to x in your particular data, which is why the deck says later that the direction of bias is ambiguous in general. What we can say is that it is wrong, and the next tab says what wrong costs you.
+No. Once the conditional variance of u changes with x, the default homoskedastic estimator is not generally unbiased for the true variance of beta hat j. It treats every observation as though it had the same error variance, even though observations at different x values can contribute very different amounts of uncertainty to the estimated slope.
+
+Do not accidentally transfer this answer to the coefficient itself. Beta hat j can remain unbiased because expected u given x is still zero, while the estimated variance of beta hat j is biased because the squared size of u changes with x. A correct center and an incorrectly measured spread can coexist.
+
+Also notice what the one-word answer does not tell you. It does not say that the default variance is always too small or always too large. The direction depends on where the high-variance observations lie and on the leverage those observations have for estimating a particular coefficient. In the first simulation it will be too small and the test will over-reject, but that is one design, not a universal direction. What is universal is that you cannot trust the default standard error, t-statistic, p-value, or confidence interval under arbitrary heteroskedasticity. The Consequences tab now translates that failure into test behavior.
 
 </details>
 
@@ -243,7 +278,11 @@ $\;\;\;\;\downarrow$
 <details class="transcript">
 <summary>Transcript</summary>
 
-A question about vocabulary that is worth pinning down, because people say biased testing loosely. Your standard errors are wrong, so your t-statistics are wrong, so your decisions to reject or not reject are wrong. But wrong in what sense? A test is not a number you can be off by. Think about what the significance level was supposed to guarantee, and what it would mean for that guarantee to fail. That is the precise sense in which a test can be biased.
+The blue sentence above this question gives the consequence: hypothesis tests will generally have the wrong rejection rate. That follows as a chain. A biased variance estimate gives a wrong standard error after taking its square root. The standard error sits in the denominator of the t-statistic, so the t-statistic is mis-scaled. Its reference distribution and critical value no longer deliver the rejection probability you intended. P-values and confidence intervals are wrong for the same reason.
+
+The question asks what people mean when they say hypothesis testing is biased. Be careful with the vocabulary. A test is a decision rule, not a coefficient estimate, so its bias is not described by an expected estimate being above or below a parameter. Instead, evaluate its behavior over repeated samples when the null hypothesis is true.
+
+At a five percent significance level, the test is designed to reject a true null five percent of the time. If its actual rejection probability is higher, it over-rejects and produces too many false positives. If the probability is lower, it under-rejects and has an overly conservative false-positive rate. Think in those repeated-sampling terms, then open the Answer tab.
 
 </details>
 
@@ -254,7 +293,11 @@ What does it mean to have hypothesis testing biased?
 <details class="transcript">
 <summary>Transcript</summary>
 
-You over-reject or under-reject relative to what you intended. Recall that the five percent significance level was a promise: if the null is true, you will wrongly reject it five percent of the time. That promise was computed using the default variance formula. Break the formula and the promise breaks with it. You might be rejecting ten percent of the time while believing you are at five, which means every p-value you report is misleading. The next slide measures exactly this with a simulation.
+Biased testing here means that you reject a null hypothesis more often or less often than the chosen significance level intends. At a five percent level, the repeated-sampling promise is conditional: among hypothetical repetitions in which H zero is true, about five percent should end in rejection. Such a rejection is a Type I error.
+
+If the standard error is underestimated, it makes the absolute t-statistic too large because the denominator is too small. More statistics cross the critical values, p-values become too small, confidence intervals become too narrow, and the test over-rejects. You then announce effects that are statistically significant more often than the nominal level permits. If the standard error is overestimated, the chain reverses: t-statistics are too small, p-values are too large, confidence intervals are too wide, and the test under-rejects.
+
+The answer on screen therefore says roughly that testing bias is rejection too often or too rarely relative to your intention. It is not enough that an individual decision happened to be right or wrong. We judge the procedure by its long-run rejection rate. The next slide constructs data where the null is true in every repetition and measures that rate directly.
 
 </details>
 
@@ -300,7 +343,11 @@ $y = 1 + \beta x + u$, where $\beta = 0$
 <details class="transcript">
 <summary>Transcript</summary>
 
-A quick check that you have the definition straight, because the simulation is only meaningful if you know what number to expect. We are about to test the null that beta equals zero, at the five percent level, in data where beta genuinely is zero. So the null is true every single time. How often should we reject it? Answer before clicking. If you have to hesitate, go back to the significance level tab in lecture 05, because this is exactly what that level means.
+Here is the Monte Carlo setup. The model is y equals one plus beta times x plus u, and the data-generating process fixes beta at zero. The intercept is one, x is the explanatory variable, and u is the error. Because beta is zero, x has no true effect on the conditional mean of y.
+
+The test is two-sided. H zero says beta equals zero, while H one says beta is not zero. We will test at a five percent significance level. The question writes the relevant conditional probability explicitly: the probability that we reject H zero given that H zero is true. That is the Type I error probability, or size, of the test.
+
+In this simulation H zero is not merely plausible. It is made true by construction in every generated dataset. That gives us a benchmark before any code runs. If the testing procedure is correctly calibrated, its long-run rejection rate should match the nominal five percent level. With one thousand repetitions, that translates to about fifty rejections, though random simulation variation means it need not be exactly fifty. State that target before opening the answer. Without a benchmark, the Monte Carlo output is just a number; with it, the output tells us whether ignoring heteroskedasticity breaks the test.
 
 </details>
 
@@ -313,7 +360,11 @@ $Pr(\text{reject} \;\; H_0|H_0 \;\; \text{is true})=?$
 <details class="transcript">
 <summary>Transcript</summary>
 
-Five percent, by construction. That is what choosing a five percent significance level buys you: a five percent chance of rejecting a true null. So in a thousand simulations we should reject about fifty times. Write that number down, because the whole point of the next few tabs is to run the simulation and see whether we get it. If we do not, the discrepancy is not bad luck, it is the cost of using the wrong variance formula.
+The target probability is five percent. That is exactly what a five percent significance level is supposed to control: when H zero is true, the test should make a Type I error with probability zero point zero five.
+
+Because the upcoming Monte Carlo experiment repeats the procedure one thousand times, the expected number of false rejections is one thousand times zero point zero five, which is fifty. Do not interpret fifty as an exact quota. Each repetition has a random outcome, so a correctly sized test could reject forty-six or fifty-four times in a particular run. The useful question is whether the observed rate is close enough to five percent to be explained by simulation noise, or systematically far away from it.
+
+Here beta really equals zero in every repetition. Therefore every rejection is a false positive, not evidence that the simulated x occasionally acquired a real effect. If the rate lands around eleven percent, for example, that means the nominal five percent test is rejecting a true null more than twice as often as promised. The next tabs show the exact procedure used to produce and diagnose that failure.
 
 </details>
 
@@ -332,7 +383,11 @@ $5\%$
 <details class="transcript">
 <summary>Transcript</summary>
 
-The recipe, and it is the same Monte Carlo structure from lecture 03 pointed at a new question. Generate data where the coefficient on x is genuinely zero. Estimate the model, get the coefficient and its standard error. Form the t-statistic and decide whether to reject. Repeat a thousand times. Then count. Notice what is being simulated here: not the distribution of an estimator, but the behaviour of a *test*. We are checking whether a procedure keeps its promise, which is a different kind of question.
+These five bullets are the complete Monte Carlo recipe. First, generate a dataset from y equals beta zero plus beta one x plus u while setting beta one, the coefficient on x, equal to zero. We will make u heteroskedastic, but keep its conditional mean at zero. That combination preserves unbiased OLS coefficients while breaking the default variance formula, which isolates the issue we want to study.
+
+Second, estimate the regression in each generated dataset. Save beta hat one, the estimated coefficient on x, and se hat of beta hat one, the estimated standard error. Third, calculate the t-statistic as beta hat x minus the null value zero, all divided by the estimated standard error of beta hat x. Because the null value is zero, the numerator simplifies to beta hat x. Reject the two-sided null when the absolute t-statistic exceeds the appropriate critical value.
+
+Fourth, repeat data generation, estimation, and testing one thousand times. Each iteration is a fresh realization of the error, so the coefficient and t-statistic change even though the true parameter never does. Finally, count the rejections. About fifty out of one thousand would be consistent with the intended five percent size. Notice that our target is the behavior of a whole testing procedure, not merely whether beta hat is centered at zero. A test can fail because its standard error is wrong even while the coefficient estimator remains unbiased.
 
 </details>
 
@@ -350,7 +405,13 @@ $$y=\beta_0+\beta_1 x + u$$
 <details class="transcript">
 <summary>Transcript</summary>
 
-Read the loop, and note the one line that makes this heteroskedastic. Inside `rnorm`, the standard deviation argument is `2 * x` rather than a constant, so the error's spread grows with x by construction. Then y is one plus that error, with no x term, so beta really is zero. The regression is a plain `lm`, and the t-statistic uses `vcov`, which is the default homoskedasticity-based formula. So we are deliberately using the wrong estimator on data we built to break it.
+There are two code blocks here. The first is browser infrastructure. The context setup option makes it run once to prepare later WebR cells rather than present it as a separate exercise. The lecture-theme function starts from theme B W with a configurable base text size. The nested theme call scales axis text, axis titles, legend text, and the legend title; makes the plot, panel, legend, and legend-key backgrounds transparent; and restores visible gray grid lines against the deck's warm background. WebR draws at seventy-two dots per inch even though the deck requests two hundred sixteen, so web r scale is three. The two assign-in-namespace calls scale ggplot's point and stroke conversion constants, and theme lecture then uses an eighteen-point base multiplied by three. The final line and rectangle settings prevent that scaling from making borders nine times too thick. Theme set makes this the default for later browser plots. None of that changes the econometrics; it makes the interactive graphics match the rest of the deck.
+
+The second block is the simulation itself. Set seed fixes the random-number stream so the class can reproduce the same result. N equals one thousand observations per dataset, B equals one thousand repetitions, and the two rep calls preallocate storage for coefficient estimates and t-statistics. The critical value uses q t at zero point nine seven five with N minus two degrees of freedom. We use zero point nine seven five because a two-sided five percent test leaves two point five percent in each tail, and subtract two degrees of freedom because this simple regression estimates an intercept and one slope.
+
+The runif call draws x between zero and one once, outside the loop, so the same x values are held fixed across repetitions. Within each iteration, rnorm draws N standard-normal quantities with mean zero and observation-specific standard deviation two times x; multiplying by three makes the error standard deviation six times x. That is the line that creates heteroskedasticity: observations near zero have little error dispersion and those near one have much more. Then y equals one plus the error. There is deliberately no x term, so the true slope is zero.
+
+Data frame combines y and x, and lm estimates y on an intercept and x. The dollar coef extraction selects the slope named x. Dee-tee bracket i stores it in the ith position. Vcov with no robust option returns the default homoskedastic variance-covariance matrix. The expression vcov underscore ols bracket x comma x selects the estimated variance of the x coefficient, square root turns that variance into a standard error, and beta hat divided by that standard error creates the t-statistic. We are therefore applying the default formula to data designed to violate it. Flip to Results to see whether the nominal five percent test keeps its promise.
 
 </details>
 
@@ -418,20 +479,20 @@ c_value <- qt(0.975, N - 2) # critical value
 
 x <- runif(N, 0, 1) # x (fixed across iterations)
 
-for (i in 1:B){
+for (i in 1:B) {
   #--- generate data ---#
   het_u <- 3 * rnorm(N, mean = 0, sd = 2 * x) # heteroskedastic error
   y <- 1 + het_u # y
   data_temp <- data.frame(y = y, x = x)
 
   #--- regression ---#
-  ols_res <- lm(y ~ x, data = data_temp)  
+  ols_res <- lm(y ~ x, data = data_temp)
 
-  b_hat <- ols_res$coef['x'] # coef estimate on x
+  b_hat <- ols_res$coef["x"] # coef estimate on x
   b_hat_store[i] <- b_hat # save the coef estimate
   vcov_ols <- vcov(ols_res) # get variance covariance matrix
-  t_stat_store[i] <- b_hat / sqrt(vcov_ols['x', 'x']) # calculate t-stat
-} 
+  t_stat_store[i] <- b_hat / sqrt(vcov_ols["x", "x"]) # calculate t-stat
+}
 ```
 
 ```{r}
@@ -448,20 +509,20 @@ c_value <- qt(0.975, N - 2) # critical value
 
 x <- runif(N, 0, 1) # x (fixed across iterations)
 
-for (i in 1:B){
+for (i in 1:B) {
   #--- generate data ---#
   het_u <- 3 * rnorm(N, mean = 0, sd = 2 * x) # heteroskedastic error
   y <- 1 + het_u # y
   data_temp <- data.frame(y = y, x = x)
 
   #--- regression ---#
-  ols_res <- lm(y ~ x, data = data_temp)  
+  ols_res <- lm(y ~ x, data = data_temp)
 
-  b_hat <- ols_res$coef['x'] # coef estimate on x
+  b_hat <- ols_res$coef["x"] # coef estimate on x
   b_hat_store[i] <- b_hat # save the coef estimate
   vcov_ols <- vcov(ols_res) # get variance covariance matrix
-  t_stat_store[i] <- b_hat / sqrt(vcov_ols['x', 'x']) # calculate t-stat
-} 
+  t_stat_store[i] <- b_hat / sqrt(vcov_ols["x", "x"]) # calculate t-stat
+}
 ```
 
 #### Results
@@ -469,23 +530,27 @@ for (i in 1:B){
 <details class="transcript">
 <summary>Transcript</summary>
 
-Count how often the absolute t-statistic exceeded the critical value, and read the number in the callout. We rejected about eleven percent of the time when we should have rejected five. So you are roughly twice as likely to declare a significant effect as you intended, on data where the true effect is exactly zero. Then work through the question in the middle: over-rejecting means the t-statistics were too big, which means the standard errors were too small, which means the default formula under-estimated the true variance. Open the answer to check.
+The first line turns every stored t-statistic into a rejection decision. Abs takes the absolute value because this is a two-sided test, and the greater-than comparison asks whether that value exceeds the critical value. The result is a logical vector, TRUE for rejection and FALSE for non-rejection. Mean treats TRUE as one and FALSE as zero, so the mean of that vector is the fraction of simulations that rejected.
+
+With the displayed seed and current R implementation, the output is zero point one zero eight, or ten point eight percent, which the callout rounds to about eleven percent. The target was five percent. Because beta is exactly zero in every generated dataset, every one of those rejections is a Type I error. This procedure produces false positives more than twice as often as its nominal level promises.
+
+Now trace the mechanism in the callout. Over-rejection means too many absolute t-statistics crossed the critical value. Since each t-statistic is beta hat divided by its estimated standard error and the coefficient estimates remain unbiased, the systematic inflation comes from a denominator that is too small. A standard error that is too small is the square root of an estimated variance that is too small. In this particular design, therefore, the default formula underestimates the true variance of the OLS slope. Open the embedded Answer to confirm that chain. The final bullet is essential: under heteroskedasticity in general, the bias can go either direction. This simulation demonstrates one possible and consequential direction, not a theorem that robust standard errors must always be larger.
 
 </details>
 
 ```{webr-r}
 #--- how many times do you reject? ---#
-reject_or_not <- 
+reject_or_not <-
   abs(t_stat_store) > c_value
 
-mean(reject_or_not) 
+mean(reject_or_not)
 ```
 
 ```{r}
 #| cache: true
 #| include: false
 #--- how many times do you reject? ---#
-reject_or_not <- 
+reject_or_not <-
   abs(t_stat_store) > c_value
 
 reject_default <- mean(reject_or_not)
@@ -525,7 +590,11 @@ We rejected the null hypothesis `r round(reject_default * 100, 1)`% of the time,
 <details class="transcript">
 <summary>Transcript</summary>
 
-Where we have got to: the default variance estimator is biased under heteroskedasticity, and that invalidates every test built on it. So can we estimate the variance credibly instead? Yes, and read the callout, particularly the phrase in red. Of unknown form. You do not have to model how the variance depends on x, or guess a functional form, or test for a particular pattern. That is what makes this estimator so useful in practice: it works without you having to understand the heteroskedasticity you have.
+The first sentence summarizes the failure we have established. Under heteroskedasticity, sigma hat squared divided by S S T x times one minus R j squared is a biased estimator of the sampling variance of beta hat. Because its square root supplies the standard error, tests, p-values, and confidence intervals based on it are not correctly calibrated. The Monte Carlo example showed one concrete consequence: a nominal five percent test rejected about eleven percent of the time.
+
+The question asks whether we can credibly estimate the coefficient variance without restoring homoskedasticity. The important callout answers yes. The White-Huber-Eicker estimator, named for the researchers associated with its development, produces what we call a heteroskedasticity-robust variance estimator and robust standard errors.
+
+Focus on the red phrase, unknown form. We do not need to specify whether the error variance grows linearly with x, quadratically with x, differs by category, or follows the fan shape from the figure. We also do not need to estimate that variance function observation by observation. The estimator uses squared OLS residuals to allow each observation to contribute its own estimated error variability. Its justification is large-sample consistency: as the sample grows, the robust variance estimate approaches the correct sampling variance under general heteroskedasticity. That is why the method is useful in applied work and why we can use it without first diagnosing the exact pattern.
 
 </details>
 
@@ -549,7 +618,13 @@ Can we credibly estimate the variance of the OLS estimators?
 <details class="transcript">
 <summary>Transcript</summary>
 
-Here is the formula, and read the callout in the middle before you read the formula, because it tells you what to do with it. We spend no time deriving this expression. What you actually need is the three bullets underneath: know why heteroskedasticity is a problem, know that a large-sample-consistent estimator addresses it, and know how to invoke it in R. Notice the denominator is the sum of squared residuals *squared*, which is easy to misread.
+This slide displays one scalar form of the heteroskedasticity-robust variance estimator for beta hat j. Read the numerator as a sum from observation one through n of r hat i j squared times u hat i squared. U hat i is the OLS residual from the original regression of y on all explanatory variables. It estimates the unobserved error for observation i, so u hat i squared supplies an observation-specific measure of error variability rather than forcing one common sigma hat squared on everybody.
+
+R hat i j comes from a separate auxiliary regression: regress x j on all the other explanatory variables and take observation i's residual. By the Frisch-Waugh-Lovell logic, that residual is the part of x j not explained by the other regressors, so it is the variation that identifies beta j. Squaring r hat i j weights observations according to how much identifying variation they contribute. An observation matters especially for the coefficient variance when it combines a large original residual, u hat i squared, with a large residualized x value, r hat i j squared.
+
+The denominator is S S R j squared. The slide defines S S R j as the sum over i of r hat i j squared from that auxiliary regression. Then the entire sum is squared in the variance formula. Do not confuse the square on S S R j with merely summing fourth powers. First add the r hat squares, then square that total. The square root of the displayed variance estimate is the heteroskedasticity-robust standard error.
+
+The note tells you we will not derive this estimator. Your required takeaways are the three bullets below it. Understand that heteroskedasticity invalidates the default uncertainty formula while leaving the OLS coefficients unbiased. Know that a robust, large-sample-consistent variance estimator exists for heteroskedasticity of unknown form. Finally, know how to request it in R or other statistical software. The next tabs turn that last requirement into a one-argument workflow.
 
 </details>
 
@@ -576,7 +651,13 @@ What you need is
 <details class="transcript">
 <summary>Transcript</summary>
 
-The working procedure, and it is short. Estimate by OLS as usual, with no changes. Assume the errors are heteroskedastic and use the robust variance estimator. Swap the default standard errors for the robust ones when you test. And read the last bullet, which is the one people get wrong: you never replace the coefficient estimates, because those were never broken. Note also the middle bullets about Breusch-Pagan and White tests. They exist, almost nobody runs them, and we will not learn them, because the answer would not change what you do.
+This is the applied workflow. First, estimate the conditional mean model with OLS exactly as usual. You do not transform y, reweight the observations, or fit a different set of coefficients merely because the errors may be heteroskedastic. Under zero conditional mean, the OLS beta hats remain unbiased.
+
+Second, assume the error can be heteroskedastic and estimate the variance-covariance matrix of those OLS coefficients with a heteroskedasticity-robust method. A variance-covariance matrix contains each coefficient variance on its diagonal and covariances between different coefficient estimates off the diagonal. The robust standard errors are the square roots of its diagonal entries.
+
+The indented bullets mention the Breusch-Pagan and White tests, which test homoskedasticity against forms of heteroskedasticity. In practice, almost nobody needs to make robust inference conditional on first passing one of these tests, and we will not learn their R commands here. The reason is decision-theoretic: in a large sample, you would use robust standard errors whether or not a preliminary test detects heteroskedasticity. Testing first adds another uncertain decision without changing the final recommendation.
+
+Third, use the robust variance estimates instead of the default homoskedastic estimates for inference. That means robust standard errors in t-statistics, robust p-values, robust confidence intervals, and robust joint tests. The final bullet prevents the common mistake: do not replace the coefficient estimates. The beta hats are the same OLS estimates in both columns of a comparison table. Only the reported uncertainty and the conclusions that depend on it change.
 
 </details>
 
@@ -609,7 +690,11 @@ Here is the well-accepted procedure in econometric analysis:
 <details class="transcript">
 <summary>Transcript</summary>
 
-A real regression to work with: log salary on years in the league and batting average, from the MLB data. This cell runs when the page loads, because everything on this slide and the next uses it. Nothing prints. Notice we are back to the same data we used for the F-test in lecture 05, which is convenient: you already have a sense of what these coefficients look like, so the changes we are about to make to their standard errors will stand out.
+We now move from the formula to the R workflow using the M L B one dataset from the wooldridge package. The data call asks R to load the object named M L B one specifically from that package. The autorun option means this browser cell executes when the slide deck loads, so the regression object will already exist when you run the cells on the following tabs. The cell prints nothing because both lines assign objects rather than request output.
+
+The regression call uses fixest double-colon feols. The double colon explicitly selects feols from the fixest package. Inside the formula, log of salary is the dependent variable. Taking the natural logarithm lets slope coefficients be interpreted approximately as proportional salary changes. Years in the league and batting average, abbreviated bavg, are the two explanatory variables, and feols includes an intercept by default. The data argument tells the function to find those variables in M L B one.
+
+The result is assigned to reg underscore M L B for reuse. This is the same regression used for the F-test in lecture 05, so the coefficient estimates are familiar. At this stage there is no vcov or cluster option. We have estimated ordinary OLS coefficients and left their stored inference at the default. That is deliberate, because the next tab shows how to request a robust variance-covariance matrix after estimation.
 
 </details>
 
@@ -621,17 +706,17 @@ Let's run a regression using the `mlb1` data from the `wooldridge` package.
 data("mlb1", package = "wooldridge")
 
 #--- regression ---#
-reg_mlb <- fixest::feols(log(salary) ~ years + bavg, data = mlb1) 
+reg_mlb <- fixest::feols(log(salary) ~ years + bavg, data = mlb1)
 ```
 
 ```{r}
 #| include: false
- 
+
 #--- import the data ---#
 data("mlb1", package = "wooldridge")
 
 #--- regression ---#
-reg_mlb <- fixest::feols(log(salary) ~ years + bavg, data = mlb1) 
+reg_mlb <- fixest::feols(log(salary) ~ years + bavg, data = mlb1)
 ```
 
 
@@ -640,7 +725,11 @@ reg_mlb <- fixest::feols(log(salary) ~ years + bavg, data = mlb1)
 <details class="transcript">
 <summary>Transcript</summary>
 
-Two functions and one argument. `vcov` gives you the whole variance-covariance matrix, `se` gives you just the standard errors, and both take a `vcov` argument specifying which kind you want. Read the general syntax, then run the specific version with `vcov = "hetero"`. That string is the entire difference between the default and the White-Huber robust estimator. One argument. Given how much trouble the wrong standard errors cause, it is worth noticing how cheap the fix is.
+This slide gives you three ways to consume robust uncertainty. Stats double-colon vcov returns the complete variance-covariance matrix. Its diagonal entries are estimated coefficient variances and its off-diagonal entries are estimated covariances between coefficient estimators. Fixest double-colon se returns only the standard errors, which are the square roots of those diagonal entries. Summary uses the selected variance estimator to report coefficient tests of H zero colon beta j equals zero, including the standard error, t-statistic, and p-value.
+
+Read the general syntax block. The first argument, labeled regression result, is a fitted model object such as reg underscore M L B. The named vcov argument selects the type of variance-covariance estimator. In real code, replace the placeholder string type of vcov with a supported choice. The second call has the same two inputs but returns only the standard-error vector. The namespace prefix on fixest double-colon se makes clear which package supplies se, which avoids ambiguity with functions of the same short name.
+
+Now run the concrete browser cell. Vcov of reg underscore M L B with vcov equal to the string hetero returns the White-Huber-Eicker heteroskedasticity-robust matrix. Fixest se with the same model and same vcov choice returns robust standard errors for the intercept, years, and bavg. The quoted word hetero is doing all of the statistical work that differs from the default call. It tells fixest not to assume one common conditional error variance. The OLS model and its coefficients are not re-estimated. Given that the wrong default uncertainty can double the false-positive rate in our simulation, the practical fix is remarkably small.
 
 </details>
 
@@ -683,7 +772,11 @@ fixest::se(reg_mlb, vcov = "hetero")
 <details class="transcript">
 <summary>Transcript</summary>
 
-Now put the two side by side. Run both cells and compare the numbers term by term. The robust standard errors are noticeably larger here, particularly on the intercept where it roughly doubles. That direction is not guaranteed in general, but it is what happens with this data. And a reminder of what has not changed: run the regression itself and the coefficients are identical either way. We are only ever changing the second number, never the first.
+Run the Default cell first. Se of reg underscore M L B has no vcov override, so it extracts the conventional homoskedastic standard errors. The parentheses around the assignment make R both save the vector as se underscore hom and print it. In the displayed dataset, the values are about zero point three four three for the intercept, zero point zero one three two for years, and zero point zero zero one three four for batting average.
+
+Now run the Heteroskedasticity-robust cell. It uses the same fitted model but adds vcov equal to hetero, saves the result as se underscore het, and prints it. Those standard errors are about zero point seven zero four, zero point zero one seven seven, and zero point zero zero two nine eight. Compare term by term: all three robust values are larger in this application, the intercept and batting-average standard errors a little more than double, and the years standard error rises by roughly one third.
+
+Do not generalize the direction. Robust standard errors are not defined as default standard errors plus a penalty, so they need not always be larger. Their purpose is to estimate the right sampling variance under heteroskedasticity. Also notice what these cells never request: new coefficient estimates. The fitted intercept, years slope, and bavg slope inside reg underscore M L B remain identical. Only the estimated uncertainty attached to each is changing, which can change the tests even though the fitted regression line does not.
 
 </details>
 
@@ -713,7 +806,11 @@ Now put the two side by side. Run both cells and compare the numbers term by ter
 <details class="transcript inline">
 <summary>Transcript</summary>
 
-When you write this up you want a proper table, so here is how to build one with both sets of standard errors. Pass a list of models and a matching list of VCOV matrices to the `vcov` argument. Now read the table on the right, and read it down the columns. The coefficients are identical, as promised. The standard errors all differ. And look at `bavg`: it carries three stars with the default standard errors and a single plus with the robust ones. That is a variable moving from overwhelming significance to marginal, purely from changing the variance formula.
+This slide shows how to report both uncertainty choices in a publication-style table. The first two lines compute and save the robust and homoskedastic variance-covariance matrices from the same reg underscore M L B object. Vcov underscore het adds vcov equal to hetero; vcov underscore homo leaves the default unchanged.
+
+Modelsummary double-colon msummary receives a list containing the same fitted model twice, which creates two table columns with identical coefficient estimates. Its vcov argument receives a second list in matching order: the robust matrix for column one and the default matrix for column two. This one-to-one ordering matters. If the lists were reversed, the column labels in your explanation would be wrong. Stars equal TRUE asks modelsummary to add significance markers based on each column's p-values. Gof underscore omit supplies a regular-expression string that removes fit rows whose names contain I C, Log, Adj, F, Pseudo, or Within, leaving a more compact table. The comment says to keep those presentation options unchanged.
+
+Read the rendered table on the right by comparing each row across columns. Every coefficient is identical because both columns use the same OLS fit: the intercept is about eleven point zero four, the years coefficient about zero point one six six, and the bavg coefficient about zero point zero zero five four. The numbers in parentheses are the standard errors, and every pair differs because column one is robust while column two is conventional. For bavg, the default standard error is about zero point zero zero one three four, producing a t-statistic near four point zero four and three stars. The robust standard error is about zero point zero zero two nine eight, producing a t-statistic near one point eight one, a p-value around zero point zero seven one, and only a plus. Batting average moves from strong conventional significance to marginal significance solely because we stopped assuming homoskedasticity. This is exactly why the variance choice must be reported and justified.
 
 </details>
 
@@ -738,7 +835,7 @@ modelsummary::msummary(
   # keep these options as they are
   stars = TRUE,
   gof_omit = "IC|Log|Adj|F|Pseudo|Within"
-) 
+)
 ```
 
 
@@ -752,7 +849,7 @@ modelsummary::msummary(
   # keep these options as they are
   stars = TRUE,
   gof_omit = "IC|Log|Adj|F|Pseudo|Within"
-) 
+)
 ```
 :::
 <!--end of the 2nd column-->
@@ -770,7 +867,11 @@ Column (1) uses the robust VCOV, column (2) the default. Read down the two colum
 <details class="transcript inline">
 <summary>Transcript</summary>
 
-A cleaner way, and the one I would use. Put the `vcov` argument inside `feols` itself, and the regression object carries its robust standard errors around with it. Everything downstream, the summary, the table, the confidence intervals, then uses them automatically with no further intervention. That matters because the failure mode with the previous approach is silent: forget the override on one table and you have published default standard errors while believing they were robust. Setting it once at the source removes that possibility.
+This is the recommended implementation because it records the inference choice inside the fitted model object. Reg underscore M L B with r vcov is assigned the result of fixest double-colon feols. The formula is still log salary on years and bavg, so the OLS coefficients are the same as before. The data argument still points to M L B one. The only new argument is vcov equal to hetero, which tells fixest to attach the heteroskedasticity-robust variance-covariance estimator to the result.
+
+The second call passes a one-element list containing that model to modelsummary double-colon msummary. There is no vcov list this time and no separate statistic override. Msummary reads the robust inference already stored in the object. Stars equal TRUE again adds significance markers, and gof underscore omit again removes the listed goodness-of-fit rows. The left code block hides its textual result because the formatted output is displayed in the right column, where echo is false so you see the table without duplicate code.
+
+The statistical result is the same robust column you just constructed manually. The advantage is reliability, not a new estimator. Once vcov equal to hetero is set in feols, downstream summaries, tables, confidence intervals, and coefficient tests use that choice automatically. With the previous approach, forgetting the vcov override on one later table silently reverts to default standard errors. Setting the choice once at estimation makes the regression object carry the intended inference everywhere it goes. It still does not alter the coefficient estimates; it changes the variance information stored with them.
 
 </details>
 
@@ -782,19 +883,19 @@ Alternatively, you could add the `vcov` option like below inside `fixest::feols(
 
 ::: {.column width="50%"}
 ```{r results = "hide"}
-reg_mlb_with_rvcov <- 
+reg_mlb_with_rvcov <-
   fixest::feols(
     log(salary) ~ years + bavg,
-    vcov = "hetero", 
+    vcov = "hetero",
     data = mlb1
-  ) 
+  )
 
 modelsummary::msummary(
   list(reg_mlb_with_rvcov),
   # keep these options as they are
   stars = TRUE,
   gof_omit = "IC|Log|Adj|F|Pseudo|Within"
-) 
+)
 ```
 
 
@@ -807,7 +908,7 @@ modelsummary::msummary(
   # keep these options as they are
   stars = TRUE,
   gof_omit = "IC|Log|Adj|F|Pseudo|Within"
-) 
+)
 ```
 :::
 <!--end of the 2nd column-->
@@ -823,7 +924,13 @@ modelsummary::msummary(
 <details class="transcript">
 <summary>Transcript</summary>
 
-Does the robust estimator actually deliver? Same test as before, so we can compare directly. The data generating process is identical, heteroskedastic errors and a true beta of zero. The regression is identical. The only change is on the highlighted line: the standard error now comes from `se` with `vcov = "hetero"` instead of the default. One line different from the simulation that over-rejected, so any change in the result is attributable to that line alone.
+Now we validate the robust estimator with the same Monte Carlo logic used to expose the default estimator. The opening question is empirical: does this method bring the rejection probability back toward the nominal five percent level when the errors are heteroskedastic?
+
+Set seed fixes a new reproducible random stream. The code uses N, B, beta-hat storage, t-stat storage, and the critical value already created earlier. Runif draws N x values between zero and one once before the loop, so x again stays fixed across repetitions. Inside the loop, rnorm draws N mean-zero errors with observation-specific standard deviation two times x, and the outer factor of three makes the standard deviation six times x. Y equals one plus that error, so the true coefficient on x remains exactly zero. Data frame packages y and x for estimation.
+
+Feols estimates y on x by OLS. The coefficient extraction selects the element named x and stores it in beta hat store at position i. Up to this point the data-generating process and coefficient estimator have the same structure as the broken test. The highlighted line is the crucial change: se of ols underscore res with vcov equal to hetero requests the robust standard-error vector, and bracket x selects the standard error for the slope. The t-statistic divides the unchanged beta hat by this robust standard error and stores the result.
+
+Because the null value is zero, no subtraction appears in the numerator. Because the only inferential change is the vcov choice, a corrected rejection rate can be attributed to the robust variance estimator rather than to a different model, different coefficients, or a different heteroskedastic pattern. Move to the results tab to make that comparison.
 
 </details>
 
@@ -836,18 +943,18 @@ set.seed(478954)
 #--- x fixed across iterations ---#
 x <- runif(N, 0, 1) # x
 
-for (i in 1:B){
+for (i in 1:B) {
   #--- generate data ---#
   het_u <- 3 * rnorm(N, mean = 0, sd = 2 * x) # heteroskedastic error
   y <- 1 + het_u # y
   data_temp <- data.frame(y = y, x = x)
 
   #--- regression ---#
-  ols_res <- feols(y ~ x,data = data_temp)
-  b_hat <- ols_res$coefficient['x'] # coef estimate on x
+  ols_res <- feols(y ~ x, data = data_temp)
+  b_hat <- ols_res$coefficient["x"] # coef estimate on x
   b_hat_store[i] <- b_hat # save the coef estimate
   se_het <- se(ols_res, vcov = "hetero")["x"] # heteroskedasticity-robust se #<<
-  t_stat_store[i] <- b_hat/se_het # calculate t-stat
+  t_stat_store[i] <- b_hat / se_het # calculate t-stat
 }
 ```
 
@@ -872,12 +979,16 @@ reject_robust <- mean(abs(t_stat_store) > c_value)
 <details class="transcript">
 <summary>Transcript</summary>
 
-And there is the payoff. About five percent, against about eleven percent with the default estimator, and five percent is exactly what we were aiming for. Read the second bullet, because it is the sentence to take away from this whole half of the lecture. Nothing about the estimation changed. Same data, same OLS, same coefficient estimates, same everything except the formula used to compute one number. The test went from badly broken to essentially correct on the strength of that alone.
+The code repeats the rejection calculation. Abs makes the stored t-statistics two-sided, the greater-than comparison checks them against the previously computed critical value, and mean converts the TRUE and FALSE decisions into a rejection proportion. With the displayed seed, the current run returns zero point zero five three, or five point three percent.
+
+Compare all three quantities printed in the sentence below the cell. The robust procedure rejects about five point three percent of true nulls. The default procedure rejected about ten point eight percent. The target is five percent. Monte Carlo results are not expected to equal the target exactly in only one thousand repetitions, so a three-tenths-of-a-percentage-point difference is ordinary simulation noise. The large excess rejection seen with the default standard error is essentially gone.
+
+The two bullets state the correct conclusion and its scope. The robust estimator is not magically perfect in every finite sample, but it restores approximately correct test size in this large-sample design. More importantly, nothing about coefficient estimation changed. We used the same form of heteroskedastic data, the same OLS objective, and the same beta hats. Only the formula estimating the sampling variance changed. That one replacement corrected the standard errors, which corrected the t-statistics and therefore the rejection decisions. Keep that separation between estimation and inference as we move to the second problem, clustered errors.
 
 </details>
 
 ```{webr-r}
-reject_or_not <- 
+reject_or_not <-
   abs(t_stat_store) > c_value
 
 mean(reject_or_not)
@@ -915,7 +1026,11 @@ We reject `r round(reject_robust * 100, 1)`% of the time, against the `r round(r
 <details class="transcript">
 <summary>Transcript</summary>
 
-A different failure of the usual error assumptions, and it is worth seeing a concrete case first. You have students' GPAs from many colleges, and you regress college GPA on income and high-school GPA. Now think about what is left in the error term: everything about a college you did not measure, and grading policy is the obvious one. Two students at the same college share that unmeasured leniency, so their errors move together. The errors are not independent draws any more, and zero correlation across observations is one condition the default variance formula requires.
+We now turn from unequal error variances to dependence across observations. The two bullets above the tabs define the setting: observations can often be grouped into clusters, and errors belonging to observations in the same cluster can be correlated. A cluster is a collection whose members share shocks or omitted characteristics. Errors may be dependent within a cluster while different clusters are treated as independent.
+
+Example one groups students by college. The equation says college G P A equals beta zero plus beta one times income plus beta two times high-school G P A plus u. College G P A is the outcome. Income and high-school G P A are observed explanatory variables. The error u contains every determinant of college G P A omitted from the regression.
+
+Suppose the sample contains students from many colleges and one omitted determinant is each college's grading policy. Students at a lenient college may all receive college G P A values above what income and high-school G P A predict, giving many positive errors. Students at a strict college may all have negative errors. Two students at the same college therefore share a college-level component in u, so knowing one student's error tells you something about another's. The observations are not independent pieces of information. College is the natural cluster because that is the level at which the omitted grading environment is shared. This does not by itself mean income is correlated with u, so it is not automatically coefficient bias. It is first a problem for the default standard errors.
 
 </details>
 
@@ -932,7 +1047,11 @@ $GPA_{col} = \beta_0 + \beta_1 income + \beta_2 GPA_{hs} + u$
 <details class="transcript">
 <summary>Transcript</summary>
 
-The same structure with a different grouping, and this one you will meet constantly. Five hundred individuals, each observed over ten years, so five thousand observations. But the ten observations for one person are not ten independent pieces of evidence, because that person's innate ability sits in the error term in every one of those years. The cluster here is the individual, not the year. This shape, the same unit observed repeatedly, is what the panel data lecture is entirely about, so hold on to it.
+Example two has the same dependence structure with individuals as the groups. The sample follows five hundred people for ten years, producing five thousand person-year observations. The outcome is income and education is an explanatory variable of interest. Repeated observations let us see the same person's income at several points in time, but they do not create ten independent versions of that person.
+
+The bullet identifies innate ability as an omitted individual characteristic. If ability affects income but is not completely represented by the regressors, it sits inside u. The same person's ability is present in all ten years, so that person's errors tend to move together over time. A positive unexplained income component this year makes a positive unexplained component next year more likely. The cluster is therefore the individual: all ten time-series observations for one person belong together. Clustering by calendar year would address shocks shared by everybody in a year, which is a different possible dependence pattern.
+
+There are two econometric issues to keep distinct. If innate ability is correlated with education, zero conditional mean can fail and OLS coefficients can be biased. Later panel-data methods address that omitted-variable problem. This slide isolates the within-person correlation of the errors. Even if the regressors are exogenous, treating five thousand person-years as five thousand independent observations exaggerates the amount of independent information and invalidates the conventional variance formula. Hold on to this repeated-unit example, because it returns in the panel-data lecture.
 
 </details>
 
@@ -955,7 +1074,11 @@ Education Impacts on Income: cluster by individual
 <details class="transcript">
 <summary>Transcript</summary>
 
-The same first question we asked about heteroskedasticity, and you should be able to answer it by the same reasoning. Are the coefficient estimates biased when the errors are correlated within groups? Go back to what unbiasedness actually required: the expected value of u given x is zero. Does correlation *among the errors* violate that? Read the answer once you have decided, and note how precisely it distinguishes the two things: correlation between x and u is fatal, correlation among the u's is not.
+Question one repeats the estimation-versus-inference distinction. Does correlation among errors within a cluster make the OLS coefficient estimators biased? To answer, write the two kinds of correlation separately. Correlation between an explanatory variable x and the error u threatens the zero-conditional-mean assumption and can bias beta hat. Correlation between u i and u h for two observations in the same group describes dependence across errors.
+
+Those are not the same statement. If expected u given the full set of x values is zero, the OLS estimator can still be centered on the true beta even when errors from classmates, people in the same village, firms in the same industry, or repeated observations of one individual move together. The answer hidden on the slide is therefore no: correlation among the u's does not by itself bias OLS coefficients.
+
+The qualification matters. In the college example, if omitted grading policy is also related to the included regressors, that could create endogeneity and coefficient bias. In the panel example, omitted ability could be correlated with education. Those would violate the maintained exogeneity assumption. For this section we hold exogeneity fixed and study the additional consequence of within-cluster dependence. Under that setup, keep the coefficients and ask next whether their default variance estimate remains valid.
 
 </details>
 
@@ -973,7 +1096,11 @@ No, the correlation between $x$ and $u$ would hurt you, but not correlation amon
 <details class="transcript">
 <summary>Transcript</summary>
 
-And the second question, also familiar. Is the default variance estimator valid under clustering? The usual formula requires both constant conditional variance and zero conditional covariance between different observations' errors. Homoskedasticity supplies the first condition; independent sampling supplies the second. Clustering violates the second by putting non-zero off-diagonal terms in the error variance-covariance matrix, so the usual formula estimates the wrong thing.
+Question two asks whether the default estimator of the variance of beta hat remains unbiased in the presence of clustered errors. The hidden answer is no. The conventional formula relies on more than equal diagonal variances. It also relies on different observations' errors having zero conditional covariance.
+
+Picture the variance-covariance matrix of the error vector. Each diagonal entry is the variance of one observation's error. Homoskedasticity makes those diagonal entries equal to sigma squared. Each off-diagonal entry is a covariance between two different observations' errors. Independent sampling, together with the regression assumptions, makes those entries zero in the conventional derivation. Clustered error creates blocks of nonzero off-diagonal covariances for pairs belonging to the same group.
+
+Those covariance terms enter the true sampling variance of OLS because beta hat is built from a weighted combination of all observations' errors. The default estimator discards them as though every observation supplied an independent shock. Even perfectly constant marginal variances would not rescue it; homoskedasticity concerns the diagonal and does not imply zero off-diagonal covariance. So, as with heteroskedasticity, OLS coefficients can remain unbiased while conventional standard errors, t-tests, p-values, and confidence intervals become invalid. The next question builds intuition for the usual direction of the error.
 
 </details>
 
@@ -991,7 +1118,13 @@ No. The usual variance estimator requires both homoskedasticity and no correlati
 <details class="transcript">
 <summary>Transcript</summary>
 
-The intuition question, and it is the one worth sitting with. Which carries more information, two independent errors or two correlated ones? Think of it as asking how much you learn from the second observation given the first. If they are independent, everything; if they are correlated, less, because you could partly have predicted it. So a dataset with clustered errors contains less information than its sample size suggests. Then answer the two fill-in-the-blanks below and check yourself against the answer.
+Start with the information question. Two independent errors carry more information than two positively correlated errors. If the second error is independent of the first, observing it supplies a genuinely new realization. If the two are strongly correlated, knowing the first lets you partly predict the second, so the second observation adds less new information. At the extreme, two identical errors are repetition of one shock, not two independent shocks.
+
+Now apply that intuition to the first fill-in-the-blank. The default variance estimator behaves as though all observations are independent. With positive within-cluster correlation, it therefore counts more independent information than the sample truly contains. Greater presumed information implies greater presumed precision, so it tends to underestimate the true variance of beta hat. The hidden answer highlights under.
+
+Move through the second blank as a causal chain. An underestimated variance produces an underestimated standard error after taking the square root. Dividing beta hat by a denominator that is too small produces an absolute t-statistic that is too large. Too many statistics cross the critical value, so you reject the null more often than intended. The hidden answer highlights more.
+
+This direction relies on the common applied case of positive within-cluster dependence, which is the case constructed in the simulations. It is also why a dataset with thousands of rows but only a small number of independent groups can support much less precise inference than its row count suggests. The relevant independent information is closer to the number and diversity of clusters than to the raw number of observations.
 
 </details>
 
@@ -1026,7 +1159,11 @@ Two independent errors carry more information than two correlated ones: if you a
 <details class="transcript">
 <summary>Transcript</summary>
 
-The same Monte Carlo design as the heteroskedasticity case, so the results will be directly comparable. Generate data where the errors are correlated within clusters and beta is genuinely zero. Estimate, form the t-statistic using the default standard error, and record whether you reject. Repeat a thousand times and count. Since the null is true every time, we should reject about fifty times. Keep that number in mind, because what actually happens is far more dramatic than the heteroskedasticity case was.
+The simulation again tests whether a nominal five percent procedure has the right rejection rate, but the data-generating process now violates independence rather than constant variance. The first bullet says to create clustered errors in two clusters in the conceptual illustration, while the code that follows uses fifty groups for a more informative experiment. In either case, observations inside a group share correlated components. The model is y equals beta zero plus beta one x plus u, and beta one is fixed at zero so the null is true.
+
+For each generated dataset, estimate OLS and extract beta hat x together with its estimated standard error. Calculate the t-statistic as beta hat x divided by se hat of beta hat x. The subtraction of the null value is absent because that value is zero. In the first experiment, the standard error is the default one, which incorrectly treats the clustered observations as independent.
+
+Repeat data generation, regression, and t-statistic construction one thousand times. Then count how many absolute t-statistics reject H zero colon beta x equals zero. Because that null is true in every repetition, a correctly sized five percent test should reject around fifty times. The Monte Carlo target is therefore identical to the heteroskedasticity experiment, making rejection rates directly comparable. Any large excess is not coefficient bias, since beta is deliberately zero and x and u are generated independently. It is the cost of estimating uncertainty as if correlated observations were independent.
 
 </details>
 
@@ -1051,7 +1188,13 @@ $$
 <details class="transcript">
 <summary>Transcript</summary>
 
-Read how the correlation is manufactured. `mvrnorm` draws from a multivariate Normal, and the covariance matrix is a matrix of tens plus an identity. So every pair of errors within a group has covariance ten, while each has variance eleven. That is very strong within-group correlation. The same construction is applied to x, more weakly. Two thousand observations in fifty groups of forty. And y is one plus zero times x plus u, so beta is zero by construction, exactly as before.
+This cell builds one clustered dataset. N is two thousand total observations, G is fifty groups, and N g equals N divided by G, so each group contains forty observations. Those equal group sizes simplify the simulation.
+
+For u, MASS double-colon mvrnorm generates G multivariate-normal draws. Its first argument, G, means one draw per group. Mu equals rep zero N g gives each forty-dimensional draw a vector of zero means. Sigma specifies the forty-by-forty covariance matrix. Matrix ten fills every entry with ten, and diag N g adds one only to the diagonal. Each error therefore has variance eleven, while every pair of distinct errors in the same group has covariance ten. Their correlation is ten divided by eleven, about zero point nine one, which is very strong. Different mvrnorm rows are drawn independently, so dependence is within groups but not across them.
+
+The pipe sends the resulting fifty-by-forty matrix to t, making observations from the same group contiguous, then c flattens it into a vector of length two thousand. The x block repeats the construction independently. Its covariance matrix has ones everywhere and adds zero point two on the diagonal, so each x has variance one point two, pairwise within-group covariance one, and correlation about zero point eight three. Generating x independently of u keeps the true slope exogenous while making much of x's identifying variation occur between groups.
+
+Y is one plus zero times x plus u. Writing zero times x makes the true slope visually explicit even though the term contributes nothing. Finally, data frame binds y, x, and a group identifier. Rep one colon G, each equals N g repeats each group number forty times, matching the ordering created by transpose and flatten. The result has two thousand rows, fifty independent clusters, strongly correlated errors within each cluster, and a true coefficient on x of zero.
 
 </details>
 
@@ -1060,21 +1203,27 @@ Read how the correlation is manufactured. `mvrnorm` draws from a multivariate No
 #--- setup ---#
 N <- 2000 # total number of observations
 G <- 50 # number of groups
-Ng <- N/G # number of observations per group
+Ng <- N / G # number of observations per group
 
 #--- error correlated within group ---#
-u <- 
+u <-
   MASS::mvrnorm(
-    G, mu = rep(0, Ng), 
+    G,
+    mu = rep(0, Ng),
     Sigma = matrix(10, nrow = Ng, ncol = Ng) + diag(Ng)
-  ) %>% t() %>% c()
+  ) %>%
+  t() %>%
+  c()
 
 #--- x correlated within group ---#
-x <- 
+x <-
   MASS::mvrnorm(
-    G, mu = rep(0, Ng), 
+    G,
+    mu = rep(0, Ng),
     Sigma = matrix(1, nrow = Ng, ncol = Ng) + diag(Ng) * .2
-  ) %>% t() %>% c()
+  ) %>%
+  t() %>%
+  c()
 
 #--- other variables ---#
 y <- 1 + 0 * x + u
@@ -1088,7 +1237,13 @@ data <- data.frame(y = y, x = x, group = rep(1:G, each = Ng))
 <details class="transcript">
 <summary>Transcript</summary>
 
-Worth running, because clustering is easier to see than to describe. Each column of points is one group. If the errors were independent you would see a uniform band across the whole picture. Instead whole columns sit high or low together: a group with a large positive shared component has all forty of its observations pushed up. That vertical displacement of entire groups is the clustering. And notice how few effectively independent pieces of information there really are here: closer to fifty than to two thousand.
+Run this plot and read both axes. The horizontal axis is group, with categories one through fifty. Factor of group tells ggplot to treat those numbers as discrete clusters rather than a continuous numeric scale. The vertical axis is y, the generated outcome. Geom point draws one dot per observation with y mapped vertically and the group factor mapped horizontally. Size zero point two keeps the forty points in each group from obscuring one another. X lab supplies the axis title group.
+
+Theme lecture applies the deck's common appearance. The additional theme call changes only the horizontal-axis labels: element text uses six times the WebR scale for readable rendered size and angle ninety rotates the fifty group numbers vertically so they do not overlap.
+
+Each vertical strip contains the forty observations from one group. If errors were independent across all two thousand rows, the strips would look like comparable random samples from one common vertical band, with no persistent group-level displacement. Instead, whole strips sit unusually high or low because members share a large common error component. A group receiving a positive common shock moves many of its y values upward together; another group's negative shock moves its column downward. That coordinated motion is what within-group error correlation looks like.
+
+Do not infer that every dot within a group is identical. The identity component in the covariance matrix adds observation-specific noise, so there is still vertical spread inside each column. The figure separates the shared and individual pieces visually. It also shows why two thousand rows overstate the independent information: much of the movement occurs through only fifty group-level shocks.
 
 </details>
 
@@ -1107,7 +1262,13 @@ ggplot(data) +
 <details class="transcript">
 <summary>Transcript</summary>
 
-The loop, with the data generation from two tabs ago inside it. The regression is plain OLS with no cluster argument, and `se(reg)` therefore returns the default standard error, which is what we are testing. Everything else follows the usual pattern: form the t-statistic, store it, repeat a thousand times. This will take a moment to run because each iteration draws two multivariate Normal samples. Predict the rejection rate before you look at the next tab.
+This Monte Carlo cell puts the preceding data-generating process inside a loop. The label cluster M C names the cell. Set seed makes its random draws reproducible. B is one thousand repetitions, t stat store is a preallocated numeric vector of that length, and N, G, and N g again specify two thousand observations arranged as fifty groups of forty.
+
+In each iteration, the two mvrnorm pipelines regenerate u and x. For u, G group-level multivariate draws have zero means, variances eleven, and within-group covariances ten. For x, the corresponding variances are one point two and covariances one. Transpose and c preserve contiguous group ordering. Y is reset to one plus zero times x plus u, and data frame combines the variables with group numbers repeated forty times each. Fresh u and x draws make each iteration a new dataset, while the true slope remains zero.
+
+Feols estimates y on x by ordinary least squares. Notice what is missing: there is no cluster argument in this first experiment. Se of reg, bracket x, therefore selects the default standard error for the x coefficient, which treats all two thousand observations as independent. The next line extracts the x coefficient and divides it by that default standard error. Because the null value is zero, this is the test statistic directly. Dee-tee bracket i comma stores it for the ith repetition.
+
+The code does not save beta hats separately because this experiment needs only the rejection behavior. It also does not use the group column during estimation, even though group is present in the data. That omission is deliberate: we are measuring what goes wrong when clustering is known in the data structure but ignored in inference. Each iteration draws two multivariate-normal samples, so the browser may take a moment. Predict whether the false-positive rate will be above or below the earlier eleven percent before opening Results.
 
 </details>
 
@@ -1116,25 +1277,31 @@ The loop, with the data generation from two tabs ago inside it. The regression i
 
 set.seed(58934)
 B <- 1000
-t_stat_store <- rep(0,B)
+t_stat_store <- rep(0, B)
 N <- 2000 # total number of observations
 G <- 50 # number of groups
-Ng <- N/G # number of observations per group
+Ng <- N / G # number of observations per group
 
-for (i in 1:B){
+for (i in 1:B) {
   #--- error correlated within group ---#
-  u <- 
-  MASS::mvrnorm(
-    G, mu = rep(0, Ng), 
-    Sigma = matrix(10, nrow = Ng, ncol = Ng) + diag(Ng)
-  ) %>% t() %>% c()
+  u <-
+    MASS::mvrnorm(
+      G,
+      mu = rep(0, Ng),
+      Sigma = matrix(10, nrow = Ng, ncol = Ng) + diag(Ng)
+    ) %>%
+    t() %>%
+    c()
 
   #--- x correlated within group ---#
-  x <- 
+  x <-
     MASS::mvrnorm(
-      G, mu = rep(0, Ng), 
+      G,
+      mu = rep(0, Ng),
       Sigma = matrix(1, nrow = Ng, ncol = Ng) + diag(Ng) * .2
-    ) %>% t() %>% c()
+    ) %>%
+    t() %>%
+    c()
 
   #--- other variables ---#
   y <- 1 + 0 * x + u
@@ -1149,9 +1316,9 @@ for (i in 1:B){
   se_default <- se(reg)["x"]
 
   #--- calculate t-stat ---#
-  t_stat <- reg$coefficient['x']/se_default
+  t_stat <- reg$coefficient["x"] / se_default
   t_stat_store[i] <- t_stat
-} 
+}
 ```
 
 #### Results 
@@ -1159,7 +1326,13 @@ for (i in 1:B){
 <details class="transcript">
 <summary>Transcript</summary>
 
-Around seventy-five percent. Not five, not eleven, but seventy-five. Three times out of four you would declare a statistically significant effect for a variable whose true coefficient is exactly zero. Read the callout: the default estimator badly under-estimates the true variance, because it thinks it has two thousand independent observations when it effectively has about fifty. Compare this against the heteroskedasticity case. Clustering is by far the more dangerous of the two problems, and it is also the easier one to fail to notice.
+The first line computes the two-sided critical value using q t at zero point nine seven five with N minus two degrees of freedom. Again, zero point nine seven five leaves two point five percent in the upper tail, and N minus two accounts for the intercept and slope in the simple regression. The next line takes absolute stored t-statistics, compares them with that critical value, and averages the logical decisions to obtain the rejection rate.
+
+With the displayed seed, the result is zero point seven five one, or seventy-five point one percent. The correct null is being rejected about three times in every four, rather than one time in twenty. The coefficient on x is exactly zero in the data-generating process, and x was generated independently from u, so this is not evidence of a real effect or bias caused by endogeneity. It is catastrophic size distortion from the default standard error.
+
+The callout explains the direction. Strong positive correlation makes forty rows within a group convey much less than forty independent errors would. Moreover, x is itself highly correlated within group, so the slope relies heavily on group-level comparisons. The default estimator ignores those shared shocks and acts as if N equals two thousand independent observations determined its precision. It therefore greatly underestimates the true variance and standard error, inflates the absolute t-statistics, and makes explanatory variables look far more significant than they are.
+
+Compare this seventy-five percent rate with about eleven percent in the heteroskedasticity simulation. Clustering is much more damaging in these particular designs. That ranking is not universal, because it depends on how strong each violation is. The valid conclusion is that ignored clustering can be severe and that a large row count cannot compensate for having relatively few independent groups.
 
 </details>
 
@@ -1167,18 +1340,25 @@ Around seventy-five percent. Not five, not eleven, but seventy-five. Three times
 c_value <- qt(0.975, N - 2)
 
 #--- how often do you reject the null ---#
-mean(abs(t_stat_store) > c_value) 
+mean(abs(t_stat_store) > c_value)
 ```
 
 ```{r}
 #| cache: true
 #| include: false
 set.seed(58934)
-B <- 1000; N <- 2000; G <- 50; Ng <- N / G
+B <- 1000
+N <- 2000
+G <- 50
+Ng <- N / G
 t_cl_default <- rep(0, B)
 for (i in 1:B) {
-  u <- MASS::mvrnorm(G, mu = rep(0, Ng), Sigma = matrix(10, Ng, Ng) + diag(Ng)) %>% t() %>% c()
-  x <- MASS::mvrnorm(G, mu = rep(0, Ng), Sigma = matrix(1, Ng, Ng) + diag(Ng) * .2) %>% t() %>% c()
+  u <- MASS::mvrnorm(G, mu = rep(0, Ng), Sigma = matrix(10, Ng, Ng) + diag(Ng)) %>%
+    t() %>%
+    c()
+  x <- MASS::mvrnorm(G, mu = rep(0, Ng), Sigma = matrix(1, Ng, Ng) + diag(Ng) * .2) %>%
+    t() %>%
+    c()
   y <- 1 + 0 * x + u
   reg <- feols(y ~ x, data = data.frame(y = y, x = x, group = rep(1:G, each = Ng)))
   t_cl_default[i] <- reg$coefficient["x"] / se(reg)["x"]
@@ -1205,7 +1385,11 @@ reject_cl_default <- mean(abs(t_cl_default) > qt(0.975, N - 2))
 <details class="transcript">
 <summary>Transcript</summary>
 
-The fix, and the shape of it is the same as before. There are estimators of the variance that allow for correlation within clusters, and we call the standard errors from them cluster-robust. Read the sentence in blue: we neither derive nor display them, for the same reason as the heteroskedasticity case. And read the third bullet in the callout carefully, because it is a practical convenience worth knowing. These estimators handle heteroskedasticity at the same time, so you do not have to choose between the two fixes.
+The fix has the same structure as the heteroskedasticity repair. There are variance-covariance estimators that allow errors to have arbitrary correlation within a specified cluster while treating different clusters as independent. The slide denotes such an estimate by Var hat of beta hat, subscript c l. The diagonal elements estimate the variances of the coefficient estimators, and their square roots are cluster-robust standard errors.
+
+The blue sentence says we will neither derive nor display the mathematical expression. What matters is knowing what dependence it permits and what information you must supply. The software needs a variable identifying which observations belong to the same group. It then keeps cross-products of residual contributions within each group, rather than discarding them under an independence assumption. That allows a shared college shock, individual effect, village shock, or other cluster-level component to affect the estimated coefficient variance.
+
+Read every bullet in the note as a learning objective. First, understand the consequence: conventional standard errors can drastically understate uncertainty and make tests over-reject when positively correlated errors are ignored. Second, know that an appropriate variance estimator exists, so you do not have to abandon the OLS coefficients. Third, the estimator used here also permits heteroskedasticity within clusters. It is therefore both cluster-robust and heteroskedasticity-robust, so you do not apply a separate White-Huber correction on top of it. Fourth, know how to request it in R or other software and how to choose a defensible cluster variable. The next tabs supply that implementation.
 
 </details>
 
@@ -1237,7 +1421,13 @@ There exist estimators of $Var(\widehat{\beta})$ that take into account the poss
 <details class="transcript">
 <summary>Transcript</summary>
 
-Before the demonstration, look at the data. The `nl` variable is one for the National League and zero for the American League, and that is what we will cluster on. Run the cell and look at a few rows. Now notice something about this choice that we will come back to at the end: clustering on `nl` means two clusters. Two. Hold that thought, because the cluster-robust estimator needs many groups to behave, and two is nowhere near many.
+The opening text connects this syntax to the heteroskedasticity case. We previously selected a robust estimator with the vcov option. For cluster-robust uncertainty, fixest accepts a cluster option that identifies the grouping variable.
+
+Before estimating anything, inspect the data. Dplyr double-colon select takes M L B one as its first input and keeps only salary, years, bavg, and n l. The pipe passes that four-column table to head, which prints the first six rows by default. Salary is the outcome in levels before we take logs, years is time in the major leagues, bavg is batting average, and n l is the proposed group indicator.
+
+The bullet defines n l exactly: one means the player is in the National League, and zero means the player is in the American League. Players with the same value would be treated as sharing potentially correlated errors. In syntax terms, n l is the variable around which we cluster.
+
+Now count the distinct values. A binary indicator creates only two clusters, one per league. That is intentionally a simple syntax demonstration, not a credible setting for conventional cluster-robust inference. These estimators rely on a large number of approximately independent clusters. Hundreds of players do not repair the fact that there are only two league-level units. Keep that warning separate from the mechanics: the next tab shows the correct command, while later simulations show why the number of groups determines how well the method behaves.
 
 </details>
 
@@ -1262,7 +1452,11 @@ dplyr::select(mlb1, salary, years, bavg, nl) %>% head()
 <details class="transcript">
 <summary>Transcript</summary>
 
-Two steps and the syntax mirrors the heteroskedasticity case exactly. Run the regression as normal, then apply `vcov` or `se` with a `cluster` argument. Note the argument is a formula, with a tilde before the variable name, not a bare column. That trips people up. Everything else is identical to what you did with `vcov = "hetero"`, which is the point: the interface for both robust estimators is the same, so once you can do one you can do the other.
+Step one estimates exactly the same OLS model as before. Autorun makes the browser execute the cell on load. Feols receives log salary as the dependent variable, years and bavg as regressors, and M L B one as the data source. The result is assigned to reg underscore M L B. There is no cluster option in this fitting call, so the object initially carries default inference, but its OLS coefficients are ready for either variance estimator.
+
+Step two computes clustered uncertainty after estimation. Vcov receives the fitted model and cluster equal to tilde n l. The tilde is important: this is a one-sided formula telling fixest to find n l in the model's original data and use its values as cluster identifiers. Vcov returns the complete cluster-robust variance-covariance matrix. The following se call uses the same cluster formula but returns only the square roots of the diagonal entries.
+
+The model coefficients do not change between these calls. The cluster option changes how residual contributions are aggregated when estimating their sampling variance. Observations with the same n l value are allowed arbitrary heteroskedasticity and covariance; the two leagues are treated as independent clusters. This mirrors the earlier post-estimation syntax vcov equal to hetero, so the workflow is easy to transfer. However, correct syntax does not make two clusters sufficient. Use this example to learn the interface, not to claim that two-league inference is reliable.
 
 </details>
 
@@ -1272,7 +1466,7 @@ Run a regression
 
 ```{webr-r}
 #| autorun: true
-reg_mlb <- feols(log(salary) ~ years + bavg, data = mlb1) 
+reg_mlb <- feols(log(salary) ~ years + bavg, data = mlb1)
 ```
 
 <br>
@@ -1283,10 +1477,10 @@ Apply `vcov()` or `se()` with the `cluster =` option.
 
 ```{webr-r}
 #--- vcov clustered by nl ---#
-vcov(reg_mlb, cluster = ~ nl)
+vcov(reg_mlb, cluster = ~nl)
 
 #--- se clustered by nl ---#
-se(reg_mlb, cluster = ~ nl)
+se(reg_mlb, cluster = ~nl)
 ```
 
 #### Compare 
@@ -1294,14 +1488,18 @@ se(reg_mlb, cluster = ~ nl)
 <details class="transcript">
 <summary>Transcript</summary>
 
-Run both and compare. The cluster-robust standard errors differ from the defaults, though with only two clusters you should not put much weight on the specific numbers. What matters is the mechanism: the estimator is accounting for the fact that players in the same league share unmeasured league-level factors, so their errors are not independent. Whether it does that *well* depends on the number of clusters, which is the caveat we return to at the end of the lecture.
+The top cell calls se of reg underscore M L B with no override. It returns the default homoskedastic standard errors for the intercept, years, and batting average, treating player-level errors as uncorrelated. The lower cell uses the same fitted model but adds cluster equal to tilde n l. It returns cluster-robust standard errors that permit all players in the same league to share arbitrary error covariance and heteroskedasticity.
+
+Compare the two vectors term by term rather than looking for a universal direction. The clustered values differ from the defaults because within-league residual co-movement is now included. Cluster-robust standard errors are not guaranteed to exceed default standard errors for every coefficient in every sample. They are intended to estimate a different variance under a different dependence structure.
+
+The most important comparison on this particular slide is not numerical. N l has only two distinct values, so the lower calculation is built from only two independent cluster contributions. Conventional cluster-robust approximations require many groups, and estimates based on two can be extremely unstable or degenerate. The code is a valid demonstration of the argument and formula syntax, but its reported numbers should not support substantive inference about baseball salaries. Later tabs make the number-of-groups problem visible in controlled simulations with fifty and one thousand clusters.
 
 </details>
 
 **Default**
 
 ```{webr-r}
-se(reg_mlb) 
+se(reg_mlb)
 ```
 
 <br>
@@ -1309,7 +1507,7 @@ se(reg_mlb)
 **Cluster-robust standard error**
 
 ```{webr-r}
-se(reg_mlb, cluster = ~ nl) 
+se(reg_mlb, cluster = ~nl)
 ```
 
 
@@ -1318,7 +1516,13 @@ se(reg_mlb, cluster = ~ nl)
 <details class="transcript">
 <summary>Transcript</summary>
 
-The same recommendation as for heteroskedasticity, and for the same reason. Put the `cluster` argument inside `feols` and the regression object carries its clustered standard errors everywhere. Read the syntax, then run the example and tidy the result. Setting it at the source rather than at each table means you cannot accidentally report default standard errors while believing they were clustered, which is a mistake that is completely invisible in the output.
+This is the recommended way to store the clustering decision. The general syntax puts cluster equal to tilde variable to cluster by directly inside fixest double-colon feols. The formula y tilde x specifies the regression, and data tells feols where both the regression variables and cluster identifier live. The eval false option marks this first block as a syntax template rather than executable code.
+
+The concrete example assigns reg underscore M L B to feols of log salary on years and bavg. Cluster equal to tilde n l identifies league membership as the grouping level, and data equal to M L B one supplies all variables. Feols still computes the ordinary OLS coefficient estimates. It also stores the cluster-robust variance choice with the model object.
+
+Tidy of reg underscore M L B then returns one row per coefficient with the estimate and its attached inferential quantities, including clustered standard errors, test statistics, and p-values. No cluster option needs to be repeated because tidy reads the model's stored vcov specification.
+
+As in the heteroskedasticity section, setting the choice at the source prevents a silent reporting mistake. If you calculate robust uncertainty only when making a particular table, forgetting the override later reverts to defaults without an obvious warning. A model that carries cluster equal to tilde n l uses the intended inference downstream. The two-cluster warning still applies, so this remains a syntax example. In real analysis, choose a cluster level from the sampling or treatment-assignment structure and make sure the number of independent groups is adequate.
 
 </details>
 
@@ -1330,7 +1534,7 @@ Or, you could add the `cluster` option inside `fixest::feols()`.
 
 ```{r}
 #| eval: false
-fixest::feols(y ~ x, cluster = ~ variable_to_cluster_by, data = data)
+fixest::feols(y ~ x, cluster = ~variable_to_cluster_by, data = data)
 ```
 
 <br>
@@ -1340,7 +1544,7 @@ fixest::feols(y ~ x, cluster = ~ variable_to_cluster_by, data = data)
 This code cluster by `nl`.
 
 ```{webr-r}
-reg_mlb <- feols(log(salary) ~ years + bavg, cluster = ~ nl, data = mlb1) 
+reg_mlb <- feols(log(salary) ~ years + bavg, cluster = ~nl, data = mlb1)
 
 tidy(reg_mlb)
 ```
@@ -1353,7 +1557,13 @@ tidy(reg_mlb)
 <details class="transcript">
 <summary>Transcript</summary>
 
-The procedure, and it is deliberately identical in shape to the heteroskedasticity version several slides back. Estimate by OLS unchanged. Assume the errors are clustered and heteroskedastic. Swap in the cluster-robust standard errors for testing. Never touch the coefficients. If those four lines feel repetitive, that is the point: the two problems in this lecture are different in cause and identical in treatment, and the last slide draws that parallel out explicitly.
+This slide turns the cluster discussion into an applied procedure. First, estimate the conditional mean model using OLS without changing the coefficient computation. Under the maintained exogeneity assumptions, within-cluster error correlation does not itself bias beta hat.
+
+Second, allow the errors to be clustered and heteroskedastic when estimating Var of beta hat. Supply a defensible cluster identifier and use the cluster-robust variance-covariance estimator. Defensible means the grouping follows the source of shared shocks, the sampling design, or the level at which treatment was assigned. It does not mean trying several arbitrary cluster variables and choosing the one that produces a preferred p-value.
+
+Third, replace the default variance estimates with Var hat of beta hat subscript c l for inference. Take their diagonal square roots for cluster-robust standard errors, then use those values in t-statistics, p-values, confidence intervals, and joint tests. Because the estimator used here also handles heteroskedasticity, do not layer a separate heteroskedastic correction over it.
+
+Finally, do not replace the coefficient estimates. The fitted model, beta hats, and predictions remain OLS. Only their estimated uncertainty changes. This is deliberately parallel to the earlier workflow: heteroskedasticity changes diagonal error variances, clustering adds within-group covariance, and each violation breaks the default uncertainty formula without automatically breaking OLS coefficients. The remaining question is whether the cluster-robust replacement is accurate with the number of groups available.
 
 </details>
 
@@ -1383,7 +1593,13 @@ Let's run MC simulations to see if the use of the cluster-robust standard error 
 <details class="transcript">
 <summary>Transcript</summary>
 
-The same test as before, so we can compare directly. Identical data-generating process, identical everything, except the highlighted line where `feols` now gets a `cluster` argument. There are fifty groups. That is enough to illustrate improvement but not enough to invoke a universal cutoff—cluster-robust accuracy also depends on cluster sizes, leverage, balance, and dependence strength. Run it and predict the answer first, without expecting exact five-percent size.
+This is the direct repair experiment. Set seed, B, N, G, and N g reproduce the earlier design: one thousand simulations, two thousand observations, fifty groups, and forty observations per group. T stat store is reset so the new experiment does not mix its statistics with the default-standard-error run.
+
+Inside each iteration, mvrnorm again creates strongly correlated within-group errors with variance eleven and covariance ten, and correlated within-group x values with variance one point two and covariance one. Transpose and c arrange the group members contiguously. Y equals one plus zero times x plus u, and the group column repeats each identifier N g times. The true x coefficient is still zero and x is still generated independently of u.
+
+The highlighted feols line is the only statistical repair. It estimates y on x from data but now adds cluster equal to tilde group. The OLS coefficient is unchanged; the fitted object carries a variance estimator that aggregates residual score contributions at the group level and permits heteroskedasticity and arbitrary correlation within each group. Se of reg bracket x therefore retrieves the cluster-robust standard error rather than the default. Dividing the x coefficient by it produces the t-statistic, which is stored at position i.
+
+There are fifty independent groups, not two thousand independent observations. Cluster-robust theory improves as the number of clusters grows, so fifty can demonstrate a large correction without guaranteeing exact five percent size. There is no universal safe cutoff. Accuracy also depends on unequal cluster sizes, influential groups, leverage, balance, and the strength of within-group dependence. Predict a major reduction from seventy-five percent, but do not require an exact five percent result.
 
 </details>
 
@@ -1391,25 +1607,31 @@ The same test as before, so we can compare directly. Identical data-generating p
 #| label: cl-MC-robust
 set.seed(58934)
 B <- 1000
-t_stat_store <- rep(0,B)
+t_stat_store <- rep(0, B)
 N <- 2000 # total number of observations
 G <- 50 # number of groups
-Ng <- N/G # number of observations per group
+Ng <- N / G # number of observations per group
 
-for (i in 1:B){
+for (i in 1:B) {
   #--- error correlated within group ---#
-  u <- 
-  MASS::mvrnorm(
-    G, mu = rep(0, Ng), 
-    Sigma = matrix(10, nrow = Ng, ncol = Ng) + diag(Ng)
-  ) %>% t() %>% c()
+  u <-
+    MASS::mvrnorm(
+      G,
+      mu = rep(0, Ng),
+      Sigma = matrix(10, nrow = Ng, ncol = Ng) + diag(Ng)
+    ) %>%
+    t() %>%
+    c()
 
   #--- x correlated within group ---#
-  x <- 
+  x <-
     MASS::mvrnorm(
-      G, mu = rep(0, Ng), 
+      G,
+      mu = rep(0, Ng),
       Sigma = matrix(1, nrow = Ng, ncol = Ng) + diag(Ng) * .2
-    ) %>% t() %>% c()
+    ) %>%
+    t() %>%
+    c()
 
   #--- other variables ---#
   y <- 1 + 0 * x + u
@@ -1418,13 +1640,13 @@ for (i in 1:B){
   data <- data.frame(y = y, x = x, group = rep(1:G, each = Ng))
 
   #--- OLS with cluster-robust se---#
-  reg <- feols(y ~ x, data = data, cluster = ~ group) #<<
+  reg <- feols(y ~ x, data = data, cluster = ~group) #<<
 
   #--- get vcov ---#
   se_cl <- se(reg)["x"]
 
   #--- calculate t-stat ---#
-  t_stat <- reg$coefficient['x']/se_cl
+  t_stat <- reg$coefficient["x"] / se_cl
   t_stat_store[i] <- t_stat
 }
 ```
@@ -1432,28 +1654,34 @@ for (i in 1:B){
 ```{r}
 #| cache: true
 #| include: false
-library(MASS) 
+library(MASS)
 set.seed(58934)
 B <- 1000
-t_stat_store <- rep(0,B)
+t_stat_store <- rep(0, B)
 N <- 2000 # total number of observations
 G <- 50 # number of groups
-Ng <- N/G # number of observations per group
+Ng <- N / G # number of observations per group
 
-for (i in 1:B){
+for (i in 1:B) {
   #--- error correlated within group ---#
-  u <- 
-  MASS::mvrnorm(
-    G, mu = rep(0, Ng), 
-    Sigma = matrix(10, nrow = Ng, ncol = Ng) + diag(Ng)
-  ) %>% t() %>% c()
+  u <-
+    MASS::mvrnorm(
+      G,
+      mu = rep(0, Ng),
+      Sigma = matrix(10, nrow = Ng, ncol = Ng) + diag(Ng)
+    ) %>%
+    t() %>%
+    c()
 
   #--- x correlated within group ---#
-  x <- 
+  x <-
     MASS::mvrnorm(
-      G, mu = rep(0, Ng), 
+      G,
+      mu = rep(0, Ng),
       Sigma = matrix(1, nrow = Ng, ncol = Ng) + diag(Ng) * .2
-    ) %>% t() %>% c()
+    ) %>%
+    t() %>%
+    c()
 
   #--- other variables ---#
   y <- 1 + 0 * x + u
@@ -1462,13 +1690,13 @@ for (i in 1:B){
   data <- data.frame(y = y, x = x, group = rep(1:G, each = Ng))
 
   #--- OLS with cluster-robust se---#
-  reg <- feols(y ~ x, data = data, cluster = ~ group) #<<
+  reg <- feols(y ~ x, data = data, cluster = ~group) #<<
 
   #--- get vcov ---#
   se_cl <- se(reg)["x"]
 
   #--- calculate t-stat ---#
-  t_stat <- reg$coefficient['x']/se_cl
+  t_stat <- reg$coefficient["x"] / se_cl
   t_stat_store[i] <- t_stat
 }
 ```
@@ -1478,7 +1706,11 @@ for (i in 1:B){
 <details class="transcript">
 <summary>Transcript</summary>
 
-Around nine percent, against seventy-five with the default. That is an enormous improvement and still not the five percent we want. Both things are worth saying. The estimator has taken a test that was useless and made it roughly usable, and it has not made it correct. The reason is in the callout: cluster-robust estimators are asymptotic in the number of *groups*, not the number of observations. Fifty groups is not many, and two thousand observations does not help.
+The critical-value calculation now uses q t at zero point nine seven five with G minus one degrees of freedom. The two-sided tail probability is unchanged, but the reference degrees of freedom follow the number of independent clusters rather than the two thousand rows. With fifty groups, G minus one is forty-nine. The next line compares the absolute cluster-robust t-statistics with that critical value and averages the rejection indicators.
+
+Read the numerical result produced by the cell and compare it with both benchmarks. It is in the single digits for this fixed-seed design, a different world from the seventy-five point one percent rejection rate under default standard errors, but still not guaranteed to equal the five percent target. The later summary table records this improvement as approximately nine percent. The main conclusion does not depend on treating that Monte Carlo approximation as an exact constant: accounting for clustering removes most of the catastrophic size distortion, while a finite number of groups can leave noticeable error.
+
+The callout explains why. Cluster-robust inference improves as the number of independent groups grows. It is asymptotic in G, not simply in the row count N. Two thousand observations arranged into fifty correlated blocks do not provide the same inferential foundation as two thousand independent groups. That is also why the M L B example's two leagues are plainly insufficient. At the same time, no universal cluster count guarantees accurate inference. Leverage, group-size balance, influential clusters, and within-group dependence strength all matter. Treat fifty as an illustration of major improvement, not as a certification threshold.
 
 </details>
 
@@ -1517,7 +1749,13 @@ Well, we are still rejecting more often than we should, but it is a different wo
 <details class="transcript">
 <summary>Transcript</summary>
 
-Same code with one number changed: a thousand groups instead of fifty. Read the note, because this cell is genuinely slow in the browser and it has not crashed. While it runs, think about what we are testing. If the problem at fifty groups was that the asymptotics had not kicked in, then more groups should improve things. If it were something else, more groups would not help. This is a diagnostic, not just a bigger simulation.
+This simulation keeps the same null hypothesis, dependence structure, estimator, and one thousand Monte Carlo repetitions, but greatly increases the number of independent groups. N is now twenty thousand, G is one thousand, and N g equals twenty observations per group. Increasing N alongside G keeps group size manageable while giving the cluster-robust approximation many more independent cluster contributions.
+
+The two mvrnorm calls retain the same covariance structures. Within each group, u has variance eleven and pairwise covariance ten, while x has variance one point two and pairwise covariance one. Y remains one plus zero times x plus u, and data frame assigns twenty consecutive observations to each group. Feols estimates the same zero-slope regression with cluster equal to tilde group. Se of reg bracket x retrieves the attached cluster-robust standard error, and each slope divided by that value is stored as a t-statistic.
+
+The note warns about computation. Each of one thousand iterations now fits a regression to twenty thousand observations and constructs multivariate draws for one thousand groups. Desktop R takes roughly half a minute in the environment used for the slide, while WebR in the browser can take several minutes. A long wait is expected behavior, not evidence that the cell has hung.
+
+Conceptually, this is a diagnostic for the approximation. If the remaining distortion with fifty groups came from having too few independent clusters, increasing G from fifty to one thousand should move the rejection rate closer to five percent. If the robust formula were addressing the wrong dependence structure, simply adding groups would not systematically help. Flip to Results only after stating that prediction.
 
 </details>
 
@@ -1531,25 +1769,31 @@ The only change from the previous simulation is `G`: 1000 groups instead of 50.
 #| label: cl-MC-robust-more-groups
 set.seed(58934)
 B <- 1000
-t_stat_store <- rep(0,B)
+t_stat_store <- rep(0, B)
 N <- 20000 # total number of observations
 G <- 1000 # number of groups #<<
-Ng <- N/G # number of observations per group
+Ng <- N / G # number of observations per group
 
-for (i in 1:B){
+for (i in 1:B) {
   #--- error correlated within group ---#
-  u <- 
-  MASS::mvrnorm(
-    G, mu = rep(0, Ng), 
-    Sigma = matrix(10, nrow = Ng, ncol = Ng) + diag(Ng)
-  ) %>% t() %>% c()
+  u <-
+    MASS::mvrnorm(
+      G,
+      mu = rep(0, Ng),
+      Sigma = matrix(10, nrow = Ng, ncol = Ng) + diag(Ng)
+    ) %>%
+    t() %>%
+    c()
 
   #--- x correlated within group ---#
-  x <- 
+  x <-
     MASS::mvrnorm(
-      G, mu = rep(0, Ng), 
+      G,
+      mu = rep(0, Ng),
       Sigma = matrix(1, nrow = Ng, ncol = Ng) + diag(Ng) * .2
-    ) %>% t() %>% c()
+    ) %>%
+    t() %>%
+    c()
 
   #--- other variables ---#
   y <- 1 + 0 * x + u
@@ -1558,13 +1802,13 @@ for (i in 1:B){
   data <- data.frame(y = y, x = x, group = rep(1:G, each = Ng))
 
   #--- OLS with cluster-robust se---#
-  reg <- feols(y ~ x, data = data, cluster = ~ group)
+  reg <- feols(y ~ x, data = data, cluster = ~group)
 
   #--- get vcov ---#
   se_cl <- se(reg)["x"]
 
   #--- calculate t-stat ---#
-  t_stat <- reg$coefficient['x']/se_cl
+  t_stat <- reg$coefficient["x"] / se_cl
   t_stat_store[i] <- t_stat
 }
 ```
@@ -1574,7 +1818,11 @@ for (i in 1:B){
 <details class="transcript">
 <summary>Transcript</summary>
 
-Better, and still not exactly five percent. So the diagnosis was right: the remaining over-rejection really is a small-number-of-groups problem, and it shrinks as the groups multiply. Read the last line, which is the honest summary of this whole section. Cluster-robust standard errors are not a guarantee of correctness. They are a large improvement over an estimator that was catastrophically wrong, and in applied work that is what you get to have.
+The results code uses q t at zero point nine seven five with G minus one degrees of freedom. With one thousand groups, that is nine hundred ninety-nine degrees of freedom and the critical value is very close to the standard-normal value one point nine six. Abs makes the test two-sided, the comparison creates rejection indicators, and mean reports their proportion.
+
+The result is closer to the five percent target than the corresponding fifty-group experiment, which supports the large-number-of-clusters explanation. It is still a Monte Carlo proportion from one thousand repetitions, so exact equality with zero point zero five is neither expected nor required. Sampling noise in the experiment and finite-sample behavior of the estimator both remain.
+
+The sentence below the cell summarizes the intended comparison: increasing the number of groups improves the test, and using cluster-robust inference is certainly better than the default procedure that rejected roughly seventy-five percent of true nulls. Do not turn that into a guarantee that cluster-robust standard errors are exact. Their conventional justification is asymptotic as the number of independent groups grows. Applied data always has a finite G, and group balance, leverage, and dependence strength still matter. The honest conclusion is substantial protection against a badly wrong independence assumption, together with caution about small-G inference.
 
 </details>
 
@@ -1602,7 +1850,13 @@ Better. But, we are still over-rejecting. Don't forget it is certainly better th
 <details class="transcript">
 <summary>Transcript</summary>
 
-Both halves of this lecture on one table, and read it across rather than down. Two different assumption failures, one caused by variance depending on x and one by errors being correlated within groups. In both, the coefficients survive untouched. In both, the default variance estimator breaks. In both, the fix is one argument to `feols`. Then compare the two rejection-rate rows, eleven percent against seventy-five. In this simulation design, clustering creates the larger distortion. That ranking is not universal; it depends on the form and strength of heteroskedasticity and within-group correlation.
+This table compresses both halves of the lecture, so read each row across the two columns. In the first row, heteroskedasticity means Var of u conditional on x depends on x. Clustered error means distinct observations' errors are correlated within a group. These violate different pieces of the usual error variance-covariance structure: unequal diagonal variances in the first case, nonzero within-group off-diagonal covariances in the second.
+
+The beta hat j row is blue in both columns because OLS coefficients remain unbiased under the maintained zero-conditional-mean assumptions. Neither violation by itself requires changing the fitted coefficients. The next row says the default variance estimator is biased in both cases, often severely under clustering. Therefore the downstream standard errors, t-statistics, p-values, and confidence intervals from lecture 05 are what break.
+
+The first rejection-rate row reports the illustrative simulations. At a nominal five percent level, the heteroskedastic design rejected about eleven percent of true nulls, while the clustered design using defaults rejected about seventy-five percent. In these data-generating processes, ignored clustering creates the larger distortion. That ranking is not universal; it depends on where heteroskedasticity appears, how strong within-group correlation is, how x varies, and the leverage structure.
+
+The fix row gives the one-argument implementations in feols. Use vcov equal to hetero for general heteroskedasticity, or cluster equal to tilde group when dependence occurs within a defensible grouping. Cluster-robust inference also handles heteroskedasticity, so the choices are not additive corrections. The last row records approximately five percent after the heteroskedasticity repair and approximately nine percent in the deck's fifty-group clustered summary. Those are Monte Carlo outcomes, not universal performance guarantees. The common three-step story is: preserve OLS coefficients, replace the invalid variance estimator, and redo every inferential quantity using the robust standard errors.
 
 </details>
 
@@ -1626,7 +1880,13 @@ Heteroskedasticity and clustered errors violate different parts of the usual err
 <details class="transcript">
 <summary>Transcript</summary>
 
-Four rules, and they are what I would want you to still be doing in five years. Use heteroskedasticity-robust standard errors by default in large samples. They may differ from conventional standard errors in finite samples, even under homoskedasticity, but they protect inference against unknown heteroskedasticity. If your data has groups, cluster at a level justified by the sampling or treatment-assignment process. Do not bother testing for heteroskedasticity first, since the result would not change your decision. And never swap the coefficients. Then read the callout, which is honest about the limits and points forward: both fixes are asymptotic, which is where lecture 08 begins.
+End with four working rules. First, use heteroskedasticity-robust standard errors by default in large samples. They protect inference against heteroskedasticity of unknown form, so you do not have to guess the variance function. In finite samples they can differ from conventional standard errors even when homoskedasticity happens to hold. Robust means valid under a broader set of conditions asymptotically, not identical and costless in every finite sample. In feols, the implementation is the single argument vcov equal to hetero.
+
+Second, if errors can be correlated within groups, cluster at a defensible level. Let the data collection, shared shocks, or treatment-assignment process guide the choice. If treatment is assigned to schools, villages, firms, or states, clustering at that assignment level is a common starting rule because observations receiving a shared treatment can share errors. A variable with only two groups, such as league in the M L B demonstration, is not enough for conventional cluster-robust inference. You need many independent groups, not merely many rows within each group.
+
+Third, do not make robust inference conditional on first running a Breusch-Pagan or White test. Those tests exist, but a noisy preliminary decision does not help when your large-sample practice would use heteroskedasticity-robust standard errors either way. Fourth, never swap the coefficient estimates. The OLS beta hats stay fixed; only their estimated standard errors and the tests, p-values, and intervals built from them change.
+
+Finally, read the callout as the limitation connecting this lecture to lecture 08. Both robust estimators are asymptotic. Heteroskedasticity-robust inference improves as the sample grows, while conventional cluster-robust inference needs the number of independent groups to grow. With fifty groups the slide records rejection around nine percent rather than five, and with one thousand groups it improves again. These methods are protections, not finite-sample guarantees. Lecture 08 develops the large-sample arguments that justify using them.
 
 </details>
 
