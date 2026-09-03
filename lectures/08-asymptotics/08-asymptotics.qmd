@@ -42,7 +42,7 @@ This lecture changes the question we ask about OLS. Look first at the two blocks
 
 The small-sample block recalls the results you already know. Under the relevant Gauss-Markov conditions, OLS is unbiased, so its conditional expectation equals the true coefficient, and it is efficient among linear unbiased estimators, so no other linear unbiased estimator has a smaller variance. Those are finite-sample properties. If their assumptions hold, the claims apply whether you have fifty observations or fifty thousand. “Small sample” here therefore means “a result proved for any finite sample,” not “a result that stops working when the sample becomes large.”
 
-We now add two different properties. Consistency asks where the estimator settles: as the sample grows, does it concentrate on the true parameter? Asymptotic normality asks about the shape and scale of the estimator's sampling distribution around that truth. The distinction matters because an estimator can be centered correctly without concentrating, or it can concentrate very tightly on the wrong value. These limiting results are also the practical foundation for inference when the population error is not normally distributed. Later in the deck, you will see that a large-sample normal approximation replaces the exact finite-sample normality assumption. Keep the comparison on this opening slide in mind: exact finite-sample claims and approximate limiting claims answer related but different questions.
+Keep the comparison on this opening slide in mind: exact finite-sample claims and approximate limiting claims answer related but different questions.
 
 </details>
 
@@ -89,8 +89,6 @@ Read the formal definition from the inside out. Epsilon is any positive toleranc
 
 The notation on the last line, theta hat sub n converges in probability to theta, is the compact way to state exactly that definition. The superscript p over the arrow names the mode of convergence, convergence in probability. It does not say that every realized estimate moves monotonically toward theta as you add observations. A particular sample can still produce an estimate farther away. It says that such errors larger than any fixed tolerance become increasingly unlikely.
 
-Do not substitute unbiasedness for consistency. Unbiasedness asks whether the estimator's expectation equals theta at a particular n. Consistency asks whether its probability mass collapses around theta as n grows. An estimator can be unbiased at every n but have a variance that never shrinks, making it inconsistent. It can also have a finite-sample bias that becomes smaller with n and still be consistent. Finally, consistency is not a guarantee that the one estimate in your current dataset is close to the truth. It is a property of the repeated-sampling sequence, and its practical value is that large samples make substantial estimation errors increasingly improbable when the assumptions supporting consistency hold.
-
 </details>
 
 **Verbally**
@@ -119,7 +117,7 @@ We will make the definition of consistency visible with a Monte Carlo experiment
 
 The slide says that MLR dot 1 through MLR dot 4 are satisfied. In this simple setting, that means the model is linear in beta zero and beta one, the observations are randomly sampled from the same population, x has variation so there is no perfect collinearity, and the error has zero conditional mean given x. That last condition, expected u given x equals zero, is the key reason OLS can locate the true slope rather than a systematically shifted value.
 
-In the code behind the next tabs, the population equation will be y equals one plus x plus u. That makes both beta zero and beta one equal to one. The error is generated independently of x with mean zero, so zero conditional mean holds by construction. Because we generate the population process ourselves, we know the true slope before estimating anything. That is the special advantage of a Monte Carlo experiment. With real observational data, the true beta one is hidden, so you can study estimates and uncertainty but cannot directly check whether an estimate landed near the truth. Here we can compare every estimated slope with one and then see how that comparison changes as the sample size increases. Flip to the conceptual-steps tab before looking at the implementation.
+Flip to the conceptual-steps tab before looking at the implementation.
 
 </details>
 
@@ -136,9 +134,9 @@ Read the pseudo-code as a repeated-sampling experiment. First, choose a sample s
 
 Second, run the OLS regression with an intercept and save the estimated coefficient on x, beta one hat. One saved coefficient is one realization of the estimator. It does not reveal the estimator's sampling distribution, just as one coin toss does not reveal a coin's long-run behavior. Third, repeat the generate, estimate, and store sequence one thousand times. The resulting one thousand slope estimates approximate the sampling distribution of beta one hat for that particular N. A thousand is a simulation choice that makes the distribution reasonably smooth; it is not part of the definition of consistency.
 
-Fourth, repeat that entire experiment for several sample sizes. The code uses N equal to one hundred, one thousand, and ten thousand. This comparison is essential. A single sampling distribution, even one based on many Monte Carlo replications, tells you nothing by itself about a limit as N grows. We need to see how the distribution changes across sample sizes while the population model remains unchanged.
+Fourth, repeat that entire experiment for several sample sizes. This comparison is essential. A single sampling distribution, even one based on many Monte Carlo replications, tells you nothing by itself about a limit as N grows. We need to see how the distribution changes across sample sizes while the population model remains unchanged.
 
-The prediction at the bottom translates consistency into a visual test. Each distribution should be centered near the true value one, and its spread should shrink as N rises. Pick any fixed margin around one, such as one hundredth in either direction. Consistency means that the fraction of simulated estimates falling inside that margin approaches one as N grows. Do not reduce the claim to “the average estimate is one.” Centering is related to unbiasedness. Consistency additionally requires the distribution to concentrate. The R-code tab implements these four steps, and the Results tab will let you check the prediction.
+The prediction at the bottom translates consistency into a visual test. Each distribution should be centered near the true value one, and its spread should shrink as N rises. Pick any fixed margin around one, such as one hundredth in either direction. Consistency means that the fraction of simulated estimates falling inside that margin approaches one as N grows. The R-code tab implements these four steps, and the Results tab will let you check the prediction.
 
 </details>
 
@@ -257,9 +255,9 @@ G-g-plot uses that long data as its source. Geom density maps value to the horiz
 
 Read the graph carefully. The horizontal axis is the estimated slope beta one hat, limited to zero point nine through one point one. The vertical axis is density, so height represents how concentrated the simulated sampling distribution is, not a count of replications. The three translucent filled curves correspond to the sample sizes in the legend, and the vertical line at one marks the population slope. All three curves are centered near one because the design satisfies zero conditional mean. What changes sharply is their spread. The N equals one hundred curve is the widest; one thousand is narrower; ten thousand is extremely concentrated and therefore taller. The area under each density is one, so a taller peak accompanies a narrower distribution.
 
-This is the definition of consistency in picture form. Choose a fixed interval around one, however narrow. As N rises, a larger share of the density lies inside that interval, and in the limit that share approaches one. Equivalently, the probability of an absolute estimation error larger than the chosen tolerance approaches zero. The shrinking occurs at the familiar root-N rate: multiplying the sample size by one hundred reduces a standard error by roughly a factor of ten when the other features of the design stay fixed.
+This is the definition of consistency in picture form. Choose a fixed interval around one, however narrow. As N rises, a larger share of the density lies inside that interval, and in the limit that share approaches one. Equivalently, the probability of an absolute estimation error larger than the chosen tolerance approaches zero.
 
-Do not confuse the center with the concentration. Unbiasedness alone would tell you that the mean of each sampling distribution is one. It would not require the curves to narrow at all. Consistency is the additional statement that the probability mass collapses onto one. The statement beneath the graph summarizes the econometric result: under MLR dot 1 through MLR dot 4, the OLS coefficient estimators are consistent. The next simulation will deliberately violate the fourth assumption and show why a large sample cannot replace it.
+The statement beneath the graph summarizes the econometric result: under MLR dot 1 through MLR dot 4, the OLS coefficient estimators are consistent.
 
 </details>
 
@@ -304,7 +302,7 @@ Now we repeat the Monte Carlo experiment after deliberately breaking the zero co
 
 The remaining steps match the valid experiment. For a chosen capital N, generate a fresh sample, estimate the intercept and slope, and store beta one hat. Repeat that process one thousand times to approximate the sampling distribution for that N, then compare distributions across sample sizes. Holding the data-generating process fixed while increasing N isolates what more observations actually accomplish.
 
-The question at the bottom is the point of the slide: does the bias disappear as N gets larger? Commit to an answer before running the code. Informal advice often treats a large dataset as a cure for any weakness, but sample size and identification solve different problems. More data reduce random sampling variation. They do not make an endogenous regressor exogenous, because the correlation between x and u is a population feature repeated in every observation. If OLS is converging to the wrong population value, a larger N will make it converge more precisely to that wrong value. On the next tab, look for the shared random component that creates the violation, then use the Results tab to see both narrowing and miscentering at once.
+The question at the bottom is the point of the slide: does the bias disappear as N gets larger? Commit to an answer before running the code.
 
 </details>
 
@@ -330,7 +328,7 @@ Focus on the three highlighted data-generation lines. R-norm of temp N creates m
 
 You can also see why expected u given x is not zero. A high x is evidence that the shared mu may be high, and a high mu raises u as well. Observing x therefore contains information about the expected error. This is the endogeneity that violates MLR dot 4. The variance of x is the variance of its independent standard-normal component, one, plus the variance of zero point five mu, zero point two five, for a total of one point two five.
 
-The line y equals one plus x plus u keeps the true population intercept and slope at one. Data frame again packages y and x for ell-em. Nothing in the regression command tells OLS that x and u share mu, because u is unobserved. OLS simply fits the observed association between y and x. In a simple regression with an intercept, the probability limit of the fitted slope is the true slope plus covariance of x and u divided by variance of x. Here that is one plus zero point two five divided by one point two five, or one point two. Because the correlation was built explicitly, we can calculate the wrong value to which OLS should converge before looking at the simulation. As in the earlier code, no seed is set, so individual curves vary between runs, but their limiting center does not.
+The line y equals one plus x plus u keeps the true population intercept and slope at one. Data frame again packages y and x for ell-em. Nothing in the regression command tells OLS that x and u share mu, because u is unobserved. OLS simply fits the observed association between y and x. As in the earlier code, no seed is set, so individual curves vary between runs, but their limiting center does not.
 
 </details>
 
@@ -373,7 +371,7 @@ Look at both location and spread. As N increases, the density becomes narrower, 
 
 Now read the probability-limit calculation below the graph one line at a time. P-lim of beta one hat means the value to which the estimator converges in probability. In simple regression, that limit is one plus covariance of x and u divided by variance of x. The one is the true beta one. The covariance is zero point two five because x and u each load on the same unit-variance mu with coefficient zero point five. The variance of x is one from its independent normal component plus zero point two five from the shared component, giving one point two five. Zero point two five divided by one point two five is zero point two, so the limit is one point two.
 
-The positive endogeneity therefore creates an asymptotic upward bias of zero point two. Increasing N does not change that covariance or variance, so it cannot remove the bias. It only shrinks the sampling distribution around the biased limit. A conventional interval based on this misspecified OLS model can consequently become very tight around one point two while failing to cover the true value one. That is the central lesson: more data buy precision, not correctness. Identification assumptions determine what value you are estimating; sample size determines how much sampling noise surrounds it.
+The positive endogeneity therefore creates an asymptotic upward bias of zero point two. Increasing N does not change that covariance or variance, so it cannot remove the bias. It only shrinks the sampling distribution around the biased limit. That is the central lesson: more data buy precision, not correctness. Identification assumptions determine what value you are estimating; sample size determines how much sampling noise surrounds it.
 
 </details>
 
@@ -430,11 +428,11 @@ As $N$ grows, the sampling distribution becomes narrower around 1.2—not around
 
 This tab recalls the normality assumption and separates what it was needed for from what it was not needed for. The assumption says that the population error u is independent of all explanatory variables x one through x k and is normally distributed with mean zero and variance sigma squared. Independence is stronger than merely having zero conditional mean. It means the entire distribution of u, not only its mean, does not change with the regressors. The notation u is distributed normal with zero and sigma squared names the bell-shaped distribution, its center zero, and its constant variance sigma squared.
 
-This is MLR dot 6. We did not need it to prove that OLS is unbiased under MLR dot 1 through MLR dot 5, and we did not need it for the Gauss-Markov efficiency theorem. We introduced it for exact finite-sample inference. If the errors are normal, an OLS coefficient centered at its true value and divided by its true conditional standard deviation is exactly standard normal. Once sigma is estimated, the corresponding statistic is exactly t with n minus k minus one degrees of freedom. The related joint statistic has an exact F distribution.
+This is MLR dot 6. We introduced it for exact finite-sample inference. If the errors are normal, an OLS coefficient centered at its true value and divided by its true conditional standard deviation is exactly standard normal. Once sigma is estimated, the corresponding statistic is exactly t with n minus k minus one degrees of freedom. The related joint statistic has an exact F distribution.
 
-Without MLR dot 6, those exact finite-sample distribution statements do not follow. A statistic can still be computed, but referring it to an exact t or F distribution is not justified solely by MLR dot 1 through MLR dot 5. This distinction matters for outcomes whose errors are skewed, heavy-tailed, discrete, or otherwise visibly nonnormal. Normality can be an implausibly strong description even when the regression's conditional mean is correctly specified.
+Without MLR dot 6, those exact finite-sample distribution statements do not follow. A statistic can still be computed, but referring it to an exact t or F distribution is not justified solely by MLR dot 1 through MLR dot 5.
 
-The fortunate result in the bottom block is that exact error normality is not necessary for approximate large-sample inference. Under the assumptions developed on the next tabs, a properly centered and scaled OLS estimator becomes approximately normal as n grows. “Approximately” and “large enough” are the key phrases highlighted in blue. This is a limiting justification, not an exact claim at every n, and no universal sample-size threshold guarantees a good approximation. The central limit theorem supplies the mechanism. It lets sums of many independent contributions become normal in shape even when each contribution is not normal. We will state that theorem next, demonstrate it with a deliberately nonnormal Bernoulli variable, and then apply it to OLS.
+The fortunate result in the bottom block is that exact error normality is not necessary for approximate large-sample inference. Under the assumptions developed on the next tabs, a properly centered and scaled OLS estimator becomes approximately normal as n grows. “Approximately” and “large enough” are the key phrases highlighted in blue. This is a limiting justification, not an exact claim at every n, and no universal sample-size threshold guarantees a good approximation.
 
 </details>
 
@@ -475,8 +473,6 @@ The d over the arrow means convergence in distribution. As n approaches infinity
 
 Both centering and scaling matter. Without subtracting mu, the root-n multiplication would drive a nonzero mean away rather than produce a centered limit. Without multiplying by root n, x bar would converge in probability to mu and the distribution of x bar minus mu would collapse to a point at zero, leaving no nondegenerate shape for inference. The central limit theorem preserves the shrinking estimator's local variation on a scale we can study.
 
-This is why the theorem matters for regression. An OLS estimation error can be written in terms of sample averages of regressor-error products. Under suitable sampling and moment conditions, a central limit theorem gives those averages an asymptotically normal shape. We can then use that shape to approximate probabilities, critical values, and confidence intervals even when the individual errors are not normal. The next tab uses Bernoulli draws to make the distinction between a nonnormal observation and a normal limiting distribution especially clear.
-
 </details>
 
 ::: {.callout-note title="Central Limit Theorem"}
@@ -508,7 +504,7 @@ Now read the WebR cell in the right column. R-binom is asked for ten draws, with
 
 The second line computes root ten times the quantity mean of x minus zero point three. Mean of x is the sample proportion of ones, and zero point three is the population mean. Thus this is one realization of the centered and root-N-scaled sample mean in the theorem. With only ten Bernoulli observations, the result can take only discrete values because the number of successes is an integer. Do not interpret that single printed number as evidence for or against the theorem. The theorem concerns the sampling distribution across repeated samples.
 
-The “According to CLT” line gives the general expression: root n times the sample mean minus mu converges in distribution to a normal with mean zero and variance sigma squared. The “So” line substitutes this population's actual values. Root n times the sample mean minus zero point three approaches a normal distribution with mean zero and variance zero point two one. Notice that the limiting variance is zero point two one, not zero point two one divided by n, because root n has already rescaled the shrinking sample mean. Flip to the Demonstration tab, where five thousand repetitions approximate this distribution and let you change n.
+The “According to CLT” line gives the general expression: root n times the sample mean minus mu converges in distribution to a normal with mean zero and variance sigma squared. The “So” line substitutes this population's actual values. Root n times the sample mean minus zero point three approaches a normal distribution with mean zero and variance zero point two one. Notice that the limiting variance is zero point two one, not zero point two one divided by n, because root n has already rescaled the shrinking sample mean. Flip to the Demonstration tab.
 
 </details>
 
@@ -574,7 +570,7 @@ Geom function overlays the limiting density. Fun equal to d-norm selects the nor
 
 Use the control to compare small and large N, clicking Simulate after each change. At very small N, the transformed mean has only a handful of possible values, so the histogram is separated into discrete spikes and can look quite unlike the smooth red curve. As N grows, there are more possible sample proportions, the gaps fill in, and the histogram follows the red bell shape more closely. Random Monte Carlo noise remains because there are only five thousand repetitions.
 
-Pay attention to both axes and to what does not change. The horizontal axis is the centered, root-N-scaled statistic, not the unscaled sample mean. The vertical axis is density. Because of the root-N scaling, the limiting variance stays at zero point two one for every N. The histogram becomes more normal in shape, but it does not collapse to zero. If we graphed x bar itself, its variance would be zero point two one over N and the distribution would narrow. Here convergence in distribution is about the shape of the rescaled statistic. That is the same kind of scaling we will use for the OLS coefficient on the next tab.
+Pay attention to both axes and to what does not change. The horizontal axis is the centered, root-N-scaled statistic, not the unscaled sample mean. The vertical axis is density. Because of the root-N scaling, the limiting variance stays at zero point two one for every N. The histogram becomes more normal in shape, but it does not collapse to zero. If we graphed x bar itself, its variance would be zero point two one over N and the distribution would narrow. Here convergence in distribution is about the shape of the rescaled statistic.
 
 </details>
 
@@ -662,11 +658,11 @@ Read the displayed result symbol by symbol. Beta j is the true coefficient on ex
 
 Alpha j squared measures the population amount of x j variation that remains after accounting for the other regressors. To construct it, imagine an auxiliary regression of x j on an intercept and every other independent variable in the model. R sub i j is the residual for observation i from that regression. It is the part of x i j that cannot be linearly predicted by the other regressors. The expression one over n times the sum of r sub i j squared is its sample average squared residual, and p-lim asks for the value to which that average converges in probability. That limit is alpha j squared.
 
-The formula explains multicollinearity. If the other regressors explain almost all variation in x j, the residuals r i j are small, alpha j squared is small, and sigma squared divided by alpha j squared is large. There is little independent movement in x j with which to identify beta j, so the coefficient is imprecise. If x j has abundant variation unrelated to the other regressors, alpha j squared is larger and the asymptotic variance is smaller. Perfect collinearity would make this residual variation zero and prevent estimation entirely; near collinearity does not prevent estimation but raises uncertainty.
+If the other regressors explain almost all variation in x j, the residuals r i j are small, alpha j squared is small, and sigma squared divided by alpha j squared is large. There is little independent movement in x j with which to identify beta j, so the coefficient is imprecise. If x j has abundant variation unrelated to the other regressors, alpha j squared is larger and the asymptotic variance is smaller.
 
 Because the displayed limit is for root n times the error, the unscaled estimator's variance is approximately sigma squared divided by n times alpha j squared in a large sample. Its standard error therefore shrinks at the root-N rate. The limiting mean zero is the local expression of consistency: the distribution is centered around the true beta j after scaling.
 
-The bottom block supplies the remaining unknown variance component. Sigma hat squared is defined as the sum of squared OLS residuals, u hat i squared, divided by n minus k minus one. Here k is the number of slope regressors, and the additional one accounts for the estimated intercept, so the denominator is the residual degrees of freedom. Under MLR dot 1 through MLR dot 5, this estimator converges in probability to sigma squared. That consistency lets us replace the unknown population variance in a standard error with its sample estimate without changing the limiting normal distribution. This replacement, together with an estimate of alpha j squared, produces the usual OLS standard error used in the studentized statistic on the next tab.
+The bottom block supplies the remaining unknown variance component. Sigma hat squared is defined as the sum of squared OLS residuals, u hat i squared, divided by n minus k minus one. Here k is the number of slope regressors, and the additional one accounts for the estimated intercept, so the denominator is the residual degrees of freedom. Under MLR dot 1 through MLR dot 5, this estimator converges in probability to sigma squared. That consistency lets us replace the unknown population variance in a standard error with its sample estimate without changing the limiting normal distribution.
 
 </details>
 
@@ -703,9 +699,9 @@ In practice sigma is unknown, so the true conditional standard deviation is unkn
 
 Now move to the large-sample block. We retain MLR dot 1 through MLR dot 5 but remove MLR dot 6. Without normal errors, neither exact finite-sample statement is available. The first standardized statistic instead converges in distribution to standard normal as n approaches infinity. The arrow with d makes the limiting scope explicit. The central limit theorem supplies the normal shape rather than an assumption that each error is normal.
 
-The second large-sample line again replaces the unknown true standard deviation with the estimated standard error. Because the default OLS variance estimator is consistent under MLR dot 1 through MLR dot 5, that replacement becomes negligible in large samples. The studentized statistic also converges in distribution to standard normal. This use of a consistent estimated scale is an application of Slutsky's theorem.
+The second large-sample line again replaces the unknown true standard deviation with the estimated standard error. Because the default OLS variance estimator is consistent under MLR dot 1 through MLR dot 5, that replacement becomes negligible in large samples. The studentized statistic also converges in distribution to standard normal.
 
-So memorize the pair for its logic, not just its appearance. With MLR dot 6, the first statistic is exactly standard normal and the statistic with an estimated standard error is exactly t in a finite sample. Without MLR dot 6, both statements are approximations justified as n grows, and the limiting reference distribution is standard normal. The formulas you compute look familiar, but the justification and scope differ. That difference determines how confidently you can use the approximation in a small or unusually distributed sample.
+So memorize the pair for its logic, not just its appearance. With MLR dot 6, the first statistic is exactly standard normal and the statistic with an estimated standard error is exactly t in a finite sample. Without MLR dot 6, both statements are approximations justified as n grows, and the limiting reference distribution is standard normal. The formulas you compute look familiar, but the justification and scope differ.
 
 </details>
 
@@ -746,9 +742,9 @@ The practical testing recipe remains almost the same. Suppose the null hypothesi
 
 First calculate t sub j. Its numerator is beta j hat minus beta j comma zero, the estimated distance from the null. Its denominator is the estimated standard error of beta j hat, which expresses that distance in units of estimated sampling uncertainty. A positive statistic means the estimate is above the null value, a negative statistic means it is below, and magnitude measures how many standard errors separate them. Although we continue to call this a t-statistic, under the large-sample argument its limiting reference distribution is standard normal.
 
-For a significance level alpha, a two-sided test allocates alpha over both tails, alpha over two in the lower tail and alpha over two in the upper tail. The positive critical value is therefore the one-minus-alpha-over-two quantile of the chosen reference distribution. Taking the absolute value of t j folds the two tails together. Reject H zero when that absolute value exceeds the critical value. At alpha equal to zero point zero five with a standard-normal reference, for example, the cutoff is approximately one point nine six. Equivalently, reject when the two-sided p-value is below alpha.
+For a significance level alpha, a two-sided test allocates alpha over both tails, alpha over two in the lower tail and alpha over two in the upper tail. The positive critical value is therefore the one-minus-alpha-over-two quantile of the chosen reference distribution. Taking the absolute value of t j folds the two tails together. Reject H zero when that absolute value exceeds the critical value. At alpha equal to zero point zero five with a standard-normal reference, for example, the cutoff is approximately one point nine six.
 
-The question at the bottom is exactly right: if asymptotic theory gives a standard normal limit, should the critical value come from normal zero one rather than a t distribution? In principle, yes. Exact finite-sample theory used a t critical value because sigma was estimated under normal errors; the large-sample theory yields a standard normal limit even after replacing unknown quantities consistently. In practice regression software commonly reports t-based values using n minus k minus one degrees of freedom. Flip to the next tab to see why that choice makes almost no difference once the residual degrees of freedom are large enough for the asymptotic approximation itself to be credible.
+The question at the bottom is exactly right: if asymptotic theory gives a standard normal limit, should the critical value come from normal zero one rather than a t distribution? In principle, yes. Exact finite-sample theory used a t critical value because sigma was estimated under normal errors; the large-sample theory yields a standard normal limit even after replacing unknown quantities consistently.
 
 </details>
 
@@ -781,7 +777,7 @@ On the graph, the horizontal axis is a possible value of the standardized test s
 
 As degrees of freedom increase, the uncertainty from estimating the scale becomes less important and the t distribution approaches standard normal. At ten degrees of freedom a difference remains visible. By thirty the curves are close, and by fifty they are difficult to separate by eye. The same convergence applies to critical values: for a five-percent two-sided test, the positive cutoff moves toward the standard-normal value of about one point nine six as the degrees of freedom grow.
 
-This answers the previous tab's practical question. Asymptotic theory formally calls for a standard-normal critical value. Software may continue to use the corresponding t value with n minus k minus one degrees of freedom. In a sample large enough to make the asymptotic normal approximation persuasive, those two reference distributions and their p-values are usually very similar. You can therefore use the p-values reported by standard regression software, while remembering that the real large-sample justification comes from asymptotic normality, not from exact normal errors.
+This answers the previous tab's practical question. Asymptotic theory formally calls for a standard-normal critical value. Software may continue to use the corresponding t value with n minus k minus one degrees of freedom. In a sample large enough to make the asymptotic normal approximation persuasive, those two reference distributions and their p-values are usually very similar.
 
 </details>
 
@@ -829,8 +825,6 @@ Under zero conditional mean and the other consistency conditions, heteroskedasti
 This problem does not fade as n grows. More observations can make beta hat concentrate, but they also make an inconsistent variance formula converge more precisely to the wrong variance quantity. The resulting t-statistics, p-values, and confidence intervals can remain invalid. Asymptotic normality is useful only when the statistic is divided by a standard error that consistently estimates the appropriate asymptotic variance.
 
 With independent observations, use heteroskedasticity-robust, or sandwich, standard errors. They keep the same OLS coefficient estimates but replace the homoskedastic variance formula with one that allows observation-specific squared residuals to contribute differently. If observations may be dependent within groups, such as repeated years for the same county or students within the same school, use standard errors clustered at the level where dependence can occur. Clustering allows arbitrary correlation within a cluster while relying on independence across clusters, so the clustering level must match the sampling and assignment structure.
-
-Robust or clustered standard errors repair an uncertainty formula; they do not repair an endogenous regressor, omitted-variable bias, or a misspecified conditional mean. Connect this warning to the earlier inconsistency simulation. Endogeneity made the coefficient converge to one point two instead of one, and no standard-error choice could restore consistency. Heteroskedasticity can leave the coefficient centered correctly while making its default reported uncertainty wrong. In applied work you must address both questions: do the identifying assumptions make the coefficient target the right parameter, and does the variance estimator reflect the dependence and heteroskedasticity in the data?
 
 </details>
 
