@@ -574,6 +574,18 @@ The reveal logical slide is 700px tall and several slides already sit near or
 over it. Anything added to normal flow costs that space on every slide, whether
 it is used or not. Measure before adding furniture.
 
+**Two visible cells in a row touch.** Nothing in the stylesheet separates one
+cell from the next, so two code cells written back to back render with a 0px gap
+and read as one block split by a stray toolbar. Put a `<br>` between them in the
+qmd; measured in Chrome, that opens the gap to 49px. This is deliberate rather
+than a margin rule: the layout script emits several different wrappers
+(`.side-out`, `.stacked`, a bare insertion div) with a `<noscript>` between
+them, so no adjacent-sibling selector catches every pair, and a blanket
+cell margin would cost slide space on the many cells that follow prose.
+
+A cell and its own output are meant to touch, including the two-chunk
+`eval: false` plus `ref.label` form. Do not separate those.
+
 Raw HTML above the first `##` becomes its own untitled slide. A `<style>`
 block, a `<script>`, or even a long HTML comment between the YAML header and
 the first heading is emitted as slide content. Put deck-level CSS and JS in a

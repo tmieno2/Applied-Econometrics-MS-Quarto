@@ -3300,14 +3300,14 @@ Transcript
 <p>Your turn. This exercise has the same structure as the worked example, but the numbers change. Let x denote the annual-salary difference between graduates of University A and University B. The population model says x follows a Normal distribution with unknown mean alpha and known variance sixteen, so its population standard deviation is four. The substantive question is whether the average salary difference is ten, which makes the null H zero: alpha equals ten. Because the wording asks whether it is ten rather than whether it is greater or smaller, treat departures on either side as relevant.</p>
 <p>For part two, let theta be the sample mean of four hundred independent observations. Its mean is alpha and its variance is the individual variance divided by the sample size: sixteen over four hundred, not sixteen. Its standard deviation, or standard error, is root sixteen over four hundred, which is four over root four hundred, or zero point two.</p>
 <p>For part three, turn the sample mean into standard-error units. Subtract alpha and divide by four over root four hundred. That is the same as multiplying theta minus alpha by root four hundred over four. Under the Normal model, the result follows a standard Normal distribution. Under the null, replace alpha with ten so the statistic is computable.</p>
-<p>Part four gives an observed sample mean of ten point two. Convert that to the standardized statistic, then use <code>pnorm</code> to find an upper-tail probability. Be precise about the question: it asks for the probability of observing a number greater than ten point two, not the two-sided probability of being at least zero point two away from ten. Try all four parts before opening the Answer tab. Finally, read the callout. In real work, the variance is not magically known, and we still need a formal rule for rejecting or failing to reject.</p>
+<p>Part four gives an observed sample mean of ten point two. Convert that to the standardized statistic, then use <code>pnorm</code> to find an upper-tail probability. As the prompt notes, <code>pnorm</code> of a value returns the probability that a standard Normal draw falls below that value, so an upper tail is one minus that number. Be precise about the question: it asks for the probability of observing a number greater than ten point two, not the two-sided probability of being at least zero point two away from ten. Try all four parts before opening the Answer tab. Finally, read the callout. In real work, the variance is not magically known, and we still need a formal rule for rejecting or failing to reject.</p>
 </details>
 <p>You have collected data on annual salary for those who graduated from University A and B. You are interested in testing whether the difference in annual salary between the universities (call it <span class="math inline">x</span>) is 10 on average. You know (for unknown reasons) that the difference is distributed as <span class="math inline">N(\alpha, 16)</span>.</p>
 <ol type="1">
 <li>What is the null hypothesis?</li>
 <li>Under the null hypothesis, what is the distribution of the sample mean when the number of observation is 400?</li>
 <li>Normalize the test statistic so that the transformed version follows <span class="math inline">N(0, 1)</span>.</li>
-<li>The actual difference you observed is 10.2. What is the probability that you observe a number greater than 10.2 if the null hypothesis is true? Use <code>pnorm()</code>.</li>
+<li>The actual difference you observed is 10.2. What is the probability that you observe a number greater than 10.2 if the null hypothesis is true? Use <code>pnorm()</code>, which gives the probability that a standard Normal draw is below the value you hand it.</li>
 </ol>
 <div class="callout callout-note no-icon callout-titled callout-style-default">
 <div class="callout-body">
@@ -3592,7 +3592,7 @@ Transcript
 </summary>
 <p>This tab contrasts two shapes of alternative hypothesis. In the one-sided example, H zero says beta j equals zero and H one says beta j is greater than zero. The alternative is directional, so only large positive t-statistics support it. A large negative statistic may contradict equality, but it points in the direction opposite to the stated alternative and therefore is not in this upper-tail rejection region. If the alternative were beta j less than zero, we would instead examine the lower tail.</p>
 <p>In the two-sided example, H zero again says beta j equals zero, but H one says beta j does not equal zero. Now sufficiently large departures in either direction count as evidence. A positive t-statistic indicates an estimate above zero and a negative statistic indicates one below zero, so the rejection region occupies both tails of the t distribution.</p>
-<p>Read the callout at the bottom. A critical value is simply a quantile of the null distribution. In Lecture 03, <code>qnorm(0.95)</code> returned about one point six four, the ninety-fifth percentile of the standard Normal. Here we use <code>qt</code> instead of <code>qnorm</code> because estimating sigma puts the statistic on a t distribution, and we also supply its degrees of freedom.</p>
+<p>Read the callout at the bottom. A critical value is simply a quantile of the null distribution. The R function <code>qnorm(p)</code> returns the number below which a standard Normal draw falls with probability p, so <code>qnorm(0.95)</code> is about one point six four: ninety-five percent of standard Normal draws are smaller than that number and five percent are larger. Here we use <code>qt</code> instead of <code>qnorm</code> because estimating sigma puts the statistic on a t distribution, and <code>qt</code> also requires its degrees of freedom.</p>
 </details>
 <p><strong>one-sided alternative</strong></p>
 <p><span class="math inline">H_0:</span> <span class="math inline">\beta_j = 0</span> <span class="math inline">H_1:</span> <span class="math inline">\beta_j &gt; 0</span></p>
@@ -3602,14 +3602,15 @@ Transcript
 <p><span class="math inline">H_0:</span> <span class="math inline">\beta_j = 0</span> <span class="math inline">H_1:</span> <span class="math inline">\beta_j \ne 0</span></p>
 <p>You look at both ends of the t-distribution to see if the t-statistic you obtained is more extreme than the level of error you accept (significance level).</p>
 <p><br></p>
-<div title="This is where lecture 03 pays off">
+<div title="Critical values are just quantiles">
 <div class="callout callout-note no-icon callout-titled callout-style-default">
 <div class="callout-body">
 <div class="callout-title">
-<p><strong>This is where lecture 03 pays off</strong></p>
+<p><strong>Critical values are just quantiles</strong></p>
 </div>
 <div class="callout-content">
-<p>The numbers we are about to use as critical values are just <span style="color: blue;">quantiles</span>, computed exactly the way we computed <code>qnorm(0.95) = 1.64</code> in the Monte Carlo lecture. The only change is which distribution you ask: <code>qt()</code> instead of <code>qnorm()</code>, because we had to estimate <span class="math inline">\sigma</span> rather than know it.</p>
+<p><code>qnorm(p)</code> gives you the number <span class="math inline">q</span> such that a single standard Normal draw is below <span class="math inline">q</span> with probability <span class="math inline">p</span>. So <code>qnorm(0.95) = 1.64</code>: ninety-five percent of standard Normal draws are smaller than 1.64, and five percent are larger.</p>
+<p>That is all a <span style="color: blue;">critical value</span> is. The only change below is which distribution you ask: <code>qt()</code> instead of <code>qnorm()</code>, because we had to estimate <span class="math inline">\sigma</span> rather than know it, so <code>qt()</code> also needs the degrees of freedom.</p>
 </div>
 </div>
 </div>

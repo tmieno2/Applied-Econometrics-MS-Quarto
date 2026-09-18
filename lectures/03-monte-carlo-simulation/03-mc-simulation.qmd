@@ -281,351 +281,109 @@ hist(x)
 :::
 <!--end of panel-->
 
-## R functions for often-used distributions  
-
-::: {.panel-tabset}
-
-### Distribution types
-
-<details class="transcript">
-<summary>Transcript</summary>
-
-This is a reference tab, and the naming pattern is more important than memorizing individual commands. The left column lists several distribution families built into R: Normal, Uniform, Beta, chi-square, F, logistic, and log-normal, plus many others. Each family has a short R name. Normal uses “norm,” Uniform uses “you-nif,” chi-square uses “chi-squared,” logistic uses “low-jiss,” and log-normal uses “ell-norm.”
-
-The right column shows four prefixes that describe the operation you want. The “dee” prefix evaluates a density for a continuous distribution, or a probability mass for a discrete one. For example, dee-norm gives the height of a Normal density at a specified value. The “pee” prefix evaluates the cumulative distribution function, so pee-norm of q gives the probability that a Normal draw is less than or equal to q. The “cue” prefix reverses that mapping: give cue-norm a cumulative probability between zero and one, and it returns the corresponding cutoff value. Finally, the “R” prefix generates random draws, so R-norm of n returns n Normal observations.
-
-You combine a prefix with a family name: dee-beta, pee-you-nif, cue-chi-squared, or R-low-jiss, for example.
-
-</details>
-
-::: {.columns}
-
-::: {.column width="50%"}
-+ Normal
-+ Uniform
-+ Beta
-+ Chi-square
-+ F
-+ Logistic
-+ Log-normal
-+ many others
-:::
-<!--end of the 1st column-->
-::: {.column width="50%"}
-For each distribution, you have four different kinds of functions:
-
-+ <span style = "color: red;"> `d`</span>`norm`: density function
-+ <span style = "color: red;"> `p`</span>`norm`: distribution function
-+ <span style = "color: red;"> `q`</span>`norm`: quantile function
-+ <span style = "color: red;"> `r`</span>`norm`: random draw
-:::
-<!--end of the 2nd column-->
-:::
-<!--end of the columns-->
-
-
-
-### `dnorm()`
-
-<details class="transcript">
-<summary>Transcript</summary>
-
-Dee-norm of x gives the height of a Normal probability-density function at the value x. Because the mean and standard-deviation arguments are omitted here, both calls use the standard Normal, with mean zero and standard deviation one. The input is a location on the horizontal axis; the output is a density height on the vertical axis.
-
-Read the figure from those axes. The red bell-shaped curve is the standard Normal density over values from minus three to three. The vertical line at zero marks the center, and the horizontal line marks density zero. A blue point at x equal to minus one is connected to the horizontal axis by a dashed guide. Its height is dee-norm of minus one, approximately zero point two four two. The other blue point is at x equal to two, where dee-norm of two is approximately zero point zero five four. Two is farther from the mean than minus one, so it lies lower in the tail. The Normal density is symmetric, which is why the height at minus one would equal the height at positive one, but not the height at two.
-
-The crucial warning is that a density height is not itself a probability. For a continuous variable, the probability of drawing exactly one specified value is zero. Probabilities come from areas under the density over intervals.
-
-</details>
-
-`dnorm(x)` gives you the height of the density function at $x$.
-
-`dnorm(-1)` and `dnorm(2)`
-
-```{webr-r}
-#| context: output
-
-x <- seq(-3, 3, length = 1000)
-pdf <- dnorm(x)
-plot_data <- data.table(y = pdf, x = x)
-ggplot() +
-  geom_line(data = plot_data, aes(y = y, x = x), color = "red") +
-  geom_point(
-    data = data.table(y = dnorm(2), x = 2),
-    aes(y = y, x = x),
-    color = "blue", size = 2
-  ) +
-  annotate(
-    "text",
-    label = paste0("dnorm(-1) = ", round(dnorm(-1), digits = 2)),
-    y = 0.25, x = -2,
-    size = 4.8
-  ) +
-  geom_line(
-    data = data.table(y = seq(0, dnorm(-1), length = 20), x = -1),
-    aes(y = y, x = x),
-    linetype = 2
-  ) +
-  geom_point(
-    data = data.table(y = dnorm(-1), x = -1),
-    aes(y = y, x = x),
-    color = "blue", size = 2
-  ) +
-  annotate(
-    "text",
-    label = paste0("dnorm(2) = ", round(dnorm(2), digits = 2)),
-    y = 0.1, x = 2.5,
-    size = 4.8
-  ) +
-  geom_line(
-    data = data.table(y = seq(0, dnorm(2), length = 20), x = 2),
-    aes(y = y, x = x),
-    linetype = 2
-  ) +
-  geom_hline(yintercept = 0) +
-  geom_vline(xintercept = 0) +
-  theme_lecture
-```
-
-### `pnorm()`
-
-`pnorm(x)` gives you the probability that a single random draw is <span style = "color: red;"> less </span> than $x$.
-
-::: {.panel-tabset}
-#### pnorm(-1)
-
-<details class="transcript">
-<summary>Transcript</summary>
-
-Now the “pee” prefix, and this is the picture to keep in your head. Pee-norm of x is the Normal cumulative distribution function. With the default mean zero and standard deviation one, pee-norm of minus one asks for the probability that one standard Normal draw is less than or equal to minus one. For a continuous distribution, “less than” and “less than or equal to” have the same probability because the probability at the single endpoint is zero.
-
-On the figure, the horizontal axis gives possible standard Normal values and the vertical axis gives density. The red curve is the same density from the preceding tab. The blue ribbon shades the area under that curve for x values at or below minus one. That area, not the curve’s height at minus one, is the requested probability. The annotation rounds the result to zero point one six; more precisely, R gives about zero point one five nine. So just under sixteen percent of standard Normal draws fall at least one standard deviation below the mean.
-
-Pee-norm of minus one accumulates every thin strip of area from the far left tail through minus one, giving about zero point one five nine. Density height and cumulative area answer different questions.
-
-</details>
-
-```{webr-r}
-#| context: output
-ggplot() +
-  geom_line(data = plot_data, aes(y = y, x = x), color = "red") +
-  geom_ribbon(
-    data = plot_data[x <= -1, ],
-    aes(ymax = y, ymin = 0, x = x),
-    fill = "blue",
-    alpha = 0.4
-  ) +
-  annotate(
-    "text",
-    label = paste0("pnorm(-1) = ", round(pnorm(-1), digits = 2)),
-    y = 0.05, x = 0,
-    size = 4.8
-  ) +
-  geom_hline(yintercept = 0) +
-  geom_vline(xintercept = 0) +
-  theme_lecture
-```
-
-#### pnorm(2)
-
-<details class="transcript">
-<summary>Transcript</summary>
-
-This is the same cumulative-distribution function with the cutoff moved to two. The horizontal axis again shows standard Normal values, the vertical axis shows density, and the red curve is the standard Normal density. The blue ribbon now includes all area under the curve from the far left through x equal to two. Because two is two standard deviations above the mean, almost the whole bell is shaded.
-
-Pee-norm of two is approximately zero point nine seven seven, which the figure rounds to zero point nine eight. Interpreted as a long-run proportion, about ninety-seven point seven percent of standard Normal draws fall below two. The unshaded right tail is the complement. Its probability is one minus pee-norm of two, approximately zero point zero two three, or two point three percent. R’s pee-norm function reports a left-tail cumulative probability by default, so subtraction from one is the standard way to form a right-tail probability.
-
-</details>
-
-```{webr-r}
-#| context: output
-ggplot() +
-  geom_line(data = plot_data, aes(y = y, x = x), color = "red") +
-  geom_ribbon(
-    data = plot_data[x <= 2, ],
-    aes(ymax = y, ymin = 0, x = x),
-    fill = "blue",
-    alpha = 0.4
-  ) +
-  annotate(
-    "text",
-    label = paste0("pnorm(2) = ", round(pnorm(2), digits = 2)),
-    y = 0.05, x = 0,
-    size = 4.8
-  ) +
-  geom_hline(yintercept = 0) +
-  geom_vline(xintercept = 0) +
-  theme_lecture
-```
-
-#### Exercise
-
-<details class="transcript">
-<summary>Transcript</summary>
-
-Your turn. The question asks for a cumulative probability under a Normal distribution, so use the “pee” prefix. In the work cell, enter pee-norm with a first argument of one, a named mean argument of one, and a named S-D argument of two. The first one is the cutoff whose left-tail probability you want. The named mean argument locates the center of the distribution at one, and the named S-D argument makes the standard deviation two, so the variance is four.
-
-Before running the answer, standardize the cutoff. Subtract the mean from the value and divide by the standard deviation: one minus one, divided by two, equals zero. The requested cutoff is therefore zero standard deviations from the mean. A Normal distribution is symmetric around its mean, so exactly half of its area lies below the center and half lies above it. The answer is zero point five.
-
-Open and run the answer cell to confirm. Read the code as “pee-norm of one, with mean one and S-D two.” Each argument is doing the job we just identified. The answer would remain zero point five for any positive standard deviation because changing the spread does not move the center.
-
-</details>
-
-What is the probability that a single random draw from a Normal distribution with `mean = 1` and `sd = 2` is less than 1?
-
-<br>
-
-**Work here**
-
-```{webr-r}
-
-```
-
-<br>
-
-<details>
-  <summary>Answer</summary>
-
-```{webr-r}
-pnorm(1, mean = 1, sd = 2)
-```
-
-+ 1 is the mean of this distribution, and the Normal distribution is symmetric around its mean, so the answer is 0.5 whatever the `sd` is
-
-</details>
-
-:::
-<!--end of panel-->
-
-### `qnorm()`
-
-::: {.panel-tabset}
-
-#### What is it?
-
-<details class="transcript">
-<summary>Transcript</summary>
-
-The “cue” prefix reverses the question we have been asking. Pee-norm takes a cutoff on the measurement scale and returns the cumulative probability to its left. Cue-norm takes a cumulative probability and returns the cutoff that leaves that amount of area to its left. Read x in the definition as a probability, so it must be strictly between zero and one. Read q as the resulting value on the Normal variable’s scale.
-
-For example, if cue-norm of x returns q, then the probability that a Normal draw falls below q is x. That is why the second bullet calls cue-norm the inverse of pee-norm: putting cue-norm of x inside pee-norm returns x, apart from tiny numerical rounding. The output is called the one-hundred-times-x percent quantile. A probability of zero point eight eight corresponds to the eighty-eighth percentile, the value with eighty-eight percent of the distribution below it.
-
-As with the other Normal functions, the omitted defaults are mean zero and standard deviation one. So cue-norm of x by itself returns a standard Normal quantile. Keep the direction straight: pee goes from value to probability; cue goes from probability to value.
-
-</details>
-
-`qnorm(x)`, where $0 < x < 1$, gives you the number $q$ such that a single random draw is less than $q$ with probability $x$.
-
-+ it is the <span style = "color: red;"> inverse </span> of `pnorm()`: `pnorm(qnorm(x))` $= x$
-
-We call the output of `qnorm(x)` the $100x\%$ quantile of the standard Normal distribution (because the default is `mean = 0` and `sd = 1` for `qnorm()`).
-
-#### qnorm(0.95)
-
-<details class="transcript">
-<summary>Transcript</summary>
-
-Here is a quantile you will meet repeatedly. The input to cue-norm is zero point nine five, so we want the point with ninety-five percent of the standard Normal distribution below it. R returns approximately one point six four four nine, usually rounded to one point six four or one point six four five.
-
-Read the figure from the axes. The horizontal axis is the standard Normal value, and the vertical axis is density. The red line traces the density. The green ribbon shades the area for values below about one point six four, and that shaded area is ninety-five percent of the total area under the curve. The black point on the horizontal axis marks the cutoff, while the two annotations name the command and the rounded result. The remaining unshaded right tail has probability five percent.
-
-</details>
-
-```{webr-r}
-#| context: output
-
-x <- seq(-3, 3, length = 1000)
-pdf <- dnorm(x)
-plot_data <- data.table(y = pdf, x = x)
-ggplot() +
-  geom_line(data = plot_data, aes(y = y, x = x), color = "red") +
-  geom_ribbon(data = plot_data[x < 1.64, ], aes(ymax = y, ymin = 0, x = x), fill = "green", alpha = 0.3) +
-  annotate(
-    "text",
-    label = "qnorm(0.95)=1.64",
-    x = 2.2, y = 0.3,
-    size = 4.8
-  ) +
-  geom_point(aes(y = 0, x = 1.64)) +
-  annotate(
-    "text",
-    label = "1.64",
-    x = 1.64, y = 0.03,
-    size = 4.8
-  ) +
-  geom_hline(yintercept = 0) +
-  geom_vline(xintercept = 0) +
-  theme_lecture
-```
-
-#### Exercise
-
-<details class="transcript">
-<summary>Transcript</summary>
-
-Your turn again. The phrase “eighty-eight percent quantile” tells you to use the “cue” function with zero point eight eight as the probability input. The distribution has mean zero and standard deviation nine, so read the direct call in the work cell as “cue-norm of zero point eight eight, with mean zero and S-D nine.” The probability argument selects the percentile, the mean argument sets the center, and the S-D argument sets the scale. Notice that nine is already a standard deviation here, not a variance.
-
-There is also a useful shortcut. First find the standard Normal eighty-eighth percentile, cue-norm of zero point eight eight, which is approximately one point one seven five. A quantile from a Normal with mean mu and standard deviation sigma equals mu plus sigma times the corresponding standard Normal quantile. Spoken for this problem, that is zero plus nine times one point one seven five, giving approximately ten point five seven five. So eighty-eight percent of draws from this Normal distribution lie below about ten point five seven, and twelve percent lie above it.
-
-Open the answer and run the direct call to confirm.
-
-</details>
-
-What is the 88% quantile of Normal distribution with `mean = 0` and `sd = 9`?
-
-<br>
-
-**Work here**
-
-```{webr-r}
-
-```
-
-<br>
-
-<details>
-  <summary>Answer</summary>
-
-```{webr-r}
-qnorm(0.88, mean = 0, sd = 9)
-```
-
-+ `qnorm(0.88)` is about 1.17 for the standard Normal, and scaling the standard deviation by 9 scales the quantile by 9 as well
-
-</details>
-
-:::
-<!--end of panel-->
-
-:::
-<!--end of panel-->
-
 # Monte Carlo Simulation: In Practice
 
 <html><div style='float:left'></div><hr color='#EB811B' size=1px width=1000px></html>
+
+## What one dataset can tell you
+
+::: {.panel-tabset}
+
+### One dataset
+
+<details class="transcript">
+<summary>Transcript</summary>
+
+Before the recipe, be clear about the situation the recipe is for. In real research you get one dataset. You run one regression on it, and you read off one number. That is the whole of your evidence, and this slide is about what that one number can and cannot settle.
+
+The code builds exactly that situation, except that here we are the ones who decide what is true. Read the first line as "N gets one hundred," so each dataset has one hundred observations. R-norm of N draws one hundred independent standard Normal values and stores them in x. The next R-norm of N draws one hundred more, independently, and stores them in u. Because those two calls share nothing, u carries no information about x, so the zero conditional mean condition holds by construction. Read the outcome line as "y gets one plus x plus u." That sets the true intercept to one and the true slope on x to one. One is the truth in this world because we wrote it there.
+
+The next line hands the two observed variables to fee-ols from the fixest package. Read the formula "y tilde x" as regressing y on x with an intercept. Notice that u is not passed to the regression. We know it, but the estimator does not, exactly as in real data. The last line selects the estimated coefficient on x out of the fitted model and prints it.
+
+Run the cell. The printed number should land somewhere near one, but it will not be one. Now run it again, and again, four or five times. Every run draws a fresh x and a fresh u, so every run prints a different number. Nothing about the world changed between runs. The true slope is still one, the sample size is still one hundred, and the command is still the same. Only the random draw changed, and the answer moved anyway.
+
+</details>
+
+In real research you get <span style = "color: blue;"> one </span> dataset. You run <span style = "color: blue;"> one </span> regression and read off <span style = "color: blue;"> one </span> number.
+
+Here is that situation, except that we decide what is true: $\beta_1 = 1$.
+
+```{webr-r}
+N <- 100
+x <- rnorm(N)
+u <- rnorm(N) # nothing links u to x, so E[u|x] = 0 holds here
+y <- 1 + x + u # the truth: beta_1 = 1
+
+reg <- fixest::feols(y ~ x, data = data.frame(y = y, x = x))
+reg$coefficient["x"]
+```
+
++ run it, then run it again four or five times
++ the number moves every time, and <span style = "color: red;"> nothing </span> about the world changed
+
+### What that number cannot settle
+
+<details class="transcript">
+<summary>Transcript</summary>
+
+Here is what happens when five different people each collect their own dataset from the world you just built. Same truth of one, same sample size of one hundred, same command, five separate random draws. The table reports what each of them would write in their paper: zero point nine five three, one point zero seven five, one point zero eight one, one point zero two zero, and zero point eight six four.
+
+Look at the second column. All five are estimating the same quantity, and the true value is one. Not one of the five got it. The largest is about eight percent above the truth and the smallest is about fourteen percent below it, and none of them did anything wrong. Each ran a correct regression on a correctly collected sample.
+
+So ask which of those five numbers is the right one. The honest answer is that the question is badly posed. Being right is not a property any single one of them has. Read the two questions on the lower half of the slide. Asking whether OLS is unbiased is asking where those five numbers, and the many more we did not draw, center. Asking how precise OLS is is asking how far apart they are. Both questions are about the whole collection of numbers, not about any individual entry in the table.
+
+That is the difficulty with real data, and it is worth stating plainly. A real researcher gets the first row of this table and has no way to obtain a second one. There is only one world, it was sampled once, and the other rows do not exist. The collection that every econometric claim is about is exactly the thing you cannot observe.
+
+Now read the last line. We built this world, so the constraint does not apply to us. We can draw a sixth row, a hundredth row, a thousandth row, as many as we are willing to wait for. Producing that table on purpose, and then reading its center and its spread, is what Monte Carlo simulation is. The next slide is the procedure for doing it.
+
+</details>
+
+Five people each draw their own dataset from the same world and run the same regression:
+
+| dataset | $\hat{\beta}_1$ |
+|:---:|:---:|
+| 1 | 0.953 |
+| 2 | 1.075 |
+| 3 | 1.081 |
+| 4 | 1.020 |
+| 5 | 0.864 |
+
++ all five are estimating the same truth, $\beta_1 = 1$, and not one of them got it
++ so which number is the right one? <span style = "color: red;"> None of them. </span> The question is not about any single number:
+    - "is OLS <span style = "color: blue;"> unbiased </span>?" asks where these numbers <span style = "color: blue;"> center </span>
+    - "how <span style = "color: blue;"> precise </span> is OLS?" asks how far <span style = "color: blue;"> apart </span> they are
+
+<br>
+
+:::{.callout-note title="Why we simulate"}
+With real data you get row 1 and no way to obtain row 2. But we built this world, so we can draw as many rows as we like &mdash; and then read off the center and the spread.
+:::
+
+:::
+<!--end of panel-->
 
 ## Monte Carlo Simulation: Steps
 
 <details class="transcript">
 <summary>Transcript</summary>
 
-Here is the recipe, and every Monte Carlo exercise in this course follows it. In step one, specify the data-generating process completely: choose the true parameter values, sample size, distributions of the variables, and any dependence among them. In step two, generate one artificial dataset from that process. In step three, apply the estimator or procedure you want to study, such as OLS or a sample mean, and save its result. In step four, return to the data-generation step and repeat with fresh random draws many times. In step five, summarize the saved estimates and compare them with the truth chosen in step one.
+Here is the recipe, and every Monte Carlo exercise in this course follows it. In step one, specify the data-generating process completely: choose the true parameter values, sample size, distributions of the variables, and any dependence among them. In step two, generate one artificial dataset from that process. In step three, apply the estimator or procedure you want to study, such as OLS or a sample mean, and save its result. In step four, return to step two and repeat steps two and three with fresh random draws many times. In step five, summarize the saved estimates and compare them with the truth chosen in step one.
 
-The question at the bottom asks why steps one through three are repeated. More precisely, the specification in step one stays fixed while data generation and estimation are repeated. An estimator is a random variable because a new random sample produces a new estimate. One sample gives one draw from its sampling distribution. That single value cannot reveal the distribution’s center, spread, skewness, or tail behavior, so it cannot tell us whether a miss is ordinary sampling noise or systematic bias.
+The question at the bottom asks why steps two and three are repeated while step one is not. Step one is the world we chose, and it has to stay fixed: if the true parameter or the sample size moved between repetitions, the collection of estimates would no longer describe one single situation. An estimator is a random variable because a new random sample produces a new estimate. One sample gives one draw from its sampling distribution. That single value cannot reveal the distribution’s center, spread, skewness, or tail behavior, so it cannot tell us whether a miss is ordinary sampling noise or systematic bias.
 
 Thousands of independent replications approximate the sampling distribution. Their average estimates the estimator’s expected value, their standard deviation estimates its standard error under the chosen process, and their histogram shows its shape.
 
 </details>
 
-+ specify the data generating process
-+ generate data based on the data generating process
-+ get an estimate based on the generated data (e.g. OLS, mean)
-+ repeat the above steps many many times
-+ compare your estimates with the true parameter
+1. specify the data generating process
+2. generate data based on the data generating process
+3. get an estimate based on the generated data (e.g. OLS, mean)
+4. repeat steps 2-3 many many times
+5. compare your estimates with the true parameter
 
 **Question**
 
-Why do the steps $1-3$ many many times?
+Why do we repeat steps $2-3$ many many times, but not step $1$?
 
 ## Monte Carlo Simulation: Example 1
 
@@ -880,6 +638,8 @@ The probability limit displayed at the bottom says beta-one-hat approaches the t
 
 The prediction is therefore not merely “biased upward.” It is quantitative: the sampling distribution of the estimated slope should center near one point five rather than the true structural coefficient one. Write down one point five before moving on.
 
+One note on the arrow, because it is not an equals sign. It means the value the estimate settles on as the sample grows, and we derive that idea in lecture eight. You have already seen the sample version of this same statement in lecture one, part three: beta-one-hat equals beta one plus one over S-S-T-x times the sum of x-i minus x-bar times u-i. Divide the top and the bottom of that error term by n and the top becomes the covariance of x and u while the bottom becomes the variance of x. So the displayed line is a familiar decomposition, rewritten in population quantities.
+
 </details>
 
 Both $x$ and $u$ contain $\mu$, so they are correlated by construction:
@@ -894,6 +654,7 @@ And the bias of $\hat{\beta}_1$ is governed by exactly that ratio:
 $$\hat{\beta}_1 \rightarrow \beta_1 + \frac{Cov(x, u)}{Var(x)} = 1 + \frac{1}{2} = 1.5$$
 
 + so the histogram should be centered at <span style = "color: red;">1.5</span>, not at the true value of 1
++ the arrow means "where the estimate settles as the sample grows", which we derive in lecture 08. It is lecture 01-3's $\hat{\beta}_1 = \beta_1 + (1/SST_x)\sum_i (x_i-\bar{x})u_i$ with top and bottom divided by $n$.
 
 ### Compare
 
@@ -912,6 +673,8 @@ Compare this picture with the one in lecture 01-3, where zero conditional mean h
 #| code-track: 0.5
 mean(estimate_storage)
 ```
+
+<br>
 
 ```{webr-r}
 #| layout: stacked
@@ -932,7 +695,7 @@ ggplot(data = data.frame(x = estimate_storage)) +
 <!--end of panel-->
 
 
-## Monte Carlo Simulation: Example 3 (optional)
+## Monte Carlo Simulation: Example 3
 
 ::: {.panel-tabset}
 
@@ -941,7 +704,7 @@ ggplot(data = data.frame(x = estimate_storage)) +
 <details class="transcript">
 <summary>Transcript</summary>
 
-This optional example asks whether OLS estimates its own uncertainty correctly. The model at the top has outcome y, intercept beta zero, slope beta one, regressor x, and error u. The bullets specify a standard Normal regressor, a Normal error, and zero conditional mean, so x contains no information about the average error. Under homoskedastic errors with variance sigma squared, the conditional variance of beta-one-hat, holding the observed x values fixed, is sigma squared divided by S-S-T sub X.
+This example asks whether OLS estimates its own uncertainty correctly. The model at the top has outcome y, intercept beta zero, slope beta one, regressor x, and error u. The bullets specify a standard Normal regressor, a Normal error, and zero conditional mean, so x contains no information about the average error. Under homoskedastic errors with variance sigma squared, the conditional variance of beta-one-hat, holding the observed x values fixed, is sigma squared divided by S-S-T sub X.
 
 The denominator S-S-T sub X means the sum, from i equals one through n, of x sub i minus x-bar, all squared. It measures the sample variation in x around its mean. More spread in x makes this denominator larger and the slope estimator more precise. Sigma squared is the population error variance. It is unknown in real data, so the second line replaces it with sigma-hat squared.
 
@@ -1196,5 +959,175 @@ ggplot(data = plot_data) +
     legend.position = "bottom"
   )
 ```
+:::
+<!--end of panel-->
+
+## Exercise: Where does the noise land?
+
+::: {.panel-tabset}
+
+### Problem
+
+<details class="transcript">
+<summary>Transcript</summary>
+
+Here is a problem that comes up in every applied project, and one for which you do not yet have a theorem. Your data is measured with error. Farmers recall last year's yield without complete records, survey respondents round or misreport their income, and rainfall at a particular field is interpolated from readings at surrounding stations. In each case the number recorded in your dataset is the true quantity plus a mistake. The question is whether that matters, and whether it matters differently depending on which variable carries the mistake.
+
+Read the model. Y equals beta zero plus beta one times x plus u, the true slope beta one is one, the true regressor x is standard Normal, and the error u is standard Normal and independent of x. Everything OLS asks for holds in this world. If you could observe x and y themselves, OLS would be unbiased.
+
+Now read the two things you might observe instead. In the first, y-noisy equals y plus e, where e is an independent standard Normal draw: the mistake lands in the outcome, and the regressor is recorded perfectly. In the second, x-noisy equals x plus e, drawn the same way: the mistake lands in the regressor, and the outcome is recorded perfectly. The quantity of noise is identical in the two cases. The only difference between them is which variable carries it.
+
+Work through the seven numbered instructions. Step one asks you to commit to a prediction before writing code, and it is the most important step on this slide. For each of the two cases, write down on paper whether you expect the estimates to center at one, above one, or below one. A prediction you have written down is the only way to find out whether you understood the problem, because an explanation always sounds reasonable after you have seen the answer.
+
+Steps two through four build the simulation with the machinery from Example 2. Set B to one thousand replications and N to one hundred observations, and allocate a storage with B rows and two columns, one column per case. Inside the loop, draw x, draw u, and build y exactly as the model says. Then create the two contaminated variables by adding a fresh R-norm of N to each. Fresh matters: draw the noise separately for each, rather than reusing one vector, so the two cases are independent of each other.
+
+Step five runs the two regressions. The first regresses y-noisy on x, which is the case where the outcome is mismeasured. The second regresses y on x-noisy, which is the case where the regressor is mismeasured. Store the first slope in column one and the second in column two.
+
+Steps six and seven read the result. Take the mean of each column to find where that collection of estimates centers, and the standard deviation of each to find how far apart the estimates are. Then answer the three questions at the end: which case is biased, in which direction, and which case produced the tighter collection of estimates. Pay attention to whether those two are the same case, because the answer decides whether a narrow distribution is something you should be pleased about.
+
+Read the note at the bottom before you write the regression. When you regress y on x-noisy, the coefficient you want is stored under the name x-noisy, not x, because fixest names a coefficient after the variable that appears in the formula.
+
+</details>
+
+Your explanatory variable is measured with <span style = "color: red;"> error </span>. Recalled yields, rounded survey income, rainfall interpolated from nearby stations: the number in your dataset is the true one plus a mistake. Does it matter <span style = "color: blue;"> which </span> variable carries the mistake?
+
+**Model setup**
+
+```{=tex}
+\begin{align*}
+  y = \beta_0 + \beta_1 x + u
+\end{align*}
+```
+
++ $x\sim N(0,1)$, $u\sim N(0,1)$, and $E[u|x]=0$
++ the truth is $\beta_0 = 1$ and $\beta_1 = 1$
++ you do <span style = "color: red;"> not </span> observe $x$ and $y$. You observe one of these instead, with $e\sim N(0,1)$:
+    - $y^{noisy} = y + e$ &nbsp; (the mistake is in the <span style = "color: blue;"> outcome </span>)
+    - $x^{noisy} = x + e$ &nbsp; (the mistake is in the <span style = "color: blue;"> regressor </span>)
+
+**Instructions**
+
+1. <span style = "color: red;"> Before writing any code </span>, write down a prediction for each case: will the estimates center at 1, above 1, or below 1?
+2. Set `B <- 1000` and `N <- 100`, and create a storage with `B` rows and 2 columns.
+3. Inside the loop, generate `x`, `u`, and `y` as the model says.
+4. Create `y_noisy` and `x_noisy` by adding a <span style = "color: blue;"> fresh </span> `rnorm(N)` to each (draw the noise separately, not once).
+5. Run two regressions and store the slope from each: `y_noisy` on `x` in column 1, and `y` on `x_noisy` in column 2.
+6. After the loop, take `mean()` of each column (where do they center?) and `sd()` of each (how far apart are the estimates?).
+7. Answer: which case is biased, in which direction, and which case has the <span style = "color: blue;"> tighter </span> collection of estimates? Are those the same case?
+
+:::{.callout-note title="One thing to watch"}
+`fixest` names a coefficient after the variable in the formula, so in the second regression the slope is stored under `"x_noisy"`, not `"x"`.
+:::
+
+<br>
+
+**Work here**
+
+```{webr-r}
+
+```
+
+### Solution
+
+<details class="transcript">
+<summary>Transcript</summary>
+
+Compare this against what you wrote. The preparation sets B to one thousand replications and N to one hundred observations, and the call spoken "matrix zero comma B comma two" allocates a storage with one row per replication and one column per case.
+
+Inside the loop, R-norm of N draws the true regressor x, another R-norm of N draws the error u, and the outcome line reads "y gets one plus x plus u," putting the true intercept and the true slope of one into the world. Nothing is wrong with this data. The next two lines add a fresh R-norm of N to y to make y-noisy, and a separate fresh R-norm of N to x to make x-noisy. Because those are two separate calls, the mistake in the outcome and the mistake in the regressor are independent of each other, and each has variance one.
+
+The data-frame call collects all four variables so both regressions can read from the same table. The first fee-ols call has the formula "y-noisy tilde x," which is the case where the outcome carries the mistake, and its slope goes into column one. The second has the formula "y tilde x-noisy," which is the case where the regressor carries it, and its slope goes into column two under the name x-noisy.
+
+After the loop the two columns are given the names noise-in-y and noise-in-x, and the four summary calls print where each collection centers and how far apart its estimates are.
+
+Now read the numbers, because the two cases behave completely differently. In a verified one-thousand-replication run, the noise-in-y estimates centered at one point zero zero one with a standard deviation of zero point one three eight. That collection is centered on the truth. Putting a mistake in the outcome cost nothing on average. It simply added another independent piece to the error term, which widened the collection of estimates without moving it.
+
+The noise-in-x estimates centered at zero point four nine eight with a standard deviation of zero point zero eight eight. That is not noise around one. It is roughly half of one, and it is half every time you run it. A mistake in the regressor shrinks the estimated slope toward zero systematically. The reason is that the recorded regressor is only partly the true one, so a one-unit change in what you recorded corresponds to less than a one-unit change in what actually drives the outcome, and OLS reports the smaller number.
+
+Compare the two standard deviations before you leave this tab, because this is the part most people get backwards. Zero point zero eight eight is smaller than zero point one three eight. The biased case produced the <span style = "color: blue;">tighter</span> collection of estimates. If you had one dataset from each and only their standard errors to judge by, the one that was wrong by half would look like the more precise result. A narrow distribution tells you how repeatable an answer is, not whether it is the right answer.
+
+</details>
+
+```{webr-r}
+#--- Preparation ---#
+B <- 1000 # the number of iterations
+N <- 100 # sample size
+estimate_storage <- matrix(0, B, 2) # estimates storage
+
+for (i in 1:B) {
+  #--- steps 1 and 2: generate data as the model says ---#
+  x <- rnorm(N) # the true regressor
+  u <- rnorm(N) # error
+  y <- 1 + x + u # the truth: beta_1 = 1
+
+  #--- the same amount of noise, landing in different places ---#
+  y_noisy <- y + rnorm(N) # the mistake is in the outcome
+  x_noisy <- x + rnorm(N) # the mistake is in the regressor
+
+  data <- data.frame(y = y, x = x, y_noisy = y_noisy, x_noisy = x_noisy)
+
+  #--- step 3: OLS, once per case ---#
+  reg_y <- fixest::feols(y_noisy ~ x, data = data) # noise in the outcome
+  reg_x <- fixest::feols(y ~ x_noisy, data = data) # noise in the regressor
+
+  estimate_storage[i, 1] <- reg_y$coefficient["x"]
+  estimate_storage[i, 2] <- reg_x$coefficient["x_noisy"]
+}
+
+#--- assign new names ---#
+noise_in_y <- estimate_storage[, 1]
+noise_in_x <- estimate_storage[, 2]
+
+#--- where do they center? (the truth is 1) ---#
+mean(noise_in_y)
+mean(noise_in_x)
+
+#--- how far apart are the estimates? ---#
+sd(noise_in_y)
+sd(noise_in_x)
+```
+
++ noise in the <span style = "color: blue;"> outcome </span>: centers at 1. It only widened the distribution
++ noise in the <span style = "color: blue;"> regressor </span>: centers at about 0.5, <span style = "color: red;"> half </span> the true value, every time
+
+### Results visualization
+
+<details class="transcript">
+<summary>Transcript</summary>
+
+Here is the same result as a picture, which makes the comparison harder to argue with. The first two lines create separate tables, each holding one case's stored estimates in a column named x and a label in a column named type. R-bind stacks them into one long dataset so a single plot can draw both.
+
+In gee-gee-plot, geom-density maps the estimates to the horizontal axis and the label to fill color, drawing one smoothed curve per case, and the alpha argument of zero point five makes each fill half transparent so the two can overlap. Geom-v-line adds a solid blue vertical line at one, which is the true slope, following the same convention as the earlier figures in this deck. Scale-fill-discrete with an empty name removes the legend title, x-lab names the horizontal axis, and the final theme call puts the legend below the plot. The vertical axis is density, so each curve encloses an area of one. Compare centers and widths, not heights.
+
+Read the picture. The noise-in-outcome curve is centered on the blue line. Its estimates land on both sides of the truth, sometimes noticeably far from it, but there is no systematic tendency to miss in one direction. That is what an unbiased estimator looks like when you have made its job harder.
+
+The noise-in-regressor curve sits well to the left, centered near zero point five, and the blue line marking the truth falls outside the bulk of it entirely. It is also the narrower of the two curves. Put those two facts together and you have the warning this exercise exists to deliver. The narrow curve is the wrong one. Width tells you how much an answer would move if you collected your data again. It says nothing at all about whether the thing you are centered on is the quantity you wanted.
+
+One more thing worth noticing before you move on. Both of these came from a world where every condition OLS asks for held for the true variables. Nothing was endogenous by construction, no variable was omitted, and the sample was a clean random draw. All that happened is that a recording mistake moved from one column of the dataset to another.
+
+</details>
+
+```{webr-r}
+#| fig-width: 9
+#| fig-height: 6.5
+
+plot_data_1 <- data.table(x = noise_in_y, type = "Noise in the outcome (y)")
+plot_data_2 <- data.table(x = noise_in_x, type = "Noise in the regressor (x)")
+plot_data <- rbind(plot_data_1, plot_data_2)
+ggplot(data = plot_data) +
+  geom_density(aes(x = x, fill = type), alpha = 0.5) +
+  geom_vline(xintercept = 1, color = "blue", linewidth = 1) + # the truth
+  scale_fill_discrete(name = "") +
+  xlab("Estimate of beta_1") +
+  theme_lecture +
+  theme(
+    legend.position = "bottom"
+  )
+```
+
++ the blue line is the truth. Noise in the outcome straddles it; noise in the regressor misses it entirely
++ the <span style = "color: red;"> biased </span> curve is the <span style = "color: blue;"> narrower </span> one: a tight distribution tells you an answer is repeatable, not that it is right
++ every condition OLS asks for held for the true $x$ and $y$. All that changed is which column the recording mistake landed in
+
 :::
 <!--end of panel-->
