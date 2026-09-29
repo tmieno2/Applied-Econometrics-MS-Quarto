@@ -992,11 +992,13 @@ g_power
 
 The p-value packages the same tail comparison into a single number. The definition callout gives two equivalent readings. It is the smallest significance level at which the observed result would lead you to reject H zero. It is also, assuming H zero is true, the probability of drawing a test statistic at least as extreme as the one actually observed.
 
-This slide uses a two-sided example with an observed t-statistic of two point one six. The left column states that result. On the figure, the horizontal axis is the t-statistic and the vertical height is the t density under H zero. The right-tail boundary is two point one six, and the symmetric left boundary is minus two point one six. Both tails beyond those values are shaded because a statistic equally far from zero in either direction would be at least as extreme for a two-sided alternative.
+This slide uses a two-sided test of H zero, beta j equals zero, with an observed t-statistic of two point one six. The first bullet in the left column states that result. On the figure, the horizontal axis is the t-statistic and the vertical height is the t density under H zero, the same t distribution with five hundred and twenty-two degrees of freedom used on the Significance level slide. The red vertical line on the right, labelled "observed t equals two point one six", marks the statistic we actually got. The red line on the left, at minus two point one six, is its mirror image. Both tails beyond those lines are shaded because, for a two-sided alternative, a statistic equally far from zero in either direction counts as at least as extreme.
 
-The combined shaded area is about zero point zero three one, or three point one percent. That is the two-sided p-value. If you selected a significance level of exactly three point one percent, the statistic would sit at the critical boundary. At any conventional level larger than the p-value, such as five percent, the rejection region is wider and contains the observed statistic, so you reject. At a smaller level, such as one percent, the rejection boundary lies farther out and you fail to reject.
+The label in the middle, with an arrow into each red area, gives the combined shaded area: about zero point zero three one, or three point one percent, which is about zero point zero one five six in each tail. That combined area is the two-sided p-value, and the second bullet reads it in words: if H zero is true, a t-statistic at least this far from zero happens with probability zero point zero three one. Compare this figure with the two-sided five percent figure on the previous slide. There, we fixed the red area at five percent and read off the cutoff. Here we do the reverse: we put the cutoff at the statistic we observed and read off the red area.
 
-The decision callout summarizes the comparison: reject when the p-value is below the chosen significance level. This always agrees with comparing the statistic to the matching critical value, provided the same distribution, degrees of freedom, and sidedness are used.
+That reversal is why the third bullet holds. If you selected a significance level of exactly three point one percent, the critical value would sit exactly at the observed statistic. At any larger level, such as five percent, the critical value is closer to zero, the observed statistic lies beyond it, and you reject. At any smaller level, such as one percent, the critical value lies farther out than two point one six and you fail to reject. So three point one percent is the smallest significance level at which you would reject.
+
+The Decision rule box in the left column summarizes the comparison: reject when the p-value is below the chosen significance level. The sentence under it says this always agrees with comparing the t-statistic with the matching critical value, provided the same distribution, degrees of freedom, and sidedness are used.
 
 </details>
 
@@ -1007,72 +1009,64 @@ The smallest significance level at which the null hypothesis would be rejected (
 
 ```{r p-dist, include = F}
 u <- seq(-3.5, 3.5, length = 1000)
-pdf <- dt(u, df = df_fig) # default is mean = 0,sd = 1
-data <- data.table(x = u, y = pdf)
+data <- data.table(x = u, y = dt(u, df = df_fig))
 
-g_t <- ggplot() +
+t_obs <- 2.16
+p_val <- 2 * pt(-t_obs, df = df_fig)
+
+g_t_0031 <- ggplot() +
+  geom_ribbon(data = data[x >= t_obs], aes(ymax = y, ymin = 0, x = x), fill = "red", alpha = 0.4) +
+  geom_ribbon(data = data[x <= -t_obs], aes(ymax = y, ymin = 0, x = x), fill = "red", alpha = 0.4) +
   geom_line(data = data, aes(y = y, x = x)) +
   geom_hline(yintercept = 0) +
-  xlab("") +
+  geom_vline(xintercept = c(-t_obs, t_obs), colour = "red") +
+  annotate("text",
+    x = t_obs - 0.05, y = 0.43, hjust = 1, colour = "red", size = 5.6, family = "Times",
+    label = sprintf("observed t = %.2f", t_obs)
+  ) +
+  annotate("text",
+    x = -t_obs + 0.05, y = 0.43, hjust = 0, colour = "red", size = 5.6, family = "Times",
+    label = sprintf("%.2f", -t_obs)
+  ) +
+  annotate("text",
+    x = 0, y = 0.12, colour = "red", size = 5.6, family = "Times",
+    label = sprintf("p-value = %.3f\n(%.4f in each tail)", p_val, p_val / 2)
+  ) +
+  annotate("segment",
+    x = c(-0.9, 0.9), y = 0.07, xend = c(-t_obs - 0.3, t_obs + 0.3), yend = 0.015,
+    colour = "red", arrow = arrow(length = unit(0.2, "cm"))
+  ) +
+  xlab("t-statistic") +
   ylab("") +
   theme_lecture +
   theme(
     axis.text.y = element_blank(),
     axis.ticks.y = element_blank()
   )
-
-alpha <- 0.031
-c_rej <- qt(1 - alpha / 2, df = df_fig)
-rej_data_high <- data[u >= c_rej, ]
-rej_data_low <- data[u <= -c_rej, ]
-
-g_t_0031 <- g_t +
-  geom_ribbon(
-    data = rej_data_high,
-    aes(ymax = y, ymin = 0, x = x),
-    fill = "red", alpha = 0.4
-  ) +
-  geom_ribbon(
-    data = rej_data_low,
-    aes(ymax = y, ymin = 0, x = x),
-    fill = "red", alpha = 0.4
-  ) +
-  annotate("text",
-    x = c_rej, y = -0.03,
-    label = as.character(round(c_rej, digits = 2)),
-    size = 5.6,
-    family = "Times"
-  ) +
-  annotate("text",
-    x = 0, y = 0.1,
-    label = paste("area  =  ", round(alpha, digits = 3), sep = ""),
-    size = 5.6,
-    family = "Times"
-  )
 ```
 
 ::: {.columns}
 
-::: {.column width="50%"}
-+ Suppose the t-statistic you got is 2.16. If the null hypothesis is true, the probability of observing a test statistic at least this extreme is 3.1%.
+::: {.column width="40%"}
++ Two-sided test of $H_0: \beta_j = 0$; suppose the t-statistic you got is `r t_obs`
++ If $H_0$ is true, a t-statistic at least this far from 0 (either side) happens with probability `r round(p_val, 3)` (the two red areas): this is the p-value
++ So `r round(100 * p_val, 1)`% is the smallest significance level at which you would reject $H_0$
 
-+ Thus, 3.1% is the smallest significance level at which the null would be rejected, which is the definition of the p-value.
+:::{.callout-note title="Decision rule"}
+Reject $H_0$ if the p-value is lower than your significance level
+:::
+
+This always gives the same result as comparing the t-statistic with the critical value.
 :::
 <!--end of the 1st column-->
-::: {.column width="50%"}
+::: {.column width="60%"}
 ```{r echo = F}
 g_t_0031
 ```
 :::
 <!--end of the 2nd column-->
 :::
-<!--end of the columns-->  
- 
-:::{.callout-note title="Decision rule"}
-If the p-value is lower than your choice of significance level, then you reject the null.
-:::
-
-This decision rule of course results in the same test results as the one we saw that uses a t-value and critical value.
+<!--end of the columns-->
 
 ### Example
 
