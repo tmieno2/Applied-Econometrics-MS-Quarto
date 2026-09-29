@@ -1311,10 +1311,6 @@ The probability that a realized CI calculated from specific sample data includes
 
 ### How to get CI (in general)
 
-::: {.panel-tabset}
-
-#### General Procedure
-
 <details class="transcript">
 <summary>Transcript</summary>
 
@@ -1335,92 +1331,6 @@ A confidence interval is a range for an **unknown parameter** $\theta$.
     + lower bound: $(100 - A)/2$ percent quantile
     + upper bound: $100-(100 - A)/2$ percent quantile
 3. Rewrite "the quantity is inside this range" as a statement about $\theta$. The resulting range for $\theta$ is the $A\%$ confidence interval.
-
-#### Example
-
-<details class="transcript">
-<summary>Transcript</summary>
-
-This tab works through step two of the general procedure with A equals ninety-five. One hundred minus ninety-five leaves five percent outside the middle range. Split that evenly, so the lower endpoint is the two point five percentile and the upper endpoint is the ninety-seven point five percentile. The formulas in parentheses in the left column show both calculations explicitly.
-
-For this example, x follows the standard Normal distribution, with mean zero and variance one. Its two point five percentile is approximately minus one point nine six, and its ninety-seven point five percentile is approximately positive one point nine six. Therefore the middle ninety-five percent of possible x values lies between minus one point nine six and one point nine six. Be careful with the name: this is not a confidence interval of x. The standard Normal distribution has no unknown parameter, so there is nothing for a confidence interval to cover. The range from minus one point nine six to one point nine six is simply the range that contains x with probability ninety-five percent. It becomes part of a confidence interval only when x is a quantity like the one in step one and we carry out step three, which the next slide does for the regression coefficients.
-
-Look at the figure in the right column. The horizontal axis shows values of x, the vertical height shows the standard Normal density, and the curve is centered at zero. The red ribbons occupy the two tails outside the interval. Each tail has area zero point zero two five, so together they contain zero point zero five, leaving zero point nine five unshaded in the middle. The annotation near the positive boundary marks about one point nine six; symmetry places the negative boundary at minus one point nine six.
-
-</details>
-
-::: {.columns}
-
-::: {.column width="40%"}
-For the 95% CI (A = 95), 
-
-+ lower bound: $2.5$ $\big((100-95)/2\big)$ percent quantile of $x$
-+ upper bound: $97.5$ $\big(100-(100-95)/2\big)$ percent quantile of $x$
-
-If $x$ follows the standard normal distribution $(x \sim N(0, 1))$, then the 2.5% and 97.5% quantiles are -1.96 and 1.96, respectively. So, the middle 95% of $N(0,1)$ lies in [-1.96, 1.96].
-
-This is **not** a CI of $x$: $N(0,1)$ has no unknown parameter to cover.
-
-:::
-<!--end of the 1st column-->
-::: {.column width="60%"}
-```{r norm-95, include = F}
-u <- seq(-3, 3, length = 1000)
-pdf <- dnorm(u) # default is mean=0,sd=1
-data <- data.table(x = u, y = pdf)
-
-g_norm <- ggplot() +
-  geom_line(data = data, aes(y = y, x = x)) +
-  geom_hline(yintercept = 0) +
-  xlab("") +
-  ylab("") +
-  theme_lecture +
-  theme(
-    axis.text.y = element_blank(),
-    axis.ticks.y = element_blank()
-  )
-
-alpha <- 0.05
-c_rej <- qnorm(1 - alpha / 2)
-rej_data_high <- data[u >= c_rej, ]
-rej_data_low <- data[u <= -c_rej, ]
-
-g_norm_005 <- g_norm +
-  geom_ribbon(
-    data = rej_data_high,
-    aes(ymax = y, ymin = 0, x = x),
-    fill = "red", alpha = 0.4
-  ) +
-  geom_ribbon(
-    data = rej_data_low,
-    aes(ymax = y, ymin = 0, x = x),
-    fill = "red", alpha = 0.4
-  ) +
-  annotate("text",
-    x = c_rej, y = -0.03,
-    label = as.character(round(c_rej, digits = 2)),
-    size = 3.7,
-    family = "Times"
-  ) +
-  annotate("text",
-    x = 2.0, y = 0.30,
-    label = paste("area = ", round(alpha / 2, digits = 3), sep = ""),
-    size = 3.7,
-    family = "Times"
-  )
-```
-```{r echo = F}
-g_norm_005
-```
-:::
-<!--end of the 2nd column-->
-:::
-<!--end of the columns-->
-
-
-
-:::
-<!--end of panel-->
 
 
 ### How to get the CI of coefficients
