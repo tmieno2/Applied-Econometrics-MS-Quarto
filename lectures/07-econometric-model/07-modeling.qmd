@@ -20,7 +20,7 @@ execute:
   echo: true
   out-width: 55%
 webr:
-  packages: ['fixest', 'dplyr', 'data.table', 'ggplot2', 'wooldridge', 'car', 'broom']
+  packages: ['fixest', 'dplyr', 'data.table', 'ggplot2', 'wooldridge', 'marginaleffects', 'broom']
   cell-options:
     editor-font-scale: 0.7
     dpi: 216
@@ -43,7 +43,6 @@ library(ggplot2)
 library(data.table)
 library(dplyr)
 library(modelsummary)
-library(car)
 
 source(here::here("lectures/_lecture-theme.R"))
 ```
@@ -954,18 +953,22 @@ $t = \frac{\hat{\beta}_{educ} + \hat{\beta}_{educ^2} \times 2 \times 4}{se(\hat{
 <details class="transcript">
 <summary>Transcript</summary>
 
-The car colon colon linearHypothesis function tests restrictions on coefficients from an estimated model. Its first argument is quad_reg, the quadratic wage model. Its second argument is a character string representing the null restriction. The intended string says the education coefficient plus eight times the squared-education coefficient equals zero. The coefficient names in such a string must match the names stored in the fitted model.
+The marginaleffects colon colon hypotheses function tests a linear combination of coefficients from an estimated model. Its first argument is quad_reg, the quadratic wage model. The hypothesis argument is a character string writing the null as an equation: the education coefficient plus eight times the squared-education coefficient equals zero. The coefficient names in the string must match the names in the regression output exactly. The squared term is printed as capital I, open parenthesis, capital I, open parenthesis, educ caret two, close, close. Because that name contains parentheses and a caret, it has to be wrapped in backticks, so R reads it as one name rather than as a calculation. The df argument uses the residual degrees of freedom, so the p-value comes from the t distribution with n minus k minus one degrees of freedom. The standard error uses the heteroskedasticity-robust variance estimate the model was fitted with.
 
-The note above the cell explains the one-restriction equivalence. A t-test directly standardizes one estimated linear combination. An F-test for exactly one restriction squares that t-statistic, so the two-sided t-test and the one-restriction F-test give the same p-value when constructed from the same covariance estimate. With heteroskedasticity-robust covariance estimation, software may label the large-sample squared statistic as chi-squared rather than finite-sample F, but the restriction being tested is still the one displayed on the previous tab.
+The output has one row. The Estimate column is the estimated marginal effect at four years of education, beta hat educ plus eight beta hat educ squared, about minus zero point one. The Std. Error column is the standard error of that combination, about zero point one one eight, and the t column is their ratio, about minus zero point eight five. This is exactly the t-statistic written on the previous tab.
 
-The slide reports a p-value of zero point three nine four. That is much larger than common significance levels such as zero point zero five, so we do not reject the null. This does not prove that the marginal effect at four is exactly zero. It says the estimate is not far enough from zero, relative to its uncertainty, to distinguish it statistically in this sample. The conclusion is specific to education equal to four. It does not tell us whether the effect is significant at ten, which is the next example.
+The p-value is about zero point three nine four. That is much larger than common significance levels such as zero point zero five, so we do not reject the null. This does not prove that the marginal effect at four is exactly zero. It says the estimate is not far enough from zero, relative to its uncertainty, to distinguish it statistically in this sample. The conclusion is specific to education equal to four. It does not tell us whether the effect is significant at ten, which is the next example.
 
 </details>
 
-Remember, a trick to do this test using R is take advantage of the fact that $F_{1, n-k-1} \sim t_{n-k-1}^2$.
+`marginaleffects::hypotheses()` computes this t-test directly. A coefficient name with parentheses or spaces goes in backticks, copied exactly from the regression output.
 
 ```{webr-r}
-car::linearHypothesis(quad_reg, "educ + 8*I(educ^2)=0")
+marginaleffects::hypotheses(
+  quad_reg,
+  hypothesis = "educ + 8 * `I(I(educ^2))` = 0",
+  df = degrees_freedom(quad_reg, "resid")
+)
 ```
 
 The p-value is $0.394$, so we do not reject the null: at an education level of 4, the marginal impact of education is not statistically distinguishable from zero.
@@ -1014,14 +1017,18 @@ $t = \frac{\hat{\beta}_{educ} + \hat{\beta}_{educ^2} \times 2 \times 10}{se(\hat
 <details class="transcript">
 <summary>Transcript</summary>
 
-This cell uses the same linearHypothesis approach as example one, replacing the weight eight with twenty because the evaluation point is now ten years of education. The first argument remains quad_reg, so we are not re-estimating the wage equation. We are asking a new question of the same coefficient vector and covariance matrix. The character string represents the null that the education coefficient plus twenty times the squared-education coefficient equals zero.
+This cell uses the same hypotheses call as example one, replacing the weight eight with twenty because the evaluation point is now ten years of education. The first argument remains quad_reg, so we are not re-estimating the wage equation. We are asking a new question of the same coefficient vector and covariance matrix. The character string represents the null that the education coefficient plus twenty times the squared-education coefficient equals zero, with the squared term's name again in backticks.
 
-The reported p-value is far below zero point zero one. We therefore reject the null at the one percent level and conclude that the marginal effect at ten years is statistically distinguishable from zero. The fitted combination is positive, so the estimated direction is a positive association between an additional year of education and hourly wage at that education level.
+The Estimate column gives the marginal effect at ten years, about zero point three seven four dollars per hour, with a standard error of about zero point zero three six and a t-statistic of about ten point three. The reported p-value is far below zero point zero one. We therefore reject the null at the one percent level and conclude that the marginal effect at ten years is statistically distinguishable from zero. The fitted combination is positive, so the estimated direction is a positive association between an additional year of education and hourly wage at that education level.
 
 </details>
 
 ```{webr-r}
-car::linearHypothesis(quad_reg, "educ + 20*I(educ^2)=0")
+marginaleffects::hypotheses(
+  quad_reg,
+  hypothesis = "educ + 20 * `I(I(educ^2))` = 0",
+  df = degrees_freedom(quad_reg, "resid")
+)
 ```
 
 The p-value is far below $0.01$, so we reject the null at the 1% level: at an education level of 10, the marginal impact of education is statistically significant.
@@ -1253,9 +1260,9 @@ Does an additional year of experience have a statistically significant impact (p
 <details class="transcript">
 <summary>Transcript</summary>
 
-The code passes reg_int and one restriction string to car colon colon linearHypothesis. The string says the experience coefficient plus ten times the coefficient named I of experience times education equals zero. That is exactly the null from the previous tab at education equal to ten. Coefficient names inside the string must match the fitted model's labels, including the capital I and the product term.
+The code passes reg_int and one hypothesis string to marginaleffects colon colon hypotheses. The string says the experience coefficient plus ten times the coefficient named I of experience times education equals zero. That is exactly the null from the previous tab at education equal to ten. Coefficient names inside the string must match the fitted model's labels, including the capital I and the product term, and because that name contains parentheses and spaces it is wrapped in backticks. The df argument makes the p-value come from the t distribution with the residual degrees of freedom.
 
-Using the unrounded estimates, the marginal effect at ten is about negative zero point one eight seven six plus ten times zero point zero two zero three seven, or positive zero point zero one six one dollars per hour. The test output gives a p-value of about zero point one one seven. At the five percent level, we therefore fail to reject the null that the experience effect is zero for a worker with ten years of education. The point estimate is positive, but it is not estimated precisely enough to distinguish from zero at that conventional level.
+Using the unrounded estimates, the marginal effect at ten is about negative zero point one eight seven six plus ten times zero point zero two zero three seven, or positive zero point zero one six one dollars per hour. The Estimate column shows that value, zero point zero one six one, with a standard error of about zero point zero one zero three and a t-statistic of about one point five seven. The test output gives a p-value of about zero point one one seven. At the five percent level, we therefore fail to reject the null that the experience effect is zero for a worker with ten years of education. The point estimate is positive, but it is not estimated precisely enough to distinguish from zero at that conventional level.
 
 Do not turn "fail to reject" into proof of no effect. It means the sample and model do not provide sufficiently strong evidence against zero for this particular linear combination.
 
@@ -1263,7 +1270,11 @@ Do not turn "fail to reject" into proof of no effect. It means the sample and mo
 
 ```{webr-r}
 #| autorun: true
-car::linearHypothesis(reg_int, "exper+10*I(exper * educ)=0")
+marginaleffects::hypotheses(
+  reg_int,
+  hypothesis = "exper + 10 * `I(exper * educ)` = 0",
+  df = degrees_freedom(reg_int, "resid")
+)
 ```
 
 :::
@@ -1984,9 +1995,9 @@ summary(reg_full)
 <details class="transcript">
 <summary>Transcript</summary>
 
-The linearHypothesis call supplies reg_full as the fitted unrestricted model and a character vector containing four restrictions. The c function combines the strings. They set the female intercept difference, female_hsperc, female_sat, and female_tothrs equal to zero. The order of the restrictions does not matter, but each stored coefficient name must match the model output.
+The hypotheses call supplies reg_full as the fitted unrestricted model. The joint argument is a character vector of four coefficient names, combined with the c function: female, female_hsperc, female_sat, and female_tothrs. Every coefficient named there is set to zero under the null. The order does not matter, but each name must match the model output. joint_test equals "f" asks for the F-test.
 
-Together these restrictions state that the female equation has the same intercept and all three of the same slopes as the male equation. The function uses the model's coefficient covariance matrix to construct one joint statistic. With the current fixest and car methods, the output is labeled chi-squared: about thirty-two point seven on four restrictions, with p about one point four times ten to the minus six. In the classical finite-sample presentation, the corresponding joint test is discussed as an F-test. Both formulations address the same structural-equality null.
+Together these restrictions state that the female equation has the same intercept and all three of the same slopes as the male equation. The function uses the model's coefficient covariance matrix to construct one joint statistic. The output first lists the four restrictions it tested, then reports an F statistic of about eight point one eight with four and three hundred fifty-eight degrees of freedom: four restrictions, and n minus k minus one for this model. The p-value is printed as less than zero point zero zero one; it is about two point five times ten to the minus six.
 
 The p-value is far below one percent, so we reject the joint null. The data provide strong evidence that at least one of the four group-difference parameters is nonzero under this model. That does not tell us that all four differ, nor does it identify which difference is causal. It says the complete male and female regression functions should not be treated as identical.
 
@@ -1994,14 +2005,10 @@ The p-value is far below one percent, so we reject the joint null. The data prov
 
 ```{webr-r}
 #| autorun: true
-car::linearHypothesis(
+marginaleffects::hypotheses(
   reg_full,
-  c(
-    "female = 0",
-    "female_hsperc = 0",
-    "female_sat = 0",
-    "female_tothrs = 0"
-  )
+  joint = c("female", "female_hsperc", "female_sat", "female_tothrs"),
+  joint_test = "f"
 )
 ```
 

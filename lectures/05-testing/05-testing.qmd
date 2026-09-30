@@ -20,7 +20,7 @@ execute:
   echo: true
   out-width: 55%
 webr:
-  packages: ['fixest', 'dplyr', 'data.table', 'ggplot2', 'wooldridge', 'broom', 'car']
+  packages: ['fixest', 'dplyr', 'data.table', 'ggplot2', 'wooldridge', 'broom', 'marginaleffects']
   cell-options:
     editor-font-scale: 0.7
     dpi: 216
@@ -800,7 +800,7 @@ There are two ways to be wrong, and they trade off against each other:
 <details class="transcript">
 <summary>Transcript</summary>
 
-This picture implements a one-sided upper-tail test at the five percent significance level. The quantity in the first bullet is beta j hat minus beta j, divided by its estimated standard error. Under the null beta j equals zero, so the numerator becomes beta j hat and, under the classical assumptions, the statistic follows the t distribution shown on the right with five hundred and twenty-two residual degrees of freedom.
+This picture implements a one-sided upper-tail test at the five percent significance level. The first bullet states the two hypotheses: H zero, beta j equals zero, against the alternative H one, beta j greater than zero. The alternative is what makes the test one-sided: only values of the statistic far above zero count as evidence against H zero. The quantity in the second bullet is beta j hat minus beta j, divided by its estimated standard error. Under the null beta j equals zero, so the numerator becomes beta j hat and, under the classical assumptions, the statistic follows the t distribution shown on the right with five hundred and twenty-two residual degrees of freedom.
 
 On the figure, the horizontal axis contains possible t-statistics and the vertical height is the t density. The curve is centered at zero and symmetric, although this test uses only its positive tail because H one is beta j greater than zero. The red area is the upper five percent of the total area under the curve. Its left edge, marked by the red vertical line, is about one point six five for this many degrees of freedom: the ninety-fifth percentile of the t distribution.
 
@@ -813,7 +813,8 @@ The Decision Rule box in the left column says to reject H zero if the observed t
 ::: {.columns}
 
 ::: {.column width="40%"}
-+ Distribution of $\frac{\widehat{\beta}_j-\beta_j}{\widehat{se(\widehat{\beta}_j)}}$ if $H_0: \beta_j = 0$ is true
++ $H_0: \beta_j = 0$ vs $H_1: \beta_j > 0$ (one-sided)
++ Distribution of $\frac{\widehat{\beta}_j-\beta_j}{\widehat{se(\widehat{\beta}_j)}}$ if $H_0$ is true
 + A value larger than `r round(qt(0.95, df_fig), 2)` happens with probability 5% (the red area)
 
 :::{.callout-note title="Decision Rule"}
@@ -837,7 +838,7 @@ g_t_005_one
 <details class="transcript">
 <summary>Transcript</summary>
 
-This tab keeps the same one-sided hypothesis and the same t distribution but changes the significance level from five percent to one percent. The statistic is still beta j hat minus beta j, divided by its estimated standard error, and under H zero beta j equals zero. The curve on the right therefore has exactly the same shape as on the previous tab.
+This tab keeps the same hypotheses, stated in the first bullet: H zero, beta j equals zero, against the one-sided alternative H one, beta j greater than zero. It also keeps the same t distribution but changes the significance level from five percent to one percent. The statistic is still beta j hat minus beta j, divided by its estimated standard error, and under H zero beta j equals zero. The curve on the right therefore has exactly the same shape as on the previous tab.
 
 What changes is the shaded rejection region. The red area now contains only the upper one percent of the distribution. Its left boundary, the red vertical line, is the ninety-ninth percentile of t with five hundred and twenty-two degrees of freedom, about two point three three. The decision rule in the left column is consequently stricter: reject only if the observed t-statistic exceeds about two point three three. Compare that with the roughly one point six five boundary at the five percent level.
 
@@ -850,7 +851,8 @@ Again, the two red labels on the figure distinguish the level from the critical 
 ::: {.columns}
 
 ::: {.column width="40%"}
-+ Same distribution: $\frac{\widehat{\beta}_j-\beta_j}{\widehat{se(\widehat{\beta}_j)}}$ if $H_0: \beta_j = 0$ is true
++ $H_0: \beta_j = 0$ vs $H_1: \beta_j > 0$ (one-sided)
++ Same distribution: $\frac{\widehat{\beta}_j-\beta_j}{\widehat{se(\widehat{\beta}_j)}}$ if $H_0$ is true
 + A value larger than `r round(qt(0.99, df_fig), 2)` happens with probability 1% (the red area)
 
 :::{.callout-note title="Decision Rule"}
@@ -874,7 +876,7 @@ g_t_001_one
 <details class="transcript">
 <summary>Transcript</summary>
 
-Now the alternative is two-sided, so both positive and negative departures from zero count against H zero. The statistic and its null distribution have not changed: beta j hat minus beta j, divided by the estimated standard error, follows a t distribution with five hundred and twenty-two degrees of freedom under beta j equals zero. The first bullet emphasizes that every figure in this sequence uses the same t curve. The hypothesis changes the rejection region, not the statistic's null distribution.
+Now the alternative is two-sided. The first bullet states it: H zero, beta j equals zero, against H one, beta j not equal to zero. So both positive and negative departures from zero count against H zero. The statistic and its null distribution have not changed: beta j hat minus beta j, divided by the estimated standard error, follows a t distribution with five hundred and twenty-two degrees of freedom under beta j equals zero. The second bullet emphasizes that every figure in this sequence uses the same t curve. The hypothesis changes the rejection region, not the statistic's null distribution.
 
 The total significance level is still five percent. Because evidence in either direction matters, split that probability evenly: two point five percent in the left tail and two point five percent in the right tail. The positive boundary is the ninety-seven point five percentile of the t distribution, about one point nine six, and symmetry puts the negative boundary at about minus one point nine six. Those are farther from zero in absolute value than the one-sided five percent boundary because each tail receives less area.
 
@@ -887,6 +889,7 @@ The Decision Rule box in the left column expresses both boundaries compactly: re
 ::: {.columns}
 
 ::: {.column width="40%"}
++ $H_0: \beta_j = 0$ vs $H_1: \beta_j \neq 0$ (two-sided)
 + The <span style = "color: red;">same</span> $t_{`r df_fig`}$ curve as in the one-sided tabs; only the shaded region changes
 + A value above `r round(qt(0.975, df_fig), 2)` or below `r -round(qt(0.975, df_fig), 2)` happens with probability 5% in total (the two red areas)
 
@@ -966,9 +969,7 @@ g_power <- ggplot(power_data, aes(x = x)) +
 
 ::: {.column width="40%"}
 + $H_0: \beta_j = 0$ vs $H_1: \beta_j > 0$, and suppose the true $\beta_j$ is `r delta` times $se(\widehat{\beta}_j)$
-+ solid curve: distribution of the t-statistic if $H_0$ were true. <span style = "color: red;">Red</span>: Type I error
-+ dashed curve: its actual distribution under the true $\beta_j$
-+ we reject when the t-statistic is beyond the critical value, so <span style = "color: blue;">blue</span> is the power and grey is the Type II error
++ we reject when the t-statistic is beyond the critical value, so <span style = "color: blue;">blue</span> is the power, grey is the Type II error, and <span style = "color: red;">red</span> is the Type I error
 + going from 5% to 1% moves only the critical value: Type I falls, power falls from `r sprintf("%.2f", power_labels$power[1])` to `r sprintf("%.2f", power_labels$power[2])`
 + the further the true $\beta_j$ is from the $H_0$ value (in standard errors), the further right the dashed curve sits and the higher the power
 :::
@@ -992,7 +993,7 @@ g_power
 
 The p-value packages the same tail comparison into a single number. The definition callout gives two equivalent readings. It is the smallest significance level at which the observed result would lead you to reject H zero. It is also, assuming H zero is true, the probability of drawing a test statistic at least as extreme as the one actually observed.
 
-This slide uses a two-sided test of H zero, beta j equals zero, with an observed t-statistic of two point one six. The first bullet in the left column states that result. On the figure, the horizontal axis is the t-statistic and the vertical height is the t density under H zero, the same t distribution with five hundred and twenty-two degrees of freedom used on the Significance level slide. The red vertical line on the right, labelled "observed t equals two point one six", marks the statistic we actually got. The red line on the left, at minus two point one six, is its mirror image. Both tails beyond those lines are shaded because, for a two-sided alternative, a statistic equally far from zero in either direction counts as at least as extreme.
+This slide uses a two-sided test: H zero, beta j equals zero, against H one, beta j not equal to zero, with an observed t-statistic of two point one six. The first bullet in the left column states the hypotheses and that result. On the figure, the horizontal axis is the t-statistic and the vertical height is the t density under H zero, the same t distribution with five hundred and twenty-two degrees of freedom used on the Significance level slide. The red vertical line on the right, labelled "observed t equals two point one six", marks the statistic we actually got. The red line on the left, at minus two point one six, is its mirror image. Both tails beyond those lines are shaded because, for a two-sided alternative, a statistic equally far from zero in either direction counts as at least as extreme.
 
 The label in the middle, with an arrow into each red area, gives the combined shaded area: about zero point zero three one, or three point one percent, which is about zero point zero one five six in each tail. That combined area is the two-sided p-value, and the second bullet reads it in words: if H zero is true, a t-statistic at least this far from zero happens with probability zero point zero three one. Compare this figure with the two-sided five percent figure on the previous slide. There, we fixed the red area at five percent and read off the cutoff. Here we do the reverse: we put the cutoff at the statistic we observed and read off the red area.
 
@@ -1048,7 +1049,7 @@ g_t_0031 <- ggplot() +
 ::: {.columns}
 
 ::: {.column width="40%"}
-+ Two-sided test of $H_0: \beta_j = 0$; suppose the t-statistic you got is `r t_obs`
++ $H_0: \beta_j = 0$ vs $H_1: \beta_j \neq 0$ (two-sided); suppose the t-statistic you got is `r t_obs`
 + If $H_0$ is true, a t-statistic at least this far from 0 (either side) happens with probability `r round(p_val, 3)` (the two red areas): this is the p-value
 + So `r round(100 * p_val, 1)`% is the smallest significance level at which you would reject $H_0$
 
@@ -1860,24 +1861,31 @@ t_stat
 <details class="transcript inline">
 <summary>Transcript</summary>
 
-In practice, `car::linearHypothesis` can form and test the contrast without manually extracting coefficients and covariances. The syntax block shows two arguments. `regression_results` is the fitted model object, and `expression_of_the_test` describes the linear restriction. The `eval: false` option means the syntax example is displayed but not executed.
+In practice, `marginaleffects::hypotheses` forms and tests the linear combination without manually extracting coefficients and covariances. The syntax block shows three arguments. `regression_results` is the fitted model object. `hypothesis` is a character string that writes the null hypothesis as an equation using the coefficient names exactly as they appear in the regression output. `df` sets the degrees of freedom of the t distribution used for the p-value and confidence interval; `degrees_freedom(regression_results, "resid")` from fixest returns n minus k minus one. The `eval: false` option means the syntax example is displayed but not executed.
 
-The interactive example calls `car::linearHypothesis(reg_sc, "jc=univ")`. The first argument is the unrestricted college regression. The quoted equation asks whether the coefficient on `jc` equals the coefficient on `univ`, which is algebraically the restriction `jc - univ = 0`. The function constructs the contrast, uses the model's variance-covariance matrix to obtain its standard error, and reports a Wald test. With this `fixest` object it prints a chi-squared statistic of about two point one five and a p-value around zero point one four two.
+The `df` argument matters for matching this lecture. Without it, `hypotheses` compares the statistic with the standard Normal distribution and labels the column z instead of t. With thousands of degrees of freedom the two give nearly the same p-value, but passing `df` makes the output the exact t-test we derived.
 
-The slide then asks us to compare that statistic with `t_stat^2`. The following cell squares the signed t-statistic from the previous tab. Squaring removes the sign and gives the same numerical value, about two point one five, as the reported one-restriction Wald chi-squared statistic. That equality concerns the statistic. The chi-squared one reference distribution used in the printed Wald table is an asymptotic approximation.
+The interactive example calls `hypotheses(reg_sc, hypothesis = "jc = univ", df = degrees_freedom(reg_sc, "resid"))`. The quoted equation asks whether the coefficient on `jc` equals the coefficient on `univ`, which is the same as the restriction `jc - univ = 0`. The output has one row. The Estimate column is beta jc hat minus beta univ hat, about minus zero point zero one zero two. The Std. Error column is the standard error of that difference, about zero point zero zero six nine four, which the function computes from the variance-covariance matrix exactly as we did by hand. The t column is their ratio, about minus one point four seven, and the p-value is about zero point one four two. The last columns give a ninety-five percent confidence interval for the difference and the degrees of freedom, six thousand seven hundred fifty-nine.
 
-Under the exact classical finite-sample assumptions, the corresponding one-restriction result is t with the residual degrees of freedom, and its square follows F with one numerator degree of freedom and the same residual denominator degrees of freedom. Chi-squared one is the large-sample limit of that F distribution. With six thousand seven hundred fifty-nine residual degrees of freedom, the resulting p-values and decisions are nearly indistinguishable, but they are not mathematically identical in every finite sample.
+The last cell prints `numerator`, `denominator`, and `t_stat` from the previous tab side by side. They match the Estimate, Std. Error, and t columns of the `hypotheses` output. So the function is doing precisely the calculation from the previous tab, only without our having to extract the coefficients and the covariance ourselves.
 
 </details>
 
-In practice, you can just use `car::linearHypothesis()` to implement t-test involving a linear combination of multiple coefficients.
+In practice, you can just use `marginaleffects::hypotheses()` to implement a t-test involving a linear combination of multiple coefficients.
 
 **Syntax**
 
 ```{r}
 #| eval: false
-car::linearHypothesis(regression_results, expression_of_the_test)
+marginaleffects::hypotheses(
+  regression_results,
+  hypothesis = "expression_of_the_test",
+  df = degrees_freedom(regression_results, "resid")
+)
 ```
+
++ `hypothesis`: $H_0$ written as an equation, using the coefficient names as they appear in the regression output
++ `df`: use $t_{n-k-1}$ (without it, `hypotheses()` uses the standard normal)
 
 <br>
 
@@ -1885,27 +1893,21 @@ car::linearHypothesis(regression_results, expression_of_the_test)
 
 ```{webr-r}
 #| autorun: true
-car::linearHypothesis(reg_sc, "jc=univ")
+marginaleffects::hypotheses(
+  reg_sc,
+  hypothesis = "jc = univ",
+  df = degrees_freedom(reg_sc, "resid")
+)
 ```
 
 <br>
 
-Please note that this method reports a Wald $\chi^2$ test. Its statistic equals the squared t-statistic for one restriction, but the $\chi^2_1$ reference distribution is an asymptotic approximation. Under the classical finite-sample assumptions, the exact result is $t_{df}^2 \sim F_{1,df}$.
-
-Let's confirm this:
+`Estimate`, `Std. Error` and `t` are exactly the numerator, denominator and t-statistic we calculated by hand:
 
 ```{webr-r}
 #| autorun: true
-t_stat^2
+c(numerator, denominator, t_stat)
 ```
-
-<br>
-
-Yes, this is the same as the $\chi^2$ value reported by `car::linearHypothesis(reg_sc, "jc=univ")`
-
-:::{.callout-important}
-The test results would be the same whether you run t-test or $\chi^2$ test.
-:::
 
 :::
 <!--end of panel-->
@@ -2436,51 +2438,51 @@ What happened?
 <details class="transcript inline">
 <summary>Transcript</summary>
 
-This is the practical interface for linear restrictions. `car::linearHypothesis` receives a fitted unrestricted regression and a description of H zero, then constructs the appropriate Wald test using the model's coefficient vector and variance-covariance matrix. For a classical OLS model and restrictions that set a group of coefficients to zero, the test corresponds to the restricted-versus-unrestricted comparison developed by hand.
+This is the practical interface for joint tests. `marginaleffects::hypotheses` receives the fitted unrestricted regression and the names of the coefficients that are all zero under H zero, then computes the joint F statistic from the model's coefficient estimates and variance-covariance matrix. For a classical OLS model and restrictions that set a group of coefficients to zero, this is the same F statistic as the restricted-versus-unrestricted comparison we developed by hand. You do not have to estimate the restricted model yourself.
 
-The syntax block has two arguments. `regression` is the fitted model object containing the unrestricted specification. You do not pass the restricted fit. `hypothesis` is text describing one or more linear equations that must all hold under H zero. Because the code chunk has `eval = F`, it only illustrates syntax and does not try to execute placeholder names.
+The syntax block has three arguments. `regression` is the fitted model object containing the unrestricted specification. `joint` is a character vector of coefficient names, written exactly as they appear in the regression output. Every coefficient listed there is set to zero under H zero, so the number of names is q, the number of restrictions. `joint_test = "f"` asks for the F-test; without it, the function reports a chi-squared version of the test instead. Because the code chunk has `eval = F`, it only illustrates syntax and does not try to execute placeholder names.
 
-The example `c("x1 = 0", "x2 = 1")` uses `c` to create a character vector with two strings. The first restriction says the coefficient named `x1` equals zero. The second says the coefficient named `x2` equals one. Together they define q equals two restrictions. Quotation marks matter because the equations are parsed by the function rather than evaluated as ordinary R assignments.
-
-The function is not limited to zero restrictions. Flip to the Demonstration tab to apply the function to the three baseball restrictions.
+In the example, `c("x1", "x2")` uses `c` to create a character vector with two names, so it tests H zero: the coefficients on x1 and x2 are both zero, with q equal to two. Quotation marks matter because these are names the function looks up in the model, not R objects. Flip to the Demonstration tab to apply the function to the three baseball restrictions.
 
 </details>
 
-You can use the `car::linearHypothesis()` function from the `car` package. 
+You can use the `hypotheses()` function from the `marginaleffects` package.
 
 <br>
 
 **Syntax**
 
 ```{r eval = F}
-car::linearHypothesis(regression, hypothesis)
+marginaleffects::hypotheses(regression, joint = coefficients, joint_test = "f")
 ```
 
 + `regression`: the name of the regression results of the unrestricted model
-
-+ `hypothesis`: text of the null hypothesis. For example,
-
-`c("x1 = 0", "x2 = 1")` means the coefficients on $x1$ and $x2$ are $0$ and $1$, respectively
++ `joint`: names of the coefficients that are all $0$ under $H_0$. For example, `c("x1", "x2")` means $H_0: \beta_{x1} = 0$ and $\beta_{x2} = 0$
++ `joint_test = "f"`: report the $F$-test (the default is a $\chi^2$ test)
 
 #### Demonstration
 
 <details class="transcript">
 <summary>Transcript</summary>
 
-This code applies the convenience function to the baseball regression. `mlb_reg` is the unrestricted model containing years, games per year, batting average, home runs per year, and runs batted in per year. The second argument is a character vector made with `c`, containing `"bavg=0"`, `"hrunsyr=0"`, and `"rbisyr=0"`. The three strings jointly impose exactly the null stated at the start of the section.
+This code applies the convenience function to the baseball regression. `mlb_reg` is the unrestricted model containing years, games per year, batting average, home runs per year, and runs batted in per year. The `joint` argument is a character vector made with `c`, containing `"bavg"`, `"hrunsyr"`, and `"rbisyr"`. Setting those three coefficients to zero is exactly the null stated at the start of the section, so q equals three. `joint_test = "f"` asks for the F-test.
 
-`car::linearHypothesis` reads the coefficient names from the model, forms the three-restriction contrast, obtains its estimated covariance, and reports the joint test. With this `fixest` object, the displayed method reports a Wald chi-squared statistic of about twenty-eight point seven with three restrictions and a p-value around zero point zero zero zero zero zero two seven. That p-value is far below five percent, so the joint null is rejected.
+`hypotheses` reads the coefficient names from the model, and its output first lists the three restrictions it tested, bavg equals zero, hrunsyr equals zero, and rbisyr equals zero, so you can confirm it tested what you intended. Below that it reports the F statistic, about nine point five five, its p-value, printed as less than zero point zero zero one, and the two degrees of freedom: three, the number of restrictions q, and three hundred forty-seven, which is n minus k minus one for this model.
 
-Compare the conclusion with the by-hand F calculation. Both show that the performance variables matter collectively. Depending on the method used for the fitted object, the printed Wald table may use a chi-squared reference rather than the exact finite-sample F reference from the SSR derivation, so inspect the output labels rather than assuming every `linearHypothesis` call prints the same statistic. With a large residual degrees of freedom, the decisions here are the same.
+Compare this with the by-hand F calculation. The F statistic is the same, nine point five five, and so are the degrees of freedom, because under the classical assumptions this is the same test. The p-value is far below five percent, so the joint null is rejected: the performance variables matter collectively, even though none of them was individually significant.
 
 </details>
 
-The following code test if $\beta_{bavg} = 0$, $\beta_{hrunsyr} = 0$, and $\beta_{rbisyr} = 0$. 
+The following code tests if $\beta_{bavg} = 0$, $\beta_{hrunsyr} = 0$, and $\beta_{rbisyr} = 0$.
 
 ```{webr-r}
 #| autorun: true
 #--- F-test ---#
-car::linearHypothesis(mlb_reg, c("bavg=0", "hrunsyr=0", "rbisyr=0"))
+marginaleffects::hypotheses(
+  mlb_reg,
+  joint = c("bavg", "hrunsyr", "rbisyr"),
+  joint_test = "f"
+)
 ```
 
 :::
@@ -2672,11 +2674,11 @@ They are not so highly correlated with `bavg`.
 
 This tab connects the earlier coefficient-difference test with the F-test. A restriction such as beta `jc` minus beta `univ` equals zero is one linear restriction, so q equals one. Under the classical finite-sample assumptions, the F statistic for that single restriction equals the corresponding t-statistic squared and follows F with one numerator degree of freedom and the residual denominator degrees of freedom. This is why the two-sided t-test and one-restriction F-test produce the same reject-or-fail-to-reject decision.
 
-The code first refits the college model with log wage on `jc`, `univ`, and `exper`, storing it as `reg_sc`. It then calls `car::linearHypothesis(reg_sc, c("jc-univ=0"))`. The character vector contains one equation, so the function tests equality of the two college coefficients and stores its table in `F_test`.
+The code first refits the college model with log wage on `jc`, `univ`, and `exper`, storing it as `reg_sc`. It then runs the same t-test as on the earlier slide: `marginaleffects::hypotheses` with `hypothesis = "jc = univ"` and `df` set to the residual degrees of freedom, stored as `t_test`.
 
-The final line extracts `F_test$Chisq[2]`. The dollar sign selects the `Chisq` column and bracket two selects the test row rather than the restricted-model row. `sqrt` takes the positive square root. Because the reported one-restriction Wald chi-squared statistic is numerically the squared contrast t-statistic, this returns the magnitude of the t-statistic, about one point four seven for these data.
+The next line hands `t_test` back to `hypotheses` with `joint = TRUE` and `joint_test = "f"`. That asks for the joint F-test of every hypothesis in `t_test` holding at once. There is only one, jc equals univ, so this is the F-test with q equals one restriction. It is stored as `F_test`.
 
-Be careful about two details when comparing with the earlier hand calculation. Squaring and taking the ordinary square root loses the sign, so the code recovers the absolute t-statistic, not whether `jc - univ` was positive or negative. Also, this `fixest` method labels its Wald reference as chi-squared, which is asymptotic; the exact finite-sample identity uses F with one and the residual degrees of freedom. With thousands of residual degrees of freedom, their critical values are very close. The important conceptual connection is that a one-restriction equality test contains the same evidence as the corresponding two-sided t-test.
+The last line prints the two statistics side by side. `F_test$statistic`, labelled F, is the F statistic, about two point one five. `t_test$statistic^2`, labelled t_squared, squares the t-statistic, which was about minus one point four seven, and also gives about two point one five. They are equal, and the F-test's p-value, about zero point one four two, equals the two-sided t-test's p-value. Squaring removes the sign of t, which is why the F-test can only be two-sided: it cannot tell whether jc minus univ was positive or negative. The important conceptual connection is that a one-restriction equality test contains the same evidence as the corresponding two-sided t-test.
 
 </details>
 
@@ -2691,16 +2693,19 @@ So, we can actually use the $F$-test for this type of hypothesis testing because
 #--- OLS ---#
 reg_sc <- feols(lwage ~ jc + univ + exper, data = twoyear)
 
-#--- F-test ---#
-F_test <- car::linearHypothesis(reg_sc, c("jc-univ=0"))
+#--- t-test (as on the earlier slide) ---#
+t_test <- marginaleffects::hypotheses(
+  reg_sc,
+  hypothesis = "jc = univ",
+  df = degrees_freedom(reg_sc, "resid")
+)
 
-#--- t-statistic ---#
-sqrt(F_test$Chisq[2])
+#--- F-test of the same one restriction ---#
+F_test <- marginaleffects::hypotheses(t_test, joint = TRUE, joint_test = "f")
+
+#--- F equals t squared ---#
+c(F = F_test$statistic, t_squared = t_test$statistic^2)
 ```
-
-<br>
-
-Check with the previous slide of the same t-test and confirm that the t-statistics we got there and here are the same.
 
 
 :::
@@ -2746,7 +2751,7 @@ The only thing that changed from test to test was <span style = "color: blue;"> 
 
 Read this table across each row. The first question asks whether one coefficient equals a specified null value beta j superscript zero. Its statistic is beta j hat minus that null value, divided by the estimated standard error of beta j hat. Under H zero it follows t with n minus k minus one degrees of freedom. `broom::tidy` supplies the default zero-null statistic, and a nonzero null can be handled by changing the numerator by hand.
 
-The second row asks whether a linear combination alpha equals a specified value alpha superscript zero. The statistic has the identical structure: alpha hat minus its null value, divided by the estimated standard error of alpha hat. It has the same t reference distribution. What changes is the estimate and its uncertainty. For a difference of coefficients, the standard error needs their covariance, which is why the variance-covariance matrix appeared. `car::linearHypothesis` can perform that calculation.
+The second row asks whether a linear combination alpha equals a specified value alpha superscript zero. The statistic has the identical structure: alpha hat minus its null value, divided by the estimated standard error of alpha hat. It has the same t reference distribution. What changes is the estimate and its uncertainty. For a difference of coefficients, the standard error needs their covariance, which is why the variance-covariance matrix appeared. `marginaleffects::hypotheses` performs that calculation when given the equation as text.
 
 The third row tests whether q coefficients are jointly zero. Its statistic is open parenthesis SSR sub r minus SSR sub u close parenthesis divided by q, over SSR sub u divided by n minus k minus one. Under H zero it follows F with q and n minus k minus one degrees of freedom. This statistic compares two model fits rather than standardizing one coefficient. It is the only row here that cannot be built from a single coefficient estimate and its individual standard error, and it can reveal group importance hidden by multicollinearity.
 
@@ -2759,8 +2764,8 @@ Across the first two rows, remember the common pattern: estimate minus value und
 | Question | Statistic | Distribution under $H_0$ | In R |
 |---|---|---|---|
 | Is one coefficient equal to a value? | $\dfrac{\widehat{\beta}_j - \beta_j^0}{\widehat{se(\widehat{\beta}_j)}}$ | $t_{n-k-1}$ | `broom::tidy()`, or by hand |
-| Is a linear combination equal to a value? | $\dfrac{\widehat{\alpha} - \alpha^0}{\widehat{se(\widehat{\alpha})}}$ | $t_{n-k-1}$ | `car::linearHypothesis()` |
-| Are $q$ coefficients <span style = "color: red;"> jointly </span> zero? | $\dfrac{(SSR_r-SSR_u)/q}{SSR_u/(n-k-1)}$ | $F_{q,\,n-k-1}$ | `car::linearHypothesis()` |
+| Is a linear combination equal to a value? | $\dfrac{\widehat{\alpha} - \alpha^0}{\widehat{se(\widehat{\alpha})}}$ | $t_{n-k-1}$ | `marginaleffects::hypotheses(hypothesis = )` |
+| Are $q$ coefficients <span style = "color: red;"> jointly </span> zero? | $\dfrac{(SSR_r-SSR_u)/q}{SSR_u/(n-k-1)}$ | $F_{q,\,n-k-1}$ | `marginaleffects::hypotheses(joint = , joint_test = "f")` |
 | What range of values is consistent with the data? | the CI, not a test | $t_{n-k-1}$ | `broom::tidy(conf.int = TRUE)` |
 
 + the second row needs $Cov(\widehat{\beta}_1,\widehat{\beta}_2)$, which is why the variance-covariance matrix appeared
@@ -2781,7 +2786,7 @@ Finish with the callout, the main applied lesson. An individually insignificant 
 
 Two connections worth remembering, because they mean there are fewer ideas here than there appear to be:
 
-+ **$F$ with one restriction is just $t$ squared.** $F_{1,\,n-k-1} \sim t_{n-k-1}^2$, which is why `car::linearHypothesis()` gave the same answer as the t-test we did by hand.
++ **$F$ with one restriction is just $t$ squared.** $F_{1,\,n-k-1} \sim t_{n-k-1}^2$, which is why the $F$-test of `jc = univ` gave exactly the square of the t-statistic we calculated by hand.
 
 + **The confidence interval and the two-sided test are the same statement.** The 95% CI is exactly the set of null values you would <span style = "color: blue;"> fail </span> to reject at the 5% level. If a CI excludes zero, the t-test rejects $\beta_j = 0$; if it contains zero, it does not.
 
