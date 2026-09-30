@@ -709,10 +709,6 @@ g_t_005_two <- t_rejection_plot(0.05, two_sided = TRUE)
 ```
 
 
-::: {.panel-tabset}
-
-#### Definitions
-
 <details class="transcript">
 <summary>Transcript</summary>
 
@@ -722,9 +718,9 @@ A lower level requires stronger evidence. Moving from five percent to one percen
 
 Now read the table by rows and columns. If H zero is true and you reject it, you make a Type I error. If it is true and you do not reject it, the decision is correct. If H zero is false and you reject it, the decision is correct. If it is false and you do not reject it, you make a Type II error.
 
-The bullets explain the trade-off. Holding the design and sample size fixed, making rejection harder lowers Type I error but increases Type II error: there are more cases where H zero is false and you still fail to reject it. One minus the probability of Type II error is called power. It is the probability that the test rejects H zero when H zero is false. Power is not a single number for a test; it depends on how far the true beta j is from the value stated in H zero. When the true value is close to the null value, the test rarely rejects; when it is far away, the test rejects most of the time. The How they relate tab draws this.
+The bullets explain the trade-off. Holding the design and sample size fixed, making rejection harder lowers Type I error but increases Type II error: there are more cases where H zero is false and you still fail to reject it. One minus the probability of Type II error is called power. It is the probability that the test rejects H zero when H zero is false. Power is not a single number for a test; it depends on how far the true beta j is from the value stated in H zero. When the true value is close to the null value, the test rarely rejects; when it is far away, the test rejects most of the time. The Why one-sided and Why two-sided tabs draw power as an area for one particular true value of beta j.
 
-This is why not rejecting H zero does not mean H zero is true. The most common null is beta j equals zero, and in that case the same point reads: "not statistically significant" does not mean "no effect." It may mean that the test had too little power to tell the true beta j apart from zero given the sampling noise. The same reasoning applies to any other null value, such as beta j equals one. The next tab draws that link.
+This is why not rejecting H zero does not mean H zero is true. The most common null is beta j equals zero, and in that case the same point reads: "not statistically significant" does not mean "no effect." It may mean that the test had too little power to tell the true beta j apart from zero given the sampling noise. The same reasoning applies to any other null value, such as beta j equals one.
 
 </details>
 
@@ -747,85 +743,8 @@ There are two ways to be wrong, and they trade off against each other:
 
 + the significance level is a choice about how much <span style = "color: red;"> Type I </span> error you will tolerate
 + pushing it down from 5% to 1% moves the critical value further out, so you reject less often. That means more <span style = "color: blue;"> Type II </span> error: cases where $H_0$ is false but you fail to reject it
-+ $1 - P(\text{Type II error})$ is called the <span style = "color: blue;"> power </span> of the test: the probability of rejecting $H_0$ when it is false. It depends on how far the true $\beta_j$ is from the value in $H_0$ (see the How they relate tab)
++ $1 - P(\text{Type II error})$ is called the <span style = "color: blue;"> power </span> of the test: the probability of rejecting $H_0$ when it is false (drawn in the Why one-sided and Why two-sided tabs). It depends on how far the true $\beta_j$ is from the value in $H_0$
 + this is why "not rejecting $H_0$" does <span style = "color: red;"> not </span> mean "$H_0$ is true". For the common case $H_0: \beta_j = 0$, "not statistically significant" does not mean "no effect". It may just mean your test had too little power to detect the difference
-
-#### How they relate
-
-<details class="transcript">
-<summary>Transcript</summary>
-
-This tab draws power for the one-sided test of H zero, beta j equals zero, against H one, beta j greater than zero. Power only has a value once we say what the true beta j is, because it is the probability of rejecting H zero when H zero is false, and how often we reject depends on how false it is. So the figure picks one specific truth: the true beta j is two point five times the standard error of beta j hat. That is, the true coefficient sits two point five standard errors above the value in the null.
-
-Look at the top panel, which uses the five percent significance level. The horizontal axis is the t-statistic, beta j hat divided by its estimated standard error. The solid curve, labelled "if H0 is true", is the same t distribution with five hundred and twenty-two degrees of freedom and it is centered at zero. The vertical line is the five percent critical value, about one point six five. The small red area to the right of that line under the solid curve is five percent: the Type I error probability. We reject H zero whenever the t-statistic lands to the right of that line, which is why the area beyond it is the probability of rejecting a true H zero. The One-sided test tab goes through this decision rule in detail.
-
-The dashed curve, labelled "true distribution", is how the t-statistic is actually distributed when the true beta j is two point five standard errors above zero. It has the same shape but is centered near two point five instead of zero. Technically it is a noncentral t distribution. The decision rule has not changed: we still reject whenever the t-statistic lands to the right of the critical value. So the probability that we actually reject is the area under the dashed curve to the right of the line, shaded blue. That area is the power, about zero point eight zero. The grey area under the dashed curve to the left of the line is the probability that we fail to reject even though H zero is false, which is the Type II error probability, about zero point two zero. The two areas add up to one.
-
-Now compare the bottom panel, which uses the one percent significance level. The truth is the same, so the dashed curve has not moved. Only the critical value has moved, out to about two point three three. The red Type I area shrinks to one percent, which is what we wanted. But the line now cuts through the middle of the dashed curve, so the blue area falls to about zero point five seven and the grey Type II area grows to about zero point four three. This is the trade-off from the Definition tab drawn out: a stricter significance level buys fewer Type I errors at the price of more Type II errors.
-
-The same picture shows why power depends on how far the truth is from the null. If the true beta j were further from zero, measured in standard errors, the dashed curve would sit further to the right and more of it would lie beyond the critical value, so power would be higher. If it were closer to zero, the dashed curve would overlap the solid curve more and power would be lower. A larger sample shrinks the standard error, which moves the same true beta j further out in standard-error units, and that is why larger samples give more powerful tests.
-
-</details>
-
-```{r include = F}
-delta <- 2.5 # true beta_j, measured in standard errors of beta_j hat
-u <- seq(-3.5, 6.5, length = 2000)
-power_data <- rbindlist(lapply(c(0.05, 0.01), function(a) {
-  data.table(
-    x = u,
-    null = dt(u, df = df_fig),
-    true = dt(u, df = df_fig, ncp = delta),
-    level = sprintf("Significance level = %s%%", a * 100),
-    crit = qt(1 - a, df = df_fig),
-    power = pt(qt(1 - a, df = df_fig), df = df_fig, ncp = delta, lower.tail = FALSE)
-  )
-}))
-power_data[, level := factor(level, levels = unique(level))]
-power_labels <- unique(power_data[, .(level, crit, power)])
-
-g_power <- ggplot(power_data, aes(x = x)) +
-  geom_ribbon(data = power_data[x >= crit], aes(ymin = 0, ymax = true), fill = "blue", alpha = 0.3) +
-  geom_ribbon(data = power_data[x <= crit], aes(ymin = 0, ymax = true), fill = "grey60", alpha = 0.4) +
-  geom_ribbon(data = power_data[x >= crit], aes(ymin = 0, ymax = null), fill = "red", alpha = 0.5) +
-  geom_line(aes(y = null)) +
-  geom_line(aes(y = true), linetype = "dashed") +
-  geom_vline(aes(xintercept = crit), data = power_labels) +
-  geom_hline(yintercept = 0) +
-  geom_text(aes(x = 4.9, y = 0.25, label = sprintf("power = %.2f", power)), data = power_labels, colour = "blue", family = "Times", size = 5.6) +
-  geom_text(aes(x = crit + 0.08, y = 0.44, label = sprintf("critical value = %.2f", crit)), data = power_labels, hjust = 0, family = "Times", size = 5.6) +
-  geom_text(aes(x = 4.9, y = 0.17, label = sprintf("Type II = %.2f", 1 - power)), data = power_labels, colour = "grey30", family = "Times", size = 5.6) +
-  annotate("text", x = -1.6, y = 0.34, label = "if H0 is true", colour = "red", family = "Times", size = 5.6) +
-  annotate("text", x = 5.3, y = 0.34, label = "true distribution", family = "Times", size = 5.6) +
-  facet_wrap(~level, ncol = 1) +
-  xlab("t-statistic") +
-  ylab("") +
-  theme_lecture +
-  theme(
-    axis.text.y = element_blank(),
-    axis.ticks.y = element_blank()
-  )
-```
-
-::: {.columns}
-
-::: {.column width="40%"}
-+ $H_0: \beta_j = 0$ vs $H_1: \beta_j > 0$, and suppose the true $\beta_j$ is `r delta` times $se(\widehat{\beta}_j)$
-+ we reject when the t-statistic is beyond the critical value, so <span style = "color: blue;">blue</span> is the power, grey is the Type II error, and <span style = "color: red;">red</span> is the Type I error
-+ going from 5% to 1% moves only the critical value: Type I falls, power falls from `r sprintf("%.2f", power_labels$power[1])` to `r sprintf("%.2f", power_labels$power[2])`
-+ the further the true $\beta_j$ is from the $H_0$ value (in standard errors), the further right the dashed curve sits and the higher the power
-:::
-<!--end of the 1st column-->
-::: {.column width="60%"}
-```{r echo = F}
-g_power
-```
-:::
-<!--end of the 2nd column-->
-:::
-<!--end of the columns-->
-
-:::
-<!--end of panel-->
 
 ### One-sided test
 
