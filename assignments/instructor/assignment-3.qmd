@@ -58,7 +58,6 @@ Here, I load all the packages I will be using:
 #| message: false
 #| warning: false
 library(modelsummary)
-library(car)
 library(fixest)
 library(tidyverse)
 library(broom)
@@ -548,7 +547,11 @@ $$
 :::
 
 ```{r c3_6_4}
-linearHypothesis(reg_c3_6, "educ+10*educ_exper=0")
+marginaleffects::hypotheses(
+  reg_c3_6,
+  hypothesis = "educ + 10 * educ_exper = 0",
+  df = degrees_freedom(reg_c3_6, "resid")
+)
 ```
 
 ------
@@ -626,7 +629,11 @@ We have already estimated both the restricted and unrestricted models. The codes
 :::
 
 ```{r c2_7_2_F}
-linearHypothesis(reg_c2_7_2, c("exper2=0", "tenure2=0"))
+marginaleffects::hypotheses(
+  reg_c2_7_2,
+  joint = c("exper2", "tenure2"),
+  joint_test = "f"
+)
 ```
 
 ::: {.answer}
@@ -805,12 +812,13 @@ F-test with default vcov estimates
 
 ```{r}
 # F-test with default vcov estimates
-linearHypothesis(
+marginaleffects::hypotheses(
   reg_u,
-  c(
-    "female_belavg=0", "female_abvavg=0", "female_educ=0",
-    "female_exper=0", "female_exper2=0"
-  )
+  joint = c(
+    "female_belavg", "female_abvavg", "female_educ",
+    "female_exper", "female_exper2"
+  ),
+  joint_test = "f"
 )
 ```
 
@@ -829,12 +837,13 @@ reg_u_vhet <-
   )
 
 # F-test with robust vcov estimates
-linearHypothesis(
+marginaleffects::hypotheses(
   reg_u_vhet,
-  c(
-    "female_belavg=0", "female_abvavg=0", "female_educ=0",
-    "female_exper=0", "female_exper2=0"
-  )
+  joint = c(
+    "female_belavg", "female_abvavg", "female_educ",
+    "female_exper", "female_exper2"
+  ),
+  joint_test = "f"
 )
 ```
 
@@ -851,7 +860,11 @@ Answer:
 :::
 
 ```{r c14_8_3}
-linearHypothesis(reg_u, c("female_belavg=0", "female_abvavg=0"))
+marginaleffects::hypotheses(
+  reg_u,
+  joint = c("female_belavg", "female_abvavg"),
+  joint_test = "f"
+)
 ```
 
 ::: {.answer}

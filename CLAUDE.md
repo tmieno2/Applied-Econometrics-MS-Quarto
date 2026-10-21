@@ -132,6 +132,13 @@ assignments/
 hand — the next build overwrites it.** To change an assignment, edit
 `instructor/assignment-N.qmd` and rebuild.
 
+**`instructor/` is a separate git repository with a private remote,
+`tmieno2/Applied-Econometrics-MS-answers`.** This repository is public, and the
+instructor sources carry every answer, so `.gitignore` excludes `instructor/`
+and you commit and push answer changes from inside that folder. They were
+tracked here until 2026-10-21, so older commits of this repository still
+contain them. Never add `instructor/` back to this repository.
+
 ### Building
 
 ```sh

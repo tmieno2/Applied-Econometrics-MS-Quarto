@@ -53,7 +53,6 @@ Here, I load all the packages I will be using:
 :::
 
 ```{r library, include=FALSE, cache = F}
-library(car)
 library(broom)
 library(fixest)
 library(haven)
@@ -516,19 +515,24 @@ tidy(reg_c9_3) %>%
 
 ------
 
-(iv) In the regression in part (iii), what happens to the individual statistical significance of log($income$) and $prppov$? Are these variables jointly significant? (Compute a p-value.) What do you make of your answers? Use `car::linearHypothesis()` to run the F-test.
+(iv) In the regression in part (iii), what happens to the individual statistical significance of log($income$) and $prppov$? Are these variables jointly significant? (Compute a p-value.) What do you make of your answers? Use `marginaleffects::hypotheses()` to run the F-test.
 
 ::: {.answer}
 log($income$) and $prppov$ are no longer statistically significant even at the $10\%$ level, individually. Here is the R codes to conduct to $F$-test of the joint significance of the two variables:
 :::
 
 ```{r reg_c9_4}
-linearHypothesis(reg_c9_3, c("log(income)", "prppov"), test = "F")
+f_test_c9 <- marginaleffects::hypotheses(
+  reg_c9_3,
+  joint = c("log(income)", "prppov"),
+  joint_test = "f"
+)
+f_test_c9
 ```
 <br>
 
 ::: {.answer}
-Therefore, they are jointly significant at the $10\%$ level. Since log($income$) and $prppov$ are highly correlated (leads to higher standard error), if you look at their statistical significance individually, you have a good chance to find that they are statistically insignificant. However, when looked at jointly, they are statistically significant at the $10\%$ level.
+The $p$-value of the $F$-test is `r round(f_test_c9$p.value, digits = 4)`. Therefore, they are jointly significant at the $10\%$ level. Since log($income$) and $prppov$ are highly correlated (leads to higher standard error), if you look at their statistical significance individually, you have a good chance to find that they are statistically insignificant. However, when looked at jointly, they are statistically significant at the $10\%$ level.
 :::
 
 ------
