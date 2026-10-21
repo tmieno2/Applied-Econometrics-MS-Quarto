@@ -215,7 +215,7 @@ add_stamp <- function(lines, instructor_path) {
 #'
 #'   {{assignment-1-due}}          -> "Friday, September 25, 2026"
 #'   {{assignment-1-due|%B %e}}    -> "September 25"   (strftime format)
-#'   {{submission}}                -> the permanent Dropbox file request URL
+#'   {{submission}}                -> the permanent submission form URL
 #'   {{materials}}                 -> the permanent download-folder URL
 #'
 #' @param lines character vector
@@ -240,8 +240,8 @@ resolve_placeholders <- function(lines, cal) {
       } else if (identical(id, "submission")) {
         url <- cal$submission$url
         if (is.null(url) || !nzchar(url)) {
-          stop("no `submission.url` in course-dates.json -- paste the permanent ",
-               "Dropbox file request URL there", call. = FALSE)
+          stop("no `submission.url` in course-dates.json -- deploy ",
+               "assignments/webform/ and paste its /exec URL there", call. = FALSE)
         }
         url
       } else {
