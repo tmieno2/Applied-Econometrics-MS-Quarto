@@ -156,7 +156,7 @@
     </div>
 
     <div class="row">
-      <label>Files <span class="hint">— both the .qmd and the rendered .html are required</span></label>
+      <label>Files <span class="hint">— a .qmd and the .html rendered from it, with the same name (report.qmd and report.html)</span></label>
       <div class="drop" id="drop" tabindex="0" role="button" aria-controls="files">
         <b>Choose files</b> or drag them here
         <input id="picker" type="file" multiple>
@@ -292,7 +292,7 @@
     var box = $('softwarn');
     if (picked.length && missing.length) {
       box.textContent = 'Still needed: ' + missing.join(' and ') +
-        '. A submission must include both the .qmd and the rendered .html.';
+        '. A submission needs a .qmd and the .html rendered from it, with the same name before the extension.';
       box.classList.remove('hidden');
     } else {
       box.classList.add('hidden');
@@ -302,16 +302,30 @@
   }
 
   /**
-   * A submission is incomplete without both the source and the rendered
-   * output, so the form refuses to send one. Checked here rather than on the
-   * server because the server sees one file at a time -- by the time it could
-   * notice a missing .html, the .qmd would already be stored.
+   * A submission is incomplete without both the source and the output rendered
+   * from it, so the form refuses to send one: there must be a .qmd, and every
+   * .qmd and .html must have a partner with the same name before the extension,
+   * exactly as Quarto names its output. Checked here rather than on the server
+   * because the server sees one file at a time -- by the time it could notice a
+   * missing .html, the .qmd would already be stored.
    */
   function missingKinds() {
-    var exts = picked.map(function (p) { return (p.file.name.split('.').pop() || '').toLowerCase(); });
+    var stems = function (ext) {
+      return picked.map(function (p) { return p.file.name; })
+        .filter(function (n) { return n.lastIndexOf('.') > 0 && n.split('.').pop().toLowerCase() === ext; })
+        .map(function (n) { return n.slice(0, n.lastIndexOf('.')); });
+    };
+    var qmds = stems('qmd'), htmls = stems('html');
     var missing = [];
-    if (exts.indexOf('qmd') === -1 && exts.indexOf('rmd') === -1) missing.push('a .qmd file');
-    if (exts.indexOf('html') === -1 && exts.indexOf('htm') === -1) missing.push('a rendered .html file');
+    if (!qmds.length) missing.push('a .qmd file');
+    if (!htmls.length) missing.push('a rendered .html file');
+    if (missing.length) return missing;
+    qmds.forEach(function (s) {
+      if (htmls.indexOf(s) === -1) missing.push('"' + s + '.html", rendered from "' + s + '.qmd"');
+    });
+    htmls.forEach(function (s) {
+      if (qmds.indexOf(s) === -1) missing.push('"' + s + '.qmd", the source of "' + s + '.html"');
+    });
     return missing;
   }
 

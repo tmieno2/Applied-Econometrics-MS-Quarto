@@ -60,8 +60,11 @@ did.
 the same moment cannot race on folder creation or on the uniqueness check that
 keeps one submission from landing on another's name.
 
-**A submission must contain both the `.qmd` and the rendered `.html`.** The
-Submit button stays disabled until both are attached. This is enforced in the
+**A submission must contain a `.qmd` and the `.html` rendered from it, with the
+same name before the extension** (`report.qmd` and `report.html`, as Quarto
+names them). Every `.qmd` needs its `.html` and every `.html` its `.qmd`; an
+`.rmd` or `.htm` is not accepted at all. The Submit button stays disabled and
+the page says which file is missing until that holds. This is enforced in the
 browser rather than on the server on purpose: the server handles one file per
 request, so by the time it could notice a missing `.html` the `.qmd` would
 already be stored and the student would be left with a half-submission.
@@ -231,8 +234,8 @@ student to screenshot it instead.
 |---|---|
 | Per file | 25 MB, checked in the browser and again on the server |
 | Per submission | 8 files |
-| Accepted | `.qmd .rmd .html .htm .pdf .r .ipynb .zip` |
-| Required | at least one `.qmd` **and** one `.html` |
+| Accepted | `.qmd .html .pdf .r .ipynb .zip` |
+| Required | a `.qmd` and an `.html` with the same name before the extension, for every one of either |
 
 Files upload one at a time, in sequence, because a single request carrying all
 of them would hit the payload limit. A failure part-way keeps everything

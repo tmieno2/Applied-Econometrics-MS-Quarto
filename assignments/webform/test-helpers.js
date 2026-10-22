@@ -67,6 +67,7 @@ eq('qmd accepted, mime text/plain',
    ['qmd','text/plain',300]);
 eq('html mime', T.validateFile_({name:'a.HTML', data:b64('y')}).mimeType, 'text/html');
 throws('exe rejected',      () => T.validateFile_({name:'bad.exe', data:b64('y')}), /not a file type/);
+throws('rmd rejected',      () => T.validateFile_({name:'old.Rmd', data:b64('y')}), /not a file type/);
 throws('no extension',      () => T.validateFile_({name:'README', data:b64('y')}), /not a file type/);
 throws('empty payload',     () => T.validateFile_({name:'a.qmd', data:''}), /empty/);
 throws('oversize rejected', () => T.validateFile_({name:'big.zip', data:'A'.repeat(40*1024*1024)}), /limit is/);
@@ -153,6 +154,26 @@ const leaked = T.shareabilityProblems_(fakeFolder(tmp));
 eq('a leaked .answer div is caught', leaked.length, 1);
 eq('...and the file is named', /assignment-1\.qmd/.test(leaked[0] || ''), true);
 fs.rmSync(tmp, { recursive: true, force: true });
+
+// The .qmd/.html pairing rule lives in Form.html because only the browser sees
+// the whole submission at once; run that function here against file lists.
+console.log('\nqmd and html pairing (Form.html)');
+const pairing = names => {
+  const src = read('Form.html').match(/  function missingKinds\(\) \{[\s\S]*?\n  \}\n/)[0];
+  const picked = names.map(n => ({ file: { name: n } }));
+  return eval('(' + src.trim() + ')')();
+};
+eq('matching pair passes', pairing(['Mieno_assignment_1.qmd', 'Mieno_assignment_1.html']), []);
+eq('extras alongside a pair pass', pairing(['a.qmd', 'a.html', 'notes.pdf']), []);
+eq('two pairs pass', pairing(['a.qmd', 'a.html', 'b.qmd', 'b.html']), []);
+eq('no html', pairing(['a.qmd']), ['a rendered .html file']);
+eq('no qmd', pairing(['a.html']), ['a .qmd file']);
+eq('rmd does not count as qmd', pairing(['a.Rmd', 'a.html']), ['a .qmd file']);
+eq('htm does not count as html', pairing(['a.qmd', 'a.htm']), ['a rendered .html file']);
+eq('names differ', pairing(['a.qmd', 'b.html']),
+   ['"a.html", rendered from "a.qmd"', '"b.qmd", the source of "b.html"']);
+eq('a qmd without its html', pairing(['a.qmd', 'a.html', 'b.qmd']), ['"b.html", rendered from "b.qmd"']);
+eq('extension case is ignored', pairing(['a.QMD', 'a.HTML']), []);
 
 console.log(`\n${pass} passed, ${fail} failed\n`);
 process.exit(fail ? 1 : 0);
