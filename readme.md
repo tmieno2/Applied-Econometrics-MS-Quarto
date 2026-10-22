@@ -17,7 +17,7 @@ asked is credit.
 | `lectures/` | The course, one folder per topic. `.qmd` sources; the rendered decks are in `docs/`. |
 | `lectures/RULES.md` | How the lecture styling works: the side-by-side WebR layout, figure sizing, math, transcripts. Read this before changing the look of anything. |
 | `assignments/` | One source per assignment under `instructor/`, the student copies built from it under `students/<year>/`. See below. |
-| `exams/` | Midterms, one folder per year. `midterm-N-<year>.qmd` holds the answers and is not committed; `midterm-N-<year>-student.qmd` is generated from it with `assignments/strip-answers.R` (the command is in a comment at the top of the 2026 source) and is committed. Excluded from the render. |
+| `exams/` | Student copies of the midterms, one folder per year. The sources, with answers, are in `assignments/instructor/exams/<year>/` (the private answers repository); `midterm-N-<year>-student.qmd` is generated from one with `assignments/strip-answers.R` (the command is in a comment at the top of the 2026 source). Excluded from the render. |
 | `research-flow/` | A research-workflow walkthrough. Excluded from the render, and it needs two data files (one of them 16MB) that are not committed, so it will not run from a clone. |
 | `docs/` | The rendered site, committed. GitHub Pages publishes from this folder. |
 | `_extensions/coatless/webr/` | The WebR extension, vendored and patched (see below). |

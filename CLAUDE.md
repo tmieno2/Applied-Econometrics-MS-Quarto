@@ -119,6 +119,10 @@ page, add it to the JSON and reference it — never type it out.
 assignments/
   instructor/assignment-N.qmd     SOURCE OF TRUTH. One file per assignment.
                                   Contains answers AND {{date placeholders}}.
+  instructor/exams/<year>/        Midterm sources, with answers. Not in the
+                                  build: the student copy goes to
+                                  ../exams/<year>/ by the command in the 2026
+                                  source's header comment.
   data/                           Shared data pool for every assignment.
   keys/<year>/                    BUILT answer key, dates resolved.
   students/<year>/assignment-N/   BUILT student copy + its data files.
