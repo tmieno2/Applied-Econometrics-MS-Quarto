@@ -11,11 +11,24 @@ format:
     scrollable: true
     echo: true
     fig-dpi: 400
-    include-in-header: ../transcript-support.html
+    include-in-header:
+      - ../transcript-support.html
+      - ../webr-layout.html
+      - ../katex-amd-fix.html
     footer: "[back to course website with lecture slides](https://tmieno2.github.io/Applied-Econometrics-MS-Quarto/lectures/)"
 execute:
   echo: true
   out-width: 55%
+webr:
+  packages: ['data.table', 'ggplot2']
+  cell-options:
+    editor-font-scale: 0.7
+    dpi: 216
+    fig-width: 10
+    fig-height: 6
+    out-width: 100%
+filters:
+  - webr
 ---
 
 ```{r}
@@ -38,7 +51,9 @@ This slide gives you the definition that ties the rest of the lecture together. 
 
 The red phrase “for whatever reason” is important. We call a particular explanatory variable endogenous whenever it is correlated with the error term. The definition does not depend on how that correlation arose. Once x k and u move together, OLS cannot hold the unobserved component fixed while changing x k. Its coefficient mixes the effect of x k with the effects of factors hidden in u, so the usual causal interpretation is not justified. The issue is systematic correlation, not simply that the error is large or that an observation is unusual.
 
-At the bottom you see the four mechanisms we will study. An omitted variable affects the outcome, is left in u, and is related to an included regressor. Selection occurs when people, firms, doctors, or governments choose treatment using factors that also affect the outcome. Reverse causality means the proposed outcome also helps determine the explanatory variable. Measurement error can put the same recording error into a regressor and the composite disturbance.
+At the bottom you see the four mechanisms we will study, and the sentence above them is the thread that ties them together. However endogeneity comes about, it is omitted variable bias. Saying that x k is correlated with u is the same as saying that u contains some component that is correlated with x k. That component is the omitted variable; if you could observe it and add it to the regression, the bias would disappear. The four mechanisms differ only in what that component is and how it got into the error.
+
+With an omitted variable, it is a variable that affects the outcome, is left out, and is related to an included regressor. With selection, it is the set of factors that people, firms, doctors, or governments use to choose the treatment and that also affect the outcome. With reverse causality, and its close relative simultaneity, it is the shock to the outcome itself, which moves the explanatory variable through the outcome. With measurement error, it is the recording error, which sits inside the observed regressor and also in the error term. The last slide of this lecture comes back to this list and checks it with one formula.
 
 </details>
 
@@ -58,12 +73,18 @@ If an explanatory variable $x_k$ is, <span style = "color: red;">for whatever re
 
 **Sources of endogeneity**
 
-+ Omitted variable 
-+ Selection 
-+ Reverse causality 
-+ Measurement error
+However it comes about, endogeneity is <span style = "color: red;">omitted variable bias</span>: some component of the error term is correlated with $x_k$. The sources differ in what that component is.
+
++ Omitted variable: a variable that affects $y$ is left out
++ Selection: the factors behind the choice of $x_k$ also affect $y$
++ Reverse causality (and simultaneity): shocks to $y$ move $x_k$
++ Measurement error: the recording error in $x_k$ ends up in the error term
 
 ## Omitted Variable
+
+::: {.panel-tabset}
+
+### Example
 
 <details class="transcript">
 <summary>Transcript</summary>
@@ -85,6 +106,35 @@ $\log(wage) = \beta_0 + \beta_1 educ + \beta_2 exper + \beta_3 ability + u$
 **Incorrectly specified (your) model**
 
 $\log(wage) = \beta_0 + \beta_1 educ + \beta_2 exper + v, \qquad v=u+\beta_3 ability$
+
+### Exercise
+
+<details class="transcript">
+<summary>Transcript</summary>
+
+Now build an example of your own, ideally from a question you might actually work on in a paper or thesis. The wage example on the previous tab is the template; your job is to replace each piece of it with something from your field.
+
+Step one asks for two variables: an outcome y and an explanatory variable x whose effect on y you want to know. State the effect in words, for example "how much does one more unit of x change y."
+
+Step two is the omitted variable itself. It has to satisfy two conditions at once, and the exercise asks for both. It must affect y; a variable that has no effect on the outcome does not belong in the error term in the first place. And you must be unable to observe it in your data, or able to observe it only so crudely that including it would not capture it. Ability in the wage example meets both conditions: it raises wages, and no ordinary dataset records it.
+
+Step three is the one that makes it endogeneity. Explain why the omitted variable is correlated with x. A variable can affect y and be missing from the data without causing any bias, if it is unrelated to x. Give a reason for the correlation, not just an assertion: who chooses x, and why would that choice be related to the omitted variable?
+
+Step four asks you to write the two equations the way the slide does: the true model with the omitted variable in it, and the model you can estimate, with the omitted variable moved into the composite error. Then use the two signs, the effect of the omitted variable on y and its correlation with x, to say whether you expect OLS to overstate or understate the effect of x.
+
+</details>
+
+**Exercise**
+
+Come up with your own example of an omitted variable that makes an explanatory variable endogenous.
+
+1. Pick an outcome $y$ and an explanatory variable $x$ whose effect on $y$ you want to know.
+2. Name a variable that affects $y$ but that you cannot observe in your data.
+3. Explain why that variable is correlated with $x$.
+4. Write the true model and the model you can estimate, as on the previous tab, and say whether you expect OLS to overstate or understate the effect of $x$.
+
+:::
+<!--end of panel-->
 
 ## Bias from self-selection
 
@@ -244,6 +294,34 @@ $$
 
 If soil type is measured accurately and there are no other confounders, including it removes this source of correlation between sensor adoption and the error term.
 
+### Exercise
+
+<details class="transcript">
+<summary>Transcript</summary>
+
+Your turn to find a selection problem. Use the soil-moisture sensor as the template, and follow the same order of questions the tabs used.
+
+Step one asks for a treatment that is chosen rather than assigned. It can be a technology a farm adopts, a program a person enrols in, a practice a firm takes up, or a policy a government chooses. The key word is "choose": somebody decides whether to receive the treatment, and that somebody knows things about themselves that you, the researcher, may not.
+
+Step two is the outcome equation, written the way the Context tab wrote irrigation equals beta zero plus beta one sensor plus u. Say what beta one measures in your example.
+
+Step three is the selection equation, the counterpart of the Adoption decision tab. List the factors the decision-maker plausibly weighs when choosing. Be concrete, as the slide was with soil type, field size, water price and conservation preferences.
+
+Step four is where the endogeneity appears. Go through your list and ask which factors also affect the outcome directly, not only through the treatment. Pick one, and trace the two paths the Common factors tab traced for soil type: it changes who takes the treatment, and it changes the outcome. That pair of paths is what makes the treatment correlated with u.
+
+Step five connects to the last tab, where selection bias turned out to be a form of omitted variable bias. If you could measure that common factor accurately and include it, this particular path would be closed. Ask honestly whether you could. If the factor is something like motivation, skill or preferences, the answer is usually no.
+
+</details>
+
+**Exercise**
+
+Come up with your own example of bias from self-selection.
+
+1. Think of a treatment, program, practice or technology that people (or farms, firms, governments) choose for themselves.
+2. Write the outcome equation: $outcome = \beta_0 + \beta_1 treatment + u$.
+3. List the factors that drive the choice (the selection equation).
+4. Which of those factors also affect the outcome directly? Explain how one of them makes $treatment$ correlated with $u$.
+5. Could you measure that factor accurately and control for it? Why or why not?
 
 :::
 <!--end of panel-->
@@ -359,6 +437,141 @@ A shock in $u$ changes health, and health in turn affects treatment. Consequentl
 
 This endogeneity problem is called <span style = "color: red;">reverse causality</span>: the proposed outcome also affects the explanatory variable of interest. If treatment is chosen using <em>pre-treatment</em> health instead, the problem is more precisely described as selection on baseline health.
 
+### MC Simulation
+
+<details class="transcript">
+<summary>Transcript</summary>
+
+Now we generate data from the two equations on the previous tab and see what OLS does. There are two code blocks. The first is the one-time WebR setup. It defines the lecture theme used by every plot drawn in the browser: theme B W as the base, larger axis and legend text, transparent backgrounds so the slide's paper color shows through, and a grey grid that stays visible on that background. The WebR scale line adjusts sizes, because the browser draws its graphics at seventy-two dots per inch while the deck asks for two hundred sixteen. Theme set makes this the default for every later plot.
+
+The second block is the simulation. Set seed makes the draws reproducible. N is one hundred observations per sample and B is one thousand repetitions. Beta one equals one is the true effect of treatment on health, the number OLS should recover if treatment were exogenous. Alpha one equals negative zero point five is the doctor's response to health: the less healthy a patient is, the more treatment they receive. Estimate storage is a vector of B zeros that will hold one slope estimate per repetition. As the last bullet above the code says, treatment here is a continuous amount, like a dose, rather than the zero-one indicator of the earlier tabs; that keeps the two equations linear and the algebra simple. To keep the code short, both intercepts are set to zero; an intercept shifts the level of health or treatment but does not change the slope we are studying.
+
+Inside the loop, u is the error in the health equation and v is the error in the treatment equation, each drawn as one hundred independent standard normal values. The next two lines are the heart of the design. Health and treatment are determined together, so we cannot generate one first and then the other from it. Instead, substitute the treatment equation into the health equation: health equals beta one times the quantity alpha one times health plus v, plus u. Move the health terms to the left and divide by one minus beta one times alpha one. That gives the line health equals beta one v plus u, all over one minus beta one alpha one. With health in hand, treatment equals alpha one times health plus v, exactly the treatment equation from the slide. Data frame puts the two variables side by side.
+
+Then lm regresses health on treatment, which is the model of interest, with an intercept added automatically. Reg dollar coef bracket treatment pulls out the estimated slope, and the last line files it in position i of the storage vector. After one thousand passes, the vector holds one thousand estimates of beta one, each from a fresh sample. Move to the results tab to see where they landed.
+
+</details>
+
+**Simulation design**
+
++ Health equation: $health = \beta_1 treatment + u$, with $\beta_1 = 1$
++ Treatment equation: $treatment = \alpha_1 health + v$, with $\alpha_1 = -0.5$
++ Solving the two together: $health = \dfrac{\beta_1 v + u}{1-\beta_1\alpha_1}$
++ $treatment$ is a continuous amount (like a dose) here, which keeps the algebra simple
+
+<br>
+
+Set up simulations:
+
+```{webr-r}
+#| context: setup
+# NOTE: a webr setup cell renders a loading widget wherever it sits, so keep it
+# inside a content slide rather than on a section divider (or, worse, above the
+# first heading, where it becomes an untitled slide of its own).
+# Mirror of lecture_theme() in lectures/_lecture-theme.R. WebR runs in the
+# browser against a virtual filesystem that does not hold the repo, so it
+# cannot source that file and has to carry a copy. Edit the shared file first,
+# then run `Rscript lectures/check-lecture-theme.R`, which fails if this copy
+# has drifted and prints the block to paste.
+lecture_theme <- function(base_size = 16) {
+  ggplot2::theme_bw(base_size = base_size) +
+    ggplot2::theme(
+      axis.text = ggplot2::element_text(size = base_size * 0.9),
+      axis.title = ggplot2::element_text(size = base_size),
+      legend.text = ggplot2::element_text(size = base_size * 0.9),
+      legend.title = ggplot2::element_text(size = base_size * 0.9),
+      plot.background = ggplot2::element_rect(fill = "transparent", colour = NA),
+      panel.background = ggplot2::element_rect(fill = "transparent", colour = NA),
+      legend.background = ggplot2::element_rect(fill = "transparent", colour = NA),
+      legend.key = ggplot2::element_rect(fill = "transparent", colour = NA),
+      # theme_bw's grey92 grid was chosen against a white panel and all but
+      # disappears on the warm paper once the panel stops being opaque.
+      panel.grid = ggplot2::element_line(colour = "grey87")
+    )
+}
+
+# WebR draws its canvas at 72 dpi whatever `dpi` says, so on the 216-dpi canvas
+# every size ggplot measures in points or millimetres comes out a third of what
+# was asked for. Scaling ggplot2's own mm-to-point constants and the theme by
+# the same factor puts WebR figures at the same type size as the knitr ones.
+# Keep this in step with `dpi` in the header: change one, change the other.
+webr_scale <- 216 / 72
+assignInNamespace(".pt", ggplot2::.pt * webr_scale, "ggplot2")
+assignInNamespace(".stroke", ggplot2::.stroke * webr_scale, "ggplot2")
+theme_lecture <- lecture_theme(18 * webr_scale) +
+  # base_size also sets the theme's line widths, which are in millimetres and
+  # already pass through the scaled .pt; pin them to what 18pt gives, or they
+  # come out nine times too thick.
+  ggplot2::theme(
+    line = ggplot2::element_line(linewidth = 18 / 22),
+    rect = ggplot2::element_rect(linewidth = 18 / 22)
+  )
+ggplot2::theme_set(theme_lecture)
+```
+
+<br>
+
+Run MC simulations:
+
+```{webr-r}
+#--- Preparation ---#
+set.seed(28471)
+N <- 100 # number of observations
+B <- 1000 # the number of iterations
+beta_1 <- 1 # true effect of treatment on health
+alpha_1 <- -0.5 # less healthy patients receive more treatment
+estimate_storage <- rep(0, B) # estimates storage
+
+for (i in 1:B) {
+  #--- generate data ---#
+  u <- rnorm(N) # error in the health equation
+  v <- rnorm(N) # error in the treatment equation
+  # health and treatment solved from the two equations together
+  health <- (beta_1 * v + u) / (1 - beta_1 * alpha_1)
+  treatment <- alpha_1 * health + v
+  data <- data.frame(health = health, treatment = treatment)
+
+  #--- OLS ---#
+  reg <- lm(health ~ treatment, data = data)
+
+  #--- store coef estimates ---#
+  estimate_storage[i] <- reg$coef["treatment"]
+}
+```
+
+### MC Results
+
+<details class="transcript inline">
+<summary>Transcript</summary>
+
+The code turns the storage vector into a one-column data table named value, which is the form ggplot needs. Geom density maps value to the horizontal axis and draws a smoothed density of the one thousand estimates, filled grey and partly transparent. Geom v-line draws a vertical line at one, the true beta one. X-lab labels the horizontal axis, theme lecture applies the deck's plotting style, and saving the plot as g r c lets the last line print it.
+
+Read the figure. The horizontal axis is the estimated effect of treatment on health, and the height of the curve shows how often estimates fall near each value across the one thousand samples. The vertical line at one is the true effect. The curve sits far to the left of that line. In the run used to check this deck, the average estimate was about zero point four zero, and the largest of all one thousand estimates was about zero point seven nine. Not one sample came close to the truth. This is not bad luck in a few samples; it is a systematic shift, which is what bias means.
+
+Why so far below one? Follow the loop of causation. A negative shock in u makes a patient less healthy. Because alpha one is negative, the doctor responds to worse health with more treatment. So treatment ends up negatively correlated with u: the patients who receive more treatment are, on average, the ones who were hit by bad health shocks. OLS compares patients with more and less treatment and attributes part of that bad-shock difference to treatment, which makes treatment look less effective than it really is. In this design the size of the gap can be worked out exactly. The covariance between treatment and u is negative one third, the variance of treatment is five ninths, and one plus negative one third divided by five ninths equals zero point four, which is exactly where the curve is centered.
+
+The callout states the lesson. Because the problem is correlation between treatment and the error, collecting more patients does not help: with a larger sample the curve would get narrower, but it would tighten around zero point four, not around one.
+
+</details>
+
+```{webr-r}
+plot_data <- data.table(value = estimate_storage)
+
+#--- create a figure ---#
+g_rc <-
+  ggplot(data = plot_data) +
+  geom_density(aes(x = value), fill = "grey", alpha = 0.4) +
+  geom_vline(xintercept = 1) +
+  xlab("Estimate of beta_1") +
+  theme_lecture
+
+g_rc
+```
+
+::: {.callout-note}
+The estimates center around 0.4, far below the true value of 1. Treatment is correlated with $u$, so OLS is biased, and a larger sample would not fix it.
+:::
+
 ### Another example
 
 ::: {.panel-tabset}
@@ -430,6 +643,67 @@ Enforcement actions are endogenous because they respond to water quality itself.
 :::
 <!--end of panel-->
 
+### Simultaneity
+
+<details class="transcript">
+<summary>Transcript</summary>
+
+You will often hear a closely related name, simultaneity, and this tab shows that it is the same problem. The textbook case is a market. The first equation is demand. Quantity equals beta zero plus beta one times price plus u, where beta one is how much buyers cut their purchases when the price rises, and u collects everything else that shifts demand, such as income or weather. The second equation is supply, written with price on the left: price equals alpha zero plus alpha one times quantity plus v, where alpha one is how much the price sellers need rises as they supply more, and v collects things that shift supply, such as input costs. The price and quantity we observe are the point where both equations hold at once, the market equilibrium.
+
+Now trace a demand shock, exactly as the Reverse causality tab traced a health shock. A positive u raises quantity through the demand equation. Higher quantity raises price through the supply equation. So price moves with u, price is correlated with the error in the demand equation, and OLS of quantity on price does not recover the demand slope beta one.
+
+Compare the two equations with the ones on the Reverse causality tab. There are two equations, and each variable appears on the right-hand side of the other's equation. The structure is identical. The two names stress different things. Reverse causality stresses the direction: the outcome also affects the explanatory variable. Simultaneity stresses the timing: both are determined at the same time, typically by an equilibrium in which each equation describes a different group's behavior, buyers and sellers here. The consequence for OLS is the same.
+
+</details>
+
+**Simultaneity**
+
+$x$ and $y$ are determined at the same time, for example price and quantity in a market:
+
+$$
+\begin{aligned}
+\text{demand:}\quad quantity &= \beta_0 + \beta_1 price + u,\\
+\text{supply:}\quad price &= \alpha_0 + \alpha_1 quantity + v.
+\end{aligned}
+$$
+
+A demand shock in $u$ raises quantity, which raises price through supply. So $price$ is correlated with $u$, and OLS of quantity on price does not recover $\beta_1$.
+
+<br>
+
+::: {.callout-note}
+Simultaneity has the same structure as reverse causality: two equations, each variable on the right-hand side of the other's. "Reverse causality" stresses the direction ($y$ also affects $x$); "simultaneity" stresses that both are set at the same time, as in a market equilibrium.
+:::
+
+### Exercise
+
+<details class="transcript">
+<summary>Transcript</summary>
+
+Now find a reverse causality or simultaneity problem of your own. The examples in this section, medical treatment, EPA enforcement, and the market, share one structure, and the exercise asks you to reproduce it.
+
+Step one asks for a pair of variables where x affects y and y also affects x. A good test is to tell the story in both directions out loud. If you can explain why x changes y and, separately, why someone sets or changes x in response to y, you have a candidate. In the first two examples the second direction came from a decision-maker reacting to the outcome: a doctor reacting to health, a regulator reacting to water quality. In the market example it came from the other side of the market: sellers' supply links quantity back to price.
+
+Step two is to write both equations, exactly in the form the slides used: y equals beta zero plus beta one x plus u, and x equals alpha zero plus alpha one y plus v. Say in words what beta one and alpha one mean in your example.
+
+Step three is the chain of reasoning from the Reverse causality tab. Start with a shock in u. Say what it does to y, then what that change in y does to x. Conclude by stating how x and u are correlated.
+
+Step four asks for the direction of the bias. The simulation tabs gave you the tool: there, beta one was positive and alpha one negative, treatment ended up negatively correlated with u, and OLS understated the effect. Work out the signs of beta one and alpha one in your example, and follow the same logic to the sign of the correlation between x and u.
+
+Step five is the timing question from the end of the Reverse causality tab. If x responds to earlier values of y rather than to the current y, the problem is more precisely selection on the earlier outcome. Decide which description fits your example, and say why.
+
+</details>
+
+**Exercise**
+
+Come up with your own example of reverse causality or simultaneity.
+
+1. Find two variables $x$ and $y$ where $x$ affects $y$ and $y$ also affects $x$.
+2. Write both equations, as on the previous tabs.
+3. Trace how a shock in $u$ ends up correlated with $x$.
+4. Which direction would the OLS bias go? Use the signs of $\beta_1$ and $\alpha_1$ in your example.
+5. Does $x$ respond to the current $y$, or to earlier values of $y$? Which name, reverse causality or selection on the earlier outcome, describes your example better?
+
 :::
 <!--end of panel-->
 
@@ -468,6 +742,10 @@ The observed value of a variable differs from its true value.
 What are the consequences of measurement error in variables used in a regression?
 
 ### ME in the Dependent Variable
+
+::: {.panel-tabset}
+
+#### Setup
 
 <details class="transcript">
 <summary>Transcript</summary>
@@ -520,7 +798,97 @@ $E[e\mid x_1, \dots, x_k] = 0$
 Together with $E[u\mid x_1,\dots,x_k]=0$, this implies $E[v\mid x_1,\dots,x_k]=0$. Measurement error in the dependent variable then increases noise but does not bias the OLS coefficient estimators.
 </details>
 
+#### MC Simulation
 
+<details class="transcript">
+<summary>Transcript</summary>
+
+This simulation checks the answer on the Setup tab. If you did the Chapter 3 exercise "Where does the noise land?", you have already run a version of it; this time the result is tied to the condition derived on the Setup tab. We generate a true outcome, add measurement error to it, and run OLS twice in every sample: once with the true outcome, which no researcher would actually have, and once with the observed outcome, which is what a researcher would have.
+
+Read the preparation lines first. Set seed makes the draws reproducible. N is one hundred observations per sample, and B is one thousand repetitions. Estimate storage is a matrix of zeros with B rows and two columns: column one will hold the estimate that uses the true outcome, and column two the estimate that uses the observed outcome.
+
+Inside the loop, x is the independent variable and u is the error, both standard normal. Y star equals one plus x plus u is the true dependent variable, so the true slope is one. E is the measurement error. It is drawn with a standard deviation of two, which is large: its variance of four is four times the variance of u. It is drawn independently of x, so its mean given x is zero, which is the condition from the Setup tab. Y equals y star plus e is the outcome we observe. Data frame collects the three variables.
+
+The two lm calls run the same regression on x, first with y star and then with y. Each reg dollar coef bracket x pulls out the slope, and the two store lines file the slopes in row i, column one and column two. After one thousand passes, each column holds one thousand estimates of the same true slope.
+
+</details>
+
+**Simulation design**
+
++ True model: $y^* = 1 + x + u$
++ Observed outcome: $y = y^* + e$, where $e$ has variance 4 and is unrelated to $x$
+
+<br>
+
+Run MC simulations:
+
+```{webr-r}
+#--- Preparation ---#
+set.seed(59213)
+N <- 100 # number of observations
+B <- 1000 # the number of iterations
+estimate_storage <- matrix(0, B, 2) # estimates storage
+
+for (i in 1:B) {
+  #--- generate data ---#
+  x <- rnorm(N) # independent variable
+  u <- rnorm(N) # error
+  y_star <- 1 + x + u # true dependent variable
+  e <- rnorm(N, sd = 2) # measurement error, unrelated to x
+  y <- y_star + e # observed dependent variable
+  data <- data.frame(y_star = y_star, y = y, x = x)
+
+  #--- OLS ---#
+  reg_true <- lm(y_star ~ x, data = data) # with the true y
+  reg_obs <- lm(y ~ x, data = data) # with the observed y
+
+  #--- store coef estimates ---#
+  estimate_storage[i, 1] <- reg_true$coef["x"]
+  estimate_storage[i, 2] <- reg_obs$coef["x"]
+}
+```
+
+#### MC Results
+
+<details class="transcript inline">
+<summary>Transcript</summary>
+
+The code first reshapes the storage matrix for ggplot. As data table turns the matrix into a data table, and melt with measure variables one and two stacks the two columns. The variable column records which column an estimate came from, and the value column holds the estimates. Geom density draws one smoothed density per column, colored by variable and partly transparent so the overlap stays visible. Geom v-line marks the true slope of one. Scale fill discrete titles the legend and replaces the column names with true y and observed y. Theme lecture applies the deck's style, the final theme call moves the legend to the bottom, and the last line prints the saved plot.
+
+Look at location first. Both densities are centered on the vertical line at one. In the run used to check this deck, the average estimate was about one point zero zero one with the true outcome and about one point zero zero six with the observed outcome. Measurement error in y did not push the estimates in either direction, which is what unbiasedness means.
+
+Now look at the spread. The observed-y curve is much wider and flatter. Its standard deviation across the one thousand samples was about zero point two three, against about zero point one zero for the true-y curve. That ratio is no accident. With the true outcome the error variance is one; with the observed outcome the composite error u plus e has variance one plus four, which is five. The spread of the slope estimates grows with the square root of the error variance, and the square root of five is about two point two four, which takes zero point one zero to about zero point two two, close to what the simulation produced.
+
+So measurement error in the dependent variable that is unrelated to x costs precision, not correctness. In any single sample the estimate is more likely to land far from one, and its standard error will be larger, but on average OLS still finds the true slope.
+
+</details>
+
+```{webr-r}
+plot_data <- melt(as.data.table(estimate_storage), measure.vars = 1:2)
+
+#--- create a figure ---#
+g_me_y <-
+  ggplot(data = plot_data) +
+  geom_density(aes(x = value, fill = variable), alpha = 0.4) +
+  geom_vline(xintercept = 1) +
+  scale_fill_discrete(
+    name = "Dependent variable",
+    labels = c("true y", "observed y")
+  ) +
+  theme_lecture +
+  theme(
+    legend.position = "bottom"
+  )
+
+g_me_y
+```
+
+::: {.callout-note}
+Both are centered on the true value of 1, but the estimates with the observed $y$ are more spread out: measurement error in $y$ that is unrelated to $x$ costs precision, not unbiasedness.
+:::
+
+:::
+<!--end of panel-->
 
 ### ME in Independent Variables
 
@@ -649,8 +1017,173 @@ $$
 + More measurement-error variance makes the attenuation factor $\lambda$ smaller.
 :::
 
+#### MC Simulation
+
+<details class="transcript">
+<summary>Transcript</summary>
+
+This simulation puts numbers on the attenuation formula from the previous tab. The Chapter 3 exercise "Where does the noise land?" found that noise in the regressor centered the estimates near zero point five, without a formula to say why; the formula now says why, and lets us predict where the estimates will land for any amount of noise. In every sample we record the same true independent variable twice, once with a small measurement error and once with a large one, and compare three regressions: one with the true variable, which no researcher would actually have, and one with each observed version.
+
+The preparation lines match the earlier simulations. Set seed makes the draws reproducible, N is one hundred observations, B is one thousand repetitions, and estimate storage is now a matrix with three columns, one per regression.
+
+Inside the loop, x one star is the true independent variable, drawn as standard normal, so its variance is one. U is the error, and y equals one plus x one star plus u, so the true slope is one. The next two lines create the observed versions. X one small e adds a measurement error with standard deviation zero point five, which is a variance of zero point two five. X one large e adds an error with standard deviation one, a variance of one. Each error is drawn independently of x one star and of u, so these are classical errors-in-variables, exactly the assumptions in the definition callout two tabs back. Data frame collects the four variables.
+
+Before running it, predict the answer with the formula lambda equals the variance of x one star over that variance plus the variance of the error. For the small error, lambda is one over one point two five, which is zero point eight. For the large error, lambda is one over two, which is zero point five. So the formula says the two observed-x regressions should center near zero point eight and zero point five. The three lm calls regress y on each version of the variable, and the store lines file the three slopes in row i.
+
+</details>
+
+**Simulation design**
+
++ True model: $y = 1 + x_1^* + u$, with $Var(x_1^*) = 1$
++ Two observed versions of $x_1^*$, with classical errors of variance 0.25 and 1
++ The formula predicts $\lambda = 1/1.25 = 0.8$ and $\lambda = 1/2 = 0.5$
+
+<br>
+
+Run MC simulations:
+
+```{webr-r}
+#--- Preparation ---#
+set.seed(71946)
+N <- 100 # number of observations
+B <- 1000 # the number of iterations
+estimate_storage <- matrix(0, B, 3) # estimates storage
+
+for (i in 1:B) {
+  #--- generate data ---#
+  x1_star <- rnorm(N) # true independent variable (variance 1)
+  u <- rnorm(N) # error
+  y <- 1 + x1_star + u # dependent variable
+  x1_small_e <- x1_star + rnorm(N, sd = 0.5) # observed, error variance 0.25
+  x1_large_e <- x1_star + rnorm(N, sd = 1) # observed, error variance 1
+  data <- data.frame(y, x1_star, x1_small_e, x1_large_e)
+
+  #--- OLS ---#
+  reg_true <- lm(y ~ x1_star, data = data)
+  reg_small <- lm(y ~ x1_small_e, data = data)
+  reg_large <- lm(y ~ x1_large_e, data = data)
+
+  #--- store coef estimates ---#
+  estimate_storage[i, 1] <- reg_true$coef["x1_star"]
+  estimate_storage[i, 2] <- reg_small$coef["x1_small_e"]
+  estimate_storage[i, 3] <- reg_large$coef["x1_large_e"]
+}
+```
+
+#### MC Results
+
+<details class="transcript inline">
+<summary>Transcript</summary>
+
+The code reshapes the three-column storage matrix with as data table and melt, exactly as in the dependent-variable simulation, and draws one density per column. The solid vertical line marks the true slope of one. The second geom v-line draws two dashed lines, at zero point eight and zero point five, the values the attenuation formula predicted. Scale fill discrete labels the three curves by which version of the independent variable was used, and the legend goes at the bottom.
+
+Read the three curves against the lines. The curve for the true variable is centered on the solid line at one: in the run used to check this deck its average was about zero point nine nine. The curve for the small error is centered on the dashed line at zero point eight, with an average of about zero point seven nine. The curve for the large error is centered on the dashed line at zero point five, with an average of about zero point four nine. The formula predicted where each curve would sit, and the simulation put them there.
+
+Two things deserve attention. First, the direction: both observed-x curves are pulled toward zero, and more error pulls harder. That is attenuation bias. Second, look at the widths. The large-error curve is not wider than the others; if anything it is slightly narrower, with a standard deviation of about zero point zero nine against about zero point one zero for the true variable. Its estimates are tightly packed around the wrong value. So a precise-looking estimate, with a small standard error, can still be badly biased. Precision tells you how much the estimate moves from sample to sample, not whether it is centered on the truth.
+
+Compare this with the dependent-variable simulation. There, measurement error widened the curve but left it centered on one. Here, it leaves the width roughly unchanged and moves the center. Where the error enters the model decides which of the two happens.
+
+</details>
+
+```{webr-r}
+plot_data <- melt(as.data.table(estimate_storage), measure.vars = 1:3)
+
+#--- create a figure ---#
+g_me_x <-
+  ggplot(data = plot_data) +
+  geom_density(aes(x = value, fill = variable), alpha = 0.4) +
+  geom_vline(xintercept = 1) +
+  geom_vline(xintercept = c(0.8, 0.5), linetype = "dashed") +
+  scale_fill_discrete(
+    name = "Independent variable",
+    labels = c("true x1", "observed (small error)", "observed (large error)")
+  ) +
+  theme_lecture +
+  theme(
+    legend.position = "bottom"
+  )
+
+g_me_x
+```
+
+::: {.callout-note}
+The estimates land where the formula says, at $\lambda\beta_1$: about 0.8 with the small error and about 0.5 with the large one. More measurement error means stronger attenuation toward zero.
 :::
-<!--end of panel-->
 
 :::
 <!--end of panel-->
+
+### Exercise
+
+<details class="transcript">
+<summary>Transcript</summary>
+
+The last exercise asks for two examples of measurement error, one for each place it can enter the model, because the two places have different consequences.
+
+Step one asks for an example where the dependent variable is measured with error and another where an independent variable is. They can come from the same study. A yield regression, for instance, could have a mismeasured outcome if yields are recalled by farmers, and a mismeasured regressor if rainfall is interpolated from distant stations.
+
+Step two asks where the error comes from. The What is it tab gave the main sources: reporting and recall errors in surveys, and values that are estimated rather than observed, such as interpolated weather or imputed costs. Name the source in each of your examples.
+
+Step three is the question that decides everything that follows. Is the error plausibly classical? For the dependent variable, the condition from the Setup tab is that the error has mean zero given the independent variables. For the independent variable, the conditions are the three in the classical errors-in-variables callout: mean zero, unrelated to the true value, and unrelated to u. Think about whether the size or sign of the error could depend on the true value. People with high incomes, for example, may under-report more than people with low incomes. If so, say which condition fails.
+
+Step four asks what the error does to the OLS estimate in each example. Use the two simulations as your reference: a classical error in the dependent variable left the estimates centered on the truth but more spread out, and a classical error in an independent variable pulled them toward zero. If you decided in step three that your error is not classical, say that these conclusions may not hold, and explain why.
+
+</details>
+
+**Exercise**
+
+Come up with your own examples of measurement error.
+
+1. Give one example where the dependent variable is measured with error, and one where an independent variable is.
+2. For each, explain where the error comes from.
+3. Is the error plausibly classical (mean zero, unrelated to the true value and to $u$)? If not, which condition fails?
+4. What does the error do to the OLS estimate in each example?
+
+:::
+<!--end of panel-->
+
+## Every source is omitted variable bias
+
+<details class="transcript">
+<summary>Transcript</summary>
+
+The first slide of this lecture claimed that however endogeneity comes about, it is omitted variable bias. This slide checks that claim with one formula.
+
+The formula is the one from Chapter 4. Suppose the error term contains some component, call it x two, that enters y with coefficient beta two. Let delta one be the slope you would get by regressing x two on x one, which is the covariance of x one and x two divided by the variance of x one. Then OLS of y on x one alone does not center on beta one. It centers on beta one plus beta two times delta one. Bias needs both pieces: the omitted component must affect y, so beta two is not zero, and it must be correlated with x one, so delta one is not zero.
+
+For the first two sources the omitted component is easy to name, as the sentence above the table says. In the wage example it is ability, with the coefficient beta three. In the sensor example it is soil type, with the coefficient beta sub s. We did not simulate those, so the table leaves them out.
+
+The table takes the three simulations of this lecture and asks what the omitted component was in each. Read the reverse causality row. The model of interest was health equals beta one times treatment plus u, so the omitted component is the health shock u itself, and it enters health with a coefficient of one. Its slope on treatment is the covariance of treatment and u, negative one third, divided by the variance of treatment, five ninths, which is negative zero point six. One plus one times negative zero point six is zero point four, and the simulated estimates averaged zero point four zero.
+
+Next, measurement error in y. The observed outcome is the true outcome plus e, so the omitted component is e, again with a coefficient of one. But e was drawn independently of x, so its slope on x is zero, the formula gives one plus zero, and the simulation averaged about one point zero one. No bias, as the Setup tab argued.
+
+Last, measurement error in x. Writing the true variable as the observed one minus the error put minus beta one times e one into the error term, so the omitted component is e one with a coefficient of negative beta one, which is negative one here. Its slope on the observed x one is the variance of e one divided by the variance of x one: zero point two five over one point two five, which is zero point two, for the small error, and one over two, which is zero point five, for the large one. The formula gives zero point eight and zero point five, and the simulations averaged zero point seven nine and zero point four nine. This is the attenuation formula from earlier, reached by a different road.
+
+The callout gives the practical habit. Whenever you suspect endogeneity, name the component of the error that is correlated with your explanatory variable. Once it has a name, the formula tells you what to think about: whether it affects the outcome, how strongly it moves with your variable, and therefore which way your estimate is likely to be off.
+
+</details>
+
+**The omitted variable bias formula** (Chapter 4)
+
+If the error contains a component $x_2$ with coefficient $\beta_2$, then OLS of $y$ on $x_1$ centers at
+
+$$
+\beta_1 + \beta_2\,\delta_1, \qquad \delta_1 = \frac{Cov(x_1, x_2)}{Var(x_1)}.
+$$
+
+<br>
+
+In the omitted variable and selection examples, the omitted components are ability and soil type. For the three simulations in this lecture:
+
+| Simulation | Omitted component $x_2$ | $\beta_2$ | $\delta_1$ | $\beta_1 + \beta_2\delta_1$ | Simulated mean |
+|---|---|---|---|---|---|
+| Reverse causality | $u$ | $1$ | $-0.6$ | $0.4$ | $0.40$ |
+| Measurement error in $y$ | $e$ | $1$ | $0$ | $1$ | $1.01$ |
+| Measurement error in $x$, small error | $e_1$ | $-1$ | $0.2$ | $0.8$ | $0.79$ |
+| Measurement error in $x$, large error | $e_1$ | $-1$ | $0.5$ | $0.5$ | $0.49$ |
+
+<br>
+
+::: {.callout-note}
+Endogeneity always means the error contains something correlated with the explanatory variable. Name that something, and the omitted variable bias formula tells you the direction and size of the bias.
+:::
