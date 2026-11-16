@@ -94,7 +94,7 @@
     code span.vs { color: #20794d; } /* VerbatimString */
     code span.wa { color: #5e5e5e; font-style: italic; } /* Warning */
   </style>
-  <link rel="stylesheet" href="../../site_libs/revealjs/dist/theme/quarto-5cbf9ce0bec82c5b0c7629bb4ee56cc4.css">
+  <link rel="stylesheet" href="../../site_libs/revealjs/dist/theme/quarto-bb14acece7aff4b1fa9f562ce5576317.css">
   <script defer="" src="https://cdn.jsdelivr.net/npm/katex@0.18.4/dist/katex.min.js"></script>
   <script>document.addEventListener("DOMContentLoaded", function () {
  var mathElements = document.getElementsByClassName("math");
@@ -838,14 +838,16 @@
     // editor toolbar on a stacked one. All it does is set a flag on the
     // interactive area; notebook.scss does the hiding.
     function addOutputToggle(area) {
-      var bar = area.querySelector(".qwebr-editor-toolbar-right-buttons");
+      var bar = area.querySelector(".qwebr-editor-toolbar-right-buttons, " +
+        ".qpyodide-editor-toolbar-right-buttons");
       if (!bar || area.querySelector(".webr-output-toggle")) return;
+      var prefix = area.classList.contains("qpyodide-interactive-area") ? "qpyodide" : "qwebr";
       var btn = document.createElement("button");
       btn.type = "button";
       // The extension's own reset and copy buttons carry exactly these classes.
       // Wearing them too is what makes this look like part of the toolbar rather
       // than something bolted on, and it inherits their hover state for free.
-      btn.className = "btn btn-light btn-xs qwebr-button webr-output-toggle";
+      btn.className = "btn btn-light btn-xs " + prefix + "-button webr-output-toggle";
       // An eye, matching the reset and copy buttons beside it in being icon-only.
       // Font Awesome needs no loading of its own: those two are already
       // `fa-solid fa-arrows-rotate` and `fa-regular fa-copy`. The icon names the
@@ -1095,6 +1097,14 @@
       document.querySelectorAll(".qwebr-interactive-area").forEach(function (area) {
         applyFigureCap(area);
         configure(area);
+      });
+      // Python cells (quarto-pyodide) are always stacked: they get the toggle and
+      // nothing else. The side-by-side rules above read WebR's own cell details
+      // and render-time measurements, which Python cells do not have. See RULES.md.
+      document.querySelectorAll(".qpyodide-interactive-area").forEach(function (area) {
+        if (area.dataset.webrLayout) return;
+        area.dataset.webrLayout = "stacked";
+        addOutputToggle(area);
       });
     }
 
@@ -1409,7 +1419,7 @@
   };
 
   // Store cell data
-  globalThis.qwebrCellDetails = [{"code":"1 - pnorm(1)","id":1,"options":{"autorun":"false","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.7","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"6","fig-width":"10","label":"unnamed-chunk-1","message":"true","out-height":"","out-width":"100%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"#--- get the data ---#\ndata(\"wage1\", package = \"wooldridge\")\n\n#--- run a regression ---#\nreg_wage <- feols(wage ~ educ + exper + tenure, data = wage1)","id":2,"options":{"autorun":"true","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.7","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"6","fig-width":"10","label":"unnamed-chunk-2","message":"true","out-height":"","out-width":"100%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"#--- tidy up the regression results ---#\nreg_results_table <- broom::tidy(reg_wage)\n\n#--- display ---#\nreg_results_table","id":3,"options":{"autorun":"true","classes":"","code-track":"0.5","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.7","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"6","fig-width":"10","label":"unnamed-chunk-3","message":"true","out-height":"","out-width":"100%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"#--- coefficient estimate on educ ---#\nbeta_educ <-\n  reg_results_table %>%\n  filter(term == \"educ\") %>%\n  pull(estimate)\n\n#--- se of the coefficient on educ ---#\nse_beta_educ <-\n  reg_results_table %>%\n  filter(term == \"educ\") %>%\n  pull(std.error)\n\n#--- get the t-value ---#\n(\n  t_value <- (beta_educ - 1) / se_beta_educ\n)","id":4,"options":{"autorun":"false","classes":"","code-track":"0.5","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.7","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"6","fig-width":"10","label":"unnamed-chunk-4","message":"true","out-height":"","out-width":"100%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"(\n  df_t <- degrees_freedom(reg_wage, \"resid\")\n)","id":5,"options":{"autorun":"false","classes":"","code-track":"0.5","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.7","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"6","fig-width":"10","label":"unnamed-chunk-5","message":"true","out-height":"","out-width":"100%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"(\n  critical_value <- qt(0.975, df = df_t)\n)","id":6,"options":{"autorun":"false","classes":"","code-track":"0.5","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.7","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"6","fig-width":"10","label":"unnamed-chunk-6","message":"true","out-height":"","out-width":"100%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"wage_reg <- feols(wage ~ educ + exper + tenure, data = wage1)","id":7,"options":{"autorun":"true","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.7","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"6","fig-width":"10","label":"unnamed-chunk-7","message":"true","out-height":"","out-width":"100%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"(\n  wage_reg_coef <- broom::tidy(wage_reg)\n)","id":8,"options":{"autorun":"true","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.7","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"6","fig-width":"10","label":"unnamed-chunk-8","message":"true","out-height":"","out-width":"100%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"qt(0.05, df = 522)\nqt(0.95, df = 522)","id":9,"options":{"autorun":"false","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.7","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"6","fig-width":"10","label":"unnamed-chunk-9","message":"true","out-height":"","out-width":"100%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"broom::tidy(\n  wage_reg,\n  conf.int = TRUE,\n  conf.level = 0.9\n) %>%\n  dplyr::relocate(term, conf.low, conf.high)","id":10,"options":{"autorun":"false","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.7","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"6","fig-width":"10","label":"unnamed-chunk-10","message":"true","out-height":"","out-width":"100%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"#--- import data ---#\ndata(\"twoyear\", package = \"wooldridge\")\n\n(\n  reg_sc <- fixest::feols(lwage ~ jc + univ + exper, data = twoyear) # OLS\n)","id":11,"options":{"autorun":"true","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.7","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"6","fig-width":"10","label":"unnamed-chunk-11","message":"true","out-height":"","out-width":"100%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"(\n  vcov_sc <- vcov(reg_sc) # variance covariance matrix\n)","id":12,"options":{"autorun":"true","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.7","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"6","fig-width":"10","label":"unnamed-chunk-12","message":"true","out-height":"","out-width":"100%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"#--- reg results ---#\nreg_sc_td <- broom::tidy(reg_sc)\n\n#--- get coefficients ---#\nbeta_jc <-\n  reg_sc_td %>%\n  filter(term == \"jc\") %>%\n  pull(estimate)\n\nbeta_univ <-\n  reg_sc_td %>%\n  filter(term == \"univ\") %>%\n  pull(estimate)","id":13,"options":{"autorun":"true","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.7","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"6","fig-width":"10","label":"unnamed-chunk-13","message":"true","out-height":"","out-width":"100%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"numerator <- beta_jc - beta_univ\ndenominator <-\n  sqrt(\n    vcov_sc[\"jc\", \"jc\"] - 2 * vcov_sc[\"jc\", \"univ\"] + vcov_sc[\"univ\", \"univ\"]\n  )\nt_stat <- numerator / denominator\nt_stat","id":14,"options":{"autorun":"true","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.7","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"6","fig-width":"10","label":"unnamed-chunk-14","message":"true","out-height":"","out-width":"100%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"marginaleffects::hypotheses(\n  reg_sc,\n  hypothesis = \"jc = univ\",\n  df = degrees_freedom(reg_sc, \"resid\")\n)","id":15,"options":{"autorun":"true","classes":"","code-track":"0.4","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.7","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"6","fig-width":"10","label":"unnamed-chunk-15","message":"true","out-height":"","out-width":"100%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"c(numerator, denominator, t_stat)","id":16,"options":{"autorun":"true","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.7","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"6","fig-width":"10","label":"unnamed-chunk-16","message":"true","out-height":"","out-width":"100%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"#--- load the mlb data ---#\ndata(\"mlb1\", package = \"wooldridge\")\n\n#--- run a rergession ---#\nmlb_reg <- fixest::feols(log(salary) ~ years + gamesyr + bavg\n  + hrunsyr + rbisyr, data = mlb1)\n\n#--- take a look at the results ---#\nbroom::tidy(mlb_reg)","id":17,"options":{"autorun":"true","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.7","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"6","fig-width":"10","label":"unnamed-chunk-17","message":"true","out-height":"","out-width":"100%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"broom::tidy(mlb_reg)","id":18,"options":{"autorun":"true","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.7","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"6","fig-width":"10","label":"unnamed-chunk-18","message":"true","out-height":"","out-width":"100%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"#--- run OLS ---#\nres_u <- feols(log(salary) ~ years + gamesyr + bavg\n  + hrunsyr + rbisyr, data = mlb1)\n\n#--- SSR ---#\nsum(res_u$residuals^2)","id":19,"options":{"autorun":"true","classes":"","code-track":"0.6","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.7","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"6","fig-width":"10","label":"unnamed-chunk-19","message":"true","out-height":"","out-width":"100%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"#--- run OLS ---#\nres_r <- feols(log(salary) ~ years + gamesyr, data = mlb1)\n\n#--- SSR ---#\nsum(res_r$residuals^2)","id":20,"options":{"autorun":"false","classes":"","code-track":"0.6","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.7","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"6","fig-width":"10","label":"unnamed-chunk-20","message":"true","out-height":"","out-width":"100%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"#--- unrestricted model ---#\nreg_u <- feols(log(salary) ~ years + gamesyr +\n  bavg + hrunsyr + rbisyr, data = mlb1)\n\nSSR_u <- sum(reg_u$residuals^2)\n\n#--- restricted model ---#\nreg_r <- feols(log(salary) ~ years + gamesyr, data = mlb1)\n\nSSR_r <- sum(reg_r$residuals^2)","id":21,"options":{"autorun":"true","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.7","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"6","fig-width":"10","label":"unnamed-chunk-21","message":"true","out-height":"","out-width":"100%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"df_q <- 3 # the number of restrictions\ndf_ur <- degrees_freedom(reg_u, \"resid\") # degrees of freedom for the unrestricted model\nF_stat_num <- (SSR_r - SSR_u) / df_q # numerator of F-stat\nF_stat_denom <- SSR_u / df_ur # denominator of F-stat\nF_sta <- F_stat_num / F_stat_denom # F-stat\nF_sta","id":22,"options":{"autorun":"false","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.7","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"6","fig-width":"10","label":"unnamed-chunk-22","message":"true","out-height":"","out-width":"100%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"alpha <- 0.05 # 5%  significance level\nc_value <- qf(1 - alpha, df1 = df_q, df2 = df_ur)\nc_value","id":23,"options":{"autorun":"false","classes":"","code-track":"0.6","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.7","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"6","fig-width":"10","label":"unnamed-chunk-23","message":"true","out-height":"","out-width":"100%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"F_sta > c_value","id":24,"options":{"autorun":"false","classes":"","code-track":"0.6","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.7","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"6","fig-width":"10","label":"unnamed-chunk-24","message":"true","out-height":"","out-width":"100%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"#--- F-test ---#\nmarginaleffects::hypotheses(\n  mlb_reg,\n  joint = c(\"bavg\", \"hrunsyr\", \"rbisyr\"),\n  joint_test = \"f\"\n)","id":25,"options":{"autorun":"true","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.7","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"6","fig-width":"10","label":"unnamed-chunk-25","message":"true","out-height":"","out-width":"100%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"N <- 300 # num observations\nmu <- runif(N) # term shared by indep vars 1 and 2\nx1 <- 0.1 * runif(N) + 2 * mu # indep 1\nx2 <- 0.1 * runif(N) + 2 * mu # indep 2\nx3 <- runif(N) # indep 3\nu <- rnorm(N) # error\ny <- 1 + x1 + x2 + x3 + u # generate y\ndata <- data.table(y = y, x1 = x1, x2 = x2, x3 = x3) # combine into a data.table","id":26,"options":{"autorun":"false","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.7","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"6","fig-width":"10","label":"unnamed-chunk-26","message":"true","out-height":"","out-width":"100%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"cor(x1, x2) # correlation between x1 and x2","id":27,"options":{"autorun":"false","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.7","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"6","fig-width":"10","label":"unnamed-chunk-27","message":"true","out-height":"","out-width":"100%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"reg_u <- fixest::feols(y ~ x1 + x2 + x3, data = data) # OLS\nbroom::tidy(reg_u) # results","id":28,"options":{"autorun":"false","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.7","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"6","fig-width":"10","label":"unnamed-chunk-28","message":"true","out-height":"","out-width":"100%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"#--- unrestricted ---#\nSSR_u <- sum(reg_u$residuals^2)\n\n#--- restricted ---#\nreg_r <- fixest::feols(y ~ x3, data = data)\nSSR_r <- sum(reg_r$residuals^2)\n\n#--- degrees of freedom of residuals ---#\ndf_resid <- degrees_freedom(reg_u, \"resid\")\n\n#--- F ---#\nF_stat <- ((SSR_r - SSR_u) / 2) / (SSR_u / df_resid)\n\n#--- critical value ---#\nalpha <- 0.05\n(\n  c_value <- qf(1 - alpha, df1 = 2, df2 = df_resid)\n)","id":29,"options":{"autorun":"false","classes":"","code-track":"0.6","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.7","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"6","fig-width":"10","label":"unnamed-chunk-29","message":"true","out-height":"","out-width":"100%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"#--- F > critical value? ---#\nF_stat\nF_stat > c_value","id":30,"options":{"autorun":"false","classes":"","code-track":"0.6","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.7","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"6","fig-width":"10","label":"unnamed-chunk-30","message":"true","out-height":"","out-width":"100%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"dplyr::select(mlb1, bavg, hrunsyr, rbisyr) %>% cor()","id":31,"options":{"autorun":"true","classes":"","code-track":"0.6","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.7","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"6","fig-width":"10","label":"unnamed-chunk-31","message":"true","out-height":"","out-width":"100%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"#--- OLS ---#\nreg_sc <- feols(lwage ~ jc + univ + exper, data = twoyear)\n\n#--- t-test (as on the earlier slide) ---#\nt_test <- marginaleffects::hypotheses(\n  reg_sc,\n  hypothesis = \"jc = univ\",\n  df = degrees_freedom(reg_sc, \"resid\")\n)\n\n#--- F-test of the same one restriction ---#\nF_test <- marginaleffects::hypotheses(t_test, joint = TRUE, joint_test = \"f\")\n\n#--- F equals t squared ---#\nc(F = F_test$statistic, t_squared = t_test$statistic^2)","id":32,"options":{"autorun":"false","classes":"","code-track":"0.65","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.7","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"6","fig-width":"10","label":"unnamed-chunk-32","message":"true","out-height":"","out-width":"100%","output":"true","read-only":"false","results":"markup","warning":"true"}}];
+  globalThis.qwebrCellDetails = [{"code":"1 - pnorm(1)","id":1,"options":{"autorun":"false","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.7","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"6","fig-width":"10","label":"unnamed-chunk-1","message":"true","out-height":"","out-width":"100%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"#--- get the data ---#\ndata(\"wage1\", package = \"wooldridge\")\n\n#--- run a regression ---#\nreg_wage <- feols(wage ~ educ + exper + tenure, data = wage1)","id":2,"options":{"autorun":"true","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.7","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"6","fig-width":"10","label":"unnamed-chunk-2","message":"true","out-height":"","out-width":"100%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"#--- tidy up the regression results ---#\nreg_results_table <- broom::tidy(reg_wage)\n\n#--- display ---#\nreg_results_table","id":3,"options":{"autorun":"true","classes":"","code-track":"0.5","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.7","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"6","fig-width":"10","label":"unnamed-chunk-3","message":"true","out-height":"","out-width":"100%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"#--- coefficient estimate on educ ---#\nbeta_educ <-\n  reg_results_table %>%\n  filter(term == \"educ\") %>%\n  pull(estimate)\n\n#--- se of the coefficient on educ ---#\nse_beta_educ <-\n  reg_results_table %>%\n  filter(term == \"educ\") %>%\n  pull(std.error)\n\n#--- get the t-value ---#\n(\n  t_value <- (beta_educ - 1) / se_beta_educ\n)","id":4,"options":{"autorun":"false","classes":"","code-track":"0.5","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.7","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"6","fig-width":"10","label":"unnamed-chunk-4","message":"true","out-height":"","out-width":"100%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"(\n  df_t <- degrees_freedom(reg_wage, \"resid\")\n)","id":5,"options":{"autorun":"false","classes":"","code-track":"0.5","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.7","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"6","fig-width":"10","label":"unnamed-chunk-5","message":"true","out-height":"","out-width":"100%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"(\n  critical_value <- qt(0.975, df = df_t)\n)","id":6,"options":{"autorun":"false","classes":"","code-track":"0.5","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.7","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"6","fig-width":"10","label":"unnamed-chunk-6","message":"true","out-height":"","out-width":"100%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"#--- run OLS ---#\nwage_reg <- feols(wage ~ educ + exper + tenure, data = wage1)\n\n#--- coefficient table: one row per coefficient ---#\nwage_reg_coef <- broom::tidy(wage_reg)\nwage_reg_coef","id":7,"options":{"autorun":"true","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.7","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"6","fig-width":"10","label":"unnamed-chunk-7","message":"true","out-height":"","out-width":"100%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"#--- estimate of beta_educ ---#\nb_educ <- wage_reg_coef %>%\n  filter(term == \"educ\") %>%\n  pull(estimate)\n\n#--- estimated standard error of beta_educ hat ---#\nse_educ <- wage_reg_coef %>%\n  filter(term == \"educ\") %>%\n  pull(std.error)\n\n#--- degrees of freedom: n - k - 1 ---#\ndf_wage <- degrees_freedom(wage_reg, \"resid\")\n\nc(b_educ = b_educ, se_educ = se_educ, df = df_wage)","id":8,"options":{"autorun":"true","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.7","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"6","fig-width":"10","label":"unnamed-chunk-8","message":"true","out-height":"","out-width":"100%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"(Q_l <- qt(0.05, df = df_wage))\n(Q_h <- qt(0.95, df = df_wage))","id":9,"options":{"autorun":"true","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.7","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"6","fig-width":"10","label":"unnamed-chunk-9","message":"true","out-height":"","out-width":"100%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"#--- the range of beta_hat - beta (line 2) ---#\nse_educ * c(Q_l, Q_h)\n\n#--- the CI of beta_educ (line 4) ---#\nc(\n  lower = b_educ + Q_l * se_educ,\n  upper = b_educ + Q_h * se_educ\n)","id":10,"options":{"autorun":"true","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.7","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"6","fig-width":"10","label":"unnamed-chunk-10","message":"true","out-height":"","out-width":"100%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"broom::tidy(\n  wage_reg,\n  conf.int = TRUE,\n  conf.level = 0.9\n) %>%\n  dplyr::relocate(term, conf.low, conf.high)","id":11,"options":{"autorun":"false","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.7","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"6","fig-width":"10","label":"unnamed-chunk-11","message":"true","out-height":"","out-width":"100%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"#--- import data ---#\ndata(\"twoyear\", package = \"wooldridge\")\n\n(\n  reg_sc <- fixest::feols(lwage ~ jc + univ + exper, data = twoyear) # OLS\n)","id":12,"options":{"autorun":"true","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.7","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"6","fig-width":"10","label":"unnamed-chunk-12","message":"true","out-height":"","out-width":"100%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"(\n  vcov_sc <- vcov(reg_sc) # variance covariance matrix\n)","id":13,"options":{"autorun":"true","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.7","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"6","fig-width":"10","label":"unnamed-chunk-13","message":"true","out-height":"","out-width":"100%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"#--- reg results ---#\nreg_sc_td <- broom::tidy(reg_sc)\n\n#--- get coefficients ---#\nbeta_jc <-\n  reg_sc_td %>%\n  filter(term == \"jc\") %>%\n  pull(estimate)\n\nbeta_univ <-\n  reg_sc_td %>%\n  filter(term == \"univ\") %>%\n  pull(estimate)","id":14,"options":{"autorun":"true","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.7","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"6","fig-width":"10","label":"unnamed-chunk-14","message":"true","out-height":"","out-width":"100%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"numerator <- beta_jc - beta_univ\ndenominator <-\n  sqrt(\n    vcov_sc[\"jc\", \"jc\"] - 2 * vcov_sc[\"jc\", \"univ\"] + vcov_sc[\"univ\", \"univ\"]\n  )\nt_stat <- numerator / denominator\nt_stat","id":15,"options":{"autorun":"true","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.7","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"6","fig-width":"10","label":"unnamed-chunk-15","message":"true","out-height":"","out-width":"100%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"marginaleffects::hypotheses(\n  reg_sc,\n  hypothesis = \"jc = univ\",\n  df = degrees_freedom(reg_sc, \"resid\")\n)","id":16,"options":{"autorun":"true","classes":"","code-track":"0.4","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.7","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"6","fig-width":"10","label":"unnamed-chunk-16","message":"true","out-height":"","out-width":"100%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"c(numerator, denominator, t_stat)","id":17,"options":{"autorun":"true","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.7","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"6","fig-width":"10","label":"unnamed-chunk-17","message":"true","out-height":"","out-width":"100%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"#--- load the mlb data ---#\ndata(\"mlb1\", package = \"wooldridge\")\n\n#--- run a rergession ---#\nmlb_reg <- fixest::feols(log(salary) ~ years + gamesyr + bavg\n  + hrunsyr + rbisyr, data = mlb1)\n\n#--- take a look at the results ---#\nbroom::tidy(mlb_reg)","id":18,"options":{"autorun":"true","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.7","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"6","fig-width":"10","label":"unnamed-chunk-18","message":"true","out-height":"","out-width":"100%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"broom::tidy(mlb_reg)","id":19,"options":{"autorun":"true","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.7","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"6","fig-width":"10","label":"unnamed-chunk-19","message":"true","out-height":"","out-width":"100%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"#--- run OLS ---#\nres_u <- feols(log(salary) ~ years + gamesyr + bavg\n  + hrunsyr + rbisyr, data = mlb1)\n\n#--- SSR ---#\nsum(res_u$residuals^2)","id":20,"options":{"autorun":"true","classes":"","code-track":"0.6","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.7","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"6","fig-width":"10","label":"unnamed-chunk-20","message":"true","out-height":"","out-width":"100%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"#--- run OLS ---#\nres_r <- feols(log(salary) ~ years + gamesyr, data = mlb1)\n\n#--- SSR ---#\nsum(res_r$residuals^2)","id":21,"options":{"autorun":"false","classes":"","code-track":"0.6","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.7","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"6","fig-width":"10","label":"unnamed-chunk-21","message":"true","out-height":"","out-width":"100%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"#--- unrestricted model ---#\nreg_u <- feols(log(salary) ~ years + gamesyr +\n  bavg + hrunsyr + rbisyr, data = mlb1)\n\nSSR_u <- sum(reg_u$residuals^2)\n\n#--- restricted model ---#\nreg_r <- feols(log(salary) ~ years + gamesyr, data = mlb1)\n\nSSR_r <- sum(reg_r$residuals^2)","id":22,"options":{"autorun":"true","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.7","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"6","fig-width":"10","label":"unnamed-chunk-22","message":"true","out-height":"","out-width":"100%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"df_q <- 3 # the number of restrictions\ndf_ur <- degrees_freedom(reg_u, \"resid\") # degrees of freedom for the unrestricted model\nF_stat_num <- (SSR_r - SSR_u) / df_q # numerator of F-stat\nF_stat_denom <- SSR_u / df_ur # denominator of F-stat\nF_sta <- F_stat_num / F_stat_denom # F-stat\nF_sta","id":23,"options":{"autorun":"false","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.7","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"6","fig-width":"10","label":"unnamed-chunk-23","message":"true","out-height":"","out-width":"100%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"alpha <- 0.05 # 5%  significance level\nc_value <- qf(1 - alpha, df1 = df_q, df2 = df_ur)\nc_value","id":24,"options":{"autorun":"false","classes":"","code-track":"0.6","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.7","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"6","fig-width":"10","label":"unnamed-chunk-24","message":"true","out-height":"","out-width":"100%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"F_sta > c_value","id":25,"options":{"autorun":"false","classes":"","code-track":"0.6","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.7","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"6","fig-width":"10","label":"unnamed-chunk-25","message":"true","out-height":"","out-width":"100%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"#--- F-test ---#\nmarginaleffects::hypotheses(\n  mlb_reg,\n  joint = c(\"bavg\", \"hrunsyr\", \"rbisyr\"),\n  joint_test = \"f\"\n)","id":26,"options":{"autorun":"true","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.7","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"6","fig-width":"10","label":"unnamed-chunk-26","message":"true","out-height":"","out-width":"100%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"N <- 300 # num observations\nmu <- runif(N) # term shared by indep vars 1 and 2\nx1 <- 0.1 * runif(N) + 2 * mu # indep 1\nx2 <- 0.1 * runif(N) + 2 * mu # indep 2\nx3 <- runif(N) # indep 3\nu <- rnorm(N) # error\ny <- 1 + x1 + x2 + x3 + u # generate y\ndata <- data.table(y = y, x1 = x1, x2 = x2, x3 = x3) # combine into a data.table","id":27,"options":{"autorun":"false","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.7","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"6","fig-width":"10","label":"unnamed-chunk-27","message":"true","out-height":"","out-width":"100%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"cor(x1, x2) # correlation between x1 and x2","id":28,"options":{"autorun":"false","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.7","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"6","fig-width":"10","label":"unnamed-chunk-28","message":"true","out-height":"","out-width":"100%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"reg_u <- fixest::feols(y ~ x1 + x2 + x3, data = data) # OLS\nbroom::tidy(reg_u) # results","id":29,"options":{"autorun":"false","classes":"","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.7","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"6","fig-width":"10","label":"unnamed-chunk-29","message":"true","out-height":"","out-width":"100%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"#--- unrestricted ---#\nSSR_u <- sum(reg_u$residuals^2)\n\n#--- restricted ---#\nreg_r <- fixest::feols(y ~ x3, data = data)\nSSR_r <- sum(reg_r$residuals^2)\n\n#--- degrees of freedom of residuals ---#\ndf_resid <- degrees_freedom(reg_u, \"resid\")\n\n#--- F ---#\nF_stat <- ((SSR_r - SSR_u) / 2) / (SSR_u / df_resid)\n\n#--- critical value ---#\nalpha <- 0.05\n(\n  c_value <- qf(1 - alpha, df1 = 2, df2 = df_resid)\n)","id":30,"options":{"autorun":"false","classes":"","code-track":"0.6","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.7","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"6","fig-width":"10","label":"unnamed-chunk-30","message":"true","out-height":"","out-width":"100%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"#--- F > critical value? ---#\nF_stat\nF_stat > c_value","id":31,"options":{"autorun":"false","classes":"","code-track":"0.6","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.7","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"6","fig-width":"10","label":"unnamed-chunk-31","message":"true","out-height":"","out-width":"100%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"dplyr::select(mlb1, bavg, hrunsyr, rbisyr) %>% cor()","id":32,"options":{"autorun":"true","classes":"","code-track":"0.6","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.7","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"6","fig-width":"10","label":"unnamed-chunk-32","message":"true","out-height":"","out-width":"100%","output":"true","read-only":"false","results":"markup","warning":"true"}},{"code":"#--- OLS ---#\nreg_sc <- feols(lwage ~ jc + univ + exper, data = twoyear)\n\n#--- t-test (as on the earlier slide) ---#\nt_test <- marginaleffects::hypotheses(\n  reg_sc,\n  hypothesis = \"jc = univ\",\n  df = degrees_freedom(reg_sc, \"resid\")\n)\n\n#--- F-test of the same one restriction ---#\nF_test <- marginaleffects::hypotheses(t_test, joint = TRUE, joint_test = \"f\")\n\n#--- F equals t squared ---#\nc(F = F_test$statistic, t_squared = t_test$statistic^2)","id":33,"options":{"autorun":"false","classes":"","code-track":"0.65","comment":"","context":"interactive","dpi":"216","editor-font-scale":"0.7","editor-max-height":"","editor-quick-suggestions":"false","editor-word-wrap":"true","fig-cap":"","fig-height":"6","fig-width":"10","label":"unnamed-chunk-33","message":"true","out-height":"","out-width":"100%","output":"true","read-only":"false","results":"markup","warning":"true"}}];
 
   </script>
   <script type="module">
@@ -4058,7 +4068,7 @@ Transcript
 <section id="confidence-interval-ci-1" class="slide level2 scrollable">
 <h2>Confidence Interval (CI)</h2>
 <div class="panel-tabset">
-<ul id="tabset-14" class="panel-tabset-tabby"><li><a data-tabby-default="" href="#tabset-14-1">Definition</a></li><li><a href="#tabset-14-2">How to get CI (in general)</a></li><li><a href="#tabset-14-3">How to get the CI of coefficients</a></li><li><a href="#tabset-14-4">Example (R implementation)</a></li></ul>
+<ul id="tabset-14" class="panel-tabset-tabby"><li><a data-tabby-default="" href="#tabset-14-1">Definition</a></li><li><a href="#tabset-14-2">How to get CI (in general)</a></li><li><a href="#tabset-14-3">How to get the CI of coefficients</a></li></ul>
 <div class="tab-content">
 <div id="tabset-14-1">
 <details class="transcript">
@@ -4107,96 +4117,71 @@ Transcript
 </ol>
 </div>
 <div id="tabset-14-3">
-<details class="transcript">
-<summary>
-Transcript
-</summary>
-<p>This slide derives a confidence interval for beta j from the t-statistic. Under MLR one through MLR six, beta j hat minus beta j, divided by the estimated standard error of beta j hat, follows a t distribution with n minus k minus one degrees of freedom. Beta j hat is the sample coefficient estimate, beta j is the fixed population coefficient, the denominator is the estimated sampling standard deviation, n is the sample size, and k counts explanatory variables other than the intercept.</p>
-<p>For an A percent central interval, define Q sub l as the open parenthesis one hundred minus A close parenthesis over two percentile of that t distribution. Define Q sub h as the one hundred minus open parenthesis one hundred minus A close parenthesis over two percentile. Because the t distribution is symmetric around zero, Q sub l is negative and Q sub h is the corresponding positive value.</p>
-<p>Those quantiles initially bound the standardized statistic, but our target is beta j. Solve the displayed statistic for beta j. If t denotes a possible value of the standardized expression, multiply by the estimated standard error to get beta j hat minus beta j, then rearrange: beta j equals beta j hat minus t times the estimated standard error. The minus sign reverses which t quantile maps to which beta endpoint. Symmetry makes the familiar final result beta j hat plus a negative critical amount for the lower bound and beta j hat plus a positive critical amount for the upper bound.</p>
-<p>That is what the final bullets state. Multiply Q sub l by the estimated standard error and add beta j hat for the lower bound. Multiply Q sub h by the same standard error and add beta j hat for the upper bound. Since Q sub l is negative and Q sub h positive, the interval is centered on beta j hat and extends the same number of standard errors in both directions. A larger standard error makes the interval wider, signaling less precision. The next tabs calculate a ninety-percent interval for the education coefficient.</p>
-</details>
-<p>Under the assumption of MLR.1 through MLR.6 (which includes the normality assumption of the error), we learned that</p>
-<p><span class="math inline">\frac{\widehat{\beta}_j - \beta_j}{\widehat{se(\widehat{\beta}_j)}} \sim t_{n-k-1}</span></p>
-<p>So, following step 2 of the general procedure, the range that contains <span class="math inline">\frac{\widehat{\beta}_j - \beta_j}{\widehat{se(\widehat{\beta}_j)}}</span> with probability A% is</p>
-<ul>
-<li>lower bound: <span class="math inline">(100 − A)/2</span>% quantile of the <span class="math inline">t_{n-k-1}</span> distribution (let’s call this <span class="math inline">Q_l</span>)</li>
-<li>upper bound: <span class="math inline">100 - (100 − A)/2</span>% quantile of the <span class="math inline">t_{n-k-1}</span> distribution (let’s call this <span class="math inline">Q_h</span>)</li>
-</ul>
-<p>But, we want the A% CI of <span class="math inline">\beta_j</span>, not <span class="math inline">\frac{\widehat{\beta}_j - \beta_j}{\widehat{se(\widehat{\beta}_j)}}</span>. Solving for <span class="math inline">\beta_j</span>,</p>
-<p><span class="math inline">\beta_j = \widehat{\beta}_j - t_{n-k-1}\times \widehat{se(\widehat{\beta}_j)}</span></p>
-<p>So, to get the A% CI of <span class="math inline">\beta_j</span> (step 3), we scale the range <span class="math inline">[Q_l, Q_h]</span> by <span class="math inline">\widehat{se(\widehat{\beta}_j)}</span> and then shift by <span class="math inline">\widehat{\beta}_j</span>. Because the <span class="math inline">t</span> distribution is symmetric, the minus sign above just swaps which quantile lands on which end:</p>
-<ul>
-<li>lower bound: <span class="math inline">Q_l \times \widehat{se(\widehat{\beta}_j)} + \widehat{\beta}_j</span></li>
-<li>upper bound: <span class="math inline">Q_h \times \widehat{se(\widehat{\beta}_j)} + \widehat{\beta}_j</span></li>
-</ul>
-<p>Note that <span class="math inline">Q_l</span> is <span style="color: blue;"> negative </span> and <span class="math inline">Q_h</span> is <span style="color: red;">positive</span>.</p>
-</div>
-<div id="tabset-14-4">
 <div class="panel-tabset">
-<ul id="tabset-13" class="panel-tabset-tabby"><li><a data-tabby-default="" href="#tabset-13-1">Regression</a></li><li><a href="#tabset-13-2">Collect necessary information</a></li><li><a href="#tabset-13-3">Find CI</a></li><li><a href="#tabset-13-4">In practice</a></li></ul>
+<ul id="tabset-13" class="panel-tabset-tabby"><li><a data-tabby-default="" href="#tabset-13-1">Step 1: distribution</a></li><li><a href="#tabset-13-2">Step 2: quantiles</a></li><li><a href="#tabset-13-3">Step 3: solve for <span class="math inline">\beta_j</span></a></li><li><a href="#tabset-13-4">In practice</a></li></ul>
 <div class="tab-content">
 <div id="tabset-13-1">
 <details class="transcript">
 <summary>
 Transcript
 </summary>
-<p>This tab reconstructs the wage-level regression for the confidence-interval example. The first cell calls <code>feols</code> with wage on the left of the tilde and education, experience, and tenure on the right. <code>data = wage1</code> supplies the dataset loaded earlier. The fitted object is assigned to <code>wage_reg</code>. Because the cell has <code>autorun: true</code>, it is available to later interactive cells as soon as the page loads, and assignment alone produces no printed model summary.</p>
-<p>The second cell applies <code>broom::tidy</code> to <code>wage_reg</code> and assigns the returned tibble to <code>wage_reg_coef</code>. Parentheses around the assignment cause the table to print as well as be stored. This cell also runs automatically. The table has one row for the intercept and each explanatory variable, with columns for the estimate, estimated standard error, default zero-null t-statistic, and p-value.</p>
-<p>Focus on the <code>educ</code> row. Running the code gives an estimated coefficient of about zero point five nine nine and an estimated standard error of about zero point zero five one three. The model has five hundred and twenty-six observations and three non-intercept regressors, so its residual degrees of freedom are five hundred and twenty-two. Those three pieces, estimate, standard error, and degrees of freedom, are sufficient to form the usual confidence interval for beta educ under the stated classical assumptions.</p>
+<p>This slide builds a confidence interval for a regression coefficient in three steps. Every step tab has the same layout. The box at the top, titled General, states the step for any coefficient. The part below it, titled Example, carries the step out in R for one example: the ninety percent confidence interval for beta educ, the coefficient on education in a regression of hourly wage on education, experience, and tenure, using the wage1 data.</p>
+<p>Step one, in the General box, is the fact the whole construction rests on. Under MLR one through MLR six, which include the assumption that the error is normally distributed, beta j hat minus beta j, divided by the estimated standard error of beta j hat, follows a t distribution with n minus k minus one degrees of freedom. Beta j hat is the estimated coefficient, beta j is the fixed, unknown population coefficient, n is the number of observations, and k is the number of explanatory variables other than the intercept. The box ends by listing what we therefore need from the data: the estimate, its standard error, and the degrees of freedom.</p>
+<p>The example gets those three numbers. The first cell runs the regression with <code>feols</code>, wage on educ, exper, and tenure, stores it as <code>wage_reg</code>, then applies <code>broom::tidy</code> to it and stores the resulting table, one row per coefficient, as <code>wage_reg_coef</code>, which the last line prints. The second cell filters that table to the row whose term is “educ” and pulls the estimate column into <code>b_educ</code> and the std.error column into <code>se_educ</code>. Then <code>degrees_freedom(wage_reg, "resid")</code>, a fixest function, returns the residual degrees of freedom, stored as <code>df_wage</code>. The last line prints the three together: an estimate of about zero point five nine nine, a standard error of about zero point zero five one three, and five hundred and twenty-two degrees of freedom. That is five hundred and twenty-six observations, minus three explanatory variables, minus one for the intercept.</p>
+<p>The displayed line at the bottom puts those numbers into the General box’s formula. The numerator is zero point five nine nine minus beta educ, the denominator is zero point zero five one three, and the ratio follows a t distribution with five hundred and twenty-two degrees of freedom. Beta educ is the only unknown left in it, and steps two and three use this line to find the range of values for beta educ.</p>
 </details>
-<p><strong>Run OLS and extract necessary information</strong></p>
+<div title="General">
+<div class="callout callout-note no-icon callout-titled callout-style-default">
+<div class="callout-body">
+<div class="callout-title">
+<p><strong>General</strong></p>
+</div>
+<div class="callout-content">
+<p>Under MLR.1 through MLR.6 (which include the normality of the error), <span class="math display">\frac{\widehat{\beta}_j - \beta_j}{\widehat{se(\widehat{\beta}_j)}} \sim t_{n-k-1}</span> So we need three numbers from the data: <span class="math inline">\widehat{\beta}_j</span>, <span class="math inline">\widehat{se(\widehat{\beta}_j)}</span> and <span class="math inline">n-k-1</span>.</p>
+</div>
+</div>
+</div>
+</div>
+<p><br></p>
+<p><strong>Example: 90% CI of <span class="math inline">\beta_{educ}</span></strong> in <span class="math inline">wage = \beta_0 + \beta_1 educ + \beta_2 exper + \beta_3 tenure + u</span></p>
 <div id="qwebr-insertion-location-7"></div>
 <noscript>Please enable JavaScript to experience the dynamic code cell content on this page.</noscript>
 <p><br></p>
-<p>Applying <code>broom::tidy()</code> to <code>wage_reg</code>,</p>
+<p>Pull out <span class="math inline">\widehat{\beta}_{educ}</span>, <span class="math inline">\widehat{se(\widehat{\beta}_{educ})}</span> and <span class="math inline">n-k-1</span>:</p>
 <div id="qwebr-insertion-location-8"></div>
 <noscript>Please enable JavaScript to experience the dynamic code cell content on this page.</noscript>
+<p><br></p>
+<p><br></p>
+<p>Inserting these into Step 1’s distribution:</p>
+<p><span class="math display">\frac{0.599 - \beta_{educ}}{0.0513} \sim t_{522}</span></p>
 </div>
 <div id="tabset-13-2">
 <details class="transcript">
 <summary>
 Transcript
 </summary>
-<p>We want a ninety-percent confidence interval for beta educ, the population coefficient on education in this wage-level regression. The displayed t result says beta educ hat minus beta educ, divided by the estimated standard error of beta educ hat, follows a t distribution with n minus k minus one degrees of freedom, assuming MLR one through MLR six. That result is the bridge from the regression output to an interval.</p>
-<p>The three bullets collect the required inputs. Beta educ hat is about zero point five nine nine, shown to four decimal places on the slide. This is the center of the interval. Its estimated standard error is about zero point zero five one three, which determines the scale or width. Smaller uncertainty would produce a tighter interval around the same estimate.</p>
-<p>The final input is five hundred and twenty-two residual degrees of freedom. The dataset supplies n equals five hundred and twenty-six observations. There are k equals three explanatory variables, education, experience, and tenure, and the intercept costs one additional degree of freedom. Thus n minus k minus one equals five hundred and twenty-six minus three minus one, or five hundred and twenty-two.</p>
+<p>Step two, in the General box, finds the range that contains the quantity from step one with probability A percent. For an A percent confidence interval, A percent of the t distribution goes in the middle, and the remaining one hundred minus A percent is split equally between the two tails. So the lower end of the range, called Q sub l, is the open parenthesis one hundred minus A close parenthesis over two percent quantile of the t distribution with n minus k minus one degrees of freedom, and the upper end, Q sub h, is the one hundred minus open parenthesis one hundred minus A close parenthesis over two percent quantile. The displayed statement says that, before the sample is drawn, the quantity lands between Q sub l and Q sub h with probability A percent. Because the t distribution is symmetric around zero, Q sub l is negative and Q sub h is the same number with a positive sign.</p>
+<p>In the example, A is ninety. One hundred minus ninety leaves ten percent outside, five percent in each tail, so we need the five percent and ninety-five percent quantiles of the t distribution with five hundred and twenty-two degrees of freedom. The cell on the left calls <code>qt(0.05, df = df_wage)</code> and stores it as <code>Q_l</code>, and <code>qt(0.95, df = df_wage)</code> and stores it as <code>Q_h</code>. The first argument of <code>qt</code> is the probability below the quantile, and <code>df</code> is the degrees of freedom. The parentheses around each assignment print the value: about minus one point six four eight and one point six four eight.</p>
+<p>The figure on the right draws this. The curve is the t distribution with five hundred and twenty-two degrees of freedom. The blue line is Q sub l and the red line is Q sub h, each labelled with its value. The grey area beyond each line is five percent, and the area between them, labelled ninety percent, is where the quantity from step one falls with probability ninety percent.</p>
 </details>
-<p>We are interested in getting the 90% confidence interval of the coefficient on <code>educ</code> <span class="math inline">(\beta_{educ})</span>. Under all the assumptions (MLR.1 through MLR.6), we know that in general,</p>
-<p><span class="math inline">\frac{\widehat{\beta}_{educ} - \beta_{educ}}{\widehat{se(\widehat{\beta}_{educ})}} \sim t_{n-k-1}</span></p>
-<p>Specifically for this regression,</p>
-<ul>
-<li><p><span class="math inline">\widehat{\beta}_{educ}</span> = 0.599</p></li>
-<li><p><span class="math inline">\widehat{se(\widehat{\beta}_{educ})}</span> = 0.0513</p></li>
-<li><p><span class="math inline">n - k - 1 = 522</span> (degrees of freedom)</p></li>
-</ul>
+<div title="General">
+<div class="callout callout-note no-icon callout-titled callout-style-default">
+<div class="callout-body">
+<div class="callout-title">
+<p><strong>General</strong></p>
 </div>
-<div id="tabset-13-3">
-<details class="transcript inline">
-<summary>
-Transcript
-</summary>
-<p>Now calculate the ninety-percent interval. Ninety percent in the center leaves ten percent outside, split evenly into five percent in each tail. We therefore need the five percent and ninety-five percent quantiles of a t distribution with five hundred and twenty-two degrees of freedom. The first interactive cell calls <code>qt(0.05, df = 522)</code> and <code>qt(0.95, df = 522)</code>. The first argument is the cumulative probability and the named <code>df</code> argument selects the degrees of freedom. Running it returns symmetric values of about minus one point six four eight and positive one point six four eight.</p>
-<p>The left column then states the central ninety-percent interval for the standardized statistic. Using the rounded values displayed in the fraction, the numerator is zero point five nine nine minus beta educ and the denominator is about zero point zero five one. That ratio lies between the two t quantiles in ninety percent of repeated samples under the model assumptions.</p>
-<p>To translate back to beta educ, scale by the estimated standard error and shift by the estimate. The lower bound is zero point five nine nine plus zero point zero five one times minus one point six four eight. The upper bound is zero point five nine nine plus zero point zero five one times positive one point six four eight. Using the underlying unrounded values, the bounds are approximately zero point five one four and zero point six eight three. The negative lower quantile moves below the estimate; the positive upper quantile moves above it.</p>
-<p>Look at the figure in the right column. Its horizontal axis is the t-statistic, its vertical height is the t density, and the red ribbons mark symmetric tail regions. The curve is symmetric and, with five hundred and twenty-two degrees of freedom, nearly indistinguishable from standard Normal. For the ninety-percent calculation on this tab, use the five and ninety-five percent quantiles printed by the interactive cell.</p>
-<p>The final sentence hands you to the <code>In practice</code> tab. There, broom requests the same confidence level directly. Its <code>conf.low</code> and <code>conf.high</code> values should match the hand calculation.</p>
-</details>
+<div class="callout-content">
+<p>For an A% CI, with <span class="math inline">Q_l</span> the <span class="math inline">(100 - A)/2</span>% quantile and <span class="math inline">Q_h</span> the <span class="math inline">100 - (100 - A)/2</span>% quantile of <span class="math inline">t_{n-k-1}</span>, <span class="math display">Q_l \le \frac{\widehat{\beta}_j - \beta_j}{\widehat{se(\widehat{\beta}_j)}} \le Q_h \quad \text{with probability A\%}</span> <span class="math inline">Q_l</span> is <span style="color: blue;">negative</span> and <span class="math inline">Q_h</span> is <span style="color: red;">positive</span>.</p>
+</div>
+</div>
+</div>
+</div>
 <div class="columns">
-<div class="column" style="width:50%;">
-<p>Now, we need to find the 5% <span class="math inline">\big((100-90)/2\big)</span> and 95% <span class="math inline">\big(100-(100-90)/2\big)</span> quantiles of <span class="math inline">t_{522}</span>.</p>
+<div class="column" style="width:45%;">
+<p><strong>Example:</strong> <span class="math inline">A = 90</span>, so we need the 5% and 95% quantiles of <span class="math inline">t_{522}</span></p>
 <div id="qwebr-insertion-location-9"></div>
 <noscript>Please enable JavaScript to experience the dynamic code cell content on this page.</noscript>
-<p><br></p>
-<p>So, <span class="math inline">\frac{0.599 - \beta_{educ}}{0.051} \sim t_{522}</span> lies in [-1.648, 1.648] with probability 90% (before the sample is drawn)</p>
-<p>By scaling and shifting, the lower and upper bounds of the 90% CI of <span class="math inline">\beta_{educ}</span> are:</p>
-<ul>
-<li><p>lower bound: 0.599 + 0.051 <span class="math inline">\times</span> -1.648 = 0.514</p></li>
-<li><p>upper bound: 0.599 + 0.051 <span class="math inline">\times</span> 1.648 = 0.683</p></li>
-</ul>
-<p>Confirm these against the <code>In practice</code> tab, which asks <code>broom</code> for the same interval.</p>
-</div><!--end of the 1st column--><div class="column" style="width:50%;">
-<p>The distribution of <span class="math inline">t_{522}</span>:</p>
+</div><!--end of the 1st column--><div class="column" style="width:55%;">
 <div class="cell">
 <div class="cell-output-display">
 <div>
@@ -4210,18 +4195,84 @@ Transcript
 </div>
 <!--end of the columns-->
 </div>
+<div id="tabset-13-3">
+<details class="transcript">
+<summary>
+Transcript
+</summary>
+<p>Step three turns the range for the quantity from step two into a range for beta j, which is what we actually want. The General box does this in four lines, and the label at the right of each line says what was done to get it from the line above. Every line is the same event written differently, so each one holds with the same probability, A percent.</p>
+<p>The first line is the result of step two: with probability A percent, beta j hat minus beta j, divided by the estimated standard error, is between Q sub l and Q sub h.</p>
+<p>The second line multiplies all three parts by the estimated standard error. A standard error is positive, so multiplying by it keeps the direction of the inequalities. The middle is now simply beta j hat minus beta j, the estimation error: how far the estimate lands from the true value. It lies between Q sub l times the standard error and Q sub h times the standard error.</p>
+<p>The third line isolates beta j. Subtract beta j hat from all three parts, which leaves minus beta j in the middle, then multiply all three parts by minus one. Multiplying by a negative number reverses the inequalities, so the two ends swap places: beta j is at least beta j hat minus Q sub h times the standard error, and at most beta j hat minus Q sub l times the standard error.</p>
+<p>The fourth line uses the symmetry of the t distribution. Q sub l is negative and equals minus Q sub h, so minus Q sub h can be written as Q sub l and minus Q sub l as Q sub h. The interval then reads: from beta j hat plus Q sub l times the standard error, to beta j hat plus Q sub h times the standard error. That is the A percent confidence interval. Since Q sub l is negative and Q sub h is positive, it is centered on beta j hat and extends the same number of standard errors in each direction, so a larger standard error gives a wider interval.</p>
+<p>Now the example. The cell computes both results. Its first part, <code>se_educ * c(Q_l, Q_h)</code>, gives the two ends of line two: about minus zero point zero eight four five and zero point zero eight four five. Its second part, <code>b_educ + Q_l * se_educ</code> and <code>b_educ + Q_h * se_educ</code>, gives the two ends of line four, printed with their names.</p>
+<p>The two figures under the cell show those results one step at a time, from left to right. The left figure is line two. Its heading says: with probability ninety percent, beta educ hat minus beta educ is within zero point zero eight four five of zero. The horizontal axis is beta educ hat minus beta educ. The curve is the t distribution from step two with its horizontal axis stretched by the standard error, zero point zero five one three, so it is the distribution of the estimation error. The blue and red lines are the two ends, about minus zero point zero eight four five and zero point zero eight four five, and the area between them is ninety percent.</p>
+<p>The right figure is line four, and it has no curve. Its horizontal axis is beta educ itself, and beta educ is a fixed number rather than a random one, so the figure draws only the interval. The black dot is the estimate, beta educ hat, zero point five nine nine. The blue arrow goes zero point zero eight four five to the left of it and the red arrow zero point zero eight four five to the right, the same distances as in the left figure; the two figures cover the same width, so the distances line up. The arrows end at the two ends of the confidence interval, about zero point five one four in blue and about zero point six eight three in red, and the grey bar between them is the ninety percent confidence interval. The heading says the same thing in words: go zero point zero eight four five each way from zero point five nine nine, so the ninety percent confidence interval is from about zero point five one four to about zero point six eight three dollars per hour per year of education.</p>
+<p>The last line of the tab says how to read that interval, as in the Definition tab. The ninety percent describes the procedure, not this particular interval. If we drew many samples and built an interval from each in this way, about ninety percent of those intervals would contain the true beta educ. The interval from this sample, zero point five one four to zero point six eight three, either contains it or does not.</p>
+</details>
+<div title="General">
+<div class="callout callout-note no-icon callout-titled callout-style-default">
+<div class="callout-body">
+<div class="callout-title">
+<p><strong>General</strong></p>
+</div>
+<div class="callout-content">
+<p><span class="math display">
+\begin{aligned}
+Q_l \le \;&amp; \frac{\widehat{\beta}_j - \beta_j}{\widehat{se(\widehat{\beta}_j)}} \le Q_h &amp;&amp; \text{(Step 2)} \\
+Q_l \times \widehat{se(\widehat{\beta}_j)} \le \;&amp; \widehat{\beta}_j - \beta_j \le Q_h \times \widehat{se(\widehat{\beta}_j)} &amp;&amp; \text{(multiply by } \widehat{se} &gt; 0\text{)} \\
+\widehat{\beta}_j - Q_h \times \widehat{se(\widehat{\beta}_j)} \le \;&amp; \beta_j \le \widehat{\beta}_j - Q_l \times \widehat{se(\widehat{\beta}_j)} &amp;&amp; \text{(subtract } \widehat{\beta}_j\text{, multiply by } -1\text{: the ends swap)} \\
+\widehat{\beta}_j + Q_l \times \widehat{se(\widehat{\beta}_j)} \le \;&amp; \beta_j \le \widehat{\beta}_j + Q_h \times \widehat{se(\widehat{\beta}_j)} &amp;&amp; \text{(symmetry: } Q_l = -Q_h\text{)}
+\end{aligned}
+</span> All four lines are the same event, so each holds with probability A%. The second line is the range of the estimation error <span class="math inline">\widehat{\beta}_j - \beta_j</span>; the last line is the A% CI of <span class="math inline">\beta_j</span>.</p>
+</div>
+</div>
+</div>
+</div>
+<p><strong>Example</strong></p>
+<div id="qwebr-insertion-location-10"></div>
+<noscript>Please enable JavaScript to experience the dynamic code cell content on this page.</noscript>
+<div class="columns">
+<div class="column" style="width:50%;">
+<p><strong>Line 2:</strong> with probability 90%, <span class="math inline">\widehat{\beta}_{educ} - \beta_{educ}</span> is within <span class="math inline">\pm</span> 0.0845</p>
+<div class="cell">
+<div class="cell-output-display">
+<div>
+<figure>
+<p><img data-src="05-testing_files/figure-revealjs/unnamed-chunk-17-1.png" width="4000"></p>
+</figure>
+</div>
+</div>
+</div>
+</div><!--end of the 1st column--><div class="column" style="width:50%;">
+<p><strong>Line 4:</strong> go 0.0845 each way from <span class="math inline">\widehat{\beta}_{educ}</span> = 0.599, so the 90% CI is [0.514, 0.683]</p>
+<div class="cell">
+<div class="cell-output-display">
+<div>
+<figure>
+<p><img data-src="05-testing_files/figure-revealjs/unnamed-chunk-18-1.png" width="4000"></p>
+</figure>
+</div>
+</div>
+</div>
+</div><!--end of the 2nd column-->
+</div>
+<!--end of the columns-->
+<p><strong>Reading the CI:</strong> over repeated samples, 90% of the intervals built this way contain the true <span class="math inline">\beta_{educ}</span>. This particular interval either contains it or does not.</p>
+</div>
 <div id="tabset-13-4">
 <details class="transcript">
 <summary>
 Transcript
 </summary>
-<p>This is the practical way to obtain the interval from a fitted model. <code>broom::tidy</code> receives <code>wage_reg</code> as its first argument. Setting <code>conf.int = TRUE</code> asks broom to add confidence-interval endpoints to the usual coefficient table. Setting <code>conf.level = 0.9</code> requests ninety-percent coverage rather than the common default of ninety-five percent. The decimal zero point nine is a proportion, not the number ninety.</p>
-<p>The pipe sends the resulting tibble to <code>dplyr::relocate(term, conf.low, conf.high)</code>. <code>relocate</code> does not change any calculations or rows. It simply moves the term name and the two interval columns to the front so they are easier to compare. The remaining columns, including estimate, standard error, statistic, and p-value, remain in the table after them.</p>
-<p>Run the cell and find the <code>educ</code> row. <code>conf.low</code> is approximately zero point five one four and <code>conf.high</code> approximately zero point six eight three. These agree with the by-hand calculation on the previous tab, up to rounding.</p>
+<p>In practice you do not need to do the three steps yourself. <code>broom::tidy</code> receives <code>wage_reg</code> as its first argument. Setting <code>conf.int = TRUE</code> asks broom to add confidence-interval endpoints to the usual coefficient table. Setting <code>conf.level = 0.9</code> requests ninety percent coverage rather than the default of ninety-five percent. The decimal zero point nine is a proportion, not the number ninety.</p>
+<p>The pipe sends the resulting table to <code>dplyr::relocate(term, conf.low, conf.high)</code>. <code>relocate</code> does not change any calculations or rows. It moves the term name and the two interval columns to the front so they are easier to compare. The remaining columns, including estimate, standard error, statistic, and p-value, stay in the table after them.</p>
+<p>Run the cell and find the <code>educ</code> row. <code>conf.low</code> is about zero point five one four and <code>conf.high</code> about zero point six eight three, the same as the bounds calculated in step three. broom carries out the same three steps, using the t distribution with the model’s residual degrees of freedom.</p>
 </details>
-<p>You can just use <code>broom::tidy()</code> with <code>conf.int = TRUE</code>, <code>conf.level = confidence level</code> like below:</p>
-<div id="qwebr-insertion-location-10"></div>
+<p>You can just use <code>broom::tidy()</code> with <code>conf.int = TRUE</code> and <code>conf.level =</code> the confidence level:</p>
+<div id="qwebr-insertion-location-11"></div>
 <noscript>Please enable JavaScript to experience the dynamic code cell content on this page.</noscript>
+<p>The <code>educ</code> row matches the bounds from Step 3.</p>
 </div>
 </div>
 </div>
@@ -4386,7 +4437,7 @@ Transcript
 <p>Running the cell gives six thousand seven hundred sixty-three observations. The coefficient on <code>jc</code> is about zero point zero six six seven, while the coefficient on <code>univ</code> is about zero point zero seven six nine. Thus the point estimate for four-year college is larger by about zero point zero one zero two in log-wage units. Both individual coefficients are estimated precisely relative to zero, but individual significance is not our question.</p>
 <p>We want to know whether the difference <code>jc</code> minus <code>univ</code> is sufficiently negative to distinguish the two effects, accounting for sampling uncertainty and their covariance. A raw comparison of zero point zero six six seven and zero point zero seven six nine does not answer that because both are random estimates. The next tab extracts the variance-covariance matrix needed to measure the uncertainty of their difference.</p>
 </details>
-<div id="qwebr-insertion-location-11"></div>
+<div id="qwebr-insertion-location-12"></div>
 <noscript>Please enable JavaScript to experience the dynamic code cell content on this page.</noscript>
 </div>
 <div id="tabset-15-2">
@@ -4417,7 +4468,7 @@ Transcript
 </div>
 <p><br></p>
 <p>You can get it by applying <code>vcov()</code> to regression results:</p>
-<div id="qwebr-insertion-location-12"></div>
+<div id="qwebr-insertion-location-13"></div>
 <noscript>Please enable JavaScript to experience the dynamic code cell content on this page.</noscript>
 <p><br></p>
 <p>For example, <span class="math inline">vcov_{sc}[2, 2]</span> is the variance of <span class="math inline">\widehat{\beta}_{jc}</span>, and <span class="math inline">vcov_{sc}[2, 3]</span> is the covariance between <span class="math inline">\widehat{\beta}_{jc}</span> and <span class="math inline">\widehat{\beta}_{univ}</span>.</p>
@@ -4433,11 +4484,11 @@ Transcript
 <p>Finally, <code>t_stat &lt;- numerator / denominator</code> standardizes the estimated difference, and <code>t_stat</code> prints it. Running these data gives a statistic of roughly minus one point four seven. The statistic is in the predicted direction but not far enough into the tail for rejection at conventional levels. The next tab shows how a hypothesis-testing function performs the matrix calculation automatically.</p>
 </details>
 <p>Get coefficient estimates:</p>
-<div id="qwebr-insertion-location-13"></div>
+<div id="qwebr-insertion-location-14"></div>
 <noscript>Please enable JavaScript to experience the dynamic code cell content on this page.</noscript>
 <p><br></p>
 <p>Calculate t-statistic:</p>
-<div id="qwebr-insertion-location-14"></div>
+<div id="qwebr-insertion-location-15"></div>
 <noscript>Please enable JavaScript to experience the dynamic code cell content on this page.</noscript>
 </div>
 <div id="tabset-15-4">
@@ -4465,11 +4516,11 @@ Transcript
 </ul>
 <p><br></p>
 <p><strong>Example</strong></p>
-<div id="qwebr-insertion-location-15"></div>
+<div id="qwebr-insertion-location-16"></div>
 <noscript>Please enable JavaScript to experience the dynamic code cell content on this page.</noscript>
 <p><br></p>
 <p><code>Estimate</code>, <code>Std. Error</code> and <code>t</code> are exactly the numerator, denominator and t-statistic we calculated by hand:</p>
-<div id="qwebr-insertion-location-16"></div>
+<div id="qwebr-insertion-location-17"></div>
 <noscript>Please enable JavaScript to experience the dynamic code cell content on this page.</noscript>
 </div>
 </div>
@@ -4555,7 +4606,7 @@ Transcript
 <p>Read the output rows for <code>bavg</code>, <code>hrunsyr</code>, and <code>rbisyr</code>. Their estimates are approximately zero point zero zero zero nine eight, zero point zero one four four, and zero point zero one zero eight. Their estimated standard errors are roughly zero point zero zero one one zero, zero point zero one six one, and zero point zero zero seven one seven. Dividing each estimate by its standard error gives t-statistics of about zero point eight nine, zero point nine zero, and one point five zero.</p>
 <p>The corresponding two-sided p-values are about zero point three seven six, zero point three six nine, and zero point one three four. These values concern each coefficient separately, conditional on all other regressors remaining in the model. Before moving on, ask whether those individual results logically establish that the three coefficients are jointly zero. The next Question and Answer tabs make the distinction explicit.</p>
 </details>
-<div id="qwebr-insertion-location-17"></div>
+<div id="qwebr-insertion-location-18"></div>
 <noscript>Please enable JavaScript to experience the dynamic code cell content on this page.</noscript>
 </div>
 <div id="tabset-18-2">
@@ -4566,7 +4617,7 @@ Transcript
 <p>The same tidy output appears again so you can inspect it without flipping back. Go row by row through <code>bavg</code>, <code>hrunsyr</code>, and <code>rbisyr</code>. For each one, compare its two-sided p-value with ten percent, zero point one zero. Batting average has a p-value around zero point three seven six, home runs per year around zero point three six nine, and runs batted in per year around zero point one three four.</p>
 <p>None is below ten percent. Equivalently, none of the absolute t-statistics exceeds the two-sided ten-percent critical value. Thus every individual test fails to reject that coefficient equals zero while controlling for the other performance measures and the two career controls.</p>
 </details>
-<div id="qwebr-insertion-location-18"></div>
+<div id="qwebr-insertion-location-19"></div>
 <noscript>Please enable JavaScript to experience the dynamic code cell content on this page.</noscript>
 <p>What do you find?</p>
 </div>
@@ -4628,11 +4679,11 @@ Transcript
 </div>
 <div id="tabset-24-4">
 <p><strong>SSR of the unrestricted model</strong>: <span class="math inline">SSR_u</span></p>
-<div id="qwebr-insertion-location-19"></div>
+<div id="qwebr-insertion-location-20"></div>
 <noscript>Please enable JavaScript to experience the dynamic code cell content on this page.</noscript>
 <p><br></p>
 <p><strong>SSR of the restricted model</strong>: <span class="math inline">SSR_r</span></p>
-<div id="qwebr-insertion-location-20"></div>
+<div id="qwebr-insertion-location-21"></div>
 <noscript>Please enable JavaScript to experience the dynamic code cell content on this page.</noscript>
 <p><br></p>
 <div class="panel-tabset">
@@ -4764,7 +4815,7 @@ Transcript
 <div class="cell-output-display">
 <div>
 <figure>
-<p><img data-src="05-testing_files/figure-revealjs/unnamed-chunk-18-1.png" width="4000"></p>
+<p><img data-src="05-testing_files/figure-revealjs/unnamed-chunk-20-1.png" width="4000"></p>
 </figure>
 </div>
 </div>
@@ -4797,7 +4848,7 @@ Transcript
 <p>Compare the formulas carefully. The dependent variable, observations, controls, intercept treatment, and OLS method are identical. Only the three jointly tested variables differ. That nested structure is required for interpreting SSR sub r minus SSR sub u as the fit lost by imposing the null. Both model cells use earlier-loaded data, and <code>autorun: true</code> ensures the objects exist for Step 2, where the raw gap is converted into an F-statistic.</p>
 </details>
 <p>Estimate the unrestricted and restricted models</p>
-<div id="qwebr-insertion-location-21"></div>
+<div id="qwebr-insertion-location-22"></div>
 <noscript>Please enable JavaScript to experience the dynamic code cell content on this page.</noscript>
 </div>
 <div id="tabset-22-2">
@@ -4811,7 +4862,7 @@ Transcript
 <p>Finally, <code>F_sta &lt;- F_stat_num / F_stat_denom</code> divides the restriction mean square by the residual mean square, and the last line prints <code>F_sta</code>. The ratio is unit-free because both pieces are measured in squared dependent-variable units. A value near the ordinary null range means the fit loss is modest relative to noise; a large value means the restrictions caused an unusually costly loss. Step 3 will use <code>qf</code> to decide how large is large at the chosen significance level.</p>
 </details>
 <p>Calculate F-stat</p>
-<div id="qwebr-insertion-location-22"></div>
+<div id="qwebr-insertion-location-23"></div>
 <noscript>Please enable JavaScript to experience the dynamic code cell content on this page.</noscript>
 </div>
 <div id="tabset-22-3">
@@ -4825,10 +4876,10 @@ Transcript
 <p>Read the Observation callout carefully. The variables have statistically significant impacts jointly, even though none of their individual two-sided t-tests rejected at ten percent. That is not a logical contradiction.</p>
 </details>
 <p>Find the critical value</p>
-<div id="qwebr-insertion-location-23"></div>
+<div id="qwebr-insertion-location-24"></div>
 <noscript>Please enable JavaScript to experience the dynamic code cell content on this page.</noscript>
 <p>Is F-stat &gt; critical value?</p>
-<div id="qwebr-insertion-location-24"></div>
+<div id="qwebr-insertion-location-25"></div>
 <noscript>Please enable JavaScript to experience the dynamic code cell content on this page.</noscript>
 <div title="Observation">
 <div class="callout callout-note no-icon callout-titled callout-style-default">
@@ -4883,7 +4934,7 @@ Transcript
 <p>Compare this with the by-hand F calculation. The F statistic is the same, nine point five five, and so are the degrees of freedom, because under the classical assumptions this is the same test. The p-value is far below five percent, so the joint null is rejected: the performance variables matter collectively, even though none of them was individually significant.</p>
 </details>
 <p>The following code tests if <span class="math inline">\beta_{bavg} = 0</span>, <span class="math inline">\beta_{hrunsyr} = 0</span>, and <span class="math inline">\beta_{rbisyr} = 0</span>.</p>
-<div id="qwebr-insertion-location-25"></div>
+<div id="qwebr-insertion-location-26"></div>
 <noscript>Please enable JavaScript to experience the dynamic code cell content on this page.</noscript>
 </div>
 </div>
@@ -4909,11 +4960,11 @@ Transcript
 <p>The outcome line is crucial: y equals one plus x one plus x two plus x three plus u. The intercept and all three slope coefficients are exactly one in the population process we chose. Thus x one and x two genuinely matter. Any failure to detect them individually cannot be explained by their true coefficients being zero.</p>
 <p><code>data.table(y = y, x1 = x1, x2 = x2, x3 = x3)</code> combines the vectors into a table for regression. The final cell calls <code>cor(x1, x2)</code>, which computes their sample correlation. It will normally be extremely close to one; one run gave about zero point nine nine seven. Because no random seed is set, your exact values and later p-values change each time the page creates new draws.</p>
 </details>
-<div id="qwebr-insertion-location-26"></div>
+<div id="qwebr-insertion-location-27"></div>
 <noscript>Please enable JavaScript to experience the dynamic code cell content on this page.</noscript>
 <p><br></p>
 <p><code>x1</code> and <code>x2</code> are highly correlated with each other:</p>
-<div id="qwebr-insertion-location-27"></div>
+<div id="qwebr-insertion-location-28"></div>
 <noscript>Please enable JavaScript to experience the dynamic code cell content on this page.</noscript>
 </div>
 <div id="tabset-25-2">
@@ -4925,7 +4976,7 @@ Transcript
 <p>In a typical run, both individual t-tests fail to reject zero, as the sentence below the cell states. In the run used to verify this behavior, the x one estimate was about two point two seven with a standard error about one point two nine and p-value about zero point zero seven nine, while the x two estimate was about minus zero point one four with the same size standard error and p-value about zero point nine one. Exact results vary because the simulation has no fixed seed, so occasionally one individual test can cross a conventional threshold.</p>
 <p>The population truth is not uncertain here: the y-generating line assigned both slopes the value one.</p>
 </details>
-<div id="qwebr-insertion-location-28"></div>
+<div id="qwebr-insertion-location-29"></div>
 <noscript>Please enable JavaScript to experience the dynamic code cell content on this page.</noscript>
 <p><br></p>
 <p>Both <code>x1</code> and <code>x2</code> are statistically insignificant individually.</p>
@@ -4940,11 +4991,11 @@ Transcript
 <p>The F formula has two restrictions. The code calculates open parenthesis SSR sub r minus SSR sub u close parenthesis divided by two, then divides by SSR sub u over <code>df_resid</code>. This is the average loss of fit per excluded variable relative to the unrestricted residual mean square. <code>alpha &lt;- 0.05</code> sets a five-percent level, and <code>qf(1 - alpha, df1 = 2, df2 = df_resid)</code> gets the ninety-fifth percentile of F with two and two hundred ninety-six degrees of freedom. Parentheses print the critical value, which is about three point zero three.</p>
 <p>The final cell prints <code>F_stat</code> and the logical comparison <code>F_stat &gt; c_value</code>. In the verification run, F was about two hundred fifty-three and the comparison was <code>TRUE</code>; exact values change with the random draws. The statistic is typically enormous because removing x one and x two discards their strong combined signal. Thus the joint test detects what the individual t-tests often miss: together these correlated regressors have an important effect on y. This matches the known data-generating process, where both slopes equal one.</p>
 </details>
-<div id="qwebr-insertion-location-29"></div>
+<div id="qwebr-insertion-location-30"></div>
 <noscript>Please enable JavaScript to experience the dynamic code cell content on this page.</noscript>
 <p><br></p>
 <p>The F-statistic for the hypothesis testing is:</p>
-<div id="qwebr-insertion-location-30"></div>
+<div id="qwebr-insertion-location-31"></div>
 <noscript>Please enable JavaScript to experience the dynamic code cell content on this page.</noscript>
 <p><br></p>
 <p>The F-statistic is very high, meaning they collectively affect the dependent variable significantly.</p>
@@ -4995,7 +5046,7 @@ Transcript
 <p>The strongest relationship is therefore between <code>hrunsyr</code> and <code>rbisyr</code>. That makes substantive sense. Every home run produces at least one run batted in for the hitter, and power hitters tend to drive in other runners as well. Those two measures contain heavily overlapping information. Batting average is related much less strongly to either one.</p>
 </details>
 <p>Here is the correlation coefficients between the three variables:</p>
-<div id="qwebr-insertion-location-31"></div>
+<div id="qwebr-insertion-location-32"></div>
 <noscript>Please enable JavaScript to experience the dynamic code cell content on this page.</noscript>
 <p>As you can see, <code>rbisyr</code> and <code>hrunsyr</code> are highly correlated with each other.</p>
 <p>They are not so highly correlated with <code>bavg</code>.</p>
@@ -5013,7 +5064,7 @@ Transcript
 <p>The test of a linear combination of the parameters we looked at earlier is a special case of F-test where the number of restriction is 1.</p>
 <p>It can be shown that square root of <span class="math inline">F_{1, df}</span> follows the <span class="math inline">t_{df}</span> distribution.</p>
 <p>So, we can actually use the <span class="math inline">F</span>-test for this type of hypothesis testing because <span class="math inline">F_{1,n-k-1} \sim t_{n-k-1}^2</span>.</p>
-<div id="qwebr-insertion-location-32"></div>
+<div id="qwebr-insertion-location-33"></div>
 <noscript>Please enable JavaScript to experience the dynamic code cell content on this page.</noscript>
 </div>
 </div>

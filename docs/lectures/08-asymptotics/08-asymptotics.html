@@ -99,7 +99,7 @@
     code span.vs { color: #20794d; } /* VerbatimString */
     code span.wa { color: #5e5e5e; font-style: italic; } /* Warning */
   </style>
-  <link rel="stylesheet" href="../../site_libs/revealjs/dist/theme/quarto-5cbf9ce0bec82c5b0c7629bb4ee56cc4.css">
+  <link rel="stylesheet" href="../../site_libs/revealjs/dist/theme/quarto-bb14acece7aff4b1fa9f562ce5576317.css">
   <script defer="" src="https://cdn.jsdelivr.net/npm/katex@0.18.4/dist/katex.min.js"></script>
   <script>document.addEventListener("DOMContentLoaded", function () {
  var mathElements = document.getElementsByClassName("math");
@@ -843,14 +843,16 @@
     // editor toolbar on a stacked one. All it does is set a flag on the
     // interactive area; notebook.scss does the hiding.
     function addOutputToggle(area) {
-      var bar = area.querySelector(".qwebr-editor-toolbar-right-buttons");
+      var bar = area.querySelector(".qwebr-editor-toolbar-right-buttons, " +
+        ".qpyodide-editor-toolbar-right-buttons");
       if (!bar || area.querySelector(".webr-output-toggle")) return;
+      var prefix = area.classList.contains("qpyodide-interactive-area") ? "qpyodide" : "qwebr";
       var btn = document.createElement("button");
       btn.type = "button";
       // The extension's own reset and copy buttons carry exactly these classes.
       // Wearing them too is what makes this look like part of the toolbar rather
       // than something bolted on, and it inherits their hover state for free.
-      btn.className = "btn btn-light btn-xs qwebr-button webr-output-toggle";
+      btn.className = "btn btn-light btn-xs " + prefix + "-button webr-output-toggle";
       // An eye, matching the reset and copy buttons beside it in being icon-only.
       // Font Awesome needs no loading of its own: those two are already
       // `fa-solid fa-arrows-rotate` and `fa-regular fa-copy`. The icon names the
@@ -1100,6 +1102,14 @@
       document.querySelectorAll(".qwebr-interactive-area").forEach(function (area) {
         applyFigureCap(area);
         configure(area);
+      });
+      // Python cells (quarto-pyodide) are always stacked: they get the toggle and
+      // nothing else. The side-by-side rules above read WebR's own cell details
+      // and render-time measurements, which Python cells do not have. See RULES.md.
+      document.querySelectorAll(".qpyodide-interactive-area").forEach(function (area) {
+        if (area.dataset.webrLayout) return;
+        area.dataset.webrLayout = "stacked";
+        addOutputToggle(area);
       });
     }
 
