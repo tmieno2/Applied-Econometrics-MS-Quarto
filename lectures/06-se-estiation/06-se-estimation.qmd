@@ -893,6 +893,55 @@ modelsummary::msummary(
 :::
 <!--end of the columns-->
 
+### Robust tests of several coefficients
+
+<details class="transcript">
+<summary>Transcript</summary>
+
+Robust standard errors also change tests of more than one coefficient. The F-test from lecture 05, which asks whether several coefficients are all zero at the same time, uses the variance-covariance matrix of the coefficient estimates. If that matrix is the default one, the test assumes homoskedasticity. So when the errors may be heteroskedastic, the joint test needs the robust matrix too.
+
+The code does this in two steps. First, `feols` estimates the same salary model with `vcov` equal to "hetero", so the robust matrix is stored with the fitted model. Second, `hypotheses` from the `marginaleffects` package runs the joint test exactly as in lecture 05: `joint` lists the coefficients that are all zero under the null hypothesis, here years and bavg, and `joint_test` equal to "f" asks for an F-test. Because `hypotheses` uses the variance-covariance matrix stored in the model, the result is the heteroskedasticity-robust F-test. Nothing else in the call changes.
+
+The second cell runs the same test on `reg_mlb`, the model estimated with the default variance-covariance matrix, for comparison. The robust F statistic is about eighty-one point nine and the default one about one hundred one point four. Both have two and three hundred fifty degrees of freedom, and both p-values are far below one percent, so here the conclusion is the same: years and batting average are jointly significant. The two F statistics differ only because of the variance-covariance matrix; the coefficient estimates are identical. With other data the robust version can change the conclusion, which is why you use it whenever the errors may be heteroskedastic.
+
+</details>
+
+The $F$-test of joint significance (lecture 05) also uses the VCOV, so it needs the robust VCOV too.
+
++ estimate the model with `vcov = "hetero"` in `fixest::feols()`
++ run `marginaleffects::hypotheses()` as before; it uses the VCOV stored in the model
+
+**Heteroskedasticity-robust $F$-test**
+
+```{webr-r}
+#| autorun: true
+reg_mlb_with_rvcov <-
+  fixest::feols(
+    log(salary) ~ years + bavg,
+    vcov = "hetero",
+    data = mlb1
+  )
+
+marginaleffects::hypotheses(
+  reg_mlb_with_rvcov,
+  joint = c("years", "bavg"),
+  joint_test = "f"
+)
+```
+
+<br>
+
+**Default $F$-test (for comparison)**
+
+```{webr-r}
+#| autorun: true
+marginaleffects::hypotheses(
+  reg_mlb,
+  joint = c("years", "bavg"),
+  joint_test = "f"
+)
+```
+
 ### Validation 
 
 ::: {.panel-tabset}
