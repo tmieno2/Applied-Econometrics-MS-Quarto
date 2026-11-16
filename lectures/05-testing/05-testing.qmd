@@ -1385,72 +1385,66 @@ A confidence interval is a range for an **unknown parameter** $\theta$.
 
 ### How to get the CI of coefficients
 
-<details class="transcript">
-<summary>Transcript</summary>
-
-This slide derives a confidence interval for beta j from the t-statistic. Under MLR one through MLR six, beta j hat minus beta j, divided by the estimated standard error of beta j hat, follows a t distribution with n minus k minus one degrees of freedom. Beta j hat is the sample coefficient estimate, beta j is the fixed population coefficient, the denominator is the estimated sampling standard deviation, n is the sample size, and k counts explanatory variables other than the intercept.
-
-For an A percent central interval, define Q sub l as the open parenthesis one hundred minus A close parenthesis over two percentile of that t distribution. Define Q sub h as the one hundred minus open parenthesis one hundred minus A close parenthesis over two percentile. Because the t distribution is symmetric around zero, Q sub l is negative and Q sub h is the corresponding positive value.
-
-Those quantiles initially bound the standardized statistic, but our target is beta j. Solve the displayed statistic for beta j. If t denotes a possible value of the standardized expression, multiply by the estimated standard error to get beta j hat minus beta j, then rearrange: beta j equals beta j hat minus t times the estimated standard error. The minus sign reverses which t quantile maps to which beta endpoint. Symmetry makes the familiar final result beta j hat plus a negative critical amount for the lower bound and beta j hat plus a positive critical amount for the upper bound.
-
-That is what the final bullets state. Multiply Q sub l by the estimated standard error and add beta j hat for the lower bound. Multiply Q sub h by the same standard error and add beta j hat for the upper bound. Since Q sub l is negative and Q sub h positive, the interval is centered on beta j hat and extends the same number of standard errors in both directions. A larger standard error makes the interval wider, signaling less precision. The next tabs calculate a ninety-percent interval for the education coefficient.
-
-</details>
-
-Under the assumption of MLR.1 through MLR.6 (which includes the normality assumption of the error), we learned that
-
-$\frac{\widehat{\beta}_j - \beta_j}{\widehat{se(\widehat{\beta}_j)}} \sim t_{n-k-1}$
-
-So, following step 2 of the general procedure, the range that contains $\frac{\widehat{\beta}_j - \beta_j}{\widehat{se(\widehat{\beta}_j)}}$ with probability A% is
-
-+ lower bound: $(100 − A)/2$% quantile of the $t_{n-k-1}$ distribution (let's call this $Q_l$)
-+ upper bound: $100 - (100 − A)/2$% quantile of the $t_{n-k-1}$ distribution (let's call this $Q_h$)  
-
-But, we want the A% CI of $\beta_j$, not $\frac{\widehat{\beta}_j - \beta_j}{\widehat{se(\widehat{\beta}_j)}}$. Solving for $\beta_j$,
-
-$\beta_j = \widehat{\beta}_j - t_{n-k-1}\times \widehat{se(\widehat{\beta}_j)}$
-
-So, to get the A% CI of $\beta_j$ (step 3), we scale the range $[Q_l, Q_h]$ by $\widehat{se(\widehat{\beta}_j)}$ and then shift by $\widehat{\beta}_j$. Because the $t$ distribution is symmetric, the minus sign above just swaps which quantile lands on which end:
-
-+ lower bound: $Q_l \times \widehat{se(\widehat{\beta}_j)} + \widehat{\beta}_j$
-+ upper bound: $Q_h \times \widehat{se(\widehat{\beta}_j)} + \widehat{\beta}_j$
-
-Note that $Q_l$ is <span style = "color: blue;"> negative </span> and $Q_h$ is <span style = "color: red;">positive</span>.
-
-### Example (R implementation)
-
 ::: {.panel-tabset}
-#### Regression
+
+#### Step 1: distribution
 
 <details class="transcript">
 <summary>Transcript</summary>
 
-This tab reconstructs the wage-level regression for the confidence-interval example. The first cell calls `feols` with wage on the left of the tilde and education, experience, and tenure on the right. `data = wage1` supplies the dataset loaded earlier. The fitted object is assigned to `wage_reg`. Because the cell has `autorun: true`, it is available to later interactive cells as soon as the page loads, and assignment alone produces no printed model summary.
+This slide builds a confidence interval for a regression coefficient in three steps. Every step tab has the same layout. The box at the top, titled General, states the step for any coefficient. The part below it, titled Example, carries the step out in R for one example: the ninety percent confidence interval for beta educ, the coefficient on education in a regression of hourly wage on education, experience, and tenure, using the wage1 data.
 
-The second cell applies `broom::tidy` to `wage_reg` and assigns the returned tibble to `wage_reg_coef`. Parentheses around the assignment cause the table to print as well as be stored. This cell also runs automatically. The table has one row for the intercept and each explanatory variable, with columns for the estimate, estimated standard error, default zero-null t-statistic, and p-value.
+Step one, in the General box, is the fact the whole construction rests on. Under MLR one through MLR six, which include the assumption that the error is normally distributed, beta j hat minus beta j, divided by the estimated standard error of beta j hat, follows a t distribution with n minus k minus one degrees of freedom. Beta j hat is the estimated coefficient, beta j is the fixed, unknown population coefficient, n is the number of observations, and k is the number of explanatory variables other than the intercept. The box ends by listing what we therefore need from the data: the estimate, its standard error, and the degrees of freedom.
 
-Focus on the `educ` row. Running the code gives an estimated coefficient of about zero point five nine nine and an estimated standard error of about zero point zero five one three. The model has five hundred and twenty-six observations and three non-intercept regressors, so its residual degrees of freedom are five hundred and twenty-two. Those three pieces, estimate, standard error, and degrees of freedom, are sufficient to form the usual confidence interval for beta educ under the stated classical assumptions.
+The example gets those three numbers. The first cell runs the regression with `feols`, wage on educ, exper, and tenure, stores it as `wage_reg`, then applies `broom::tidy` to it and stores the resulting table, one row per coefficient, as `wage_reg_coef`, which the last line prints. The second cell filters that table to the row whose term is "educ" and pulls the estimate column into `b_educ` and the std.error column into `se_educ`. Then `degrees_freedom(wage_reg, "resid")`, a fixest function, returns the residual degrees of freedom, stored as `df_wage`. The last line prints the three together: an estimate of about zero point five nine nine, a standard error of about zero point zero five one three, and five hundred and twenty-two degrees of freedom. That is five hundred and twenty-six observations, minus three explanatory variables, minus one for the intercept.
+
+The displayed line at the bottom puts those numbers into the General box's formula. The numerator is zero point five nine nine minus beta educ, the denominator is zero point zero five one three, and the ratio follows a t distribution with five hundred and twenty-two degrees of freedom. Beta educ is the only unknown left in it, and steps two and three use this line to find the range of values for beta educ.
 
 </details>
 
-**Run OLS and extract necessary information**
+:::{.callout-note title="General"}
+Under MLR.1 through MLR.6 (which include the normality of the error),
+$$\frac{\widehat{\beta}_j - \beta_j}{\widehat{se(\widehat{\beta}_j)}} \sim t_{n-k-1}$$
+So we need three numbers from the data: $\widehat{\beta}_j$, $\widehat{se(\widehat{\beta}_j)}$ and $n-k-1$.
+:::
+
+<br>
+
+**Example: 90% CI of $\beta_{educ}$** in $wage = \beta_0 + \beta_1 educ + \beta_2 exper + \beta_3 tenure + u$
 
 ```{webr-r}
 #| autorun: true
+#--- run OLS ---#
 wage_reg <- feols(wage ~ educ + exper + tenure, data = wage1)
+
+#--- coefficient table: one row per coefficient ---#
+wage_reg_coef <- broom::tidy(wage_reg)
+wage_reg_coef
 ```
 
 <br>
 
-Applying `broom::tidy()` to `wage_reg`,
+Pull out $\widehat{\beta}_{educ}$, $\widehat{se(\widehat{\beta}_{educ})}$ and $n-k-1$:
 
 ```{webr-r}
 #| autorun: true
-(
-  wage_reg_coef <- broom::tidy(wage_reg)
-)
+#--- estimate of beta_educ ---#
+b_educ <- wage_reg_coef %>%
+  filter(term == "educ") %>%
+  pull(estimate)
+
+#--- estimated standard error of beta_educ hat ---#
+se_educ <- wage_reg_coef %>%
+  filter(term == "educ") %>%
+  pull(std.error)
+
+#--- degrees of freedom: n - k - 1 ---#
+df_wage <- degrees_freedom(wage_reg, "resid")
+
+c(b_educ = b_educ, se_educ = se_educ, df = df_wage)
 ```
+
+<br>
 
 ```{r}
 #| include: false
@@ -1467,132 +1461,216 @@ se_educ <- wage_reg_coef %>%
   pull(std.error)
 ```
 
-#### Collect necessary information
+<br>
+
+Inserting these into Step 1's distribution:
+
+$$\frac{`r round(b_educ, 4)` - \beta_{educ}}{`r round(se_educ, 4)`} \sim t_{`r df_wage`}$$
+
+
+#### Step 2: quantiles
 
 <details class="transcript">
 <summary>Transcript</summary>
 
-We want a ninety-percent confidence interval for beta educ, the population coefficient on education in this wage-level regression. The displayed t result says beta educ hat minus beta educ, divided by the estimated standard error of beta educ hat, follows a t distribution with n minus k minus one degrees of freedom, assuming MLR one through MLR six. That result is the bridge from the regression output to an interval.
+Step two, in the General box, finds the range that contains the quantity from step one with probability A percent. For an A percent confidence interval, A percent of the t distribution goes in the middle, and the remaining one hundred minus A percent is split equally between the two tails. So the lower end of the range, called Q sub l, is the open parenthesis one hundred minus A close parenthesis over two percent quantile of the t distribution with n minus k minus one degrees of freedom, and the upper end, Q sub h, is the one hundred minus open parenthesis one hundred minus A close parenthesis over two percent quantile. The displayed statement says that, before the sample is drawn, the quantity lands between Q sub l and Q sub h with probability A percent. Because the t distribution is symmetric around zero, Q sub l is negative and Q sub h is the same number with a positive sign.
 
-The three bullets collect the required inputs. Beta educ hat is about zero point five nine nine, shown to four decimal places on the slide. This is the center of the interval. Its estimated standard error is about zero point zero five one three, which determines the scale or width. Smaller uncertainty would produce a tighter interval around the same estimate.
+In the example, A is ninety. One hundred minus ninety leaves ten percent outside, five percent in each tail, so we need the five percent and ninety-five percent quantiles of the t distribution with five hundred and twenty-two degrees of freedom. The cell on the left calls `qt(0.05, df = df_wage)` and stores it as `Q_l`, and `qt(0.95, df = df_wage)` and stores it as `Q_h`. The first argument of `qt` is the probability below the quantile, and `df` is the degrees of freedom. The parentheses around each assignment print the value: about minus one point six four eight and one point six four eight.
 
-The final input is five hundred and twenty-two residual degrees of freedom. The dataset supplies n equals five hundred and twenty-six observations. There are k equals three explanatory variables, education, experience, and tenure, and the intercept costs one additional degree of freedom. Thus n minus k minus one equals five hundred and twenty-six minus three minus one, or five hundred and twenty-two.
-
-</details>
-
-We are interested in getting the 90% confidence interval of the coefficient on `educ` $(\beta_{educ})$. Under all the assumptions (MLR.1 through MLR.6), we know that in general,
-
-$\frac{\widehat{\beta}_{educ} - \beta_{educ}}{\widehat{se(\widehat{\beta}_{educ})}} \sim t_{n-k-1}$
-
-Specifically for this regression,
-
-+ $\widehat{\beta}_{educ}$ = `r round(b_educ, 4)`
-
-+ $\widehat{se(\widehat{\beta}_{educ})}$ = `r round(se_educ, 4)`
-
-+ $n - k - 1 = `r df_wage`$ (degrees of freedom)
-
-#### Find CI
-
-<details class="transcript inline">
-<summary>Transcript</summary>
-
-Now calculate the ninety-percent interval. Ninety percent in the center leaves ten percent outside, split evenly into five percent in each tail. We therefore need the five percent and ninety-five percent quantiles of a t distribution with five hundred and twenty-two degrees of freedom. The first interactive cell calls `qt(0.05, df = 522)` and `qt(0.95, df = 522)`. The first argument is the cumulative probability and the named `df` argument selects the degrees of freedom. Running it returns symmetric values of about minus one point six four eight and positive one point six four eight.
-
-The left column then states the central ninety-percent interval for the standardized statistic. Using the rounded values displayed in the fraction, the numerator is zero point five nine nine minus beta educ and the denominator is about zero point zero five one. That ratio lies between the two t quantiles in ninety percent of repeated samples under the model assumptions.
-
-To translate back to beta educ, scale by the estimated standard error and shift by the estimate. The lower bound is zero point five nine nine plus zero point zero five one times minus one point six four eight. The upper bound is zero point five nine nine plus zero point zero five one times positive one point six four eight. Using the underlying unrounded values, the bounds are approximately zero point five one four and zero point six eight three. The negative lower quantile moves below the estimate; the positive upper quantile moves above it.
-
-Look at the figure in the right column. Its horizontal axis is the t-statistic, its vertical height is the t density, and the red ribbons mark symmetric tail regions. The curve is symmetric and, with five hundred and twenty-two degrees of freedom, nearly indistinguishable from standard Normal. For the ninety-percent calculation on this tab, use the five and ninety-five percent quantiles printed by the interactive cell.
-
-The final sentence hands you to the `In practice` tab. There, broom requests the same confidence level directly. Its `conf.low` and `conf.high` values should match the hand calculation.
+The figure on the right draws this. The curve is the t distribution with five hundred and twenty-two degrees of freedom. The blue line is Q sub l and the red line is Q sub h, each labelled with its value. The grey area beyond each line is five percent, and the area between them, labelled ninety percent, is where the quantity from step one falls with probability ninety percent.
 
 </details>
+
+:::{.callout-note title="General"}
+For an A% CI, with $Q_l$ the $(100 - A)/2$% quantile and $Q_h$ the $100 - (100 - A)/2$% quantile of $t_{n-k-1}$,
+$$Q_l \le \frac{\widehat{\beta}_j - \beta_j}{\widehat{se(\widehat{\beta}_j)}} \le Q_h \quad \text{with probability A\%}$$
+$Q_l$ is <span style = "color: blue;">negative</span> and $Q_h$ is <span style = "color: red;">positive</span>.
+:::
 
 ```{r include = F}
-u <- seq(-3, 3, length = 1000)
-pdf <- dt(u, df = df_wage) # default is mean=0,sd=1
-data <- data.table(x = u, y = pdf)
+u <- seq(-3.5, 3.5, length = 1000)
+data <- data.table(x = u, y = dt(u, df = df_wage))
+q_ci <- qt(c(0.05, 0.95), df = df_wage)
 
-g_t <- ggplot() +
-  geom_line(data = data, aes(y = y, x = x)) +
-  geom_hline(yintercept = 0) +
-  xlab("") +
+# A 90% range drawn on a density: 5% shaded beyond each end, the ends labelled.
+# `scale` stretches the t-statistic axis, so the same picture serves Step 3.
+ci_range_plot <- function(scale, xlab_text, labels) {
+  d <- data.table(x = u * scale, y = dt(u, df = df_wage) / scale)
+  q <- q_ci * scale
+  ggplot(d, aes(x = x, y = y)) +
+    geom_ribbon(data = d[x <= q[1]], aes(ymin = 0, ymax = y), fill = "grey60", alpha = 0.5) +
+    geom_ribbon(data = d[x >= q[2]], aes(ymin = 0, ymax = y), fill = "grey60", alpha = 0.5) +
+    geom_line() +
+    geom_hline(yintercept = 0) +
+    geom_vline(xintercept = q, colour = c("blue", "red")) +
+    annotate("text",
+      x = q + c(-0.05, 0.05) * scale, y = max(d$y) * 1.08, hjust = c(1, 0), colour = c("blue", "red"),
+      size = 5.6, family = "Times", label = labels, parse = TRUE
+    ) +
+    annotate("text", x = 0, y = max(d$y) * 0.38, label = "90%", size = 5.6, family = "Times") +
+    annotate("text", x = c(-2.5, 2.5) * scale, y = max(d$y) * 0.15, label = "5%", size = 5.6, family = "Times") +
+    xlab(xlab_text) +
+    ylab("") +
+    theme_lecture +
+    theme(
+      axis.text.y = element_blank(),
+      axis.ticks.y = element_blank()
+    )
+}
+
+g_ci_90 <- ci_range_plot(1, "t-statistic", sprintf(c("Q[l] == %.3f", "Q[h] == %.3f"), q_ci))
+g_ci_90_se <- ci_range_plot(
+  se_educ,
+  expression(widehat(beta)[educ] - beta[educ]),
+  sprintf(c("Q[l] %%*%% se == %.4f", "Q[h] %%*%% se == %.4f"), q_ci * se_educ)
+)
+
+# Line 4 of Step 3: the CI on the beta_educ axis. Only the interval is drawn,
+# not a density: beta_educ is a fixed number, not a random one. The x-range is
+# the line-2 figure's range shifted by b_educ, so the two figures line up.
+ci_ends <- b_educ + q_ci * se_educ
+g_ci_beta <- ggplot() +
+  annotate("segment", x = ci_ends[1], xend = ci_ends[2], y = 0, yend = 0, linewidth = 2.5, colour = "grey50") +
+  annotate("segment",
+    x = b_educ, xend = ci_ends, y = 0.3, yend = 0.3, colour = c("blue", "red"),
+    arrow = arrow(length = unit(0.25, "cm"))
+  ) +
+  annotate("text",
+    x = (b_educ + ci_ends) / 2, y = 0.42, colour = c("blue", "red"), size = 5.6, family = "Times",
+    label = sprintf(c("%.4f", "+%.4f"), q_ci * se_educ)
+  ) +
+  annotate("point", x = b_educ, y = 0, size = 4) +
+  annotate("text",
+    x = b_educ, y = 0.65, size = 5.6, family = "Times", parse = TRUE,
+    label = sprintf("widehat(beta)[educ] == %.3f", b_educ)
+  ) +
+  annotate("segment", x = ci_ends, xend = ci_ends, y = -0.12, yend = 0.12, colour = c("blue", "red"), linewidth = 1) +
+  annotate("text",
+    x = ci_ends, y = -0.3, colour = c("blue", "red"), size = 5.6, family = "Times",
+    label = sprintf("%.3f", ci_ends)
+  ) +
+  annotate("text", x = b_educ, y = -0.6, size = 5.6, family = "Times", label = "90% CI") +
+  coord_cartesian(xlim = b_educ + c(-3.5, 3.5) * se_educ, ylim = c(-0.8, 0.85)) +
+  xlab(expression(beta[educ])) +
   ylab("") +
   theme_lecture +
   theme(
     axis.text.y = element_blank(),
-    axis.ticks.y = element_blank()
-  )
-
-alpha <- 0.05
-c_rej <- qt(1 - alpha / 2, df = df_wage)
-rej_data_high <- data[u >= c_rej, ]
-rej_data_low <- data[u <= -c_rej, ]
-
-g_t_005 <- g_t +
-  geom_ribbon(
-    data = rej_data_high,
-    aes(ymax = y, ymin = 0, x = x),
-    fill = "red", alpha = 0.4
-  ) +
-  geom_ribbon(
-    data = rej_data_low,
-    aes(ymax = y, ymin = 0, x = x),
-    fill = "red", alpha = 0.4
+    axis.ticks.y = element_blank(),
+    panel.grid.major.y = element_blank(),
+    panel.grid.minor.y = element_blank()
   )
 ```
 
 ::: {.columns}
 
-::: {.column width="50%"}
-Now, we need to find the 5% $\big((100-90)/2\big)$ and 95% $\big(100-(100-90)/2\big)$ quantiles of $t_{`r df_wage`}$.
+::: {.column width="45%"}
+**Example:** $A = 90$, so we need the 5% and 95% quantiles of $t_{`r df_wage`}$
 
 ```{webr-r}
-qt(0.05, df = 522)
-qt(0.95, df = 522)
+#| autorun: true
+(Q_l <- qt(0.05, df = df_wage))
+(Q_h <- qt(0.95, df = df_wage))
 ```
-
-<br>
-
-So, $\frac{`r round(b_educ, 3)` - \beta_{educ}}{`r round(se_educ, 3)`} \sim t_{`r df_wage`}$ lies in [`r round(qt(0.05, df_wage), 3)`, `r round(qt(0.95, df_wage), 3)`] with probability 90% (before the sample is drawn)
-
-By scaling and shifting, the lower and upper bounds of the 90% CI of $\beta_{educ}$ are:
-
-+ lower bound: `r round(b_educ, 3)` + `r round(se_educ, 3)` $\times$ `r round(qt(0.05, df_wage), 3)` = `r round(b_educ + se_educ * qt(0.05, df_wage), 3)`
-
-+ upper bound: `r round(b_educ, 3)` + `r round(se_educ, 3)` $\times$ `r round(qt(0.95, df_wage), 3)` = `r round(b_educ + se_educ * qt(0.95, df_wage), 3)`
-
-Confirm these against the `In practice` tab, which asks `broom` for the same interval.
-
-
 :::
 <!--end of the 1st column-->
-::: {.column width="50%"}
-The distribution of $t_{`r df_wage`}$:
-
+::: {.column width="55%"}
 ```{r echo = F}
-g_t_005
+g_ci_90
 ```
 :::
 <!--end of the 2nd column-->
 :::
 <!--end of the columns-->
 
+#### Step 3: solve for $\beta_j$
+
+<details class="transcript">
+<summary>Transcript</summary>
+
+Step three turns the range for the quantity from step two into a range for beta j, which is what we actually want. The General box does this in four lines, and the label at the right of each line says what was done to get it from the line above. Every line is the same event written differently, so each one holds with the same probability, A percent.
+
+The first line is the result of step two: with probability A percent, beta j hat minus beta j, divided by the estimated standard error, is between Q sub l and Q sub h.
+
+The second line multiplies all three parts by the estimated standard error. A standard error is positive, so multiplying by it keeps the direction of the inequalities. The middle is now simply beta j hat minus beta j, the estimation error: how far the estimate lands from the true value. It lies between Q sub l times the standard error and Q sub h times the standard error.
+
+The third line isolates beta j. Subtract beta j hat from all three parts, which leaves minus beta j in the middle, then multiply all three parts by minus one. Multiplying by a negative number reverses the inequalities, so the two ends swap places: beta j is at least beta j hat minus Q sub h times the standard error, and at most beta j hat minus Q sub l times the standard error.
+
+The fourth line uses the symmetry of the t distribution. Q sub l is negative and equals minus Q sub h, so minus Q sub h can be written as Q sub l and minus Q sub l as Q sub h. The interval then reads: from beta j hat plus Q sub l times the standard error, to beta j hat plus Q sub h times the standard error. That is the A percent confidence interval. Since Q sub l is negative and Q sub h is positive, it is centered on beta j hat and extends the same number of standard errors in each direction, so a larger standard error gives a wider interval.
+
+Now the example. The cell computes both results. Its first part, `se_educ * c(Q_l, Q_h)`, gives the two ends of line two: about minus zero point zero eight four five and zero point zero eight four five. Its second part, `b_educ + Q_l * se_educ` and `b_educ + Q_h * se_educ`, gives the two ends of line four, printed with their names.
+
+The two figures under the cell show those results one step at a time, from left to right. The left figure is line two. Its heading says: with probability ninety percent, beta educ hat minus beta educ is within zero point zero eight four five of zero. The horizontal axis is beta educ hat minus beta educ. The curve is the t distribution from step two with its horizontal axis stretched by the standard error, zero point zero five one three, so it is the distribution of the estimation error. The blue and red lines are the two ends, about minus zero point zero eight four five and zero point zero eight four five, and the area between them is ninety percent.
+
+The right figure is line four, and it has no curve. Its horizontal axis is beta educ itself, and beta educ is a fixed number rather than a random one, so the figure draws only the interval. The black dot is the estimate, beta educ hat, zero point five nine nine. The blue arrow goes zero point zero eight four five to the left of it and the red arrow zero point zero eight four five to the right, the same distances as in the left figure; the two figures cover the same width, so the distances line up. The arrows end at the two ends of the confidence interval, about zero point five one four in blue and about zero point six eight three in red, and the grey bar between them is the ninety percent confidence interval. The heading says the same thing in words: go zero point zero eight four five each way from zero point five nine nine, so the ninety percent confidence interval is from about zero point five one four to about zero point six eight three dollars per hour per year of education.
+
+The last line of the tab says how to read that interval, as in the Definition tab. The ninety percent describes the procedure, not this particular interval. If we drew many samples and built an interval from each in this way, about ninety percent of those intervals would contain the true beta educ. The interval from this sample, zero point five one four to zero point six eight three, either contains it or does not.
+
+</details>
+
+:::{.callout-note title="General"}
+$$
+\begin{aligned}
+Q_l \le \;& \frac{\widehat{\beta}_j - \beta_j}{\widehat{se(\widehat{\beta}_j)}} \le Q_h && \text{(Step 2)} \\
+Q_l \times \widehat{se(\widehat{\beta}_j)} \le \;& \widehat{\beta}_j - \beta_j \le Q_h \times \widehat{se(\widehat{\beta}_j)} && \text{(multiply by } \widehat{se} > 0\text{)} \\
+\widehat{\beta}_j - Q_h \times \widehat{se(\widehat{\beta}_j)} \le \;& \beta_j \le \widehat{\beta}_j - Q_l \times \widehat{se(\widehat{\beta}_j)} && \text{(subtract } \widehat{\beta}_j\text{, multiply by } -1\text{: the ends swap)} \\
+\widehat{\beta}_j + Q_l \times \widehat{se(\widehat{\beta}_j)} \le \;& \beta_j \le \widehat{\beta}_j + Q_h \times \widehat{se(\widehat{\beta}_j)} && \text{(symmetry: } Q_l = -Q_h\text{)}
+\end{aligned}
+$$
+All four lines are the same event, so each holds with probability A%. The second line is the range of the estimation error $\widehat{\beta}_j - \beta_j$; the last line is the A% CI of $\beta_j$.
+:::
+
+**Example**
+
+```{webr-r}
+#| autorun: true
+#--- the range of beta_hat - beta (line 2) ---#
+se_educ * c(Q_l, Q_h)
+
+#--- the CI of beta_educ (line 4) ---#
+c(
+  lower = b_educ + Q_l * se_educ,
+  upper = b_educ + Q_h * se_educ
+)
+```
+
+::: {.columns}
+
+::: {.column width="50%"}
+**Line 2:** with probability 90%, $\widehat{\beta}_{educ} - \beta_{educ}$ is within $\pm$ `r round(qt(0.95, df_wage) * se_educ, 4)`
+
+```{r echo = F}
+g_ci_90_se
+```
+:::
+<!--end of the 1st column-->
+::: {.column width="50%"}
+**Line 4:** go `r round(qt(0.95, df_wage) * se_educ, 4)` each way from $\widehat{\beta}_{educ}$ = `r round(b_educ, 3)`, so the 90% CI is [`r round(b_educ + se_educ * qt(0.05, df_wage), 3)`, `r round(b_educ + se_educ * qt(0.95, df_wage), 3)`]
+
+```{r echo = F}
+g_ci_beta
+```
+:::
+<!--end of the 2nd column-->
+:::
+<!--end of the columns-->
+
+**Reading the CI:** over repeated samples, 90% of the intervals built this way contain the true $\beta_{educ}$. This particular interval either contains it or does not.
+
 #### In practice
 
 <details class="transcript">
 <summary>Transcript</summary>
 
-This is the practical way to obtain the interval from a fitted model. `broom::tidy` receives `wage_reg` as its first argument. Setting `conf.int = TRUE` asks broom to add confidence-interval endpoints to the usual coefficient table. Setting `conf.level = 0.9` requests ninety-percent coverage rather than the common default of ninety-five percent. The decimal zero point nine is a proportion, not the number ninety.
+In practice you do not need to do the three steps yourself. `broom::tidy` receives `wage_reg` as its first argument. Setting `conf.int = TRUE` asks broom to add confidence-interval endpoints to the usual coefficient table. Setting `conf.level = 0.9` requests ninety percent coverage rather than the default of ninety-five percent. The decimal zero point nine is a proportion, not the number ninety.
 
-The pipe sends the resulting tibble to `dplyr::relocate(term, conf.low, conf.high)`. `relocate` does not change any calculations or rows. It simply moves the term name and the two interval columns to the front so they are easier to compare. The remaining columns, including estimate, standard error, statistic, and p-value, remain in the table after them.
+The pipe sends the resulting table to `dplyr::relocate(term, conf.low, conf.high)`. `relocate` does not change any calculations or rows. It moves the term name and the two interval columns to the front so they are easier to compare. The remaining columns, including estimate, standard error, statistic, and p-value, stay in the table after them.
 
-Run the cell and find the `educ` row. `conf.low` is approximately zero point five one four and `conf.high` approximately zero point six eight three. These agree with the by-hand calculation on the previous tab, up to rounding.
+Run the cell and find the `educ` row. `conf.low` is about zero point five one four and `conf.high` about zero point six eight three, the same as the bounds calculated in step three. broom carries out the same three steps, using the t distribution with the model's residual degrees of freedom.
 
 </details>
 
-You can just use `broom::tidy()` with `conf.int = TRUE`, `conf.level = confidence level` like below:
+You can just use `broom::tidy()` with `conf.int = TRUE` and `conf.level =` the confidence level:
 
 ```{webr-r}
 broom::tidy(
@@ -1602,6 +1680,8 @@ broom::tidy(
 ) %>%
   dplyr::relocate(term, conf.low, conf.high)
 ```
+
+The `educ` row matches the bounds from Step 3.
 
 :::
 <!--end of panel-->

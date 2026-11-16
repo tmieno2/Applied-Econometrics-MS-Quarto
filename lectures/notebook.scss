@@ -161,7 +161,8 @@ div.cell-output.cell-output-stderr > pre > code { background-color: $nb-out-bg; 
 //
 // Beats the extension's own `.reveal div.qwebr-output-code-area pre` (0,3,2)
 // and custom.scss's `div.qwebr-output-code-area pre` (0,1,2).
-.reveal div.qwebr-output-code-area pre {
+.reveal div.qwebr-output-code-area pre,
+.reveal div.qpyodide-output-code-area pre {
   background-color: $nb-out-bg;
   border-left: 3px solid $nb-accent;
   border-radius: 0 2px 2px 0;
@@ -199,7 +200,8 @@ div.cell-output.cell-output-stderr > pre > code { background-color: $nb-out-bg; 
 
 // Plots get the same edge, but only once one exists — the graph area is present
 // and empty until a cell is run.
-.reveal div.qwebr-output-graph-area:not(:empty) {
+.reveal div.qwebr-output-graph-area:not(:empty),
+.reveal div.qpyodide-output-graph-area:has(canvas) {
   border-left: 3px solid $nb-accent;
   border-radius: 0 2px 2px 0;
   padding-left: 6px;
@@ -218,7 +220,8 @@ div.cell-output.cell-output-stderr > pre > code { background-color: $nb-out-bg; 
 // These beat Monaco's own `.monaco-editor .margin` and `.line-numbers` rules on
 // specificity, so no !important is needed; Monaco paints from CSS variables and
 // would otherwise win.
-.reveal .qwebr-interactive-area div.overflow-guard div.margin {
+.reveal .qwebr-interactive-area div.overflow-guard div.margin,
+.reveal .qpyodide-interactive-area div.overflow-guard div.margin {
   background-color: $nb-gutter-bg;
   box-shadow: inset -1px 0 0 $nb-rule;
 }
@@ -236,7 +239,8 @@ div.cell-output.cell-output-stderr > pre > code { background-color: $nb-out-bg; 
 // output under it. That was invisible while code blocks stopped at 90% of the
 // slide and there was a margin to bleed into. It is 8px rather than 7 because
 // it also absorbs the 1px edge the extension draws on this side.
-.reveal .qwebr-interactive-area .qwebr-editor {
+.reveal .qwebr-interactive-area .qwebr-editor,
+.reveal .qpyodide-interactive-area .qpyodide-editor {
   background-color: $nb-gutter-bg;
   // The extension draws its edges in #EEEEEE, a neutral grey, and against this
   // warm code ground a neutral hairline reads as blue. Worse, it draws TWO of
@@ -254,7 +258,8 @@ div.cell-output.cell-output-stderr > pre > code { background-color: $nb-out-bg; 
 // `display: contents` in the side-by-side layout, so its border is not painted
 // there at all, and removing the editor's instead would leave the two layouts
 // with different seams.
-.reveal .qwebr-interactive-area > .qwebr-console-area {
+.reveal .qwebr-interactive-area > .qwebr-console-area,
+.reveal .qpyodide-interactive-area > .qpyodide-console-area {
   border-color: $nb-rule;
   border-top: 0;
 }
@@ -272,9 +277,11 @@ div.cell-output.cell-output-stderr > pre > code { background-color: $nb-out-bg; 
 // rgb(203,214,217) against the cream ground. It is not a focus indicator, since
 // it is painted at all times, so nothing is lost by dropping it. Specificity
 // 0,3,0 beats Monaco's 0,1,0; no !important needed.
-.reveal .qwebr-interactive-area .monaco-editor { outline: none; }
+.reveal .qwebr-interactive-area .monaco-editor,
+.reveal .qpyodide-interactive-area .monaco-editor { outline: none; }
 
-.reveal .qwebr-interactive-area div.margin .line-numbers {
+.reveal .qwebr-interactive-area div.margin .line-numbers,
+.reveal .qpyodide-interactive-area div.margin .line-numbers {
   color: $nb-muted;
   // A line number is furniture, not text you would ever want to copy. Leaving it
   // selectable means dragging across the code takes the numbers with it.
@@ -298,6 +305,12 @@ div.cell-output.cell-output-stderr > pre > code { background-color: $nb-out-bg; 
   gap: 2px;
   width: max-content;
   max-width: 100%;
+  // A row too long for the slide wraps onto a second line of tabs. Without
+  // this, flex shrank every tab and broke each name across two lines inside
+  // one row ("Many / versions"), which the user found hard to read
+  // (2026-11-14). Paired with nowrap on the tab below.
+  flex-wrap: wrap;
+  row-gap: 4px;
 }
 
 // Padding is held at custom.scss's tight .15em/.55em rather than the roomier
@@ -319,6 +332,8 @@ div.cell-output.cell-output-stderr > pre > code { background-color: $nb-out-bg; 
   // tab draws that edge in rule grey (it is part of the box); the active one
   // draws it in paper and so punches a hole through it.
   margin-bottom: -1px;
+  // Each tab name stays on one line; the row wraps instead (see tablist).
+  white-space: nowrap;
 }
 
 .reveal .panel-tabset [role="tab"]:hover {
@@ -766,6 +781,24 @@ div.cell-output.cell-output-stderr > pre > code { background-color: $nb-out-bg; 
   .qwebr-output-code-area,
   .qwebr-output-graph-area { display: none; }
 }
+.reveal .qpyodide-interactive-area[data-webr-output-hidden="true"] {
+  .qpyodide-output-code-area,
+  .qpyodide-output-graph-area { display: none; }
+}
+
+// ---- Python cells (quarto-pyodide) -------------------------------------------
+// A Python cell says so in its toolbar, after the Run button, because the code
+// alone does not always tell the two languages apart (`round(3.14, 2)` is both).
+// It costs no height, which a label line above every cell would. Only Python
+// cells carry it, so no WebR cell in any course changes. See RULES.md.
+.reveal .qpyodide-editor-toolbar-left-buttons::after {
+  content: "Python";
+  align-self: center;
+  margin-left: 0.6rem;
+  color: #696969;
+  font-family: $nb-bar-font;
+  font-size: $nb-bar-size;
+}
 
 // The button wears the extension's own `.qwebr-button` class, so its size,
 // radius, background and hover highlight all come from qwebr-styling.css and it
@@ -863,7 +896,8 @@ div.cell-output.cell-output-stderr > pre > code { background-color: $nb-out-bg; 
 .reveal div.cell-output.cell-output-stderr > pre > code,
 .reveal .qwebr-output-code-stdout,
 .reveal .qwebr-output-code-stderr,
-.reveal div.qwebr-output-code-area pre { font-size: $nb-code-size; }
+.reveal div.qwebr-output-code-area pre,
+.reveal div.qpyodide-output-code-area pre { font-size: $nb-code-size; }
 
 // ---- figure height -----------------------------------------------------------
 // No figure may force a slide to scroll. The reveal slide is 700px; a title, a
@@ -899,7 +933,8 @@ div.cell-output.cell-output-stderr > pre > code { background-color: $nb-out-bg; 
 // webr-layout.html writes onto that cell's `.qwebr-interactive-area`. A value
 // set closer to the canvas wins, so cell beats slide beats this default.
 .reveal .cell-output-display img,
-.reveal .qwebr-output-graph-area canvas {
+.reveal .qwebr-output-graph-area canvas,
+.reveal .qpyodide-output-graph-area canvas {
   max-height: var(--webr-fig-max-height, 420px);
   object-fit: contain;
 }

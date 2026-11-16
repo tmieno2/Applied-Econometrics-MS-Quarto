@@ -563,6 +563,12 @@ Chapter 4 of Data Science with R shows what a student's own code produces, so
 its WebR cells use `webr-setup-ggplot-chapter.R` instead: ggplot's default
 theme, with only the size corrected for the 216 dpi canvas. Everywhere else, a
 plot that wants a different look names its theme explicitly and wins anyway.
+In that chapter the code on the slide is the lesson, so its sizes cannot be
+multiplied by hand. The setup block instead defines its own `element_text()`
+and its own copies of the pre-made themes (`theme_bw()`, `theme_economist()`
+and the rest), which apply `webr_scale` and then call the real ones. A
+pre-made theme that is not in the block's list still draws at a third of its
+size; add its name there.
 
 **Verify figures by looking at the rendered PNGs** under
 `docs/lectures/*/*_files/figure-revealjs/`, not by reading the source. Every
@@ -722,3 +728,47 @@ the property the whole design exists to preserve.
 Do not restyle the panel from `notebook.scss`. Its CSS is inline inside
 `transcript-support.html`, which Quarto injects after the theme stylesheet, so
 at equal specificity the inline block wins and rules written in the theme lose.
+
+## 9. Python cells (quarto-pyodide)
+
+A deck can run Python in the browser beside R, with the quarto-pyodide
+extension (`{pyodide-python}` cells, `filters: [webr, pyodide]` in the header).
+It is vendored in the course, not here: `Data-Science-with-R-AI` has it in
+`_extensions/coatless-quarto/pyodide/`, with its patches listed in
+`README-vendored.md` there. Those patches give its editor the same settings as
+the patched WebR editor of section 7 (code at 0.7 of the body text, the narrow
+line-number margin, no overview ruler, no height while hidden), show a last bare
+expression with Python's `repr()`, keep only the last line of an error's
+traceback, and load Monaco once when WebR has already loaded it.
+
+The extension builds the same page structure as WebR with the prefix
+`qpyodide-` instead of `qwebr-`, so the shared files style it by adding the
+`qpyodide-` selector beside the `qwebr-` one, never by changing a `qwebr-` rule.
+A course without Python cells is untouched.
+
+- `notebook.scss` and `custom.scss`: the output box, the figure edge and height
+  cap, the editor gutter and borders, the code size, the "hide output" rule, and
+  the full width. The figure edge keys off `:has(canvas)` rather than
+  `:not(:empty)`, because the extension always leaves an empty `<figure>` in the
+  graph area after a run.
+- `notebook.scss` also labels each Python cell "Python" in its toolbar, after the
+  Run button, as a `::after` on `.qpyodide-editor-toolbar-left-buttons`. The code
+  alone does not always tell the languages apart, and a label in the bar costs no
+  height where a line of text above every cell would.
+- `webr-layout.html` gives every Python cell the eye button of section 3 and
+  stamps it `data-webr-layout="stacked"`. **A Python cell is always stacked.**
+  The side-by-side decision reads WebR's own cell details and the render-time
+  measurements of `measure-webr-output.R`, and neither exists for Python. When R
+  and Python are compared, put the two cells in a two-column `.columns` block,
+  where an R cell is stacked too, so the pair matches.
+
+Three things the extension does not do, measured on Pyodide 0.27.2:
+
+1. **No setup cell.** `context: setup`, `context: output` and `autorun` are
+   ignored, and so is the header's `pyodide: packages:` list. Each Python cell
+   must import and create what it uses. Packages that ship with Pyodide (pandas,
+   numpy, matplotlib) are loaded from the cell's own `import` lines.
+2. **Only `read-only`, `classes`, `label` and `fig-cap` are read** from a
+   cell's `#|` options; `layout`, `code-track` and `fig-max-height` do nothing.
+3. **Python runs on the page's main thread**, so a slow cell freezes the slide
+   while it runs. Keep the cells small.
